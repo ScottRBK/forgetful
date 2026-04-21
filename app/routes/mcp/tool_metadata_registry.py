@@ -1716,14 +1716,14 @@ def register_task_tools_metadata(
             "parameters": [
                 {"name": "plan_id", "type": "int", "description": "Plan to query tasks from", "required": True, "example": 1},
                 {"name": "ctx", "type": "Context", "description": "FastMCP Context (automatically injected)", "required": True},
-                {"name": "state", "type": "Optional[str]", "description": "Filter by task state (open, in_progress, blocked, done, cancelled)", "required": False, "default": None, "example": "open"},
+                {"name": "state", "type": "Optional[str]", "description": "Filter by task state (todo, doing, waiting, done, cancelled)", "required": False, "default": None, "example": "todo"},
                 {"name": "priority", "type": "Optional[str]", "description": "Filter by priority (P0, P1, P2, P3)", "required": False, "default": None, "example": "P1"},
                 {"name": "assigned_agent", "type": "Optional[str]", "description": "Filter by assigned agent", "required": False, "default": None, "example": "agent-123"},
             ],
             "returns": "Dictionary with tasks list and total_count",
             "examples": [
                 'execute_forgetful_tool("query_tasks", {"plan_id": 1})',
-                'execute_forgetful_tool("query_tasks", {"plan_id": 1, "state": "open", "priority": "P0"})',
+                'execute_forgetful_tool("query_tasks", {"plan_id": 1, "state": "todo", "priority": "P0"})',
             ],
             "tags": ["task", "query", "list"],
         },
@@ -1749,7 +1749,7 @@ def register_task_tools_metadata(
             "description": "Transition task to a new state with optimistic concurrency control",
             "parameters": [
                 {"name": "task_id", "type": "int", "description": "ID of the task to transition", "required": True, "example": 1},
-                {"name": "state", "type": "str", "description": "Target state (open, in_progress, blocked, done, cancelled)", "required": True, "example": "done"},
+                {"name": "state", "type": "str", "description": "Target state (todo, doing, waiting, done, cancelled)", "required": True, "example": "done"},
                 {"name": "version", "type": "int", "description": "Expected task version for optimistic locking", "required": True, "example": 2},
                 {"name": "ctx", "type": "Context", "description": "FastMCP Context (automatically injected)", "required": True},
             ],

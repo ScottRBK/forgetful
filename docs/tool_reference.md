@@ -1504,7 +1504,26 @@ active_plans = execute_forgetful_tool(
 Manage tasks within plans, including acceptance criteria, dependencies, and agent assignment with optimistic locking.
 
 ### Task States
-Tasks follow a lifecycle: `pending` -> `in_progress` -> `completed` (or `blocked`, `cancelled`)
+
+Tasks follow a lifecycle defined by `TaskState` (see `app/models/plan_models.py`):
+
+- `todo` (default) — not started
+- `doing` — in progress
+- `waiting` — blocked / awaiting external input
+- `done` — completed
+- `cancelled` — will not be completed
+
+**Valid transitions** (enforced by `VALID_TASK_TRANSITIONS`):
+
+| From → To | Allowed |
+|---|---|
+| `todo` → | `doing`, `waiting`, `cancelled` |
+| `doing` → | `done`, `waiting`, `todo`, `cancelled` |
+| `waiting` → | `todo`, `doing`, `cancelled` |
+| `done` → | `todo` (reopen only) |
+| `cancelled` → | `todo` (reinstate only) |
+
+Any other transition is rejected by `transition_task` with a validation error.
 
 ### Task Priorities
 - `P0` - Critical
@@ -1605,12 +1624,12 @@ Query tasks within a plan with optional filtering.
 
 **Example:**
 ```python
-# Find all pending P0/P1 tasks assigned to an agent
+# Find all todo P0/P1 tasks assigned to an agent
 critical_tasks = execute_forgetful_tool(
     "query_tasks",
     {
         "plan_id": 5,
-        "state": "pending",
+        "state": "todo",
         "priority": "P1",
         "assigned_agent": "backend-agent"
     }
@@ -1659,24 +1678,24 @@ Transition a task to a new state. Uses optimistic locking to prevent conflicting
 
 **Example:**
 ```python
-# Move task to in_progress
+# Move task from todo to doing
 task = execute_forgetful_tool("get_task", {"task_id": 25})
 execute_forgetful_tool(
     "transition_task",
     {
         "task_id": 25,
-        "state": "in_progress",
+        "state": "doing",
         "version": task["version"]
     }
 )
 
-# Later, mark as completed
+# Later, mark as done
 task = execute_forgetful_tool("get_task", {"task_id": 25})
 execute_forgetful_tool(
     "transition_task",
     {
         "task_id": 25,
-        "state": "completed",
+        "state": "done",
         "version": task["version"]
     }
 )
