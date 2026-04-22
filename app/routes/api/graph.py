@@ -10,6 +10,7 @@ from fastmcp import FastMCP
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
+from app.config.settings import settings
 from app.exceptions import NotFoundError
 from app.middleware.auth import get_user_from_request
 
@@ -32,7 +33,8 @@ def register(mcp: FastMCP):
             node_types: Comma-separated list of node types to include
                        (default: memory,entity,project,document,code_artifact)
             include_entities: Legacy param, deprecated in favor of node_types
-            limit: Max memories to include (default 100, max 500)
+            limit: Max memories to include (default 100, max configurable via
+                   MAX_GRAPH_LIMIT setting / env var, defaults to 2000)
             offset: Number of memories to skip for pagination (default 0)
             sort_by: Sort field - created_at, updated_at, importance (default created_at)
             sort_order: Sort direction - asc, desc (default desc)
@@ -74,9 +76,9 @@ def register(mcp: FastMCP):
             include_documents = True
             include_code_artifacts = True
 
-        # Validate limit parameter
+        # Validate limit parameter (cap at configurable MAX_GRAPH_LIMIT, see issue #23)
         try:
-            limit = min(int(limit_str), 500)
+            limit = min(int(limit_str), settings.MAX_GRAPH_LIMIT)
         except ValueError:
             return JSONResponse(
                 {"error": f"Invalid limit: {limit_str}. Must be an integer."},
@@ -659,7 +661,8 @@ def register(mcp: FastMCP):
             node_id: Center node in format "memory_{id}", "entity_{id}", "project_{id}", "document_{id}", or "code_artifact_{id}" (required)
             depth: Traversal depth 1-3 (default 2)
             node_types: Comma-separated list of types to include (default: "memory,entity,project,document,code_artifact")
-            max_nodes: Safety limit (default 200, max 500)
+            max_nodes: Safety limit (default 200, max configurable via
+                       MAX_GRAPH_LIMIT setting / env var, defaults to 2000)
 
         Returns:
             nodes: List with depth field on each node

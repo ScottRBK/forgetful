@@ -753,6 +753,16 @@ Activity tracking provides an audit log of all entity lifecycle events (created,
 - **Note**: Increase for high-throughput scenarios where bulk operations are common
 - **Example**: `SSE_MAX_QUEUE_SIZE=2000`
 
+### Graph Visualization Configuration
+
+#### `MAX_GRAPH_LIMIT`
+- **Default**: `2000`
+- **Description**: Upper bound for the `?limit` query parameter on `/api/v1/graph` and the `?max_nodes` query parameter on `/api/v1/graph/subgraph` (enforced in `GraphService.get_subgraph`)
+- **Purpose**: Safety cap that prevents clients from requesting an unbounded number of nodes in a single response, while staying configurable for larger knowledge graphs (see issue #23)
+- **Behavior**: Any client-provided value above this cap is silently clamped; values at or below are passed through unchanged. A value of `0` is clamped up to `1` for `/graph/subgraph`.
+- **Note**: Before this setting was introduced the cap was hardcoded to `500`, which excluded older memories from the full graph visualization on larger knowledge bases.
+- **Example**: `MAX_GRAPH_LIMIT=5000`
+
 ### Example Configuration
 
 ```bash

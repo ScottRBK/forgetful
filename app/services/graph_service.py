@@ -10,6 +10,7 @@ from typing import Any, Protocol
 from uuid import UUID
 
 from app.config.logging_config import logging
+from app.config.settings import settings
 from app.exceptions import NotFoundError
 from app.models.graph_models import (
     SubgraphEdge,
@@ -133,7 +134,8 @@ class GraphService:
             depth: Traversal depth 1-3 (default 2, clamped)
             node_types: Filter to any combination of ['memory', 'entity', 'project',
                        'document', 'code_artifact'] (default: all 5 types)
-            max_nodes: Safety limit (default 200, max 500)
+            max_nodes: Safety limit (default 200, max configurable via
+                       MAX_GRAPH_LIMIT setting / env var, defaults to 2000)
 
         Returns:
             SubgraphResponse with nodes, edges, and metadata
@@ -148,9 +150,9 @@ class GraphService:
         # Validate center node exists
         await self._validate_center_node(user_id, center_type, center_id)
 
-        # Clamp parameters
+        # Clamp parameters (max_nodes cap is configurable via MAX_GRAPH_LIMIT, see issue #23)
         depth = max(1, min(depth, 3))
-        max_nodes = max(1, min(max_nodes, 500))
+        max_nodes = max(1, min(max_nodes, settings.MAX_GRAPH_LIMIT))
 
         # Determine which node types to include (default: all types)
         if node_types is None:

@@ -352,6 +352,7 @@ For deep dive on search architecture (dense → sparse → RRF → cross-encoder
 - `EMBEDDING_MODEL` – Embedding model (default: `BAAI/bge-small-en-v1.5`)
 - `MEMORY_NUM_AUTO_LINK` – Auto-link count (default: `3`, set `0` to disable)
 - `SERVER_PORT` – HTTP server port (default: `8020`)
+- `MAX_GRAPH_LIMIT` – Upper bound for `/api/v1/graph` `?limit` and `/api/v1/graph/subgraph` `?max_nodes` (default: `2000`)
 
 For all 40+ environment variables with detailed explanations, see [Configuration Guide](docs/configuration.md).
 
