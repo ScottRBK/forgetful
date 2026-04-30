@@ -9,6 +9,8 @@ Requires:
 """
 import pytest
 
+from app.config.settings import settings
+
 pytestmark = pytest.mark.asyncio(loop_scope="session")
 
 
@@ -563,6 +565,17 @@ async def test_graph_pagination_metadata(http_client):
     assert meta["limit"] == 2
     assert meta["total_memory_count"] >= 5
     assert meta["has_more"] is True  # We have more than 2 memories
+
+
+@pytest.mark.e2e
+async def test_graph_respects_max_graph_limit_setting(http_client, monkeypatch):
+    """GET /api/v1/graph clamps the requested limit to settings.MAX_GRAPH_LIMIT."""
+    monkeypatch.setattr(settings, "MAX_GRAPH_LIMIT", 50)
+
+    response = await http_client.get("/api/v1/graph?limit=99999")
+    assert response.status_code == 200
+    meta = response.json()["meta"]
+    assert meta["limit"] == 50
 
 
 @pytest.mark.e2e
