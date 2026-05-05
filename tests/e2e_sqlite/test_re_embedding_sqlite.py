@@ -21,7 +21,8 @@ def embedding_adapter():
     """Module-scoped embedding adapter (expensive to load).
 
     Forces FastEmbed-compatible model regardless of env config (e.g. docker/.env
-    may set EMBEDDING_MODEL to an OpenAI model).
+    may set EMBEDDING_MODEL to an OpenAI model). Skips the whole module when
+    the model cannot be downloaded (offline runners).
     """
     original_model = settings.EMBEDDING_MODEL
     original_dims = settings.EMBEDDING_DIMENSIONS
@@ -29,6 +30,8 @@ def embedding_adapter():
     settings.EMBEDDING_DIMENSIONS = 384
     try:
         return FastEmbeddingAdapter()
+    except Exception as exc:  # noqa: BLE001 - HF/httpx network errors vary
+        pytest.skip(f"FastEmbed model unavailable (offline?): {exc}")
     finally:
         settings.EMBEDDING_MODEL = original_model
         settings.EMBEDDING_DIMENSIONS = original_dims
@@ -220,3 +223,117 @@ async def test_re_embed_validation_checks(sqlite_repo, embedding_adapter):
     assert result.validation.dimensions_ok
     assert result.validation.search_ok
     assert result.validation.all_passed
+
+
+# ---------------------------------------------------------------------------
+# rebuild_targeted (issue #39) — user-scoped, non-destructive rebuild
+# ---------------------------------------------------------------------------
+
+
+async def _count_vec_memories(db_adapter) -> int:
+    async with db_adapter.system_session() as session:
+        result = await session.execute(text("SELECT COUNT(*) FROM vec_memories"))
+        return result.scalar() or 0
+
+
+@pytest.mark.asyncio
+async def test_rebuild_targeted_only_missing_repairs_gap(
+    sqlite_repo, embedding_adapter,
+):
+    """Delete one vec row, then rebuild with only_missing=True repairs only that gap."""
+    repo, db_adapter = sqlite_repo
+    user_id, memories = await _create_test_memories(repo, db_adapter, count=3)
+
+    # Manually drop the vec row of the second memory to simulate stale storage.
+    target = memories[1]
+    async with db_adapter.system_session() as session:
+        await session.execute(
+            text("DELETE FROM vec_memories WHERE memory_id = :memory_id"),
+            {"memory_id": str(target.id)},
+        )
+
+    assert await _count_vec_memories(db_adapter) == 2
+
+    service = ReEmbeddingService(
+        memory_repository=repo,
+        embedding_adapter=embedding_adapter,
+        batch_size=10,
+    )
+    result = await service.rebuild_targeted(
+        user_id=user_id,
+        only_missing=True,
+    )
+
+    assert result.total_candidates == 1
+    assert result.rebuilt_ids == [target.id]
+    assert result.failed == []
+    assert await _count_vec_memories(db_adapter) == 3
+
+
+@pytest.mark.asyncio
+async def test_rebuild_targeted_is_user_scoped(
+    sqlite_repo, embedding_adapter,
+):
+    """A user can never trigger a rebuild on another user's memories."""
+    repo, db_adapter = sqlite_repo
+    user_a, memories_a = await _create_test_memories(repo, db_adapter, count=2)
+    user_b, memories_b = await _create_test_memories(repo, db_adapter, count=2)
+
+    # Drop a vec row for user A's memory; user B should not be able to rebuild it.
+    target = memories_a[0]
+    async with db_adapter.system_session() as session:
+        await session.execute(
+            text("DELETE FROM vec_memories WHERE memory_id = :memory_id"),
+            {"memory_id": str(target.id)},
+        )
+
+    service = ReEmbeddingService(
+        memory_repository=repo,
+        embedding_adapter=embedding_adapter,
+        batch_size=10,
+    )
+    # User B passes A's id explicitly: candidate count must be zero.
+    result_b = await service.rebuild_targeted(
+        user_id=user_b,
+        memory_ids=[target.id],
+        only_missing=True,
+    )
+
+    assert result_b.total_candidates == 0
+    assert result_b.rebuilt_ids == []
+
+    # User A can repair their own memory.
+    result_a = await service.rebuild_targeted(
+        user_id=user_a,
+        only_missing=True,
+    )
+    assert result_a.rebuilt_ids == [target.id]
+
+
+@pytest.mark.asyncio
+async def test_rebuild_targeted_does_not_call_reset(
+    sqlite_repo, embedding_adapter, monkeypatch,
+):
+    """Targeted rebuild must never invoke reset_embedding_storage."""
+    repo, db_adapter = sqlite_repo
+    user_id, memories = await _create_test_memories(repo, db_adapter, count=2)
+
+    reset_calls = {"n": 0}
+    original_reset = repo.reset_embedding_storage
+
+    async def patched_reset():
+        reset_calls["n"] += 1
+        await original_reset()
+
+    monkeypatch.setattr(repo, "reset_embedding_storage", patched_reset)
+
+    service = ReEmbeddingService(
+        memory_repository=repo,
+        embedding_adapter=embedding_adapter,
+        batch_size=5,
+    )
+    await service.rebuild_targeted(user_id=user_id, only_missing=False)
+
+    assert reset_calls["n"] == 0
+    # Vec storage retained for both memories
+    assert await _count_vec_memories(db_adapter) == 2

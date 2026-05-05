@@ -183,6 +183,69 @@ class MemoryRepository(Protocol):
         """Fetch memories in batches for re-embedding (all users, ordered by id)"""
         ...
 
+    async def count_memories_for_targeted_rebuild(
+            self,
+            user_id: UUID,
+            memory_ids: list[int] | None = None,
+            project_id: int | None = None,
+            only_missing: bool = True,
+    ) -> int:
+        """Count memories eligible for a *user-scoped, targeted* embedding rebuild.
+
+        Used by `rebuild_embeddings` to avoid the destructive global
+        `re_embed_all` path. Filters are AND-combined; user_id is mandatory and
+        scopes ownership.
+
+        Args:
+            user_id: Authenticated user id; ownership filter, never optional.
+            memory_ids: Restrict to explicit ids (already user-scoped server-side).
+            project_id: Restrict to a single project owned by `user_id`.
+            only_missing: If True, only memories whose embedding is missing or
+                stale are counted; if False, every matching memory is rebuilt.
+
+        Returns:
+            Number of non-obsolete memories matching the filters and owned by
+            `user_id`.
+        """
+        ...
+
+    async def get_memories_for_targeted_rebuild(
+            self,
+            user_id: UUID,
+            limit: int,
+            offset: int,
+            memory_ids: list[int] | None = None,
+            project_id: int | None = None,
+            only_missing: bool = True,
+    ) -> list[Memory]:
+        """Page through memories selected by `count_memories_for_targeted_rebuild`.
+
+        Same semantics and same filters as the count variant. Always sorted by
+        memory id ascending so callers can paginate deterministically.
+        """
+        ...
+
+    async def upsert_targeted_embeddings(
+            self,
+            user_id: UUID,
+            updates: list[tuple[int, list[float]]],
+    ) -> list[int]:
+        """Idempotently write a batch of new embeddings for `user_id`.
+
+        Unlike `bulk_update_embeddings`, this method:
+        - is user-scoped (rejects ids not owned by `user_id`),
+        - never resets vector storage,
+        - is idempotent for repeated calls on the same memory id.
+
+        Args:
+            user_id: Authenticated user id; ownership filter, never optional.
+            updates: list of (memory_id, embedding) tuples.
+
+        Returns:
+            list of memory ids whose embedding was actually written.
+        """
+        ...
+
     async def reset_embedding_storage(self) -> None:
         """Prepare vector storage for new dimensions.
         SQLite: DROP + CREATE vec_memories with new dimensions

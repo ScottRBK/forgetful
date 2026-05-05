@@ -673,3 +673,81 @@ def register(mcp: FastMCP):
                 "error_message": str(e),
             })
             raise ToolError(f"INTERNAL_ERROR: Marking memory obsolete failed - {type(e).__name__}: {e!s}")
+
+    @mcp.tool()
+    async def rebuild_embeddings(
+        ctx: Context,
+        memory_ids: list[int] | None = None,
+        project_id: int | None = None,
+        only_missing: bool = True,
+    ) -> dict:
+        """Rebuild embeddings for a user-scoped subset of memories (issue #39).
+
+        WHEN: A small set of memories has missing or stale embeddings (for
+        example after a crash mid-create or a partial migration), or you want
+        to force-refresh a project without running the destructive global
+        --re-embed CLI.
+
+        BEHAVIOR: Re-runs the configured embedding pipeline on memories owned
+        by the authenticated user, scoped by `memory_ids`, `project_id`, and/or
+        `only_missing`. Never resets vector storage. Returns a structured
+        result so the caller can act on partial success.
+
+        NOT-USE: Switching embedding providers/dimensions across the whole
+        corpus - use the offline `--re-embed` CLI for that destructive
+        migration.
+
+        Args:
+            memory_ids: Explicit ids to rebuild (already user-scoped server-side).
+            project_id: Restrict to a single project owned by the caller.
+            only_missing: When True (default), only rebuild memories whose
+                embedding is missing/stale; when False, rebuild every matching
+                memory.
+
+        Returns:
+            Dict with keys: total_candidates (int), rebuilt_ids (list[int]),
+            skipped_ids (list[int]), failed (list of {memory_id, reason}).
+        """
+        try:
+            logger.info("MCP Tool -> rebuild_embeddings", extra={
+                "memory_ids": memory_ids,
+                "project_id": project_id,
+                "only_missing": only_missing,
+            })
+
+            user = await get_user_from_auth(ctx)
+            memory_service = ctx.fastmcp.memory_service
+            repo = memory_service.memory_repo
+
+            # Lazy import to avoid pulling re-embedding dependencies in modules
+            # that only need read-only memory access.
+            from app.services.re_embedding_service import ReEmbeddingService
+
+            service = ReEmbeddingService(
+                memory_repository=repo,
+                embedding_adapter=repo.embedding_adapter,
+            )
+            result = await service.rebuild_targeted(
+                user_id=user.id,
+                memory_ids=memory_ids,
+                project_id=project_id,
+                only_missing=only_missing,
+            )
+            return {
+                "total_candidates": result.total_candidates,
+                "rebuilt_ids": result.rebuilt_ids,
+                "skipped_ids": result.skipped_ids,
+                "failed": result.failed,
+            }
+        except ValidationError as e:
+            logger.debug("MCP Tool - rebuild_embeddings validation error", extra={
+                "error_type": "ValidationError",
+                "error_message": str(e),
+            })
+            raise ToolError(f"VALIDATION_ERROR: {e!s}")
+        except Exception as e:
+            logger.error("MCP Tool -> rebuild_embeddings failed", exc_info=True, extra={
+                "error_type": type(e).__name__,
+                "error_message": str(e),
+            })
+            raise ToolError(f"INTERNAL_ERROR: Rebuilding embeddings failed - {type(e).__name__}: {e!s}")

@@ -964,6 +964,117 @@ class PostgresMemoryRepository:
                     .values(embedding=embedding),
                 )
 
+    # ---- Targeted (user-scoped) rebuild support, never resets vec storage ----
+
+    def _build_targeted_rebuild_filter(
+        self,
+        user_id: UUID,
+        memory_ids: list[int] | None,
+        project_id: int | None,
+        only_missing: bool,
+    ):
+        conditions = [
+            MemoryTable.user_id == str(user_id),
+            MemoryTable.is_obsolete.is_(False),
+        ]
+        if memory_ids:
+            conditions.append(MemoryTable.id.in_(memory_ids))
+        stmt = select(MemoryTable).where(*conditions)
+        if project_id is not None:
+            stmt = stmt.join(MemoryTable.projects).where(
+                ProjectsTable.id == project_id,
+                ProjectsTable.user_id == str(user_id),
+            )
+        if only_missing:
+            stmt = stmt.where(MemoryTable.embedding.is_(None))
+        return stmt
+
+    async def count_memories_for_targeted_rebuild(
+        self,
+        user_id: UUID,
+        memory_ids: list[int] | None = None,
+        project_id: int | None = None,
+        only_missing: bool = True,
+    ) -> int:
+        from sqlalchemy import func
+        async with self.db_adapter.system_session() as session:
+            base = self._build_targeted_rebuild_filter(
+                user_id=user_id,
+                memory_ids=memory_ids,
+                project_id=project_id,
+                only_missing=only_missing,
+            )
+            count_stmt = select(func.count()).select_from(base.subquery())
+            return (await session.execute(count_stmt)).scalar() or 0
+
+    async def get_memories_for_targeted_rebuild(
+        self,
+        user_id: UUID,
+        limit: int,
+        offset: int,
+        memory_ids: list[int] | None = None,
+        project_id: int | None = None,
+        only_missing: bool = True,
+    ) -> list[Memory]:
+        async with self.db_adapter.system_session() as session:
+            stmt = (
+                self._build_targeted_rebuild_filter(
+                    user_id=user_id,
+                    memory_ids=memory_ids,
+                    project_id=project_id,
+                    only_missing=only_missing,
+                )
+                .options(
+                    selectinload(MemoryTable.projects),
+                    selectinload(MemoryTable.linked_memories),
+                    selectinload(MemoryTable.linking_memories),
+                    selectinload(MemoryTable.code_artifacts),
+                    selectinload(MemoryTable.documents),
+                    selectinload(MemoryTable.files),
+                )
+                .order_by(MemoryTable.id.asc())
+                .offset(offset)
+                .limit(limit)
+            )
+            result = await session.execute(stmt)
+            memories_orm = result.scalars().unique().all()
+            return [Memory.model_validate(m) for m in memories_orm]
+
+    async def upsert_targeted_embeddings(
+        self,
+        user_id: UUID,
+        updates: list[tuple[int, list[float]]],
+    ) -> list[int]:
+        """Idempotently set embeddings for memories owned by `user_id`.
+
+        Postgres stores embeddings inline on `memories.embedding`, so an UPDATE
+        is naturally idempotent. We still verify ownership server-side instead
+        of trusting the input list.
+        """
+        if not updates:
+            return []
+        ids = [mid for mid, _ in updates]
+        async with self.db_adapter.system_session() as session:
+            owned_rows = await session.execute(
+                select(MemoryTable.id).where(
+                    MemoryTable.user_id == str(user_id),
+                    MemoryTable.is_obsolete.is_(False),
+                    MemoryTable.id.in_(ids),
+                ),
+            )
+            owned_ids = {row[0] for row in owned_rows}
+            written: list[int] = []
+            for memory_id, embedding in updates:
+                if memory_id not in owned_ids:
+                    continue
+                await session.execute(
+                    update(MemoryTable)
+                    .where(MemoryTable.id == memory_id)
+                    .values(embedding=embedding),
+                )
+                written.append(memory_id)
+            return written
+
     async def validate_embedding_count(self) -> bool:
         """Check embedding count matches non-obsolete memory count"""
         from sqlalchemy import func

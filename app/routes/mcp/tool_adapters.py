@@ -47,6 +47,7 @@ from app.services.document_service import DocumentService
 from app.services.entity_service import EntityService
 from app.services.memory_service import MemoryService
 from app.services.project_service import ProjectService
+from app.services.re_embedding_service import ReEmbeddingService
 from app.services.user_service import UserService
 from app.utils.pydantic_helper import filter_none_values
 
@@ -107,6 +108,18 @@ class MemoryToolAdapters:
     def __init__(self, memory_service: MemoryService, user_service: UserService):
         self.memory_service = memory_service
         self.user_service = user_service
+
+    def _build_re_embedding_service(self) -> ReEmbeddingService:
+        """Build a ReEmbeddingService bound to the current memory repository.
+
+        Lazy-built per-call so we always pick up the current embedding adapter
+        and avoid keeping process-wide migration state in this thin adapter.
+        """
+        repo = self.memory_service.memory_repo
+        return ReEmbeddingService(
+            memory_repository=repo,
+            embedding_adapter=repo.embedding_adapter,
+        )
 
     async def create_memory(
         self,
@@ -420,6 +433,49 @@ class MemoryToolAdapters:
 
         return memories
 
+    async def rebuild_embeddings(
+        self,
+        ctx: Context,
+        memory_ids: list[int] | None = None,
+        project_id: int | None = None,
+        only_missing: bool = True,
+    ) -> dict[str, Any]:
+        """Adapter for `rebuild_embeddings` MCP tool (issue #39).
+
+        Re-runs the embedding pipeline on a *user-scoped* subset of memories
+        without ever resetting global vector storage. Designed to recover
+        memories whose embedding is missing or stale, or to fix a small set
+        of explicit ids, instead of forcing the destructive `--re-embed`
+        full-migration path used by `re_embed_all`.
+
+        Returns a structured result so callers can act on partial success:
+        `total_candidates`, `rebuilt_ids`, `skipped_ids`, `failed`.
+        """
+        logger.info(
+            "MCP Tool -> rebuild_embeddings",
+            extra={
+                "memory_ids": memory_ids,
+                "project_id": project_id,
+                "only_missing": only_missing,
+            },
+        )
+
+        user = await get_user_from_auth(ctx)
+
+        service = self._build_re_embedding_service()
+        result = await service.rebuild_targeted(
+            user_id=user.id,
+            memory_ids=memory_ids,
+            project_id=project_id,
+            only_missing=only_missing,
+        )
+        return {
+            "total_candidates": result.total_candidates,
+            "rebuilt_ids": result.rebuilt_ids,
+            "skipped_ids": result.skipped_ids,
+            "failed": result.failed,
+        }
+
 
 def create_memory_adapters(
     memory_service: MemoryService, user_service: UserService,
@@ -435,6 +491,7 @@ def create_memory_adapters(
         "get_memory": adapters.get_memory,
         "mark_memory_obsolete": adapters.mark_memory_obsolete,
         "get_recent_memories": adapters.get_recent_memories,
+        "rebuild_embeddings": adapters.rebuild_embeddings,
     }
 
 

@@ -1,0 +1,213 @@
+"""Integration tests for targeted rebuild on a real (in-memory) SQLite stack.
+
+Unlike `tests/e2e_sqlite/test_re_embedding_sqlite.py`, this module never
+downloads a FastEmbed model; it runs offline using a deterministic mock
+embedding adapter so CI and offline laptops can exercise the persistence
+layer of the new `rebuild_embeddings` MCP tool (issue #39).
+"""
+import hashlib
+import random
+from datetime import UTC, datetime
+from uuid import uuid4
+
+import pytest
+from sqlalchemy import text
+
+from app.config.settings import settings
+from app.models.memory_models import MemoryCreate
+from app.repositories.sqlite.memory_repository import SqliteMemoryRepository
+from app.repositories.sqlite.sqlite_adapter import SqliteDatabaseAdapter
+from app.services.re_embedding_service import ReEmbeddingService
+
+
+class StaticEmbeddingAdapter:
+    """Deterministic, fully offline embedding adapter for SQLite-vec tests."""
+
+    def __init__(self, dimensions: int = 384):
+        self.dimensions = dimensions
+
+    async def generate_embedding(self, text: str) -> list[float]:
+        seed = int(hashlib.md5(text.encode()).hexdigest()[:8], 16)
+        rng = random.Random(seed)
+        vec = [rng.random() for _ in range(self.dimensions)]
+        magnitude = sum(x * x for x in vec) ** 0.5 or 1.0
+        return [x / magnitude for x in vec]
+
+
+@pytest.fixture
+async def sqlite_repo():
+    original_sqlite_memory = settings.SQLITE_MEMORY
+    original_database = settings.DATABASE
+    original_dims = settings.EMBEDDING_DIMENSIONS
+
+    settings.DATABASE = "SQLite"
+    settings.SQLITE_MEMORY = True
+    settings.EMBEDDING_DIMENSIONS = 384
+
+    db_adapter = SqliteDatabaseAdapter()
+    await db_adapter.init_db()
+
+    embedding_adapter = StaticEmbeddingAdapter(dimensions=384)
+    repo = SqliteMemoryRepository(
+        db_adapter=db_adapter,
+        embedding_adapter=embedding_adapter,
+        rerank_adapter=None,
+    )
+
+    try:
+        yield repo, db_adapter, embedding_adapter
+    finally:
+        try:
+            await db_adapter.dispose()
+        except Exception:  # noqa: BLE001
+            pass
+        settings.DATABASE = original_database
+        settings.SQLITE_MEMORY = original_sqlite_memory
+        settings.EMBEDDING_DIMENSIONS = original_dims
+
+
+async def _create_user(db_adapter, user_id):
+    now = datetime.now(UTC).isoformat()
+    async with db_adapter.system_session() as session:
+        await session.execute(
+            text(
+                "INSERT INTO users (id, external_id, name, email, created_at, updated_at) "
+                "VALUES (:id, :external_id, :name, :email, :created_at, :updated_at)",
+            ),
+            {
+                "id": str(user_id),
+                "external_id": f"ext-{user_id}",
+                "name": "Test User",
+                "email": "test@example.com",
+                "created_at": now,
+                "updated_at": now,
+            },
+        )
+
+
+async def _seed_memories(repo, db_adapter, count=3):
+    user_id = uuid4()
+    await _create_user(db_adapter, user_id)
+    memories = []
+    for i in range(count):
+        memory = await repo.create_memory(
+            user_id=user_id,
+            memory=MemoryCreate(
+                title=f"M{i}",
+                content=f"content {i}",
+                context=f"ctx {i}",
+                keywords=[f"k{i}"],
+                tags=[f"t{i}"],
+                importance=5,
+            ),
+        )
+        memories.append(memory)
+    return user_id, memories
+
+
+async def _vec_count(db_adapter) -> int:
+    async with db_adapter.system_session() as session:
+        return (await session.execute(text("SELECT COUNT(*) FROM vec_memories"))).scalar() or 0
+
+
+@pytest.mark.asyncio
+async def test_rebuild_targeted_only_missing_repairs_gap(sqlite_repo):
+    repo, db_adapter, embedding_adapter = sqlite_repo
+    user_id, memories = await _seed_memories(repo, db_adapter, count=3)
+
+    target = memories[1]
+    async with db_adapter.system_session() as session:
+        await session.execute(
+            text("DELETE FROM vec_memories WHERE memory_id = :memory_id"),
+            {"memory_id": str(target.id)},
+        )
+    assert await _vec_count(db_adapter) == 2
+
+    service = ReEmbeddingService(
+        memory_repository=repo,
+        embedding_adapter=embedding_adapter,
+        batch_size=10,
+    )
+    result = await service.rebuild_targeted(user_id=user_id, only_missing=True)
+
+    assert result.total_candidates == 1
+    assert result.rebuilt_ids == [target.id]
+    assert result.failed == []
+    assert await _vec_count(db_adapter) == 3
+
+
+@pytest.mark.asyncio
+async def test_rebuild_targeted_is_user_scoped(sqlite_repo):
+    repo, db_adapter, embedding_adapter = sqlite_repo
+    user_a, memories_a = await _seed_memories(repo, db_adapter, count=2)
+    user_b, _memories_b = await _seed_memories(repo, db_adapter, count=2)
+
+    target = memories_a[0]
+    async with db_adapter.system_session() as session:
+        await session.execute(
+            text("DELETE FROM vec_memories WHERE memory_id = :memory_id"),
+            {"memory_id": str(target.id)},
+        )
+
+    service = ReEmbeddingService(
+        memory_repository=repo,
+        embedding_adapter=embedding_adapter,
+        batch_size=10,
+    )
+
+    result_b = await service.rebuild_targeted(
+        user_id=user_b,
+        memory_ids=[target.id],
+        only_missing=True,
+    )
+    assert result_b.total_candidates == 0
+    assert result_b.rebuilt_ids == []
+
+    result_a = await service.rebuild_targeted(user_id=user_a, only_missing=True)
+    assert result_a.rebuilt_ids == [target.id]
+
+
+@pytest.mark.asyncio
+async def test_rebuild_targeted_does_not_call_reset(sqlite_repo, monkeypatch):
+    repo, db_adapter, embedding_adapter = sqlite_repo
+    user_id, _memories = await _seed_memories(repo, db_adapter, count=2)
+
+    reset_calls = {"n": 0}
+    original_reset = repo.reset_embedding_storage
+
+    async def patched_reset():
+        reset_calls["n"] += 1
+        await original_reset()
+
+    monkeypatch.setattr(repo, "reset_embedding_storage", patched_reset)
+
+    service = ReEmbeddingService(
+        memory_repository=repo,
+        embedding_adapter=embedding_adapter,
+        batch_size=5,
+    )
+    await service.rebuild_targeted(user_id=user_id, only_missing=False)
+
+    assert reset_calls["n"] == 0
+    assert await _vec_count(db_adapter) == 2
+
+
+@pytest.mark.asyncio
+async def test_upsert_targeted_embeddings_rejects_unowned_ids(sqlite_repo):
+    repo, db_adapter, embedding_adapter = sqlite_repo
+    user_a, memories_a = await _seed_memories(repo, db_adapter, count=1)
+    user_b, memories_b = await _seed_memories(repo, db_adapter, count=1)
+
+    fake_vector = await embedding_adapter.generate_embedding("anything")
+
+    written = await repo.upsert_targeted_embeddings(
+        user_id=user_a,
+        updates=[(memories_b[0].id, fake_vector)],
+    )
+    assert written == []
+
+    written = await repo.upsert_targeted_embeddings(
+        user_id=user_a,
+        updates=[(memories_a[0].id, fake_vector)],
+    )
+    assert written == [memories_a[0].id]

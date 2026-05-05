@@ -202,3 +202,119 @@ async def test_re_embed_validation_failure():
     assert result.validation.dimensions_ok
     assert result.validation.search_ok
     assert not result.validation.all_passed
+
+
+# ---------------------------------------------------------------------------
+# rebuild_targeted (issue #39) — user-scoped, non-destructive rebuild
+# ---------------------------------------------------------------------------
+
+
+def _make_targeted_repo(memories: list[Memory], owned_by_user: bool = True):
+    """Mock repo wired for rebuild_targeted (no reset, user-scoped upsert)."""
+    repo = AsyncMock()
+    repo.count_memories_for_targeted_rebuild.return_value = len(memories)
+
+    async def get_batch(user_id, limit, offset, memory_ids=None,
+                        project_id=None, only_missing=True):
+        return memories[offset:offset + limit]
+
+    async def upsert_targeted(user_id, updates):
+        return [mid for mid, _ in updates] if owned_by_user else []
+
+    repo.get_memories_for_targeted_rebuild.side_effect = get_batch
+    repo.upsert_targeted_embeddings.side_effect = upsert_targeted
+    return repo
+
+
+@pytest.mark.asyncio
+async def test_rebuild_targeted_does_not_reset_storage():
+    """rebuild_targeted must never call reset_embedding_storage()."""
+    from uuid import uuid4
+
+    memories = [_make_memory(i) for i in range(1, 4)]
+    repo = _make_targeted_repo(memories)
+    adapter = _make_mock_adapter()
+
+    service = ReEmbeddingService(repo, adapter, batch_size=20)
+    result = await service.rebuild_targeted(user_id=uuid4())
+
+    repo.reset_embedding_storage.assert_not_called()
+    assert result.total_candidates == 3
+    assert sorted(result.rebuilt_ids) == [1, 2, 3]
+    assert result.skipped_ids == []
+    assert result.failed == []
+
+
+@pytest.mark.asyncio
+async def test_rebuild_targeted_no_candidates_short_circuits():
+    """Empty candidate set -> no embedding work, empty result."""
+    from uuid import uuid4
+
+    repo = _make_targeted_repo([])
+    adapter = _make_mock_adapter()
+
+    service = ReEmbeddingService(repo, adapter, batch_size=20)
+    result = await service.rebuild_targeted(user_id=uuid4())
+
+    assert result.total_candidates == 0
+    assert result.rebuilt_ids == []
+    adapter.generate_embedding.assert_not_called()
+    repo.upsert_targeted_embeddings.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_rebuild_targeted_skips_unowned_ids():
+    """Memories rejected by upsert (not owned) land in skipped_ids."""
+    from uuid import uuid4
+
+    memories = [_make_memory(i) for i in range(1, 4)]
+    repo = _make_mock_repo([])  # not used directly
+    repo.count_memories_for_targeted_rebuild.return_value = len(memories)
+
+    async def get_batch(user_id, limit, offset, memory_ids=None,
+                        project_id=None, only_missing=True):
+        return memories[offset:offset + limit]
+
+    async def partial_upsert(user_id, updates):
+        return [updates[0][0]]  # Only the first id is owned
+
+    repo.get_memories_for_targeted_rebuild.side_effect = get_batch
+    repo.upsert_targeted_embeddings.side_effect = partial_upsert
+    adapter = _make_mock_adapter()
+
+    service = ReEmbeddingService(repo, adapter, batch_size=20)
+    result = await service.rebuild_targeted(user_id=uuid4())
+
+    assert result.total_candidates == 3
+    assert result.rebuilt_ids == [1]
+    assert sorted(result.skipped_ids) == [2, 3]
+    assert result.failed == []
+
+
+@pytest.mark.asyncio
+async def test_rebuild_targeted_records_embedding_failures():
+    """Per-memory embedding error -> entry in result.failed, others succeed."""
+    from uuid import uuid4
+
+    memories = [_make_memory(i) for i in range(1, 4)]
+    repo = _make_targeted_repo(memories)
+    adapter = _make_mock_adapter()
+
+    call_count = {"n": 0}
+
+    async def flaky_embedding(_text):
+        call_count["n"] += 1
+        if call_count["n"] == 2:
+            raise RuntimeError("transient API failure")
+        return [0.1] * 384
+
+    adapter.generate_embedding.side_effect = flaky_embedding
+
+    service = ReEmbeddingService(repo, adapter, batch_size=20)
+    result = await service.rebuild_targeted(user_id=uuid4())
+
+    assert result.total_candidates == 3
+    assert sorted(result.rebuilt_ids) == [1, 3]
+    assert len(result.failed) == 1
+    assert result.failed[0]["memory_id"] == 2
+    assert "transient API failure" in result.failed[0]["reason"]
