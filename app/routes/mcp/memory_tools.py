@@ -699,8 +699,8 @@ def register(mcp: FastMCP):
             project_id: Restrict to a single project owned by the caller.
 
         Returns:
-            Dict with keys: total_candidates (int), rebuilt_ids (list[int]),
-            skipped_ids (list[int]), failed (list of {memory_id, reason}).
+            Dict with keys: rebuilt_ids (list[int]), skipped_ids (list[int]),
+            failed (list of {memory_id, reason}).
         """
         try:
             logger.info("MCP Tool -> rebuild_embeddings", extra={
@@ -749,7 +749,6 @@ def register(mcp: FastMCP):
                 project_id=project_id,
             )
             return {
-                "total_candidates": result.total_candidates,
                 "rebuilt_ids": result.rebuilt_ids,
                 "skipped_ids": result.skipped_ids,
                 "failed": result.failed,

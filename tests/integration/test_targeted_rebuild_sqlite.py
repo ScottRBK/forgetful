@@ -178,7 +178,6 @@ async def test_rebuild_targeted_is_user_scoped(sqlite_repo):
         user_id=user_b,
         memory_ids=[target.id],
     )
-    assert result_b.total_candidates == 0
     assert result_b.rebuilt_ids == []
 
     result_a = await service.rebuild_targeted(user_id=user_a)

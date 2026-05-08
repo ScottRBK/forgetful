@@ -264,7 +264,6 @@ async def test_rebuild_targeted_is_user_scoped(
         memory_ids=[target.id],
     )
 
-    assert result_b.total_candidates == 0
     assert result_b.rebuilt_ids == []
 
     # User A can repair their own memory.

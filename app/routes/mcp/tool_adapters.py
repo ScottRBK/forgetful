@@ -484,7 +484,7 @@ class MemoryToolAdapters:
         `re_embed_all`.
 
         Returns a structured result so callers can act on partial success:
-        `total_candidates`, `rebuilt_ids`, `skipped_ids`, `failed`.
+        `rebuilt_ids`, `skipped_ids`, `failed`.
         """
         logger.info(
             "MCP Tool -> rebuild_embeddings",
@@ -508,7 +508,6 @@ class MemoryToolAdapters:
             project_id=project_id,
         )
         return {
-            "total_candidates": result.total_candidates,
             "rebuilt_ids": result.rebuilt_ids,
             "skipped_ids": result.skipped_ids,
             "failed": result.failed,

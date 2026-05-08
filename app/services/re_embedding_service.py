@@ -32,7 +32,6 @@ class TargetedRebuildResult:
     failed (embedding generation or write error) memories so callers can
     surface partial success without re-running the whole rebuild.
     """
-    total_candidates: int = 0
     rebuilt_ids: list[int] = field(default_factory=list)
     skipped_ids: list[int] = field(default_factory=list)
     failed: list[dict] = field(default_factory=list)
@@ -145,7 +144,7 @@ class ReEmbeddingService:
             memory_ids=memory_ids,
             project_id=project_id,
         )
-        result = TargetedRebuildResult(total_candidates=total)
+        result = TargetedRebuildResult()
         if total == 0:
             self._record_unresolved_memory_ids(
                 memory_ids=memory_ids,
@@ -225,7 +224,7 @@ class ReEmbeddingService:
                 "rebuilt": len(result.rebuilt_ids),
                 "skipped": len(result.skipped_ids),
                 "failed": len(result.failed),
-                "total_candidates": result.total_candidates,
+                "total_candidates": total,
             },
         )
         return result

@@ -755,8 +755,8 @@ def register_memory_tools_metadata(
                 },
             ],
             "returns": (
-                "Dict with total_candidates (int), rebuilt_ids (List[int]), "
-                "skipped_ids (List[int]), failed (List[Dict[memory_id, reason]])"
+                "Dict with rebuilt_ids (List[int]), skipped_ids (List[int]), "
+                "failed (List[Dict[memory_id, reason]])"
             ),
             "examples": [
                 'execute_forgetful_tool("rebuild_embeddings", {"memory_ids": [123, 124]})',

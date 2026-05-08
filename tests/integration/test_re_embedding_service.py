@@ -245,7 +245,6 @@ async def test_rebuild_targeted_does_not_reset_storage():
     result = await service.rebuild_targeted(user_id=uuid4())
 
     repo.reset_embedding_storage.assert_not_called()
-    assert result.total_candidates == 3
     assert sorted(result.rebuilt_ids) == [1, 2, 3]
     assert result.skipped_ids == []
     assert result.failed == []
@@ -262,7 +261,6 @@ async def test_rebuild_targeted_no_candidates_short_circuits():
     service = ReEmbeddingService(repo, adapter, batch_size=20)
     result = await service.rebuild_targeted(user_id=uuid4())
 
-    assert result.total_candidates == 0
     assert result.rebuilt_ids == []
     adapter.generate_embedding.assert_not_called()
     repo.upsert_targeted_embeddings.assert_not_called()
@@ -296,7 +294,6 @@ async def test_rebuild_targeted_skips_unowned_ids():
     service = ReEmbeddingService(repo, adapter, batch_size=20)
     result = await service.rebuild_targeted(user_id=uuid4())
 
-    assert result.total_candidates == 3
     assert result.rebuilt_ids == [1]
     assert sorted(result.skipped_ids) == [2, 3]
     assert result.failed == []
@@ -324,7 +321,6 @@ async def test_rebuild_targeted_records_embedding_failures():
     service = ReEmbeddingService(repo, adapter, batch_size=20)
     result = await service.rebuild_targeted(user_id=uuid4())
 
-    assert result.total_candidates == 3
     assert sorted(result.rebuilt_ids) == [1, 3]
     assert len(result.failed) == 1
     assert result.failed[0]["memory_id"] == 2
