@@ -7,6 +7,7 @@ callables, ensuring user context is properly extracted and preserved.
 from typing import Any
 
 from fastmcp import Context
+from fastmcp.exceptions import ToolError
 
 from app.config.logging_config import logging
 from app.config.settings import settings
@@ -120,6 +121,41 @@ class MemoryToolAdapters:
             memory_repository=repo,
             embedding_adapter=repo.embedding_adapter,
         )
+
+    async def _validate_rebuild_scope(
+        self,
+        user_id,
+        memory_ids: list[int] | None,
+        project_id: int | None,
+    ) -> None:
+        """Validate rebuild scope before running embedding work."""
+        if memory_ids is not None and len(memory_ids) == 0:
+            raise ToolError(
+                "VALIDATION_ERROR: memory_ids must be non-empty if provided; "
+                "pass null for global scope",
+            )
+
+        if memory_ids is None or project_id is None:
+            return
+
+        requested_count = len(set(memory_ids))
+        repo = self.memory_service.memory_repo
+        count_with_project = await repo.count_memories_for_targeted_rebuild(
+            user_id=user_id,
+            memory_ids=memory_ids,
+            project_id=project_id,
+        )
+        count_without_project = await repo.count_memories_for_targeted_rebuild(
+            user_id=user_id,
+            memory_ids=memory_ids,
+        )
+        if count_with_project != count_without_project or count_without_project != requested_count:
+            raise ToolError(
+                "VALIDATION_ERROR: memory_ids do not all belong to "
+                f"project_id={project_id} (or some are not owned/obsolete). "
+                f"expected={requested_count}, matched_in_project={count_with_project}, "
+                f"owned_total={count_without_project}",
+            )
 
     async def create_memory(
         self,
@@ -459,6 +495,11 @@ class MemoryToolAdapters:
         )
 
         user = await get_user_from_auth(ctx)
+        await self._validate_rebuild_scope(
+            user_id=user.id,
+            memory_ids=memory_ids,
+            project_id=project_id,
+        )
 
         service = self._build_re_embedding_service()
         result = await service.rebuild_targeted(

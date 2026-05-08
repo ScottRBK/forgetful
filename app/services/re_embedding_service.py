@@ -147,6 +147,11 @@ class ReEmbeddingService:
         )
         result = TargetedRebuildResult(total_candidates=total)
         if total == 0:
+            self._record_unresolved_memory_ids(
+                memory_ids=memory_ids,
+                project_id=project_id,
+                result=result,
+            )
             logger.info(
                 "rebuild_embeddings: no candidates",
                 extra={
@@ -208,6 +213,11 @@ class ReEmbeddingService:
                 progress_callback(processed, total)
             last_seen_id = memories[-1].id
 
+        self._record_unresolved_memory_ids(
+            memory_ids=memory_ids,
+            project_id=project_id,
+            result=result,
+        )
         logger.info(
             "rebuild_embeddings: done",
             extra={
@@ -219,6 +229,29 @@ class ReEmbeddingService:
             },
         )
         return result
+
+    def _record_unresolved_memory_ids(
+        self,
+        memory_ids: list[int] | None,
+        project_id: int | None,
+        result: TargetedRebuildResult,
+    ) -> None:
+        """Surface explicit IDs hidden by user/obsolete filters as failures."""
+        if memory_ids is None or project_id is not None:
+            return
+
+        resolved_ids = set(result.rebuilt_ids) | set(result.skipped_ids)
+        resolved_ids.update(
+            failure["memory_id"]
+            for failure in result.failed
+            if "memory_id" in failure
+        )
+        for memory_id in dict.fromkeys(memory_ids):
+            if memory_id not in resolved_ids:
+                result.failed.append({
+                    "memory_id": memory_id,
+                    "reason": "not_found_or_not_owned",
+                })
 
     async def _recompute_auto_links(
         self,

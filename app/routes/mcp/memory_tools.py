@@ -711,6 +711,29 @@ def register(mcp: FastMCP):
             user = await get_user_from_auth(ctx)
             memory_service = ctx.fastmcp.memory_service
             repo = memory_service.memory_repo
+            if memory_ids is not None and len(memory_ids) == 0:
+                raise ToolError(
+                    "VALIDATION_ERROR: memory_ids must be non-empty if provided; "
+                    "pass null for global scope",
+                )
+            if memory_ids is not None and project_id is not None:
+                requested_count = len(set(memory_ids))
+                count_with_project = await repo.count_memories_for_targeted_rebuild(
+                    user_id=user.id,
+                    memory_ids=memory_ids,
+                    project_id=project_id,
+                )
+                count_without_project = await repo.count_memories_for_targeted_rebuild(
+                    user_id=user.id,
+                    memory_ids=memory_ids,
+                )
+                if count_with_project != count_without_project or count_without_project != requested_count:
+                    raise ToolError(
+                        "VALIDATION_ERROR: memory_ids do not all belong to "
+                        f"project_id={project_id} (or some are not owned/obsolete). "
+                        f"expected={requested_count}, matched_in_project={count_with_project}, "
+                        f"owned_total={count_without_project}",
+                    )
 
             # Lazy import to avoid pulling re-embedding dependencies in modules
             # that only need read-only memory access.
@@ -731,6 +754,8 @@ def register(mcp: FastMCP):
                 "skipped_ids": result.skipped_ids,
                 "failed": result.failed,
             }
+        except ToolError:
+            raise
         except ValidationError as e:
             logger.debug("MCP Tool - rebuild_embeddings validation error", extra={
                 "error_type": "ValidationError",
