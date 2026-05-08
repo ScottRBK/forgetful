@@ -1086,8 +1086,16 @@ class SqliteMemoryRepository:
                     continue
                 embedding_bytes = sqlite_vec.serialize_float32(embedding)
                 await session.execute(
-                    text("DELETE FROM vec_memories WHERE memory_id = :memory_id"),
-                    {"memory_id": str(memory_id)},
+                    text(
+                        "DELETE FROM vec_memories WHERE memory_id = :memory_id "
+                        "AND EXISTS ("
+                        "SELECT 1 FROM memories "
+                        "WHERE memories.id = CAST(:memory_id AS INTEGER) "
+                        "AND memories.user_id = :user_id "
+                        "AND memories.is_obsolete = 0"
+                        ")",
+                    ),
+                    {"memory_id": str(memory_id), "user_id": str(user_id)},
                 )
                 await session.execute(
                     text("INSERT INTO vec_memories (memory_id, embedding) VALUES (:memory_id, :embedding)"),

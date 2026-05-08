@@ -973,7 +973,7 @@ class PostgresMemoryRepository:
         project_id: int | None,
     ):
         conditions = [
-            MemoryTable.user_id == str(user_id),
+            MemoryTable.user_id == user_id,
             MemoryTable.is_obsolete.is_(False),
         ]
         if memory_ids:
@@ -982,7 +982,7 @@ class PostgresMemoryRepository:
         if project_id is not None:
             stmt = stmt.join(MemoryTable.projects).where(
                 ProjectsTable.id == project_id,
-                ProjectsTable.user_id == str(user_id),
+                ProjectsTable.user_id == user_id,
             )
         return stmt
 
@@ -1052,7 +1052,7 @@ class PostgresMemoryRepository:
         async with self.db_adapter.system_session() as session:
             owned_rows = await session.execute(
                 select(MemoryTable.id).where(
-                    MemoryTable.user_id == str(user_id),
+                    MemoryTable.user_id == user_id,
                     MemoryTable.is_obsolete.is_(False),
                     MemoryTable.id.in_(ids),
                 ),
@@ -1064,7 +1064,10 @@ class PostgresMemoryRepository:
                     continue
                 await session.execute(
                     update(MemoryTable)
-                    .where(MemoryTable.id == memory_id)
+                    .where(
+                        MemoryTable.id == memory_id,
+                        MemoryTable.user_id == user_id,
+                    )
                     .values(embedding=embedding),
                 )
                 written.append(memory_id)
