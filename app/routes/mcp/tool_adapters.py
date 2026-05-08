@@ -438,15 +438,14 @@ class MemoryToolAdapters:
         ctx: Context,
         memory_ids: list[int] | None = None,
         project_id: int | None = None,
-        only_missing: bool = True,
     ) -> dict[str, Any]:
         """Adapter for `rebuild_embeddings` MCP tool (issue #39).
 
         Re-runs the embedding pipeline on a *user-scoped* subset of memories
-        without ever resetting global vector storage. Designed to recover
-        memories whose embedding is missing or stale, or to fix a small set
-        of explicit ids, instead of forcing the destructive `--re-embed`
-        full-migration path used by `re_embed_all`.
+        without ever resetting global vector storage. Designed to refresh
+        explicit ids, a single project, or all caller-owned memories instead
+        of forcing the destructive `--re-embed` full-migration path used by
+        `re_embed_all`.
 
         Returns a structured result so callers can act on partial success:
         `total_candidates`, `rebuilt_ids`, `skipped_ids`, `failed`.
@@ -456,7 +455,6 @@ class MemoryToolAdapters:
             extra={
                 "memory_ids": memory_ids,
                 "project_id": project_id,
-                "only_missing": only_missing,
             },
         )
 
@@ -467,7 +465,6 @@ class MemoryToolAdapters:
             user_id=user.id,
             memory_ids=memory_ids,
             project_id=project_id,
-            only_missing=only_missing,
         )
         return {
             "total_candidates": result.total_candidates,

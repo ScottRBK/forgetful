@@ -188,20 +188,17 @@ class MemoryRepository(Protocol):
             user_id: UUID,
             memory_ids: list[int] | None = None,
             project_id: int | None = None,
-            only_missing: bool = True,
     ) -> int:
         """Count memories eligible for a *user-scoped, targeted* embedding rebuild.
 
         Used by `rebuild_embeddings` to avoid the destructive global
-        `re_embed_all` path. Filters are AND-combined; user_id is mandatory and
-        scopes ownership.
+        `re_embed_all` path. Filters are user-scoped; user_id is mandatory and
+        scopes ownership. Matching memories are rebuilt unconditionally.
 
         Args:
             user_id: Authenticated user id; ownership filter, never optional.
             memory_ids: Restrict to explicit ids (already user-scoped server-side).
             project_id: Restrict to a single project owned by `user_id`.
-            only_missing: If True, only memories whose embedding is missing or
-                stale are counted; if False, every matching memory is rebuilt.
 
         Returns:
             Number of non-obsolete memories matching the filters and owned by
@@ -213,15 +210,14 @@ class MemoryRepository(Protocol):
             self,
             user_id: UUID,
             limit: int,
-            offset: int,
+            after_id: int | None = None,
             memory_ids: list[int] | None = None,
             project_id: int | None = None,
-            only_missing: bool = True,
     ) -> list[Memory]:
         """Page through memories selected by `count_memories_for_targeted_rebuild`.
 
-        Same semantics and same filters as the count variant. Always sorted by
-        memory id ascending so callers can paginate deterministically.
+        Same semantics and same filters as the count variant. Uses keyset
+        pagination by memory id so callers can process deterministically.
         """
         ...
 

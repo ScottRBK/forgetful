@@ -8,6 +8,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from uuid import UUID
 
+from app.config.settings import settings
 from app.protocols.memory_protocol import MemoryRepository, ValidationResult
 from app.repositories.embeddings.embedding_adapter import EmbeddingsAdapter
 from app.repositories.helpers import build_embedding_text
@@ -119,7 +120,6 @@ class ReEmbeddingService:
         user_id: UUID,
         memory_ids: list[int] | None = None,
         project_id: int | None = None,
-        only_missing: bool = True,
         progress_callback: Callable[[int, int], None] | None = None,
     ) -> TargetedRebuildResult:
         """User-scoped, *non-destructive* embedding rebuild for a memory subset.
@@ -135,9 +135,6 @@ class ReEmbeddingService:
             user_id: Authenticated user id; ownership filter, never optional.
             memory_ids: Restrict to explicit memory ids (already user-scoped).
             project_id: Restrict to a single project owned by `user_id`.
-            only_missing: When True (default), only memories without an
-                embedding are touched; when False, every matching memory is
-                rebuilt with a fresh embedding.
             progress_callback: Optional `(processed, total)` callback per batch.
 
         Returns:
@@ -147,7 +144,6 @@ class ReEmbeddingService:
             user_id=user_id,
             memory_ids=memory_ids,
             project_id=project_id,
-            only_missing=only_missing,
         )
         result = TargetedRebuildResult(total_candidates=total)
         if total == 0:
@@ -157,20 +153,19 @@ class ReEmbeddingService:
                     "user_id": str(user_id),
                     "memory_ids": memory_ids,
                     "project_id": project_id,
-                    "only_missing": only_missing,
                 },
             )
             return result
 
         processed = 0
-        for offset in range(0, total, self.batch_size):
+        last_seen_id: int | None = None
+        while True:
             memories = await self.memory_repository.get_memories_for_targeted_rebuild(
                 user_id=user_id,
                 limit=self.batch_size,
-                offset=offset,
+                after_id=last_seen_id,
                 memory_ids=memory_ids,
                 project_id=project_id,
-                only_missing=only_missing,
             )
             if not memories:
                 break
@@ -199,6 +194,7 @@ class ReEmbeddingService:
                     for memory_id, _ in updates:
                         if memory_id not in written_set:
                             result.skipped_ids.append(memory_id)
+                    await self._recompute_auto_links(user_id=user_id, memory_ids=written_ids, result=result)
                 except Exception as exc:  # noqa: BLE001
                     logger.exception("rebuild_embeddings: persistence failed", extra={
                         "user_id": str(user_id),
@@ -210,6 +206,7 @@ class ReEmbeddingService:
             processed += len(memories)
             if progress_callback:
                 progress_callback(processed, total)
+            last_seen_id = memories[-1].id
 
         logger.info(
             "rebuild_embeddings: done",
@@ -219,10 +216,44 @@ class ReEmbeddingService:
                 "skipped": len(result.skipped_ids),
                 "failed": len(result.failed),
                 "total_candidates": result.total_candidates,
-                "only_missing": only_missing,
             },
         )
         return result
+
+    async def _recompute_auto_links(
+        self,
+        user_id: UUID,
+        memory_ids: list[int],
+        result: TargetedRebuildResult,
+    ) -> None:
+        """Refresh additive auto-links after new vectors have been written."""
+        if settings.MEMORY_NUM_AUTO_LINK <= 0:
+            return
+
+        for memory_id in memory_ids:
+            try:
+                similar_memories = await self.memory_repository.find_similar_memories(
+                    user_id=user_id,
+                    memory_id=memory_id,
+                    max_links=settings.MEMORY_NUM_AUTO_LINK,
+                )
+                if not similar_memories:
+                    continue
+                await self.memory_repository.create_links_batch(
+                    user_id=user_id,
+                    source_id=memory_id,
+                    target_ids=[memory.id for memory in similar_memories],
+                )
+            except Exception as exc:  # noqa: BLE001 - link failures are per-memory partial failures
+                logger.exception("rebuild_embeddings: auto-link failed", extra={
+                    "memory_id": memory_id,
+                    "user_id": str(user_id),
+                })
+                result.failed.append({
+                    "memory_id": memory_id,
+                    "phase": "auto_link",
+                    "reason": str(exc),
+                })
 
     async def validate(self) -> ValidationResult:
         """Post-migration validation checks delegated to repository"""

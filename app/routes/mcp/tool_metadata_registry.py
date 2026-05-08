@@ -728,7 +728,7 @@ def register_memory_tools_metadata(
             "description": (
                 "Rebuild embeddings for a user-scoped subset of memories without resetting "
                 "global vector storage. Targets explicit memory ids, a single project, or "
-                "memories with missing/stale embeddings (only_missing=True by default)."
+                "all caller-owned memories."
             ),
             "parameters": [
                 {
@@ -740,7 +740,7 @@ def register_memory_tools_metadata(
                 {
                     "name": "memory_ids",
                     "type": "Optional[List[int]]",
-                    "description": "Explicit memory ids owned by the caller; leave null to use project_id and/or only_missing",
+                    "description": "Explicit memory ids owned by the caller; leave null to use project_id or global user scope",
                     "required": False,
                     "default": None,
                     "example": [123, 124],
@@ -753,23 +753,15 @@ def register_memory_tools_metadata(
                     "default": None,
                     "example": 1,
                 },
-                {
-                    "name": "only_missing",
-                    "type": "bool",
-                    "description": "Rebuild only memories whose embedding is missing/stale; set False to force a full refresh of the targeted set",
-                    "required": False,
-                    "default": True,
-                    "example": True,
-                },
             ],
             "returns": (
                 "Dict with total_candidates (int), rebuilt_ids (List[int]), "
                 "skipped_ids (List[int]), failed (List[Dict[memory_id, reason]])"
             ),
             "examples": [
-                'execute_forgetful_tool("rebuild_embeddings", {"only_missing": True})',
-                'execute_forgetful_tool("rebuild_embeddings", {"memory_ids": [123, 124], "only_missing": False})',
+                'execute_forgetful_tool("rebuild_embeddings", {"memory_ids": [123, 124]})',
                 'execute_forgetful_tool("rebuild_embeddings", {"project_id": 1})',
+                'execute_forgetful_tool("rebuild_embeddings", {})',
             ],
             "tags": ["memory", "embeddings", "admin", "repair"],
         },

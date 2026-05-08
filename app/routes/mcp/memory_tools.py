@@ -679,19 +679,16 @@ def register(mcp: FastMCP):
         ctx: Context,
         memory_ids: list[int] | None = None,
         project_id: int | None = None,
-        only_missing: bool = True,
     ) -> dict:
         """Rebuild embeddings for a user-scoped subset of memories (issue #39).
 
-        WHEN: A small set of memories has missing or stale embeddings (for
-        example after a crash mid-create or a partial migration), or you want
-        to force-refresh a project without running the destructive global
-        --re-embed CLI.
+        WHEN: A small set of memories, a project, or the caller's corpus needs
+        fresh embeddings without running the destructive global --re-embed CLI.
 
         BEHAVIOR: Re-runs the configured embedding pipeline on memories owned
-        by the authenticated user, scoped by `memory_ids`, `project_id`, and/or
-        `only_missing`. Never resets vector storage. Returns a structured
-        result so the caller can act on partial success.
+        by the authenticated user, scoped by `memory_ids` and/or `project_id`.
+        Never resets vector storage. Returns a structured result so the caller
+        can act on partial success.
 
         NOT-USE: Switching embedding providers/dimensions across the whole
         corpus - use the offline `--re-embed` CLI for that destructive
@@ -700,9 +697,6 @@ def register(mcp: FastMCP):
         Args:
             memory_ids: Explicit ids to rebuild (already user-scoped server-side).
             project_id: Restrict to a single project owned by the caller.
-            only_missing: When True (default), only rebuild memories whose
-                embedding is missing/stale; when False, rebuild every matching
-                memory.
 
         Returns:
             Dict with keys: total_candidates (int), rebuilt_ids (list[int]),
@@ -712,7 +706,6 @@ def register(mcp: FastMCP):
             logger.info("MCP Tool -> rebuild_embeddings", extra={
                 "memory_ids": memory_ids,
                 "project_id": project_id,
-                "only_missing": only_missing,
             })
 
             user = await get_user_from_auth(ctx)
@@ -731,7 +724,6 @@ def register(mcp: FastMCP):
                 user_id=user.id,
                 memory_ids=memory_ids,
                 project_id=project_id,
-                only_missing=only_missing,
             )
             return {
                 "total_candidates": result.total_candidates,

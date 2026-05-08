@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from app.config.settings import settings
 from app.models.memory_models import Memory
 from app.services.re_embedding_service import ReEmbeddingService
 
@@ -214,15 +215,20 @@ def _make_targeted_repo(memories: list[Memory], owned_by_user: bool = True):
     repo = AsyncMock()
     repo.count_memories_for_targeted_rebuild.return_value = len(memories)
 
-    async def get_batch(user_id, limit, offset, memory_ids=None,
-                        project_id=None, only_missing=True):
-        return memories[offset:offset + limit]
+    async def get_batch(user_id, limit, after_id=None, memory_ids=None,
+                        project_id=None):
+        eligible = memories
+        if after_id is not None:
+            eligible = [memory for memory in eligible if memory.id > after_id]
+        return eligible[:limit]
 
     async def upsert_targeted(user_id, updates):
         return [mid for mid, _ in updates] if owned_by_user else []
 
     repo.get_memories_for_targeted_rebuild.side_effect = get_batch
     repo.upsert_targeted_embeddings.side_effect = upsert_targeted
+    repo.find_similar_memories.return_value = []
+    repo.create_links_batch.return_value = []
     return repo
 
 
@@ -271,15 +277,20 @@ async def test_rebuild_targeted_skips_unowned_ids():
     repo = _make_mock_repo([])  # not used directly
     repo.count_memories_for_targeted_rebuild.return_value = len(memories)
 
-    async def get_batch(user_id, limit, offset, memory_ids=None,
-                        project_id=None, only_missing=True):
-        return memories[offset:offset + limit]
+    async def get_batch(user_id, limit, after_id=None, memory_ids=None,
+                        project_id=None):
+        eligible = memories
+        if after_id is not None:
+            eligible = [memory for memory in eligible if memory.id > after_id]
+        return eligible[:limit]
 
     async def partial_upsert(user_id, updates):
         return [updates[0][0]]  # Only the first id is owned
 
     repo.get_memories_for_targeted_rebuild.side_effect = get_batch
     repo.upsert_targeted_embeddings.side_effect = partial_upsert
+    repo.find_similar_memories.return_value = []
+    repo.create_links_batch.return_value = []
     adapter = _make_mock_adapter()
 
     service = ReEmbeddingService(repo, adapter, batch_size=20)
@@ -318,3 +329,29 @@ async def test_rebuild_targeted_records_embedding_failures():
     assert len(result.failed) == 1
     assert result.failed[0]["memory_id"] == 2
     assert "transient API failure" in result.failed[0]["reason"]
+
+
+@pytest.mark.asyncio
+async def test_rebuild_targeted_recomputes_auto_links(monkeypatch):
+    """After writing fresh vectors, targeted rebuild refreshes additive auto-links."""
+    from uuid import uuid4
+
+    user_id = uuid4()
+    memories = [_make_memory(i) for i in range(1, 3)]
+    repo = _make_targeted_repo(memories)
+    repo.find_similar_memories.return_value = [memories[1]]
+    repo.create_links_batch.return_value = [memories[1].id]
+    adapter = _make_mock_adapter()
+    monkeypatch.setattr(settings, "MEMORY_NUM_AUTO_LINK", 1)
+
+    service = ReEmbeddingService(repo, adapter, batch_size=20)
+    result = await service.rebuild_targeted(user_id=user_id)
+
+    assert sorted(result.rebuilt_ids) == [1, 2]
+    assert repo.find_similar_memories.call_count == 2
+    assert repo.create_links_batch.call_count == 2
+    repo.find_similar_memories.assert_any_call(
+        user_id=user_id,
+        memory_id=1,
+        max_links=1,
+    )

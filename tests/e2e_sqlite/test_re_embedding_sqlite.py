@@ -237,40 +237,6 @@ async def _count_vec_memories(db_adapter) -> int:
 
 
 @pytest.mark.asyncio
-async def test_rebuild_targeted_only_missing_repairs_gap(
-    sqlite_repo, embedding_adapter,
-):
-    """Delete one vec row, then rebuild with only_missing=True repairs only that gap."""
-    repo, db_adapter = sqlite_repo
-    user_id, memories = await _create_test_memories(repo, db_adapter, count=3)
-
-    # Manually drop the vec row of the second memory to simulate stale storage.
-    target = memories[1]
-    async with db_adapter.system_session() as session:
-        await session.execute(
-            text("DELETE FROM vec_memories WHERE memory_id = :memory_id"),
-            {"memory_id": str(target.id)},
-        )
-
-    assert await _count_vec_memories(db_adapter) == 2
-
-    service = ReEmbeddingService(
-        memory_repository=repo,
-        embedding_adapter=embedding_adapter,
-        batch_size=10,
-    )
-    result = await service.rebuild_targeted(
-        user_id=user_id,
-        only_missing=True,
-    )
-
-    assert result.total_candidates == 1
-    assert result.rebuilt_ids == [target.id]
-    assert result.failed == []
-    assert await _count_vec_memories(db_adapter) == 3
-
-
-@pytest.mark.asyncio
 async def test_rebuild_targeted_is_user_scoped(
     sqlite_repo, embedding_adapter,
 ):
@@ -296,7 +262,6 @@ async def test_rebuild_targeted_is_user_scoped(
     result_b = await service.rebuild_targeted(
         user_id=user_b,
         memory_ids=[target.id],
-        only_missing=True,
     )
 
     assert result_b.total_candidates == 0
@@ -305,9 +270,8 @@ async def test_rebuild_targeted_is_user_scoped(
     # User A can repair their own memory.
     result_a = await service.rebuild_targeted(
         user_id=user_a,
-        only_missing=True,
     )
-    assert result_a.rebuilt_ids == [target.id]
+    assert sorted(result_a.rebuilt_ids) == sorted(memory.id for memory in memories_a)
 
 
 @pytest.mark.asyncio
@@ -332,7 +296,7 @@ async def test_rebuild_targeted_does_not_call_reset(
         embedding_adapter=embedding_adapter,
         batch_size=5,
     )
-    await service.rebuild_targeted(user_id=user_id, only_missing=False)
+    await service.rebuild_targeted(user_id=user_id)
 
     assert reset_calls["n"] == 0
     # Vec storage retained for both memories

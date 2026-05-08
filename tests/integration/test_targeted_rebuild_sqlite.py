@@ -111,32 +111,6 @@ async def _vec_count(db_adapter) -> int:
 
 
 @pytest.mark.asyncio
-async def test_rebuild_targeted_only_missing_repairs_gap(sqlite_repo):
-    repo, db_adapter, embedding_adapter = sqlite_repo
-    user_id, memories = await _seed_memories(repo, db_adapter, count=3)
-
-    target = memories[1]
-    async with db_adapter.system_session() as session:
-        await session.execute(
-            text("DELETE FROM vec_memories WHERE memory_id = :memory_id"),
-            {"memory_id": str(target.id)},
-        )
-    assert await _vec_count(db_adapter) == 2
-
-    service = ReEmbeddingService(
-        memory_repository=repo,
-        embedding_adapter=embedding_adapter,
-        batch_size=10,
-    )
-    result = await service.rebuild_targeted(user_id=user_id, only_missing=True)
-
-    assert result.total_candidates == 1
-    assert result.rebuilt_ids == [target.id]
-    assert result.failed == []
-    assert await _vec_count(db_adapter) == 3
-
-
-@pytest.mark.asyncio
 async def test_rebuild_targeted_is_user_scoped(sqlite_repo):
     repo, db_adapter, embedding_adapter = sqlite_repo
     user_a, memories_a = await _seed_memories(repo, db_adapter, count=2)
@@ -158,13 +132,12 @@ async def test_rebuild_targeted_is_user_scoped(sqlite_repo):
     result_b = await service.rebuild_targeted(
         user_id=user_b,
         memory_ids=[target.id],
-        only_missing=True,
     )
     assert result_b.total_candidates == 0
     assert result_b.rebuilt_ids == []
 
-    result_a = await service.rebuild_targeted(user_id=user_a, only_missing=True)
-    assert result_a.rebuilt_ids == [target.id]
+    result_a = await service.rebuild_targeted(user_id=user_a)
+    assert sorted(result_a.rebuilt_ids) == sorted(memory.id for memory in memories_a)
 
 
 @pytest.mark.asyncio
@@ -186,7 +159,7 @@ async def test_rebuild_targeted_does_not_call_reset(sqlite_repo, monkeypatch):
         embedding_adapter=embedding_adapter,
         batch_size=5,
     )
-    await service.rebuild_targeted(user_id=user_id, only_missing=False)
+    await service.rebuild_targeted(user_id=user_id)
 
     assert reset_calls["n"] == 0
     assert await _vec_count(db_adapter) == 2
@@ -211,3 +184,38 @@ async def test_upsert_targeted_embeddings_rejects_unowned_ids(sqlite_repo):
         updates=[(memories_a[0].id, fake_vector)],
     )
     assert written == [memories_a[0].id]
+
+
+@pytest.mark.asyncio
+async def test_rebuild_targeted_recomputes_auto_links(sqlite_repo, monkeypatch):
+    repo, db_adapter, embedding_adapter = sqlite_repo
+    user_id, memories = await _seed_memories(repo, db_adapter, count=2)
+    monkeypatch.setattr(settings, "MEMORY_NUM_AUTO_LINK", 1)
+
+    find_calls = []
+    create_calls = []
+    original_find = repo.find_similar_memories
+    original_create = repo.create_links_batch
+
+    async def tracked_find_similar_memories(*args, **kwargs):
+        find_calls.append((args, kwargs))
+        return await original_find(*args, **kwargs)
+
+    async def tracked_create_links_batch(*args, **kwargs):
+        create_calls.append((args, kwargs))
+        return await original_create(*args, **kwargs)
+
+    monkeypatch.setattr(repo, "find_similar_memories", tracked_find_similar_memories)
+    monkeypatch.setattr(repo, "create_links_batch", tracked_create_links_batch)
+
+    service = ReEmbeddingService(
+        memory_repository=repo,
+        embedding_adapter=embedding_adapter,
+        batch_size=10,
+    )
+    result = await service.rebuild_targeted(user_id=user_id, memory_ids=[memories[0].id])
+
+    assert result.rebuilt_ids == [memories[0].id]
+    assert len(find_calls) == 1
+    assert find_calls[0][1]["memory_id"] == memories[0].id
+    assert create_calls

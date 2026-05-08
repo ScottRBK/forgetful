@@ -990,7 +990,6 @@ class SqliteMemoryRepository:
         user_id: UUID,
         memory_ids: list[int] | None,
         project_id: int | None,
-        only_missing: bool,
     ):
         """Shared SQLAlchemy filter for targeted rebuild count/select queries."""
         conditions = [
@@ -1005,14 +1004,6 @@ class SqliteMemoryRepository:
                 ProjectsTable.id == project_id,
                 ProjectsTable.user_id == str(user_id),
             )
-        if only_missing:
-            # Memories whose embedding is missing in vec_memories.
-            stmt = stmt.where(
-                ~select(text("1"))
-                .select_from(text("vec_memories"))
-                .where(text("vec_memories.memory_id = CAST(memories.id AS TEXT)"))
-                .exists(),
-            )
         return stmt
 
     async def count_memories_for_targeted_rebuild(
@@ -1020,7 +1011,6 @@ class SqliteMemoryRepository:
         user_id: UUID,
         memory_ids: list[int] | None = None,
         project_id: int | None = None,
-        only_missing: bool = True,
     ) -> int:
         from sqlalchemy import func
         async with self.db_adapter.system_session() as session:
@@ -1028,7 +1018,6 @@ class SqliteMemoryRepository:
                 user_id=user_id,
                 memory_ids=memory_ids,
                 project_id=project_id,
-                only_missing=only_missing,
             )
             count_stmt = select(func.count()).select_from(base.subquery())
             return (await session.execute(count_stmt)).scalar() or 0
@@ -1037,19 +1026,20 @@ class SqliteMemoryRepository:
         self,
         user_id: UUID,
         limit: int,
-        offset: int,
+        after_id: int | None = None,
         memory_ids: list[int] | None = None,
         project_id: int | None = None,
-        only_missing: bool = True,
     ) -> list[Memory]:
         async with self.db_adapter.system_session() as session:
+            stmt = self._build_targeted_rebuild_filter(
+                user_id=user_id,
+                memory_ids=memory_ids,
+                project_id=project_id,
+            )
+            if after_id is not None:
+                stmt = stmt.where(MemoryTable.id > after_id)
             stmt = (
-                self._build_targeted_rebuild_filter(
-                    user_id=user_id,
-                    memory_ids=memory_ids,
-                    project_id=project_id,
-                    only_missing=only_missing,
-                )
+                stmt
                 .options(
                     selectinload(MemoryTable.projects),
                     selectinload(MemoryTable.linked_memories),
@@ -1059,7 +1049,6 @@ class SqliteMemoryRepository:
                     selectinload(MemoryTable.files),
                 )
                 .order_by(MemoryTable.id.asc())
-                .offset(offset)
                 .limit(limit)
             )
             result = await session.execute(stmt)
