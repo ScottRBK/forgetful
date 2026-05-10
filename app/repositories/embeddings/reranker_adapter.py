@@ -3,9 +3,9 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Protocol
 
 import httpx
-from fastembed.rerank.cross_encoder import TextCrossEncoder
 
 from app.config.settings import settings
+from app.repositories.embeddings.fastembed_offline import load_fastembed_model
 
 
 class RerankAdapter(Protocol):
@@ -30,12 +30,36 @@ class FastEmbedCrossEncoderAdapter:
         self.threads = threads
         self.cache_dir = cache_dir
 
-        self._model = TextCrossEncoder(
+        effective_cache_dir = cache_dir or settings.FASTEMBED_CACHE_DIR
+        self._model = load_fastembed_model(
+            model_role="reranking",
+            model_name=model,
+            cache_dir=effective_cache_dir,
+            factory=lambda fastembed_kwargs: self._create_text_cross_encoder(
+                model=model,
+                threads=threads,
+                cache_dir=cache_dir,
+                fastembed_kwargs=fastembed_kwargs,
+            ),
+        )
+        self._executor = ThreadPoolExecutor(max_workers=1)
+
+    def _create_text_cross_encoder(
+            self,
+            *,
+            model: str,
+            threads: int,
+            cache_dir: str | None,
+            fastembed_kwargs: dict[str, bool],
+    ):
+        from fastembed.rerank.cross_encoder import TextCrossEncoder
+
+        return TextCrossEncoder(
             model_name=model,
             threads=threads,
             cache_dir=cache_dir,
+            **fastembed_kwargs,
         )
-        self._executor = ThreadPoolExecutor(max_workers=1)
 
     async def rerank(
             self,

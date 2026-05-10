@@ -85,6 +85,17 @@ Then install and run forgetful normally:
 uvx forgetful-ai
 ```
 
+To fail fast instead of attempting network downloads when a model is missing,
+enable local-files-only mode:
+
+```bash
+FASTEMBED_LOCAL_FILES_ONLY=true uvx forgetful-ai
+```
+
+In this mode, both the embedding model and FastEmbed reranker must already be
+present under `FASTEMBED_CACHE_DIR`. If not, Forgetful exits with an error that
+points to the cache directory and configured model names.
+
 ### Option 3: Transfer from Another Machine
 
 If you have the models cached on another machine, you can transfer them:
@@ -114,9 +125,11 @@ uvx forgetful-ai
 ```
 
 Or create a `.env` file:
+
 ```bash
 # .env
 FASTEMBED_CACHE_DIR=/opt/models/fastembed
+FASTEMBED_LOCAL_FILES_ONLY=true
 ```
 
 ## Verification

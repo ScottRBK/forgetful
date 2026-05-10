@@ -4,12 +4,12 @@ import logging
 import time
 from typing import Protocol
 
-from fastembed import TextEmbedding
 from google import genai
 from google.genai import types
 from openai import AzureOpenAI, OpenAI
 
 from app.config.settings import settings
+from app.repositories.embeddings.fastembed_offline import load_fastembed_model
 
 logger = logging.getLogger(__name__)
 
@@ -28,9 +28,11 @@ class FastEmbeddingAdapter(EmbeddingsAdapter):
         })
 
         start_time = time.time()
-        self.model = TextEmbedding(
+        self.model = load_fastembed_model(
+            model_role="embedding",
             model_name=settings.EMBEDDING_MODEL,
             cache_dir=settings.FASTEMBED_CACHE_DIR,
+            factory=lambda fastembed_kwargs: self._create_text_embedding(fastembed_kwargs),
         )
         elapsed = time.time() - start_time
 
@@ -38,6 +40,15 @@ class FastEmbeddingAdapter(EmbeddingsAdapter):
             "elapsed_time": f"{elapsed:.2f}s",
             "cache_dir": settings.FASTEMBED_CACHE_DIR,
         })
+
+    def _create_text_embedding(self, fastembed_kwargs: dict[str, bool]):
+        from fastembed import TextEmbedding
+
+        return TextEmbedding(
+            model_name=settings.EMBEDDING_MODEL,
+            cache_dir=settings.FASTEMBED_CACHE_DIR,
+            **fastembed_kwargs,
+        )
 
     async def generate_embedding(self, text: str) -> list[float]:
         try:

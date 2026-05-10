@@ -84,6 +84,12 @@ def _check_first_run_models():
     """Log message on first run when models need to be downloaded."""
     cache_dir = Path(settings.FASTEMBED_CACHE_DIR)
     if not cache_dir.exists() or not any(cache_dir.iterdir()):
+        if settings.FASTEMBED_LOCAL_FILES_ONLY:
+            logger.info(
+                "FastEmbed local-files-only mode enabled - models must already exist in cache",
+                extra={"cache_dir": settings.FASTEMBED_CACHE_DIR},
+            )
+            return
         logger.info("First run detected - downloading embedding models. This may take a minute...")
 
 

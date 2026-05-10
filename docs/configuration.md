@@ -925,6 +925,14 @@ ACTIVITY_TRACK_READS=false
 - **Note**: Can be customized for offline deployments (see [Offline Setup Guide](OFFLINE_SETUP.md))
 - **Example**: `FASTEMBED_CACHE_DIR=/app/data/models/fastembed`
 
+#### `FASTEMBED_LOCAL_FILES_ONLY`
+
+- **Default**: `false`
+- **Description**: Restrict FastEmbed embedding and reranking models to files already present in `FASTEMBED_CACHE_DIR`
+- **Purpose**: Prevents HuggingFace/GCS download attempts in locked-down or offline environments
+- **Note**: When enabled, pre-populate the cache first or startup fails with a local-cache error
+- **Example**: `FASTEMBED_LOCAL_FILES_ONLY=true`
+
 ---
 
 ## Configuration Hierarchy

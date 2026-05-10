@@ -215,6 +215,7 @@ class Settings(BaseSettings):
 
     # FASTEMBED CACHE CONFIGURATION
     FASTEMBED_CACHE_DIR: str = str(_default_data_dir / "models" / "fastembed")
+    FASTEMBED_LOCAL_FILES_ONLY: bool = False      # When True, FastEmbed only loads models from local cache
 
     """Pydantic Configuration"""
 
