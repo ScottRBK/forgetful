@@ -12,6 +12,7 @@ from app.routes.mcp.meta_tools import (
     _build_discover_docstring,
     _build_execute_docstring,
     _build_tool_categories_line,
+    _get_mcp_descriptor_mode,
 )
 
 
@@ -134,6 +135,37 @@ class TestBuildToolCategoriesLine:
         assert "task" in result
 
 
+class TestMcpDescriptorMode:
+    """Verify descriptor mode normalization."""
+
+    def test_default_descriptor_mode_is_verbose(self):
+        """Missing descriptor mode falls back to verbose."""
+        with patch("app.routes.mcp.meta_tools.settings") as mock_settings:
+            mock_settings.MCP_DESCRIPTOR_MODE = ""
+
+            result = _get_mcp_descriptor_mode()
+
+        assert result == "verbose"
+
+    def test_compact_descriptor_mode_is_normalized(self):
+        """Compact mode accepts case and whitespace differences."""
+        with patch("app.routes.mcp.meta_tools.settings") as mock_settings:
+            mock_settings.MCP_DESCRIPTOR_MODE = " Compact "
+
+            result = _get_mcp_descriptor_mode()
+
+        assert result == "compact"
+
+    def test_invalid_descriptor_mode_falls_back_to_verbose(self):
+        """Unknown descriptor mode values are deterministic and safe."""
+        with patch("app.routes.mcp.meta_tools.settings") as mock_settings:
+            mock_settings.MCP_DESCRIPTOR_MODE = "minimal"
+
+            result = _get_mcp_descriptor_mode()
+
+        assert result == "verbose"
+
+
 class TestDiscoverDocstring:
     """Verify discover_forgetful_tools docstring includes/excludes sections by flag."""
 
@@ -228,6 +260,23 @@ class TestDiscoverDocstring:
 
         assert "## Workflow" in doc
 
+    def test_compact_mode_omits_inline_tool_catalog(self):
+        """Compact mode keeps discovery guidance short."""
+        with patch("app.routes.mcp.meta_tools.settings") as mock_settings:
+            mock_settings.MCP_DESCRIPTOR_MODE = "compact"
+            mock_settings.SKILLS_ENABLED = True
+            mock_settings.FILES_ENABLED = True
+            mock_settings.PLANNING_ENABLED = True
+
+            doc = _build_discover_docstring()
+
+        assert "Discover available Forgetful tools" in doc
+        assert "how_to_use_forgetful_tool(tool_name)" in doc
+        assert "## All Available Tools" not in doc
+        assert "**Memory Tools**" not in doc
+        assert "**Task Tools**" not in doc
+        assert len(doc) < 900
+
 
 class TestExecuteDocstring:
     """Verify execute_forgetful_tool docstring includes/excludes sections by flag."""
@@ -304,3 +353,21 @@ class TestExecuteDocstring:
             doc = _build_execute_docstring()
 
         assert "## Linking Best Practices" in doc
+
+    def test_compact_mode_omits_inline_examples(self):
+        """Compact mode points to how_to_use instead of embedding long examples."""
+        with patch("app.routes.mcp.meta_tools.settings") as mock_settings:
+            mock_settings.MCP_DESCRIPTOR_MODE = "compact"
+            mock_settings.SKILLS_ENABLED = True
+            mock_settings.FILES_ENABLED = True
+            mock_settings.PLANNING_ENABLED = True
+
+            doc = _build_execute_docstring()
+
+        assert "Execute any registered Forgetful inner tool by name" in doc
+        assert "how_to_use_forgetful_tool(tool_name)" in doc
+        assert "Tool categories:" in doc
+        assert "## Quick Start" not in doc
+        assert "**Memory Operations:**" not in doc
+        assert "## Linking Best Practices" not in doc
+        assert len(doc) < 1000

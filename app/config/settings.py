@@ -93,6 +93,9 @@ class Settings(BaseSettings):
     # Scoped Permissions Configuration
     FORGETFUL_SCOPES: str = "*"               # Comma-separated scopes (e.g. "read", "write:memories", "read,write:entities")
 
+    # MCP descriptor presentation
+    MCP_DESCRIPTOR_MODE: str = "verbose"       # "verbose" (default) or "compact" meta-tool docstrings
+
     # Memory Configuration
     MEMORY_TITLE_MAX_LENGTH: int = 200      # Must be "easily titled" - scannable
     MEMORY_CONTENT_MAX_LENGTH: int = 2000   # ~300-400 words - single concept

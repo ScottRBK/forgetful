@@ -242,9 +242,58 @@ def _build_tool_categories_line() -> str:
     return " | ".join(categories)
 
 
+def _get_mcp_descriptor_mode() -> str:
+    """Return the normalized descriptor mode for meta-tool docstrings."""
+    mode = str(getattr(settings, "MCP_DESCRIPTOR_MODE", "verbose")).strip().lower()
+    if mode == "compact":
+        return "compact"
+    return "verbose"
+
+
+def _build_compact_discover_docstring(categories: str) -> str:
+    """Build a compact discover_forgetful_tools docstring."""
+    return f"""\
+Discover available Forgetful tools, optionally filtered by category.
+
+    Use this tool to list the available inner tools. Call how_to_use_forgetful_tool(tool_name)
+    for full parameter documentation and examples before uncommon or write operations.
+
+    Args:
+        category: Optional category filter ({categories})
+        ctx: FastMCP Context (automatically injected)
+
+    Returns:
+        Dictionary with tools_by_category, total_count, categories_available, and filtered_by.
+    """
+
+
+def _build_compact_execute_docstring(tool_categories: str) -> str:
+    """Build a compact execute_forgetful_tool docstring."""
+    return f"""\
+Execute any registered Forgetful inner tool by name.
+
+    Typical flow:
+    1. Call discover_forgetful_tools(category?) to find tool names.
+    2. Call how_to_use_forgetful_tool(tool_name) for full schemas and examples.
+    3. Call execute_forgetful_tool(tool_name, arguments) to run the selected tool.
+
+    Tool categories: {tool_categories}
+
+    Args:
+        tool_name: Name of the inner tool to execute
+        arguments: Dictionary of arguments for the selected tool
+        ctx: FastMCP Context (automatically injected)
+
+    Returns:
+        Tool execution result (format depends on the selected tool)
+    """
+
+
 def _build_discover_docstring() -> str:
     """Build discover_forgetful_tools docstring based on feature flags."""
     categories = _build_category_list()
+    if _get_mcp_descriptor_mode() == "compact":
+        return _build_compact_discover_docstring(categories)
 
     parts = [
         f"""\
@@ -289,6 +338,8 @@ Discover available tools, optionally filtered by category
 def _build_execute_docstring() -> str:
     """Build execute_forgetful_tool docstring based on feature flags."""
     tool_categories = _build_tool_categories_line()
+    if _get_mcp_descriptor_mode() == "compact":
+        return _build_compact_execute_docstring(tool_categories)
 
     parts = [
         f"""\

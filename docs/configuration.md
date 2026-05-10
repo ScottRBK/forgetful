@@ -105,6 +105,15 @@ Forgetful provides three Docker Compose configurations:
   - `json` - Structured JSON format (recommended for production)
 - **Example**: `LOG_FORMAT=json`
 
+### `MCP_DESCRIPTOR_MODE`
+
+- **Default**: `verbose`
+- **Description**: Controls how much guidance is embedded in the MCP meta-tool descriptions exposed to clients
+- **Values**:
+  - `verbose` - Include detailed inline guidance in `discover_forgetful_tools` and `execute_forgetful_tool`
+  - `compact` - Keep meta-tool descriptions short and use `how_to_use_forgetful_tool` for detailed schemas and examples
+- **Example**: `MCP_DESCRIPTOR_MODE=compact`
+
 ---
 
 ## Docker Configuration
