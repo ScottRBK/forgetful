@@ -1,11 +1,8 @@
 """Helpers for FastEmbed offline/cache-only startup."""
 import os
 from collections.abc import Callable
-from typing import TypeVar
 
 from app.config.settings import settings
-
-T = TypeVar("T")
 
 
 def get_fastembed_kwargs() -> dict[str, bool]:
@@ -19,7 +16,7 @@ def get_fastembed_kwargs() -> dict[str, bool]:
     return {"local_files_only": True}
 
 
-def load_fastembed_model(
+def load_fastembed_model[T](
     *,
     model_role: str,
     model_name: str,
@@ -39,5 +36,5 @@ def load_fastembed_model(
             f"FASTEMBED_LOCAL_FILES_ONLY=true prevents downloading missing models. "
             f"model={model_name!r}, cache_dir={cache_dir!r}. "
             "Pre-populate FASTEMBED_CACHE_DIR with the required model files, "
-            "disable FASTEMBED_LOCAL_FILES_ONLY, or choose a remote embedding/reranking provider."
+            "disable FASTEMBED_LOCAL_FILES_ONLY, or choose a remote embedding/reranking provider.",
         ) from exc
