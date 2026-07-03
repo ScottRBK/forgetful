@@ -6,7 +6,9 @@ This service implements the primary functionality for the Forgetful Memory Syste
     - Memory updates
     - Manual linking between memories
     - Retrieval with project associations
+    - Usage-aware decay scan (forgetful-hulkito fork, plan `native_memory_decay_engine`)
 """
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 from uuid import UUID
 
@@ -14,6 +16,9 @@ from app.config.logging_config import logging
 from app.config.settings import settings
 from app.models.activity_models import ActionType, ActivityEvent, ActorType, EntityType
 from app.models.memory_models import (
+    DecayCandidateAction,
+    DecayScanRequest,
+    DecayScanResponse,
     LinkedMemory,
     Memory,
     MemoryCreate,
@@ -34,6 +39,19 @@ if TYPE_CHECKING:
     from app.events import EventBus
 
 logger = logging.getLogger(__name__)
+
+
+# Decay engine tuning constants (forgetful-hulkito fork). See plan
+# `native_memory_decay_engine` for the rationale.
+_DECAY_MIN_AGE_DAYS = 90            # don't decay memories accessed in the last 90 days
+_DECAY_OBSOLETE_AGE_DAYS = 180      # consider obsolescence only after 180 days
+_DECAY_MIN_CONFIDENCE = 0.3         # never decay below this floor via the delta path
+_DECAY_BASE_DELTA = 0.1             # baseline confidence decrement
+_DECAY_USAGE_DELTA_FLOOR = 0.02     # minimum delta even for heavily-used memories
+_DECAY_USAGE_DECAY_PER_ACCESS = 0.01  # delta shrinks by this per recorded access
+_DECAY_USAGE_ACCESS_CAP = 8         # access_count beyond this no longer reduces delta
+_PROTECTED_TAGS = {"decision", "architecture", "critical"}
+_PROTECTED_IMPORTANCE = 8           # importance >= this is never decayed
 
 
 class MemoryService:
@@ -145,6 +163,23 @@ class MemoryService:
                 "truncated": truncated,
             },
         )
+
+        # Usage tracking: record access for the memories actually returned
+        # (post-truncation). Intermediate dense/rerank candidates are NOT
+        # counted. Best-effort: never let access tracking break a query.
+        accessed_ids = [m.id for m in final_primaries]
+        accessed_ids.extend(lm.memory.id for lm in final_linked)
+        if accessed_ids:
+            try:
+                await self.memory_repo.record_memory_access(
+                    user_id=user_id,
+                    memory_ids=accessed_ids,
+                )
+            except Exception as exc:  # noqa: BLE001 - intentional broad guard
+                logger.warning(
+                    "record_memory_access failed during query_memory",
+                    extra={"user_id": str(user_id), "count": len(accessed_ids), "error": str(exc)},
+                )
 
         return MemoryQueryResult(
             query=memory_query.query,
@@ -334,6 +369,174 @@ class MemoryService:
 
         return success
 
+    # ------------------------------------------------------------------
+    # Usage-aware decay engine (forgetful-hulkito fork)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _effective_access_date(memory: Memory) -> datetime:
+        """last_accessed_at ?? updated_at ?? created_at (fallback chain)."""
+        return memory.last_accessed_at or memory.updated_at or memory.created_at
+
+    @classmethod
+    def _is_protected(cls, memory: Memory) -> bool:
+        """Protected memories are never decayed: high importance or
+        decision/architecture/critical tags."""
+        if memory.importance >= _PROTECTED_IMPORTANCE:
+            return True
+        if memory.tags and set(memory.tags) & _PROTECTED_TAGS:
+            return True
+        return False
+
+    @classmethod
+    def _usage_weighted_delta(cls, access_count: int) -> float:
+        """Confidence decrement shrinks with usage: heavily accessed memories
+        decay slower. Floored at `_DECAY_USAGE_DELTA_FLOOR`."""
+        reduction = min(access_count, _DECAY_USAGE_ACCESS_CAP) * _DECAY_USAGE_DECAY_PER_ACCESS
+        return max(_DECAY_USAGE_DELTA_FLOOR, _DECAY_BASE_DELTA - reduction)
+
+    @classmethod
+    def _propose_action(
+        cls,
+        memory: Memory,
+        now: datetime,
+    ) -> DecayCandidateAction:
+        """Compute the proposed decay action for a single memory (pure)."""
+        effective = cls._effective_access_date(memory)
+        age_days = max(0, (now - effective).days)
+
+        common = {
+            "memory_id": memory.id,
+            "title": memory.title,
+            "current_confidence": memory.confidence,
+            "age_days": age_days,
+            "days_since_access": age_days,
+            "access_count": memory.access_count,
+        }
+
+        if cls._is_protected(memory):
+            return DecayCandidateAction(
+                kind="skip",
+                reason="protected (importance>=8 or decision/architecture/critical tag)",
+                **common,
+            )
+
+        if memory.confidence is None:
+            # No confidence score to decay. Surface as skip so the operator
+            # can decide on a default-confidence policy instead of silently
+            # inventing one.
+            return DecayCandidateAction(
+                kind="skip",
+                reason="confidence is None; no safe decay target without a default-confidence policy",
+                **common,
+            )
+
+        if age_days <= _DECAY_MIN_AGE_DAYS:
+            return DecayCandidateAction(
+                kind="skip",
+                reason=f"age {age_days}d <= {_DECAY_MIN_AGE_DAYS}d decay threshold",
+                **common,
+            )
+
+        # Obsolescence path: very old and already low confidence.
+        if age_days > _DECAY_OBSOLETE_AGE_DAYS and memory.confidence <= _DECAY_MIN_CONFIDENCE:
+            return DecayCandidateAction(
+                kind="obsolete",
+                reason=(
+                    f"GC: aged out ({age_days}d > {_DECAY_OBSOLETE_AGE_DAYS}d) and "
+                    f"confidence {memory.confidence:.2f} <= {_DECAY_MIN_CONFIDENCE:.2f}"
+                ),
+                **common,
+            )
+
+        # Standard decay path: lower confidence by usage-weighted delta,
+        # clamped at the decay floor.
+        delta = cls._usage_weighted_delta(memory.access_count)
+        proposed = max(_DECAY_MIN_CONFIDENCE, memory.confidence - delta)
+        if proposed >= memory.confidence:
+            return DecayCandidateAction(
+                kind="skip",
+                reason="computed proposed confidence not lower than current (clamped at floor)",
+                **common,
+            )
+        return DecayCandidateAction(
+            kind="decay",
+            delta=delta,
+            proposed_confidence=proposed,
+            reason=f"age {age_days}d > {_DECAY_MIN_AGE_DAYS}d, confidence {memory.confidence:.2f} > {_DECAY_MIN_CONFIDENCE:.2f}",
+            **common,
+        )
+
+    async def run_decay_scan(
+            self,
+            user_id: UUID,
+            request: DecayScanRequest,
+    ) -> DecayScanResponse:
+        """Run a usage-aware decay scan over a user-scoped subset of memories.
+
+        Dry-run (`dry_run=True`, default): returns proposed actions only,
+        nothing is written.
+
+        Live mode (`dry_run=False`): applies confidence decay through the
+        validated `update_memory` path and obsolescence through
+        `mark_memory_obsolete` — never raw SQL.
+        """
+        candidates = await self.memory_repo.get_decay_candidates(
+            user_id=user_id,
+            memory_ids=request.memory_ids,
+            project_id=request.project_id,
+            max_age_days=None,  # the formula handles age thresholds itself
+        )
+
+        now = datetime.now(UTC)
+        actions: list[DecayCandidateAction] = []
+        applied = 0
+        failed: list[dict] = []
+
+        for memory in candidates:
+            try:
+                action = self._propose_action(memory=memory, now=now)
+                actions.append(action)
+
+                if request.dry_run or action.kind == "skip":
+                    continue
+
+                if action.kind == "decay" and action.proposed_confidence is not None:
+                    await self.update_memory(
+                        user_id=user_id,
+                        memory_id=memory.id,
+                        updated_memory=MemoryUpdate(confidence=action.proposed_confidence),
+                    )
+                    applied += 1
+                elif action.kind == "obsolete":
+                    await self.mark_memory_obsolete(
+                        user_id=user_id,
+                        memory_id=memory.id,
+                        reason=action.reason or "GC: aged out, no longer relevant",
+                    )
+                    applied += 1
+            except Exception as exc:  # noqa: BLE001 - per-memory isolation
+                failed.append({
+                    "memory_id": memory.id,
+                    "reason": f"{type(exc).__name__}: {exc!s}",
+                })
+                logger.warning(
+                    "decay scan per-memory failure",
+                    extra={
+                        "user_id": str(user_id),
+                        "memory_id": memory.id,
+                        "error": str(exc),
+                    },
+                )
+
+        return DecayScanResponse(
+            dry_run=request.dry_run,
+            scanned=len(candidates),
+            actions=actions,
+            applied=applied,
+            failed=failed,
+        )
+
     async def get_memory(
             self,
             user_id: UUID,
@@ -362,6 +565,20 @@ class MemoryService:
                 action=ActionType.READ,
                 snapshot=memory.model_dump(mode="json"),
             )
+
+        # Usage tracking: record access for the fetched memory. Best-effort:
+        # never let access tracking break a get_memory call.
+        if memory is not None:
+            try:
+                await self.memory_repo.record_memory_access(
+                    user_id=user_id,
+                    memory_ids=[memory_id],
+                )
+            except Exception as exc:  # noqa: BLE001 - intentional broad guard
+                logger.warning(
+                    "record_memory_access failed during get_memory",
+                    extra={"user_id": str(user_id), "memory_id": memory_id, "error": str(exc)},
+                )
 
         return memory
 

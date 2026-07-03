@@ -767,3 +767,87 @@ def register(mcp: FastMCP):
                 "error_message": str(e),
             })
             raise ToolError(f"INTERNAL_ERROR: Rebuilding embeddings failed - {type(e).__name__}: {e!s}")
+
+    @mcp.tool()
+    async def run_decay_scan(
+        ctx: Context,
+        memory_ids: list[int] | None = None,
+        project_id: int | None = None,
+        dry_run: bool = True,
+    ) -> dict:
+        """Run a usage-aware memory decay scan (forgetful-hulkito fork).
+
+        WHEN: Periodic corpus health maintenance. Replaces the prompt-level
+        "oldest 5, -0.1 if >90d" rule with a deterministic, usage-aware
+        formula that protects high-importance memories and decision /
+        architecture / critical tags.
+
+        BEHAVIOR: Reviews non-obsolete memories owned by the authenticated
+        user, scoped by `memory_ids` and/or `project_id`. For each candidate
+        it proposes one of: `decay` (lower confidence by a usage-weighted
+        delta, clamped at 0.3), `obsolete` (mark obsolete when very old and
+        already low confidence), or `skip` (protected, too recent, or
+        `confidence is None`).
+
+        - `dry_run=True` (default): no writes. Returns proposed actions only.
+        - `dry_run=False`: applies confidence decay through the validated
+          `update_memory` path and obsolescence through
+          `mark_memory_obsolete`. Never raw SQL.
+
+        NOT-USE: Don't run with `dry_run=False` without first reviewing a
+        dry-run on the same scope, and always back up the live DB before the
+        first live run (same convention as the `rebuild_embeddings`
+        v0.4.1 rollout).
+
+        Args:
+            memory_ids: Explicit ids to scan (already user-scoped server-side).
+            project_id: Restrict to a single project owned by the caller.
+            dry_run: Preview-only mode (no writes). Default True.
+
+        Returns:
+            Dict with keys: dry_run (bool), scanned (int),
+            actions (list of {kind, memory_id, title, current_confidence,
+            proposed_confidence, delta, reason, age_days,
+            days_since_access, access_count}), applied (int, 0 in dry-run),
+            failed (list of {memory_id, reason}).
+        """
+        try:
+            logger.info("MCP Tool -> run_decay_scan", extra={
+                "memory_ids": memory_ids,
+                "project_id": project_id,
+                "dry_run": dry_run,
+            })
+
+            user = await get_user_from_auth(ctx)
+            memory_service = ctx.fastmcp.memory_service
+
+            if memory_ids is not None and len(memory_ids) == 0:
+                raise ToolError(
+                    "VALIDATION_ERROR: memory_ids must be non-empty if provided; "
+                    "pass null for global scope",
+                )
+
+            from app.models.memory_models import DecayScanRequest
+            response = await memory_service.run_decay_scan(
+                user_id=user.id,
+                request=DecayScanRequest(
+                    memory_ids=memory_ids,
+                    project_id=project_id,
+                    dry_run=dry_run,
+                ),
+            )
+            return response.model_dump(mode="json")
+        except ToolError:
+            raise
+        except ValidationError as e:
+            logger.debug("MCP Tool - run_decay_scan validation error", extra={
+                "error_type": "ValidationError",
+                "error_message": str(e),
+            })
+            raise ToolError(f"VALIDATION_ERROR: {e!s}")
+        except Exception as e:
+            logger.error("MCP Tool -> run_decay_scan failed", exc_info=True, extra={
+                "error_type": type(e).__name__,
+                "error_message": str(e),
+            })
+            raise ToolError(f"INTERNAL_ERROR: Decay scan failed - {type(e).__name__}: {e!s}")

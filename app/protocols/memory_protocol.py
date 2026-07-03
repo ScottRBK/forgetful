@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any, Protocol
 from uuid import UUID
 
@@ -263,6 +264,42 @@ class MemoryRepository(Protocol):
 
     async def validate_search_works(self) -> bool:
         """Run a smoke-test semantic search"""
+        ...
+
+    # ------------------------------------------------------------------
+    # Usage tracking + decay engine (forgetful-hulkito fork)
+    # ------------------------------------------------------------------
+
+    async def record_memory_access(
+        self,
+        user_id: UUID,
+        memory_ids: list[int],
+        accessed_at: datetime | None = None,
+    ) -> int:
+        """Increment `access_count` and update `last_accessed_at` for the given
+        memory ids, scoped to `user_id`.
+
+        MUST NOT mutate `updated_at` — usage tracking is an internal read-side
+        concern and must not distort normal memory recency. Returns the number
+        of rows actually updated (owned + non-obsolete).
+        """
+        ...
+
+    async def get_decay_candidates(
+        self,
+        user_id: UUID,
+        memory_ids: list[int] | None = None,
+        project_id: int | None = None,
+        max_age_days: int | None = None,
+    ) -> list[Memory]:
+        """Return non-obsolete memories owned by `user_id` that are eligible
+        for decay review, ordered oldest first.
+
+        Filters: explicit `memory_ids` (already user-scoped) and/or a single
+        `project_id`. `max_age_days` optionally limits to memories whose
+        effective access date (`last_accessed_at ?? updated_at ?? created_at`)
+        is older than the given threshold.
+        """
         ...
 
 

@@ -286,6 +286,15 @@ class Memory(MemoryCreate):
     superseded_by: int | None = Field(default=None, description="ID of memory that supersedes this one")
     obsoleted_at: datetime | None = Field(default=None, description="When this memory was marked obsolete")
 
+    # Usage tracking (read-only from the API surface; mutated only by the
+    # internal `record_memory_access` repository method so `updated_at` is not
+    # distorted and external callers cannot fake read counters).
+    access_count: int = Field(default=0, description="Number of times this memory has been returned by a read path")
+    last_accessed_at: datetime | None = Field(
+        default=None,
+        description="Last time this memory was returned by a read path (null = never accessed)",
+    )
+
     model_config = ConfigDict(from_attributes=True)
 
 class MemorySummary(BaseModel):
@@ -402,6 +411,72 @@ class MemoryLinkRequest(BaseModel):
         if "memory_id" in info.data and info.data["memory_id"] in v:
             raise ValueError("Cannot link memory to itself")
         return v
+
+
+# ---------------------------------------------------------------------------
+# Memory decay engine (forgetful-hulkito fork)
+#
+# Usage tracking columns `access_count` / `last_accessed_at` are populated on
+# real read paths only (query_memory final results, get_memory). The
+# `run_decay_scan` MCP tool uses them together with age to propose confidence
+# decay and obsolete candidates. See plan `native_memory_decay_engine`.
+# ---------------------------------------------------------------------------
+
+
+class DecayScanRequest(BaseModel):
+    """Scope parameters for a decay scan.
+
+    Args:
+        memory_ids: Explicit ids to scan (already user-scoped server-side).
+        project_id: Restrict to a single project owned by the caller.
+        dry_run: When True, only report proposed changes; do not write.
+    """
+
+    memory_ids: list[int] | None = Field(
+        default=None,
+        description="Explicit memory ids to scan; leave null to use project_id or global user scope",
+    )
+    project_id: int | None = Field(
+        default=None,
+        description="Restrict the scan to memories of a single project owned by the caller",
+    )
+    dry_run: bool = Field(
+        default=True,
+        description="Preview-only mode (no writes). Set to False to apply confidence decay and obsolete mutations.",
+    )
+
+
+class DecayCandidateAction(BaseModel):
+    """A single proposed mutation for one memory.
+
+    `kind` is one of:
+    - "decay": lower `confidence` by `delta` (clamped at 0.0).
+    - "obsolete": mark the memory obsolete with `reason`.
+    - "skip": report the candidate without mutating it (used when
+      `confidence is None` or another guard fires); `reason` explains why.
+    """
+
+    kind: str
+    memory_id: int
+    title: str | None = None
+    current_confidence: float | None = None
+    proposed_confidence: float | None = None
+    delta: float | None = None
+    reason: str | None = None
+    age_days: int | None = None
+    days_since_access: int | None = None
+    access_count: int | None = None
+
+
+class DecayScanResponse(BaseModel):
+    """Result of a decay scan (dry-run or live)."""
+
+    dry_run: bool
+    scanned: int
+    actions: list[DecayCandidateAction] = Field(default_factory=list)
+    applied: int = Field(0, description="Number of actions actually applied (0 in dry-run)")
+    failed: list[dict] = Field(default_factory=list, description="Per-memory failures: {memory_id, reason}")
+
 
 
 
