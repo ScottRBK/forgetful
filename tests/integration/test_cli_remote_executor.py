@@ -92,6 +92,22 @@ async def test_close_closes_client():
     assert stub.closed
 
 
+async def test_close_suppresses_client_teardown_errors():
+    """close() runs in the command runner's finally block after the failure has
+    already been reported; a connection that never opened must not raise again
+    and bury the real error under a teardown traceback."""
+
+    class ExplodingClient(StubClient):
+        async def close(self):
+            raise ConnectionError("All connection attempts failed")
+
+    executor = RemoteExecutor(
+        "http://example.com:8020", client_factory=lambda url, token: ExplodingClient(),
+    )
+
+    await executor.close()
+
+
 def test_server_url_normalization_appends_mcp_path():
     factory = lambda url, token: StubClient()  # noqa: E731
 
@@ -111,9 +127,11 @@ def test_server_url_normalization_appends_mcp_path():
 # =============================================================================
 
 
-async def test_server_flag_beats_forgetful_server_setting(monkeypatch):
+async def test_server_flag_beats_forgetful_server_setting(monkeypatch, tmp_path):
     monkeypatch.setattr(settings, "FORGETFUL_SERVER", "http://from-settings:1")
     monkeypatch.delenv("FORGETFUL_TOKEN", raising=False)
+    # Tokenless remote -> OAuth factory; keep its token cache out of the real home dir
+    monkeypatch.setattr("app.routes.cli.paths.config_dir", lambda: tmp_path / "config")
 
     executor = await _build_executor(_args(["tools", "list", "--server", "http://from-flag:2"]))
 
@@ -124,9 +142,10 @@ async def test_server_flag_beats_forgetful_server_setting(monkeypatch):
         await executor.close()
 
 
-async def test_forgetful_server_setting_selects_remote(monkeypatch):
+async def test_forgetful_server_setting_selects_remote(monkeypatch, tmp_path):
     monkeypatch.setattr(settings, "FORGETFUL_SERVER", "http://from-settings:1")
     monkeypatch.delenv("FORGETFUL_TOKEN", raising=False)
+    monkeypatch.setattr("app.routes.cli.paths.config_dir", lambda: tmp_path / "config")
 
     executor = await _build_executor(_args(["tools", "list"]))
 
@@ -261,3 +280,14 @@ def test_logout_when_no_cached_tokens_still_succeeds(tmp_path, capsys):
     code = auth_commands.logout(token_dir=tmp_path / "missing")
 
     assert code == 0
+
+
+async def test_auth_status_local_mode_reports_local(monkeypatch, capsys):
+    monkeypatch.setattr(settings, "FORGETFUL_SERVER", "")
+
+    code = await auth_commands.status()
+
+    assert code == 0
+    out = capsys.readouterr().out
+    assert "Mode: local" in out
+    assert settings.DATABASE in out

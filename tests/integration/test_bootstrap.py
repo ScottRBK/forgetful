@@ -4,8 +4,12 @@ Phase 1 of docs/dev/cli_plan.md: the adapter/repo/service/registry wiring is ext
 from main.lifespan() into build_runtime()/dispose_runtime() so the CLI and the server
 share one composition root. These tests exercise the factory against in-memory SQLite.
 """
-from app.bootstrap import build_runtime, dispose_runtime
+import asyncio
+
+from app.bootstrap import Runtime, build_runtime, dispose_runtime
 from app.config.settings import settings
+from app.events.event_bus import EventBus
+from app.models.activity_models import ActivityEvent
 from app.models.memory_models import MemoryCreate
 from app.models.user_models import UserCreate
 
@@ -75,3 +79,38 @@ async def test_dispose_runtime_is_idempotent(sqlite_runtime_settings):
 
     await dispose_runtime(runtime)
     await dispose_runtime(runtime)
+
+
+async def test_dispose_runtime_drains_in_flight_event_handlers():
+    """Pending fire-and-forget activity tasks must complete before dispose returns.
+
+    The CLI is one-shot: asyncio.run() tears the loop down right after dispose, so
+    any handler task still pending at that point would be cancelled and its
+    activity write silently lost.
+    """
+    handled = []
+
+    async def slow_handler(event):
+        await asyncio.sleep(0.05)
+        handled.append(event)
+
+    bus = EventBus()
+    bus.subscribe("*.*", slow_handler)
+    await bus.emit(ActivityEvent(entity_type="memory", action="created", snapshot={}))
+
+    class _StubAdapter:
+        async def dispose(self):
+            pass
+
+    runtime = Runtime(
+        db_adapter=_StubAdapter(),
+        repos={},
+        services=None,
+        registry=None,
+        permitted_tools=set(),
+        instance_scopes=frozenset(),
+        event_bus=bus,
+    )
+    await dispose_runtime(runtime)
+
+    assert handled, "event handler task was not drained before dispose returned"

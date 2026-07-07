@@ -4,6 +4,7 @@ execute()/list_tools()/tool_info() proxy the server's meta-tools, so identity an
 scopes are enforced server-side from the token and help text always matches the
 server's version (no doc skew).
 """
+import contextlib
 import json
 from typing import Any
 from urllib.parse import urlparse
@@ -81,4 +82,8 @@ class RemoteExecutor:
         return await self._call("how_to_use_forgetful_tool", {"tool_name": tool_name})
 
     async def close(self) -> None:
-        await self._client.close()
+        # Runs in the command runner's finally block: a connection that failed to
+        # open re-raises its ConnectError here, which would bury the already-reported
+        # error under a teardown traceback.
+        with contextlib.suppress(Exception):
+            await self._client.close()

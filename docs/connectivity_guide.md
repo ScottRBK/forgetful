@@ -366,3 +366,7 @@ forgetful memory recent --server https://forgetful.example.com
 
 Per-invocation overrides: `--server URL` targets any deployment, `--local` forces
 local mode. `--json` on any tool command emits machine-readable output for scripting.
+
+One remote-mode quirk: a tool whose result is an empty list prints `null` instead of
+`[]` (the MCP wire format carries an empty array as no content at all, so the CLI
+cannot distinguish it from a null result). Scripts should treat both as "no results".

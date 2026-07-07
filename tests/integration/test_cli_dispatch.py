@@ -93,3 +93,41 @@ def test_unknown_token_exits_with_usage_error(monkeypatch, recorded_runners, cap
 
     assert excinfo.value.code == 2
     assert not recorded_runners
+
+
+def test_serve_subcommand_defaults_to_stdio_transport(monkeypatch, recorded_runners):
+    _invoke(monkeypatch, ["serve"])
+
+    assert recorded_runners["serve"] == {
+        "transport": "stdio",
+        "host": settings.SERVER_HOST,
+        "port": settings.SERVER_PORT,
+    }
+
+
+def test_auth_subcommands_route_and_propagate_exit_codes(monkeypatch):
+    from app.routes.cli import auth_commands
+
+    calls = {}
+
+    async def fake_login(server):
+        calls["login"] = server
+        return 0
+
+    async def fake_status():
+        calls["status"] = True
+        return 1
+
+    def fake_logout():
+        calls["logout"] = True
+        return 0
+
+    monkeypatch.setattr(auth_commands, "login", fake_login)
+    monkeypatch.setattr(auth_commands, "status", fake_status)
+    monkeypatch.setattr(auth_commands, "logout", fake_logout)
+
+    assert _invoke(monkeypatch, ["auth", "login", "--server", "http://remote:8020"]) == 0
+    assert calls["login"] == "http://remote:8020"
+    assert _invoke(monkeypatch, ["auth", "status"]) == 1
+    assert _invoke(monkeypatch, ["auth", "logout"]) == 0
+    assert calls["logout"] is True

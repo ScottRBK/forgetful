@@ -5,7 +5,10 @@ Drives main.cli() in-process with patched argv against a file-backed SQLite data
 All feature flags are enabled so the discovery surface matches a full deployment.
 """
 import json
+import os
+import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -19,6 +22,7 @@ _PATCHED_FIELDS = [
     "EMBEDDING_PROVIDER",
     "RERANKING_ENABLED",
     "FORGETFUL_SCOPES",
+    "FORGETFUL_SERVER",
     "SKILLS_ENABLED",
     "FILES_ENABLED",
     "PLANNING_ENABLED",
@@ -30,6 +34,7 @@ _PATCHED_FIELDS = [
 def cli_sqlite_env(tmp_path):
     """File-backed SQLite settings so state persists across cli() invocations."""
     original = {name: getattr(settings, name) for name in _PATCHED_FIELDS}
+    settings.FORGETFUL_SERVER = ""  # never leak these tests onto a configured remote
     settings.DATABASE = "SQLite"
     settings.SQLITE_MEMORY = False
     settings.SQLITE_PATH = str(tmp_path / "cli-e2e.db")
@@ -143,3 +148,25 @@ def test_call_unknown_tool_json_mode_emits_error_object(cli_sqlite_env, monkeypa
     # the scriptable contract is that the error object is the last stderr line.
     payload = json.loads(err.strip().splitlines()[-1])
     assert "not found in registry" in payload["error"]
+
+
+def test_python_main_py_propagates_cli_exit_codes():
+    """`python main.py <subcommand>` must exit with the command's status, not 0.
+
+    The `forgetful` console script wraps cli()'s return value in sys.exit(), but
+    running the module directly needs main.py to do that itself. FORGETFUL_TOKEN
+    forces the bearer branch (no OAuth/token-dir side effects) and port 9 refuses
+    the connection immediately, so the command fails fast with exit code 1.
+    """
+    repo_root = Path(__file__).resolve().parents[2]
+    env = {**os.environ, "FORGETFUL_TOKEN": "dummy-token"}
+
+    result = subprocess.run(
+        [
+            sys.executable, "main.py",
+            "call", "get_current_user", "--server", "http://127.0.0.1:9",
+        ],
+        cwd=repo_root, env=env, capture_output=True, text=True, timeout=120,
+    )
+
+    assert result.returncode == 1, (result.stdout, result.stderr)

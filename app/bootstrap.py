@@ -357,5 +357,11 @@ async def build_runtime() -> Runtime:
 
 
 async def dispose_runtime(runtime: Runtime) -> None:
-    """Close the runtime's DB connections. Safe to call more than once."""
+    """Drain in-flight events, then close the DB. Safe to call more than once.
+
+    Draining matters for one-shot consumers (the CLI): activity handlers are
+    fire-and-forget tasks, and asyncio.run() would cancel any still pending.
+    """
+    if runtime.event_bus is not None:
+        await runtime.event_bus.wait_for_pending()
     await runtime.db_adapter.dispose()

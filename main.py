@@ -404,4 +404,6 @@ def cli():
 
 
 if __name__ == "__main__":
-    cli()
+    # The console script wraps cli() in sys.exit(); direct execution must too,
+    # or failed commands would exit 0.
+    sys.exit(cli())
