@@ -26,6 +26,7 @@ from fastmcp import Client, FastMCP
 from httpx import ASGITransport, AsyncByteStream, AsyncClient, Request, Response
 from sqlalchemy import text
 
+from app.bootstrap import create_repositories
 from app.config.settings import settings
 from app.events import EventBus
 from app.repositories.embeddings.embedding_adapter import (
@@ -71,7 +72,6 @@ from app.services.project_service import ProjectService
 from app.services.skill_service import SkillService
 from app.services.task_service import TaskService
 from app.services.user_service import UserService
-from main import _create_repositories
 
 # Force all async tests in this directory onto the session event loop.
 # Required because asyncpg connections are bound to their creation loop.
@@ -389,7 +389,7 @@ async def postgres_app(db_adapter, embedding_adapter, reranker_adapter, request)
     settings.PLANNING_ENABLED = True
     settings.FILES_ENABLED = True
 
-    repos = _create_repositories(db_adapter, embedding_adapter, reranker_adapter)
+    repos = create_repositories(db_adapter, embedding_adapter, reranker_adapter)
     skill_repository = PostgresSkillRepository(
         db_adapter=db_adapter,
         embedding_adapter=embedding_adapter,
