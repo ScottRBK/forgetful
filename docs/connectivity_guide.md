@@ -322,3 +322,47 @@ Add to your `opencode.json` or `opencode.jsonc` configuration file.
 For enhanced workflows with Forgetful, we provide ready-to-use OpenCode commands and skills for memory management, search, and repository encoding.
 
 See [OpenCode Integration](opencode/README.md) for installation and usage.
+
+## Forgetful CLI
+
+Forgetful ships its own terminal client alongside the MCP server - no MCP client
+required. It executes the same tool registry the meta-tools use.
+
+### Local (default)
+
+```bash
+uv tool install forgetful-ai
+forgetful memory search "wsl dns"
+forgetful memory save "content" --title "Title" --importance 7
+```
+
+Local mode uses the same database and settings as a locally launched server
+(`~/.config/forgetful/.env` is shared by both).
+
+### Remote deployment with OAuth
+
+Against a Docker/Postgres deployment with authentication enabled (see
+[Configuration Guide](configuration.md#authentication-configuration)):
+
+```bash
+forgetful auth login --server https://forgetful.example.com
+# Opens your browser for the OAuth authorization-code flow (PKCE + dynamic client
+# registration), caches tokens in ~/.config/forgetful/tokens/, and saves
+# FORGETFUL_SERVER to ~/.config/forgetful/.env
+
+forgetful auth status    # server, authenticated user, cached credentials
+forgetful memory search "deployment checklist"   # runs remotely
+forgetful auth logout    # clears the local token cache
+```
+
+Requirements: the deployment must be running an OAuth-capable auth provider
+(authorization-code flow with dynamic client registration). A FastMCP instance runs a
+single auth mechanism, so JWT-only deployments should use bearer tokens instead:
+
+```bash
+export FORGETFUL_TOKEN="<token>"          # headless/CI bearer auth
+forgetful memory recent --server https://forgetful.example.com
+```
+
+Per-invocation overrides: `--server URL` targets any deployment, `--local` forces
+local mode. `--json` on any tool command emits machine-readable output for scripting.

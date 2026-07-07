@@ -24,6 +24,13 @@
     - [x] Open AI
     - [ ] Ollama
     - [ ] Open Router
+- [x] First-party CLI (fourth front door over the ToolRegistry)
+    - [x] Bootstrap factory shared by server and CLI (app/bootstrap.py)
+    - [x] Subcommand dispatch with permanent legacy-flag fallback
+    - [x] Generic passthrough (tools list/info, call --args JSON, --json output)
+    - [x] Remote mode via fastmcp client (OAuth browser flow + FORGETFUL_TOKEN bearer)
+    - [x] auth login / status / logout with persistent token cache
+    - [x] Curated verbs (memory search/save/get/recent, project list)
 - [x] PyPI package
 - [ ] Plans & Tasks (multi-agent coordination)
     - [ ] Plans (structured work containers)

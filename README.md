@@ -19,6 +19,7 @@
 - [Overview](#overview)
 - [Features](#features)
 - [Quick Start](#quick-start)
+- [CLI](#cli)
 - [Some Examples](#usage-example)
 - [How It Works](#how-it-works)
 - [Configuration](#configuration)
@@ -168,6 +169,48 @@ Add Forgetful to your MCP client configuration:
   }
 }
 ```
+
+
+---
+
+## CLI
+
+The `forgetful` command is also a full terminal client over the same tool registry the
+MCP meta-tools use - against your local database by default, or a remote deployment
+after `auth login`.
+
+```bash
+uv tool install forgetful-ai
+
+# Curated verbs for daily use
+forgetful memory save "Set generateResolvConf false to fix WSL2 DNS" \
+    --title "WSL2 DNS fix" --importance 7
+forgetful memory search "wsl dns" -n 5
+forgetful memory get 812
+forgetful memory recent -n 10 -p my-project
+forgetful project list
+
+# Generic passthrough to any of the 42 tools
+forgetful tools list --category memory
+forgetful tools info query_memory
+forgetful call create_project --args '{"name": "Homelab", "description": "...", "project_type": "personal"}'
+
+# Remote deployment (browser OAuth; saves FORGETFUL_SERVER to ~/.config/forgetful/.env)
+forgetful auth login --server https://forgetful.example.com
+forgetful auth status
+forgetful memory search "wsl dns"          # now runs against the remote server
+forgetful memory search "wsl dns" --local  # force local mode per invocation
+
+# Scripting: --json emits machine-readable output
+forgetful memory search "wsl dns" --json | jq '.primary_memories[0].id'
+```
+
+`forgetful serve` is the canonical way to run the MCP server (`forgetful serve
+--transport http --port 8020`); the bare `forgetful` / `uvx forgetful-ai` invocation and
+the legacy `--transport`/`--re-embed` flags keep working indefinitely, so existing MCP
+client configurations are unaffected. Headless environments can set `FORGETFUL_TOKEN`
+(bearer) instead of the OAuth flow. See the
+[Configuration Guide](docs/configuration.md#cli-configuration) for precedence rules.
 
 
 ---

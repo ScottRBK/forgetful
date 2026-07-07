@@ -403,6 +403,41 @@ When authentication is enabled, Forgetful automatically provisions users from to
 
 ---
 
+## CLI Configuration
+
+The `forgetful` CLI executes the same tool registry as the MCP server - locally by
+default, or against a remote deployment.
+
+### `FORGETFUL_SERVER`
+
+- **Default**: `` (empty - local mode)
+- **Purpose**: Remote deployment URL the CLI executes against. Bare `host:port` URLs
+  get the default `/mcp` mount path appended automatically.
+- **Set by**: `forgetful auth login --server URL` (written to `~/.config/forgetful/.env`),
+  or manually via shell env / any `.env` file in the standard list.
+
+### `FORGETFUL_TOKEN`
+
+- **Default**: unset
+- **Purpose**: Bearer token for headless/CI use of the CLI against an authenticated
+  deployment. Read from the shell environment only - deliberately never stored in
+  `.env` files or the token cache. When unset, the CLI uses the browser OAuth flow.
+
+### Configuration precedence (highest wins)
+
+1. Per-invocation flags: `--server URL` / `--local`
+2. Shell environment: `FORGETFUL_SERVER`, `FORGETFUL_TOKEN`
+3. User config file: `~/.config/forgetful/.env` (written by `forgetful auth login`)
+4. Defaults: local mode, SQLite at the platform data path, FastEmbed embeddings
+
+### Token cache
+
+OAuth tokens are cached in `~/.config/forgetful/tokens/` (created `0700`) so the
+browser flow runs once, not per invocation. `forgetful auth logout` deletes this
+directory; the server-side session is untouched.
+
+---
+
 ## Memory Configuration
 
 These settings control the atomic memory system's behavior and constraints.
