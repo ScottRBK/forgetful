@@ -125,6 +125,67 @@ def build_parser() -> argparse.ArgumentParser:
         help="Tool arguments as a JSON object",
     )
 
+    memory = subparsers.add_parser("memory", help="Curated memory commands")
+    memory_sub = memory.add_subparsers(dest="memory_command", required=True)
+
+    memory_search = memory_sub.add_parser(
+        "search",
+        parents=[output_flags],
+        help="Semantic search across memories",
+    )
+    memory_search.add_argument("query", help="Search query")
+    memory_search.add_argument(
+        "-c", "--context",
+        default="cli search",
+        help='Why you are searching (improves ranking; default: "cli search")',
+    )
+    memory_search.add_argument(
+        "-n", "--limit",
+        type=int,
+        default=None,
+        help="Maximum number of memories to return",
+    )
+    memory_search.add_argument("-p", "--project", help="Project id or name to scope the search")
+
+    memory_save = memory_sub.add_parser(
+        "save",
+        parents=[output_flags],
+        help="Save a new memory",
+    )
+    memory_save.add_argument("content", help="Memory content")
+    memory_save.add_argument("--title", required=True, help="Short scannable title")
+    memory_save.add_argument(
+        "--importance",
+        type=int,
+        default=5,
+        help="Importance 1-10 (default: 5)",
+    )
+    memory_save.add_argument("-p", "--project", help="Project id or name to attach the memory to")
+
+    memory_get = memory_sub.add_parser(
+        "get",
+        parents=[output_flags],
+        help="Show a memory by id",
+    )
+    memory_get.add_argument("memory_id", type=int, help="Memory id")
+
+    memory_recent = memory_sub.add_parser(
+        "recent",
+        parents=[output_flags],
+        help="Show the newest memories",
+    )
+    memory_recent.add_argument(
+        "-n", "--limit",
+        type=int,
+        default=10,
+        help="Number of memories to show (default: 10)",
+    )
+    memory_recent.add_argument("-p", "--project", help="Project id or name filter")
+
+    project = subparsers.add_parser("project", help="Curated project commands")
+    project_sub = project.add_subparsers(dest="project_command", required=True)
+    project_sub.add_parser("list", parents=[output_flags], help="List all projects")
+
     auth = subparsers.add_parser("auth", help="Authenticate against a remote deployment")
     auth_sub = auth.add_subparsers(dest="auth_command", required=True)
     auth_login = auth_sub.add_parser(
@@ -173,6 +234,12 @@ async def _run_tool_command(args) -> int:
         return 1
 
     try:
+        if args.command in {"memory", "project"}:
+            from app.routes.cli import verbs
+
+            payload, human = await verbs.run(executor, args)
+            print(render_result(payload, as_json) if as_json else human)
+            return 0
         if args.command == "tools" and args.tools_command == "list":
             result = await executor.list_tools(category=args.category)
         elif args.command == "tools":
@@ -197,7 +264,7 @@ def dispatch(argv, *, serve_runner, reembed_runner):
         return serve_runner(transport=args.transport, host=args.host, port=args.port)
     if args.command == "re-embed":
         return asyncio.run(reembed_runner(args))
-    if args.command in {"tools", "call"}:
+    if args.command in {"tools", "call", "memory", "project"}:
         return asyncio.run(_run_tool_command(args))
     if args.command == "auth":
         return asyncio.run(_run_auth_command(args))

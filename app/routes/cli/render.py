@@ -33,3 +33,36 @@ def emit_error(message: str, as_json: bool) -> None:
         print(json.dumps({"error": message}), file=sys.stderr)
     else:
         print(f"Error: {message}", file=sys.stderr)
+
+
+def render_memory_lines(memories: list[dict]) -> str:
+    """Compact one-line-per-memory listing, e.g. '#1  [8]  Title  (memory 812)'."""
+    if not memories:
+        return "No memories found."
+    return "\n".join(
+        f"#{index}  [{memory.get('importance', '?')}]  {memory['title']}  (memory {memory['id']})"
+        for index, memory in enumerate(memories, 1)
+    )
+
+
+def render_memory_detail(memory: dict) -> str:
+    """Multi-line detail view for a single memory."""
+    tags = ", ".join(memory.get("tags") or []) or "-"
+    return "\n".join([
+        f"Memory {memory['id']}: {memory['title']}",
+        f"Importance: {memory.get('importance', '?')}    Tags: {tags}",
+        f"Context: {memory.get('context') or '-'}",
+        "",
+        memory.get("content") or "",
+    ])
+
+
+def render_project_lines(projects: list[dict]) -> str:
+    """Compact one-line-per-project listing."""
+    if not projects:
+        return "No projects found."
+    return "\n".join(
+        f"#{project['id']}  {project['name']}  "
+        f"({project.get('project_type', '?')}, {project.get('status', '?')})"
+        for project in projects
+    )
