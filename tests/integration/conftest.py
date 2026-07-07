@@ -2175,3 +2175,44 @@ def mock_skill_repository():
 @pytest.fixture
 def test_skill_service(mock_skill_repository):
     return SkillService(mock_skill_repository, event_bus=None)
+
+
+# =============================================================================
+# Real-runtime settings fixture (bootstrap factory / CLI executor tests)
+# =============================================================================
+
+_SQLITE_RUNTIME_FIELDS = [
+    "DATABASE",
+    "SQLITE_MEMORY",
+    "EMBEDDING_PROVIDER",
+    "RERANKING_ENABLED",
+    "FORGETFUL_SCOPES",
+    "SKILLS_ENABLED",
+    "FILES_ENABLED",
+    "PLANNING_ENABLED",
+    "ACTIVITY_ENABLED",
+]
+
+
+@pytest.fixture
+def sqlite_runtime_settings():
+    """Point the composition root at in-memory SQLite with deterministic feature flags.
+
+    Reranking is disabled to skip the cross-encoder model load; reranker wiring is
+    exercised by the e2e_sqlite suite.
+    """
+    from app.config.settings import settings
+
+    original = {name: getattr(settings, name) for name in _SQLITE_RUNTIME_FIELDS}
+    settings.DATABASE = "SQLite"
+    settings.SQLITE_MEMORY = True
+    settings.EMBEDDING_PROVIDER = "FastEmbed"
+    settings.RERANKING_ENABLED = False
+    settings.FORGETFUL_SCOPES = "*"
+    settings.SKILLS_ENABLED = False
+    settings.FILES_ENABLED = False
+    settings.PLANNING_ENABLED = False
+    settings.ACTIVITY_ENABLED = False
+    yield settings
+    for name, value in original.items():
+        setattr(settings, name, value)

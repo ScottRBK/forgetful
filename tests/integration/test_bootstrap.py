@@ -4,44 +4,10 @@ Phase 1 of docs/dev/cli_plan.md: the adapter/repo/service/registry wiring is ext
 from main.lifespan() into build_runtime()/dispose_runtime() so the CLI and the server
 share one composition root. These tests exercise the factory against in-memory SQLite.
 """
-import pytest
-
 from app.bootstrap import build_runtime, dispose_runtime
 from app.config.settings import settings
 from app.models.memory_models import MemoryCreate
 from app.models.user_models import UserCreate
-
-_PATCHED_FIELDS = [
-    "DATABASE",
-    "SQLITE_MEMORY",
-    "EMBEDDING_PROVIDER",
-    "RERANKING_ENABLED",
-    "SKILLS_ENABLED",
-    "FILES_ENABLED",
-    "PLANNING_ENABLED",
-    "ACTIVITY_ENABLED",
-]
-
-
-@pytest.fixture
-def sqlite_runtime_settings():
-    """Point the composition root at in-memory SQLite with deterministic feature flags.
-
-    Reranking is disabled to skip the cross-encoder model load; reranker wiring is
-    exercised by the e2e_sqlite suite.
-    """
-    original = {name: getattr(settings, name) for name in _PATCHED_FIELDS}
-    settings.DATABASE = "SQLite"
-    settings.SQLITE_MEMORY = True
-    settings.EMBEDDING_PROVIDER = "FastEmbed"
-    settings.RERANKING_ENABLED = False
-    settings.SKILLS_ENABLED = False
-    settings.FILES_ENABLED = False
-    settings.PLANNING_ENABLED = False
-    settings.ACTIVITY_ENABLED = False
-    yield settings
-    for name, value in original.items():
-        setattr(settings, name, value)
 
 
 async def test_build_runtime_wires_registry_and_memory_service(sqlite_runtime_settings):

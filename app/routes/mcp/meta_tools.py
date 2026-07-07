@@ -385,6 +385,86 @@ Execute any registered tool dynamically. Forgetful is a semantic memory system f
 
 
 # ============================================================================
+# Shared payload builders and access checks
+# Used by both the meta-tools below and the CLI executors (app/routes/cli/),
+# so the MCP surface and the terminal can never drift apart.
+# ============================================================================
+
+
+def build_discovery_payload(registry, permitted: set, category: str | None = None) -> dict[str, Any]:
+    """Build the discover_forgetful_tools payload for a permitted tool set."""
+    if category:
+        try:
+            cat_enum = ToolCategory(category.lower())
+        except ValueError:
+            valid_categories = [c.value for c in ToolCategory]
+            raise ToolError(
+                f"Invalid category '{category}'. "
+                f"Available categories: {', '.join(valid_categories)}",
+            )
+        tools_metadata = registry.get_permitted_by_category(cat_enum, permitted)
+        filtered_by = category
+    else:
+        tools_metadata = registry.get_permitted_tools(permitted)
+        filtered_by = None
+
+    # Convert to discovery format (minimal metadata)
+    tools = [meta.to_discovery_dict() for meta in tools_metadata]
+
+    # Group by category
+    tools_by_category = {}
+    for tool in tools:
+        cat = tool["category"]
+        if cat not in tools_by_category:
+            tools_by_category[cat] = []
+        tools_by_category[cat].append(tool)
+
+    return {
+        "tools_by_category": tools_by_category,
+        "total_count": len(tools),
+        "categories_available": list(registry.get_permitted_categories(permitted).keys()),
+        "filtered_by": filtered_by,
+    }
+
+
+def build_tool_documentation(registry, permitted: set, tool_name: str) -> dict[str, Any]:
+    """Build the how_to_use_forgetful_tool payload, enforcing existence and scope."""
+    tool = registry.get_tool(tool_name)
+    if not tool:
+        available_tools = [m.name for m in registry.get_permitted_tools(permitted)[:10]]
+        raise ToolError(
+            f"Tool '{tool_name}' not found in registry. "
+            f"Available tools (first 10): {', '.join(available_tools)}",
+        )
+
+    if not registry.is_permitted(tool_name, permitted):
+        required_scope = get_required_scope(tool_name, registry)
+        raise ToolError(
+            f"Tool '{tool_name}' is not permitted under current scopes. "
+            f"Required scope: '{required_scope}'",
+        )
+
+    return tool.metadata.to_detailed_dict()
+
+
+def ensure_tool_executable(registry, permitted: set, tool_name: str) -> None:
+    """Raise ToolError unless tool_name exists and is permitted (execute-path checks)."""
+    if not registry.tool_exists(tool_name):
+        available_tools = [m.name for m in registry.get_permitted_tools(permitted)[:10]]
+        raise ToolError(
+            f"Tool '{tool_name}' not found in registry. "
+            f"Available tools (first 10): {', '.join(available_tools)}",
+        )
+
+    if tool_name not in permitted:
+        required_scope = get_required_scope(tool_name, registry)
+        raise ToolError(
+            f"Tool '{tool_name}' is not permitted under current scopes. "
+            f"Required scope: '{required_scope}'",
+        )
+
+
+# ============================================================================
 # Tool Registration
 # ============================================================================
 
@@ -409,40 +489,9 @@ def register(mcp: FastMCP):
             permitted, _ = get_effective_scopes(ctx)
             logger.info(f"discover_forgetful_tools: category={category}")
 
-            if category:
-                try:
-                    cat_enum = ToolCategory(category.lower())
-                    tools_metadata = registry.get_permitted_by_category(cat_enum, permitted)
-                    filtered_by = category
-                except ValueError:
-                    valid_categories = [c.value for c in ToolCategory]
-                    raise ToolError(
-                        f"Invalid category '{category}'. "
-                        f"Available categories: {', '.join(valid_categories)}",
-                    )
-            else:
-                tools_metadata = registry.get_permitted_tools(permitted)
-                filtered_by = None
+            result = build_discovery_payload(registry, permitted, category)
 
-            # Convert to discovery format (minimal metadata)
-            tools = [meta.to_discovery_dict() for meta in tools_metadata]
-
-            # Group by category
-            tools_by_category = {}
-            for tool in tools:
-                cat = tool["category"]
-                if cat not in tools_by_category:
-                    tools_by_category[cat] = []
-                tools_by_category[cat].append(tool)
-
-            result = {
-                "tools_by_category": tools_by_category,
-                "total_count": len(tools),
-                "categories_available": list(registry.get_permitted_categories(permitted).keys()),
-                "filtered_by": filtered_by,
-            }
-
-            logger.info(f"discover_forgetful_tools: returned {len(tools)} tools")
+            logger.info(f"discover_forgetful_tools: returned {result['total_count']} tools")
             return result
 
         except ToolError:
@@ -478,22 +527,7 @@ def register(mcp: FastMCP):
             permitted, _ = get_effective_scopes(ctx)
             logger.info(f"how_to_use_forgetful_tool: tool_name={tool_name}")
 
-            tool = registry.get_tool(tool_name)
-            if not tool:
-                available_tools = [m.name for m in registry.get_permitted_tools(permitted)[:10]]
-                raise ToolError(
-                    f"Tool '{tool_name}' not found in registry. "
-                    f"Available tools (first 10): {', '.join(available_tools)}",
-                )
-
-            if not registry.is_permitted(tool_name, permitted):
-                required_scope = get_required_scope(tool_name, registry)
-                raise ToolError(
-                    f"Tool '{tool_name}' is not permitted under current scopes. "
-                    f"Required scope: '{required_scope}'",
-                )
-
-            detailed_info = tool.metadata.to_detailed_dict()
+            detailed_info = build_tool_documentation(registry, permitted, tool_name)
             logger.info(f"how_to_use_forgetful_tool: returned docs for {tool_name}")
             return detailed_info
 
@@ -517,19 +551,7 @@ def register(mcp: FastMCP):
             permitted, _ = get_effective_scopes(ctx)
             logger.info(f"execute_forgetful_tool: {tool_name}, args={list(arguments.keys())}")
 
-            if not registry.tool_exists(tool_name):
-                available_tools = [m.name for m in registry.get_permitted_tools(permitted)[:10]]
-                raise ToolError(
-                    f"Tool '{tool_name}' not found in registry. "
-                    f"Available tools (first 10): {', '.join(available_tools)}",
-                )
-
-            if tool_name not in permitted:
-                required_scope = get_required_scope(tool_name, registry)
-                raise ToolError(
-                    f"Tool '{tool_name}' is not permitted under current scopes. "
-                    f"Required scope: '{required_scope}'",
-                )
+            ensure_tool_executable(registry, permitted, tool_name)
 
             # Inject context into arguments for adapters to extract user
             arguments["ctx"] = ctx
