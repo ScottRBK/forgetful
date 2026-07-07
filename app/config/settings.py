@@ -93,6 +93,9 @@ class Settings(BaseSettings):
     # Scoped Permissions Configuration
     FORGETFUL_SCOPES: str = "*"               # Comma-separated scopes (e.g. "read", "write:memories", "read,write:entities")
 
+    # CLI Remote Mode Configuration
+    FORGETFUL_SERVER: str = ""                # Remote deployment URL for the CLI (empty = local mode)
+
     # MCP descriptor presentation
     MCP_DESCRIPTOR_MODE: str = "verbose"       # "verbose" (default) or "compact" meta-tool docstrings
 

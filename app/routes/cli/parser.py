@@ -83,6 +83,16 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help='Emit machine-readable JSON (errors become {"error": ...} on stderr)',
     )
+    output_flags.add_argument(
+        "--server",
+        metavar="URL",
+        help="Execute against a remote Forgetful deployment (beats FORGETFUL_SERVER)",
+    )
+    output_flags.add_argument(
+        "--local",
+        action="store_true",
+        help="Force local mode even when FORGETFUL_SERVER is configured",
+    )
 
     tools = subparsers.add_parser("tools", help="Inspect the available Forgetful tools")
     tools_sub = tools.add_subparsers(dest="tools_command", required=True)
@@ -115,11 +125,37 @@ def build_parser() -> argparse.ArgumentParser:
         help="Tool arguments as a JSON object",
     )
 
+    auth = subparsers.add_parser("auth", help="Authenticate against a remote deployment")
+    auth_sub = auth.add_subparsers(dest="auth_command", required=True)
+    auth_login = auth_sub.add_parser(
+        "login",
+        help="Browser OAuth login; saves FORGETFUL_SERVER to the user config",
+    )
+    auth_login.add_argument("--server", metavar="URL", required=True, help="Server URL")
+    auth_sub.add_parser("status", help="Show the active server and authenticated user")
+    auth_sub.add_parser("logout", help="Clear the local OAuth token cache")
+
     return parser
 
 
 async def _build_executor(args):
-    """Construct the ToolExecutor for a tool command (local in phase 3)."""
+    """Construct the ToolExecutor: --local > --server > FORGETFUL_SERVER > local default.
+
+    FORGETFUL_SERVER merges shell env and ~/.config/forgetful/.env with the right
+    precedence via pydantic-settings; FORGETFUL_TOKEN (headless/CI bearer) is shell
+    env only, deliberately kept out of config files.
+    """
+    import os
+
+    from app.config.settings import settings
+
+    if not getattr(args, "local", False):
+        server_url = getattr(args, "server", None) or settings.FORGETFUL_SERVER
+        if server_url:
+            from app.routes.cli.remote_executor import RemoteExecutor
+
+            return RemoteExecutor(server_url, token=os.environ.get("FORGETFUL_TOKEN") or None)
+
     from app.routes.cli.local_executor import LocalExecutor
 
     return await LocalExecutor.create()
@@ -163,5 +199,17 @@ def dispatch(argv, *, serve_runner, reembed_runner):
         return asyncio.run(reembed_runner(args))
     if args.command in {"tools", "call"}:
         return asyncio.run(_run_tool_command(args))
+    if args.command == "auth":
+        return asyncio.run(_run_auth_command(args))
 
     parser.error(f"Subcommand '{args.command}' is not implemented yet")
+
+
+async def _run_auth_command(args) -> int:
+    from app.routes.cli import auth_commands
+
+    if args.auth_command == "login":
+        return await auth_commands.login(args.server)
+    if args.auth_command == "status":
+        return await auth_commands.status()
+    return auth_commands.logout()
