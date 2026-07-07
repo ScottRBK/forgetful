@@ -302,8 +302,43 @@ async def _run_reembed(args):
     await db_adapter.dispose()
 
 
-def cli():
-    """Command-line interface for running the Forgetful MCP server."""
+def _serve(transport, host, port):
+    """Run the MCP server on the given transport (shared by legacy and new spellings)."""
+    if transport == "stdio":
+        import warnings
+        warnings.filterwarnings("ignore", category=DeprecationWarning)
+        mcp.run(show_banner=False)
+    elif not settings.CORS_ENABLED:
+        # No CORS - use existing code path (zero behavioral change)
+        mcp.run(transport="http", host=host, port=port, show_banner=False)
+    else:
+        # CORS enabled - use http_app with middleware
+        from starlette.middleware import Middleware
+        from starlette.middleware.cors import CORSMiddleware
+
+        middleware = [
+            Middleware(
+                CORSMiddleware,
+                allow_origins=settings.CORS_ORIGINS,
+                allow_credentials=True,
+                allow_methods=["*"],
+                allow_headers=[
+                    "mcp-protocol-version",
+                    "mcp-session-id",
+                    "Authorization",
+                    "Content-Type",
+                ],
+                expose_headers=["mcp-session-id"],
+            ),
+        ]
+
+        import uvicorn
+        app = mcp.http_app(middleware=middleware)
+        uvicorn.run(app, host=host, port=port)
+
+
+def _legacy_launcher(argv):
+    """Pre-subcommand argument surface, kept working indefinitely."""
     parser = argparse.ArgumentParser(
         description="Forgetful - MCP Server for AI Agent Memory",
     )
@@ -348,43 +383,24 @@ def cli():
         help="Show what would happen without making changes",
     )
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     if args.re_embed:
         asyncio.run(_run_reembed(args))
-        return
+        return None
 
-    if args.transport == "stdio":
-        import warnings
-        warnings.filterwarnings("ignore", category=DeprecationWarning)
-        mcp.run(show_banner=False)
-    elif not settings.CORS_ENABLED:
-        # No CORS - use existing code path (zero behavioral change)
-        mcp.run(transport="http", host=args.host, port=args.port, show_banner=False)
-    else:
-        # CORS enabled - use http_app with middleware
-        from starlette.middleware import Middleware
-        from starlette.middleware.cors import CORSMiddleware
+    return _serve(transport=args.transport, host=args.host, port=args.port)
 
-        middleware = [
-            Middleware(
-                CORSMiddleware,
-                allow_origins=settings.CORS_ORIGINS,
-                allow_credentials=True,
-                allow_methods=["*"],
-                allow_headers=[
-                    "mcp-protocol-version",
-                    "mcp-session-id",
-                    "Authorization",
-                    "Content-Type",
-                ],
-                expose_headers=["mcp-session-id"],
-            ),
-        ]
 
-        import uvicorn
-        app = mcp.http_app(middleware=middleware)
-        uvicorn.run(app, host=args.host, port=args.port)
+def cli():
+    """Command-line entry point: subcommand dispatch with a permanent legacy fallback."""
+    argv = sys.argv[1:]
+
+    from app.routes.cli.parser import KNOWN, dispatch
+    if argv and argv[0] in KNOWN:
+        return dispatch(argv, serve_runner=_serve, reembed_runner=_run_reembed)
+
+    return _legacy_launcher(argv)
 
 
 if __name__ == "__main__":
