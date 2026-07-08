@@ -339,8 +339,23 @@ def _serve(transport, host, port):
 
 def _legacy_launcher(argv):
     """Pre-subcommand argument surface, kept working indefinitely."""
+    # cli()'s KNOWN-gate sends a bare `--help` here, so this epilog is the only place
+    # a top-level `forgetful --help` can surface the subcommands. Canonical per-verb
+    # help lives in app/routes/cli/parser.py; this is just a discoverability pointer.
     parser = argparse.ArgumentParser(
         description="Forgetful - MCP Server for AI Agent Memory",
+        epilog=(
+            "Subcommands (run 'forgetful <command> --help' for details):\n"
+            "  memory    Curated memory commands (search, save, get, recent)\n"
+            "  tools     Inspect the available Forgetful tools (list, info)\n"
+            "  call      Execute any Forgetful tool by name\n"
+            "  auth      Authenticate against a remote deployment "
+            "(login, status, logout)\n"
+            "  project   Curated project commands (list)\n"
+            "  serve     Run the Forgetful MCP server\n"
+            "  re-embed  Re-embed all memories with the configured provider\n"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "--transport",

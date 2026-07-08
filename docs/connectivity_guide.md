@@ -339,6 +339,31 @@ forgetful memory save "content" --title "Title" --importance 7
 Local mode uses the same database and settings as a locally launched server
 (`~/.config/forgetful/.env` is shared by both).
 
+### From a source checkout (before a PyPI release)
+
+`uv tool install forgetful-ai` pulls from PyPI. To exercise the CLI from a clone,
+run the console script through the project venv - no install, and edits apply
+immediately:
+
+```bash
+uv run forgetful --help          # top-level help lists the subcommands
+uv run forgetful tools list
+uv run forgetful memory recent
+```
+
+To put a real `forgetful` on your PATH from local source (the shipped experience),
+install the checkout editable:
+
+```bash
+uv tool install --editable .     # run from the repo root
+forgetful memory recent
+uv tool uninstall forgetful-ai   # to remove
+```
+
+Bare `forgetful` (and `uvx --from . forgetful`) still boots the MCP server for
+back-compat, so lead with a verb - `forgetful memory --help`, `forgetful tools
+--help` - to explore the CLI.
+
 ### Remote deployment with OAuth
 
 Against a Docker/Postgres deployment with authentication enabled (see

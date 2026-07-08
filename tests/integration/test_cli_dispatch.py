@@ -87,6 +87,22 @@ def test_version_flag_prints_version_and_exits_zero(monkeypatch, recorded_runner
     assert get_version() in capsys.readouterr().out
 
 
+def test_top_level_help_advertises_subcommands(monkeypatch, recorded_runners, capsys):
+    """`forgetful --help` must reveal the subcommands, not only the legacy flags.
+
+    --help isn't a KNOWN token, so it falls through to the legacy launcher; the
+    launcher's epilog is the only place a bare `forgetful --help` can list the new verbs.
+    """
+    with pytest.raises(SystemExit) as excinfo:
+        _invoke(monkeypatch, ["--help"])
+
+    assert excinfo.value.code == 0
+    out = capsys.readouterr().out
+    assert "Subcommands" in out
+    for verb in ("memory", "tools", "call", "auth", "project", "serve", "re-embed"):
+        assert verb in out, verb
+
+
 def test_unknown_token_exits_with_usage_error(monkeypatch, recorded_runners, capsys):
     with pytest.raises(SystemExit) as excinfo:
         _invoke(monkeypatch, ["frobnicate"])
