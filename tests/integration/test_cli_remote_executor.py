@@ -291,3 +291,71 @@ async def test_auth_status_local_mode_reports_local(monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "Mode: local" in out
     assert settings.DATABASE in out
+
+
+class _RecordingExecutor:
+    """Stands in for RemoteExecutor and records how it was constructed."""
+
+    built = {}
+
+    def __init__(self, url, *, token=None, client_factory=None):
+        type(self).built = {"token": token, "client_factory": client_factory}
+        self.server_url = url
+
+    async def execute(self, tool_name, arguments):
+        return {"name": "default-user-name"}
+
+    async def close(self):
+        pass
+
+
+async def test_auth_status_no_credentials_verifies_without_touching_cache(
+    monkeypatch, tmp_path, capsys,
+):
+    """No token + empty cache: status verifies via a plain (no-OAuth) client.
+
+    The default OAuth client registers and writes to the token cache on connect, so
+    using it for a read-only status check silently resurrects the cache `logout` just
+    cleared (and could pop a browser). Status must instead go through a no-auth client.
+    """
+    monkeypatch.delenv("FORGETFUL_TOKEN", raising=False)
+    empty_cache = tmp_path / "tokens"  # never created
+    monkeypatch.setattr(auth_commands, "token_cache_dir", lambda: empty_cache)
+    monkeypatch.setattr(
+        "app.routes.cli.remote_executor.RemoteExecutor", _RecordingExecutor,
+    )
+
+    code = await auth_commands.status(server="http://remote:8020")
+
+    assert code == 0
+    # Verified through the no-auth path, NOT the default OAuth (cache-writing) factory.
+    assert _RecordingExecutor.built["token"] is None
+    assert _RecordingExecutor.built["client_factory"] is not None
+    out = capsys.readouterr().out
+    assert "User: default-user-name" in out
+    assert "Cached credentials: no" in out
+    assert not empty_cache.exists()  # status wrote nothing to disk
+
+
+async def test_auth_status_with_cached_tokens_reuses_oauth_client(
+    monkeypatch, tmp_path, capsys,
+):
+    """An existing cache means we're logged in: status reads it via the default OAuth
+    client and must NOT downgrade to the no-auth client (which can't authenticate
+    against a secured server)."""
+    monkeypatch.delenv("FORGETFUL_TOKEN", raising=False)
+    cache = tmp_path / "tokens"
+    cache.mkdir()
+    (cache / "token.json").write_text("{}")
+    monkeypatch.setattr(auth_commands, "token_cache_dir", lambda: cache)
+    monkeypatch.setattr(
+        "app.routes.cli.remote_executor.RemoteExecutor", _RecordingExecutor,
+    )
+
+    code = await auth_commands.status(server="http://remote:8020")
+
+    assert code == 0
+    assert _RecordingExecutor.built["token"] is None
+    assert _RecordingExecutor.built["client_factory"] is None  # default OAuth path
+    out = capsys.readouterr().out
+    assert "Cached credentials: yes" in out

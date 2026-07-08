@@ -39,6 +39,18 @@ def _oauth_client_factory(url: str, token_dir: Path):
     return Client(url, auth=oauth)
 
 
+def _plain_client_factory(url: str, _token: str | None = None):
+    """A fastmcp Client with no auth, for verifying a connection without OAuth.
+
+    Unlike the OAuth client it performs no dynamic client registration and writes
+    nothing to the token cache, so a read-only status check can't resurrect the cache
+    logout cleared (or pop a browser). Signature matches RemoteExecutor's factory seam.
+    """
+    from fastmcp import Client
+
+    return Client(url)
+
+
 async def login(
     server: str,
     *,
@@ -65,7 +77,14 @@ async def login(
 
 
 async def status(*, server: str | None = None) -> int:
-    """Report the active mode; in remote mode prove the credentials work."""
+    """Report the active mode; in remote mode prove the credentials work.
+
+    A status check must never mint credentials. We pick the client by what we already
+    hold: a bearer token, or an existing OAuth cache to read; with neither we verify
+    through a plain (no-OAuth) client so we never register a client or resurrect the
+    cache logout cleared (nor pop a browser). A no-auth server still answers, so the
+    User line is preserved; a secured server errors cleanly.
+    """
     import os
 
     from app.config.settings import settings
@@ -78,7 +97,17 @@ async def status(*, server: str | None = None) -> int:
 
     from app.routes.cli.remote_executor import RemoteExecutor
 
-    executor = RemoteExecutor(url, token=os.environ.get("FORGETFUL_TOKEN") or None)
+    token = os.environ.get("FORGETFUL_TOKEN") or None
+    cache = token_cache_dir()
+    cached = cache.exists() and any(cache.iterdir())
+
+    if token:
+        executor = RemoteExecutor(url, token=token)
+    elif cached:
+        executor = RemoteExecutor(url)
+    else:
+        executor = RemoteExecutor(url, client_factory=_plain_client_factory)
+
     try:
         user = await executor.execute("get_current_user", {})
     except Exception as exc:
@@ -89,8 +118,6 @@ async def status(*, server: str | None = None) -> int:
         await executor.close()
 
     name = user.get("name") if isinstance(user, dict) else str(user)
-    cache = token_cache_dir()
-    cached = cache.exists() and any(cache.iterdir())
     print(f"Server: {executor.server_url}")
     print(f"User: {name}")
     print(f"Cached credentials: {'yes' if cached else 'no'}")
