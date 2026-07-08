@@ -92,7 +92,7 @@ async def _memory_recent(executor, args) -> tuple[Any, str]:
         arguments["project_ids"] = [await resolve_project(executor, args.project)]
 
     payload = to_jsonable(await executor.execute("get_recent_memories", arguments))
-    return payload, render_memory_lines(payload)
+    return payload, render_memory_lines(payload.get("memories", []))
 
 
 async def _project_list(executor) -> tuple[Any, str]:

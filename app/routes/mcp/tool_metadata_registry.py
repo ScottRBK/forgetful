@@ -715,7 +715,7 @@ def register_memory_tools_metadata(
                     "example": [1, 3],
                 },
             ],
-            "returns": "List of Memory objects sorted by created_at DESC",
+            "returns": "Dictionary with memories list (sorted by created_at DESC) and total_count",
             "examples": [
                 'execute_forgetful_tool("get_recent_memories", {"limit": 5})',
                 'execute_forgetful_tool("get_recent_memories", {"limit": 10, "project_ids": [1, 2]})',

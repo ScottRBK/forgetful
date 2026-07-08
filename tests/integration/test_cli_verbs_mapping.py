@@ -85,7 +85,7 @@ async def test_save_maps_flags_onto_create_memory_arguments():
 async def test_get_and_recent_map_arguments():
     executor = RecordingExecutor({
         "get_memory": {"id": 12, "title": "T", "importance": 5},
-        "get_recent_memories": [],
+        "get_recent_memories": {"memories": [], "total_count": 0},
     })
 
     await verbs.run(executor, _args(["memory", "get", "12"]))

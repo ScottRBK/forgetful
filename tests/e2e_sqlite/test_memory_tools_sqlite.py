@@ -568,9 +568,11 @@ async def test_get_recent_memories_basic_e2e(mcp_client):
 
     assert recent_result.content is not None
     import json
-    memories = json.loads(recent_result.content[0].text)
-    assert isinstance(memories, list)
+    envelope = json.loads(recent_result.content[0].text)
+    assert isinstance(envelope, dict)
+    memories = envelope["memories"]
     assert len(memories) >= 3
+    assert envelope["total_count"] >= len(memories)
 
     # Check that most recent memories are returned
     recent_ids = [m["id"] for m in memories]
@@ -627,7 +629,8 @@ async def test_get_recent_memories_with_project_filter_e2e(mcp_client):
 
     assert recent_result.content is not None
     import json
-    memories = json.loads(recent_result.content[0].text)
+    envelope = json.loads(recent_result.content[0].text)
+    memories = envelope["memories"]
     recent_ids = [m["id"] for m in memories]
 
     # Should include memory with project
@@ -682,7 +685,8 @@ async def test_get_recent_memories_excludes_obsolete_e2e(mcp_client):
 
     assert recent_result.content is not None
     import json
-    memories = json.loads(recent_result.content[0].text)
+    envelope = json.loads(recent_result.content[0].text)
+    memories = envelope["memories"]
     recent_ids = [m["id"] for m in memories]
 
     # Should include active memory

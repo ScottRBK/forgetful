@@ -167,7 +167,7 @@ async def test_read_memories_scope_execute_memory_read(mcp_client, sqlite_app):
     sqlite_app._instance_scopes = instance_scopes
 
     # get_recent_memories should succeed (no permission error)
-    # Result may be empty list (no memories exist), so we just check no exception
+    # Result may be an empty envelope (no memories exist), so we just check no exception
     result = await mcp_client.call_tool(
         "execute_forgetful_tool",
         {"tool_name": "get_recent_memories", "arguments": {"limit": 5}},

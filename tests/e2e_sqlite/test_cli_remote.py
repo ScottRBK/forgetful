@@ -146,10 +146,12 @@ def test_remote_server_url_without_mcp_path_is_normalized(http_server_url, monke
     assert json.loads(out)["name"] == settings.DEFAULT_USER_NAME
 
 
-def test_remote_list_returning_tool_matches_local_shape(http_server_url, monkeypatch, capsys):
-    """A tool returning a bare JSON array (get_recent_memories -> list[Memory]) must
-    render identically through both executors - no {"result": ...} wrapping leaking
-    out of the remote transport."""
+def test_remote_recent_memories_returns_envelope_matching_local(
+    http_server_url, monkeypatch, capsys,
+):
+    """get_recent_memories returns a dict envelope {"memories": [...], "total_count": N},
+    matching the list_* tool family. Remote and local must render identically - the
+    object root survives the MCP wire with no transport wrapping leaking out."""
     create_args = json.dumps({
         "title": "Recent memory for shape test",
         "content": "Exists so get_recent_memories returns a non-empty list",
@@ -179,9 +181,37 @@ def test_remote_list_returning_tool_matches_local_shape(http_server_url, monkeyp
     assert code == 0
     local_listing = json.loads(out)
 
-    assert isinstance(remote_listing, list)
+    assert isinstance(remote_listing, dict)
     assert remote_listing == local_listing
-    assert remote_listing[0]["title"] == "Recent memory for shape test"
+    assert remote_listing["memories"][0]["title"] == "Recent memory for shape test"
+    assert remote_listing["total_count"] >= 1
+
+
+def test_remote_empty_recent_memories_is_envelope_not_null(
+    http_server_url, monkeypatch, capsys,
+):
+    """Regression for the empty-result null bug: an empty recent-memories result must
+    come back as {"memories": [], "total_count": 0}, never a bare null. A bare empty
+    list carries no MCP structured content (an object root is required), so the remote
+    transport collapsed it to null; the dict envelope keeps an object root on the wire.
+    The DB is fresh per test, so no memories exist here."""
+    recent_args = json.dumps({"limit": 5})
+    code, out, _ = invoke_cli(
+        monkeypatch, capsys,
+        ["call", "get_recent_memories", "--args", recent_args, "--server", http_server_url],
+    )
+    assert code == 0
+    remote_listing = json.loads(out)
+
+    code, out, _ = invoke_cli(
+        monkeypatch, capsys,
+        ["call", "get_recent_memories", "--args", recent_args, "--local"],
+    )
+    assert code == 0
+    local_listing = json.loads(out)
+
+    assert remote_listing == {"memories": [], "total_count": 0}
+    assert remote_listing == local_listing
 
 
 def test_remote_unknown_tool_maps_to_exit_one(http_server_url, monkeypatch, capsys):

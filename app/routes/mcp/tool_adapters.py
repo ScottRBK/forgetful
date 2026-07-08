@@ -453,7 +453,7 @@ class MemoryToolAdapters:
         ctx: Context,
         limit: int = 10,
         project_ids: list[int] | None = None,
-    ) -> list[Memory]:
+    ) -> dict:
         """Adapter for get_recent_memories tool"""
         logger.info(
             "MCP Tool -> get_recent_memories",
@@ -462,12 +462,14 @@ class MemoryToolAdapters:
 
         user = await get_user_from_auth(ctx)
 
-        # Service returns (memories, total_count) tuple; MCP tool only needs memories
-        memories, _ = await self.memory_service.get_recent_memories(
+        # Envelope the list in a dict (like the list_* tools) so an empty result keeps
+        # an object root: a bare [] carries no MCP structured content and collapses to
+        # null on the remote wire. total_count is already computed by the service.
+        memories, total_count = await self.memory_service.get_recent_memories(
             user_id=user.id, limit=limit, project_ids=project_ids,
         )
 
-        return memories
+        return {"memories": memories, "total_count": total_count}
 
     async def rebuild_embeddings(
         self,
