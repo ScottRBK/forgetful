@@ -364,15 +364,34 @@ Retrieve most recent memories sorted by creation timestamp.
 - `project_id` (optional): Scope to specific project
 
 **Returns:**
-- List of recent memories
+- An object (not a bare list) with two keys:
+  - `memories`: list of recent memories, sorted by `created_at` DESC (newest first)
+  - `total_count`: total number of matching memories
 
 **Example:**
 ```python
-recent = execute_forgetful_tool(
+result = execute_forgetful_tool(
     "get_recent_memories",
     {"limit": 10, "project_id": 12}
 )
+recent = result["memories"]     # the list of memories
+total = result["total_count"]   # how many matched in total
 ```
+
+> **Behavior change (PR #49) — the return shape is now an envelope.**
+>
+> This tool used to return a bare JSON array of memories. It now returns an object:
+> `{"memories": [...], "total_count": N}`.
+>
+> **Why:** MCP structured content requires an object root. A bare `[]` carries no
+> structured content over the wire, so an empty result collapsed to `null` for remote
+> consumers and could not be told apart from "no result". Wrapping the list in an object
+> lets empty results survive the wire and matches the `list_*` tool family.
+>
+> **Migration:** read `result["memories"]` instead of indexing the bare result, and read
+> `result["total_count"]` if you need the total. For example, replace `for m in result:`
+> with `for m in result["memories"]:`. The REST endpoint is unaffected — this change is
+> only in the MCP tool surface.
 
 ---
 
