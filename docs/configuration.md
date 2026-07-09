@@ -411,8 +411,17 @@ default, or against a remote deployment.
 ### `FORGETFUL_SERVER`
 
 - **Default**: `` (empty - local mode)
-- **Purpose**: Remote deployment URL the CLI executes against. Bare `host:port` URLs
-  get the default `/mcp` mount path appended automatically.
+- **Purpose**: Remote deployment URL the CLI executes against. The URL is normalized
+  before use:
+  - **Scheme**: when omitted, `http://` is assumed for loopback hosts
+    (`localhost`, `127.0.0.1`, `[::1]`) and `https://` for every other host (secure by
+    default). An explicit `http://`/`https://` scheme is kept as given; any other scheme
+    (e.g. `ftp://`) is rejected.
+  - **Mount path**: when the URL has no path, the default `/mcp` mount path is appended.
+    An explicit path is left untouched.
+
+  So `localhost:8020` becomes `http://localhost:8020/mcp` and `forgetful.example.com`
+  becomes `https://forgetful.example.com/mcp`.
 - **Set by**: `forgetful auth login --server URL` (written to `~/.config/forgetful/.env`),
   or manually via shell env / any `.env` file in the standard list.
 

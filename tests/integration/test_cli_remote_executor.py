@@ -5,11 +5,13 @@ stub injected through the client-factory seam. Everything else (selection preced
 URL normalization, .env line editing, token-dir lifecycle) runs real code.
 """
 
+import pytest
+
 from app.config.settings import settings
 from app.routes.cli import auth_commands
 from app.routes.cli.local_executor import LocalExecutor
 from app.routes.cli.parser import _build_executor, build_parser
-from app.routes.cli.remote_executor import RemoteExecutor
+from app.routes.cli.remote_executor import RemoteExecutor, normalize_server_url
 
 
 class StubResult:
@@ -120,6 +122,34 @@ def test_server_url_normalization_appends_mcp_path():
     assert trailing.server_url == "http://example.com:8020/mcp"
     assert custom.server_url == "http://example.com:8020/custom"
     assert already.server_url == "http://example.com:8020/mcp"
+
+
+def test_normalize_server_url_defaults_scheme_for_bare_hosts():
+    # Loopback hosts default to http:// (local dev over plaintext).
+    assert normalize_server_url("localhost:8020") == "http://localhost:8020/mcp"
+    assert normalize_server_url("127.0.0.1:8020") == "http://127.0.0.1:8020/mcp"
+    assert normalize_server_url("[::1]:8020") == "http://[::1]:8020/mcp"
+    # Remote hosts default to https:// (secure by default).
+    assert normalize_server_url("forgetful.example.com") == "https://forgetful.example.com/mcp"
+
+
+def test_normalize_server_url_preserves_explicit_scheme_path_and_slash():
+    # Explicit http/https schemes are kept as given.
+    assert normalize_server_url("http://example.com:8020") == "http://example.com:8020/mcp"
+    assert normalize_server_url("https://example.com:8020") == "https://example.com:8020/mcp"
+    # Explicit paths survive; only the empty path gets /mcp appended.
+    assert normalize_server_url("https://example.com/custom") == "https://example.com/custom"
+    assert (
+        normalize_server_url("forgetful.example.com/custom")
+        == "https://forgetful.example.com/custom"
+    )
+    # Trailing slashes are trimmed before the /mcp rule is applied.
+    assert normalize_server_url("localhost:8020/") == "http://localhost:8020/mcp"
+
+
+def test_normalize_server_url_rejects_non_http_scheme():
+    with pytest.raises(ValueError):
+        normalize_server_url("ftp://example.com")
 
 
 # =============================================================================

@@ -6,13 +6,36 @@ server's version (no doc skew).
 """
 import contextlib
 import json
+import re
 from typing import Any
 from urllib.parse import urlparse
 
+# A real scheme is always followed by "://"; "localhost:8020" is NOT a scheme
+# (urlparse mis-reads its scheme as "localhost"), so match on the "://" form.
+_SCHEME_RE = re.compile(r"^([a-zA-Z][a-zA-Z0-9+.-]*)://")
+_LOOPBACK_HOSTS = {"localhost", "127.0.0.1", "::1"}
+
 
 def normalize_server_url(url: str) -> str:
-    """Append the default /mcp mount path when the URL has no explicit path."""
+    """Normalize a CLI server URL to a requestable http(s) URL with a mount path.
+
+    Scheme-less input (bare ``host`` or ``host:port``) gets a default scheme:
+    ``http://`` for loopback hosts (localhost / 127.0.0.1 / [::1]) and ``https://``
+    for everything else (secure by default). The ``/mcp`` mount path is then appended
+    when the URL carries no explicit path. Explicit ``http``/``https`` URLs keep their
+    scheme; any other explicit scheme (e.g. ``ftp://``) is rejected.
+    """
     url = url.rstrip("/")
+    match = _SCHEME_RE.match(url)
+    if match:
+        if match.group(1).lower() not in ("http", "https"):
+            raise ValueError(f"Unsupported server URL scheme: {url!r}")
+    else:
+        # Prepend a throwaway scheme so urlparse can extract the real hostname
+        # (it strips IPv6 brackets and lowercases), then pick the true default.
+        host = urlparse(f"http://{url}").hostname or ""
+        scheme = "http" if host in _LOOPBACK_HOSTS else "https"
+        url = f"{scheme}://{url}"
     if urlparse(url).path in ("", "/"):
         return f"{url}/mcp"
     return url
