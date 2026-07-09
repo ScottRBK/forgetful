@@ -68,6 +68,7 @@ select = [
 "app/repositories/postgres/memory_repository.py" = ["S608"]  # Graph CTE with internal lateral_subquery + :named params
 "app/routes/mcp/scope_resolver.py" = ["S105"]  # Test token constants
 "tests/e2e/conftest.py" = ["S603", "S607"]  # Trusted subprocess for test setup
+"tests/integration/test_config_precedence.py" = ["S603"]  # Trusted subprocess: imports settings.py
 
 [lint.pydocstyle]
 convention = "google"

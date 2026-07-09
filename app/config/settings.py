@@ -2,14 +2,18 @@
 """
 from pathlib import Path
 
-from dotenv import load_dotenv
 from platformdirs import user_config_dir, user_data_dir
 from pydantic import ConfigDict
 from pydantic_settings import BaseSettings
 
 from app.version import get_version
 
-load_dotenv()
+# NOTE: We deliberately do NOT call dotenv.load_dotenv() here. It promotes a
+# discovered .env into os.environ, which pydantic-settings ranks above every
+# env_file entry - letting a stray .env in the run directory outrank the user
+# config that `forgetful auth login` writes to ~/.config/forgetful/.env. The
+# env_file list below already encodes the documented precedence (user config
+# last => highest, since DotEnvSettingsSource merges files in order).
 
 # Platform-specific default paths
 _default_data_dir = Path(user_data_dir("forgetful", ensure_exists=False))
