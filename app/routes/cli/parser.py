@@ -273,10 +273,18 @@ def dispatch(argv, *, serve_runner, reembed_runner):
 
 
 async def _run_auth_command(args) -> int:
+    """Route auth subcommands; a rejected server URL (ValueError from
+    normalize_server_url) becomes a clean error and exit 1, matching how
+    _run_tool_command maps failures - not a raw traceback."""
     from app.routes.cli import auth_commands
+    from app.routes.cli.render import emit_error
 
-    if args.auth_command == "login":
-        return await auth_commands.login(args.server)
-    if args.auth_command == "status":
-        return await auth_commands.status()
-    return auth_commands.logout()
+    try:
+        if args.auth_command == "login":
+            return await auth_commands.login(args.server)
+        if args.auth_command == "status":
+            return await auth_commands.status()
+        return auth_commands.logout()
+    except ValueError as exc:
+        emit_error(str(exc), as_json=False)
+        return 1

@@ -10,7 +10,7 @@ import pytest
 from app.config.settings import settings
 from app.routes.cli import auth_commands
 from app.routes.cli.local_executor import LocalExecutor
-from app.routes.cli.parser import _build_executor, build_parser
+from app.routes.cli.parser import _build_executor, _run_auth_command, build_parser
 from app.routes.cli.remote_executor import RemoteExecutor, normalize_server_url
 
 
@@ -293,6 +293,34 @@ async def test_login_failure_exits_one_and_leaves_config_untouched(tmp_path, cap
     assert code == 1
     assert env_file.read_text().splitlines() == ["LOG_LEVEL=DEBUG"]
     assert "connection refused" in capsys.readouterr().err
+
+
+async def test_auth_login_bad_scheme_exits_one_with_clean_error(monkeypatch, tmp_path, capsys):
+    """normalize_server_url's ValueError must surface as a clean error, not a traceback."""
+    # Path seams stubbed so a regression can't touch the real HOME (or pop a browser).
+    monkeypatch.setattr(auth_commands, "user_env_file", lambda: tmp_path / ".env")
+    monkeypatch.setattr(auth_commands, "token_cache_dir", lambda: tmp_path / "tokens")
+
+    code = await _run_auth_command(_args(["auth", "login", "--server", "ftp://example.com"]))
+
+    assert code == 1
+    err = capsys.readouterr().err
+    assert "Unsupported server URL scheme" in err
+    assert "Traceback" not in err
+
+
+async def test_auth_status_bad_scheme_exits_one_with_clean_error(monkeypatch, tmp_path, capsys):
+    """A bad FORGETFUL_SERVER scheme reaches status via RemoteExecutor construction."""
+    monkeypatch.setattr(settings, "FORGETFUL_SERVER", "ftp://example.com")
+    monkeypatch.delenv("FORGETFUL_TOKEN", raising=False)
+    monkeypatch.setattr(auth_commands, "token_cache_dir", lambda: tmp_path / "tokens")
+
+    code = await _run_auth_command(_args(["auth", "status"]))
+
+    assert code == 1
+    err = capsys.readouterr().err
+    assert "Unsupported server URL scheme" in err
+    assert "Traceback" not in err
 
 
 def test_logout_deletes_token_cache_dir(tmp_path, capsys):
