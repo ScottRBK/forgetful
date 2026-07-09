@@ -51,6 +51,25 @@ def _plain_client_factory(url: str, _token: str | None = None):
     return Client(url)
 
 
+async def _has_cached_credentials(url: str, token_dir: Path) -> bool:
+    """True only when the OAuth cache holds tokens for exactly this server URL.
+
+    fastmcp's FileTreeStore scopes token entries per server URL, so a bare "is the
+    cache non-empty" test would treat server A's tokens as valid for server B and push
+    status onto the OAuth path (dynamic client registration + browser) for a server we
+    never logged into. Short-circuit an empty cache so a read-only status check writes
+    nothing, then ask fastmcp's own token store whether it holds tokens for this URL.
+    """
+    if not (token_dir.exists() and any(token_dir.iterdir())):
+        return False
+
+    from fastmcp.client.auth import OAuth
+    from key_value.aio.stores.filetree.store import FileTreeStore
+
+    oauth = OAuth(mcp_url=url, token_storage=FileTreeStore(data_directory=token_dir))
+    return await oauth.token_storage_adapter.get_tokens() is not None
+
+
 async def login(
     server: str,
     *,
@@ -99,7 +118,7 @@ async def status(*, server: str | None = None) -> int:
 
     token = os.environ.get("FORGETFUL_TOKEN") or None
     cache = token_cache_dir()
-    cached = cache.exists() and any(cache.iterdir())
+    cached = await _has_cached_credentials(normalize_server_url(url), cache)
 
     if token:
         executor = RemoteExecutor(url, token=token)

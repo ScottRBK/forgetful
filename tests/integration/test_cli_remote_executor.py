@@ -5,6 +5,8 @@ stub injected through the client-factory seam. Everything else (selection preced
 URL normalization, .env line editing, token-dir lifecycle) runs real code.
 """
 
+from pathlib import Path
+
 import pytest
 
 from app.config.settings import settings
@@ -12,6 +14,28 @@ from app.routes.cli import auth_commands
 from app.routes.cli.local_executor import LocalExecutor
 from app.routes.cli.parser import _build_executor, _run_auth_command, build_parser
 from app.routes.cli.remote_executor import RemoteExecutor, normalize_server_url
+
+
+async def _seed_oauth_token(token_dir: Path, url: str) -> None:
+    """Write a genuine URL-scoped OAuth token into the cache, as a real login would.
+
+    fastmcp keys its FileTreeStore token entries by server URL; the plain store only
+    creates the collection directory, not the nested dirs the URL-shaped key implies,
+    so pre-create them before the atomic write lands.
+    """
+    from fastmcp.client.auth import OAuth
+    from key_value.aio.stores.filetree.store import FileTreeStore
+    from mcp.shared.auth import OAuthToken
+
+    adapter = OAuth(
+        mcp_url=url, token_storage=FileTreeStore(data_directory=token_dir),
+    ).token_storage_adapter
+    token = OAuthToken(access_token="seeded", token_type="Bearer")
+    try:
+        await adapter.set_tokens(token)
+    except FileNotFoundError as exc:
+        Path(exc.filename).parent.mkdir(parents=True, exist_ok=True)
+        await adapter.set_tokens(token)
 
 
 class StubResult:
@@ -398,22 +422,53 @@ async def test_auth_status_no_credentials_verifies_without_touching_cache(
 async def test_auth_status_with_cached_tokens_reuses_oauth_client(
     monkeypatch, tmp_path, capsys,
 ):
-    """An existing cache means we're logged in: status reads it via the default OAuth
-    client and must NOT downgrade to the no-auth client (which can't authenticate
-    against a secured server)."""
+    """A URL-scoped token for the current server means we're logged in: status reads it
+    via the default OAuth client and must NOT downgrade to the no-auth client (which
+    can't authenticate against a secured server)."""
     monkeypatch.delenv("FORGETFUL_TOKEN", raising=False)
     cache = tmp_path / "tokens"
     cache.mkdir()
-    (cache / "token.json").write_text("{}")
+    await _seed_oauth_token(cache, "http://remote:8020/mcp")
     monkeypatch.setattr(auth_commands, "token_cache_dir", lambda: cache)
     monkeypatch.setattr(
         "app.routes.cli.remote_executor.RemoteExecutor", _RecordingExecutor,
     )
 
-    code = await auth_commands.status(server="http://remote:8020")
+    code = await auth_commands.status(server="http://remote:8020/mcp")
 
     assert code == 0
     assert _RecordingExecutor.built["token"] is None
     assert _RecordingExecutor.built["client_factory"] is None  # default OAuth path
     out = capsys.readouterr().out
     assert "Cached credentials: yes" in out
+
+
+async def test_auth_status_cross_server_cache_does_not_trigger_oauth(
+    monkeypatch, tmp_path, capsys,
+):
+    """A cache holding tokens for server A must not authorize the OAuth path for B.
+
+    fastmcp scopes cached tokens per server URL. A global "cache is non-empty" check
+    would send `status` for a never-logged-in server B down the OAuth path, whose
+    client holds no tokens for B and so performs dynamic client registration and opens
+    a browser. status must instead report unauthenticated via the no-auth client.
+    """
+    import webbrowser
+
+    monkeypatch.delenv("FORGETFUL_TOKEN", raising=False)
+    cache = tmp_path / "tokens"
+    cache.mkdir()
+    await _seed_oauth_token(cache, "http://server-a.example:8020/mcp")
+    monkeypatch.setattr(auth_commands, "token_cache_dir", lambda: cache)
+    monkeypatch.setattr(
+        "app.routes.cli.remote_executor.RemoteExecutor", _RecordingExecutor,
+    )
+    monkeypatch.setattr(webbrowser, "open", lambda *a, **k: pytest.fail("browser opened"))
+
+    code = await auth_commands.status(server="http://server-b.example:8020/mcp")
+
+    assert code == 0
+    # No tokens for B -> no-auth path, NOT the default OAuth (DCR/browser) factory.
+    assert _RecordingExecutor.built["token"] is None
+    assert _RecordingExecutor.built["client_factory"] is not None
+    assert "Cached credentials: no" in capsys.readouterr().out
