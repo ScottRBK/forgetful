@@ -374,9 +374,21 @@ class MemoryService:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _effective_access_date(memory: Memory) -> datetime:
-        """last_accessed_at ?? updated_at ?? created_at (fallback chain)."""
-        return memory.last_accessed_at or memory.updated_at or memory.created_at
+    def _as_utc(value: datetime) -> datetime:
+        """Normalize SQLite-naive or mixed-offset datetimes to UTC-aware.
+
+        SQLite DateTime(timezone=True) still returns naive values for legacy
+        rows; comparing them to datetime.now(UTC) raises TypeError.
+        """
+        if value.tzinfo is None:
+            return value.replace(tzinfo=UTC)
+        return value.astimezone(UTC)
+
+    @classmethod
+    def _effective_access_date(cls, memory: Memory) -> datetime:
+        """last_accessed_at ?? updated_at ?? created_at (fallback chain), UTC-aware."""
+        raw = memory.last_accessed_at or memory.updated_at or memory.created_at
+        return cls._as_utc(raw)
 
     @classmethod
     def _is_protected(cls, memory: Memory) -> bool:

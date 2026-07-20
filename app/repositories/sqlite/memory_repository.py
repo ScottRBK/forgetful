@@ -2065,8 +2065,12 @@ class SqliteMemoryRepository:
             memories = [Memory.model_validate(m) for m in memories_orm]
 
         # Effective access date = last_accessed_at ?? updated_at ?? created_at
+        # Normalize naive SQLite datetimes so comparison with UTC cutoff is safe.
         def effective_access(mem: Memory) -> datetime:
-            return mem.last_accessed_at or mem.updated_at or mem.created_at
+            raw = mem.last_accessed_at or mem.updated_at or mem.created_at
+            if raw.tzinfo is None:
+                return raw.replace(tzinfo=UTC)
+            return raw.astimezone(UTC)
 
         if max_age_days is not None:
             cutoff = datetime.now(UTC) - timedelta(days=max_age_days)

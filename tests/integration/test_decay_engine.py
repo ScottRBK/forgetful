@@ -156,7 +156,31 @@ def test_effective_access_date_fallback_chain():
     # updated_at fallback when last_accessed_at is None
     mem2 = _make_memory(age_days=200, last_accessed_days_ago=None)
     eff2 = MemoryService._effective_access_date(mem2)
-    assert eff2 == mem2.updated_at
+    assert eff2 == MemoryService._as_utc(mem2.updated_at)
+
+
+def test_propose_action_accepts_naive_sqlite_datetimes():
+    """Live SQLite rows often return naive created_at/updated_at; must not TypeError."""
+    naive_created = datetime(2025, 1, 1, 12, 0, 0)  # no tzinfo
+    mem = Memory.model_construct(
+        id=99,
+        title="naive-stub",
+        content="stub",
+        context="stub",
+        keywords=["stub"],
+        tags=["stub"],
+        importance=5,
+        confidence=0.8,
+        access_count=0,
+        last_accessed_at=None,
+        created_at=naive_created,
+        updated_at=naive_created,
+        project_ids=[],
+        linked_memory_ids=[],
+    )
+    action = MemoryService._propose_action(memory=mem, now=datetime.now(UTC))
+    assert action.age_days is not None
+    assert action.age_days >= 200
 
 
 # ---------------------------------------------------------------------------
