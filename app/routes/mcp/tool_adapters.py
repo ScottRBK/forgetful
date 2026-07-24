@@ -452,12 +452,25 @@ class MemoryToolAdapters:
         self,
         ctx: Context,
         limit: int = 10,
+        offset: int = 0,
         project_ids: list[int] | None = None,
+        include_obsolete: bool = False,
+        sort_by: str = "created_at",
+        sort_order: str = "desc",
+        tags: list[str] | None = None,
     ) -> dict:
         """Adapter for get_recent_memories tool"""
         logger.info(
             "MCP Tool -> get_recent_memories",
-            extra={"limit": limit, "project_ids": project_ids},
+            extra={
+                "limit": limit,
+                "offset": offset,
+                "project_ids": project_ids,
+                "include_obsolete": include_obsolete,
+                "sort_by": sort_by,
+                "sort_order": sort_order,
+                "tags": tags,
+            },
         )
 
         user = await get_user_from_auth(ctx)
@@ -466,7 +479,14 @@ class MemoryToolAdapters:
         # an object root: a bare [] carries no MCP structured content and collapses to
         # null on the remote wire. total_count is already computed by the service.
         memories, total_count = await self.memory_service.get_recent_memories(
-            user_id=user.id, limit=limit, project_ids=project_ids,
+            user_id=user.id,
+            limit=limit,
+            offset=offset,
+            project_ids=project_ids,
+            include_obsolete=include_obsolete,
+            sort_by=sort_by,
+            sort_order=sort_order,
+            tags=tags,
         )
 
         return {"memories": memories, "total_count": total_count}

@@ -541,43 +541,65 @@ def register(mcp: FastMCP):
     async def get_recent_memories(
         ctx: Context,
         limit: int = 10,
+        offset: int = 0,
         project_ids: list[int] = None,
+        include_obsolete: bool = False,
+        sort_by: str = "created_at",
+        sort_order: str = "desc",
+        tags: list[str] | None = None,
     ) -> list[Memory]:
         """Retrieve most recent memories by creation timestamp
 
         WHEN: You want to see what was recently learned, created, or discussed. Useful for getting context on recent
         work, reviewing recent decisions, or understanding what was added to memory recently.
 
-        BEHAVIOR: Returns memories sorted by creation date (newest first). Optionally filter to specific projects.
-        Does not use semantic search - purely timestamp-based retrieval. Excludes obsolete memories.
+        BEHAVIOR: Returns memories sorted by the requested field (default created_at DESC). Optionally filter to
+        specific projects and/or tags (OR semantics when multiple tags are provided). Excludes obsolete memories
+        unless include_obsolete is true.
 
         NOT-USE: Searching for specific topics (use query_memory), getting a specific memory by ID (use get_memory),
         or listing all memories without time constraints.
 
         Args:
             limit: Number of memories to return (1-100, default 10)
+            offset: Number of memories to skip for pagination (default 0)
             project_ids: Optional filter to specific projects. Accepts array [1] or [1, 3] for multiple
+            include_obsolete: Include obsolete memories when true (default false)
+            sort_by: Field to sort by — created_at, updated_at, or importance (default created_at)
+            sort_order: Sort direction — asc or desc (default desc)
+            tags: Optional tag filter (OR semantics). Accepts array ["tag1", "tag2"]
 
         Returns:
-            List of Memory objects sorted by created_at DESC (newest first)
+            List of Memory objects sorted per sort_by/sort_order (newest first by default)
         """
         try:
             logger.info("MCP Tool -> get_recent_memories", extra={
                 "limit": limit,
+                "offset": offset,
                 "project_ids": project_ids,
+                "include_obsolete": include_obsolete,
+                "sort_by": sort_by,
+                "sort_order": sort_order,
+                "tags": tags,
             })
 
             user = await get_user_from_auth(ctx)
 
             # Clamp limit to reasonable range
             limit = max(1, min(limit, 100))
+            offset = max(0, offset)
 
             memory_service = ctx.fastmcp.memory_service
             # Service returns (memories, total_count) tuple; MCP tool only needs memories
             memories, _ = await memory_service.get_recent_memories(
                 user_id=user.id,
                 limit=limit,
+                offset=offset,
                 project_ids=project_ids,
+                include_obsolete=include_obsolete,
+                sort_by=sort_by,
+                sort_order=sort_order,
+                tags=tags,
             )
 
             logger.info("MCP Tool - get_recent_memories completed", extra={
