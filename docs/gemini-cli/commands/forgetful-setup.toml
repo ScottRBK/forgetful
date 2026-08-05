@@ -70,7 +70,12 @@ gemini mcp add -t http forgetful http://HOST:PORT/mcp
 ```bash
 # Gemini CLI doesn't support inline env vars in mcp add
 # User needs to set environment variables before running gemini:
-export DATABASE_URL=postgresql://user:pass@localhost:5432/forgetful
+export DATABASE=Postgres
+export POSTGRES_HOST=localhost
+export PGPORT=5432
+export POSTGRES_DB=forgetful
+export POSTGRES_USER=user
+export POSTGRES_PASSWORD=pass
 export EMBEDDING_PROVIDER=Google
 gemini mcp add forgetful uvx forgetful-ai
 ```

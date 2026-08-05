@@ -131,6 +131,9 @@ Execute any registered tool dynamically.
 execute_forgetful_tool("create_memory", {
     "title": "API design: REST over GraphQL",
     "content": "Chose REST for this project because...",
+    "context": "Recording the API design decision",
+    "keywords": ["api", "rest", "graphql"],
+    "tags": ["api", "decision"],
     "importance": 8
 })
 ```
@@ -235,13 +238,16 @@ Connect entities to related knowledge:
 decision = execute_forgetful_tool("create_memory", {
     "title": "API rate limiting: 100 req/min",
     "content": "Implemented rate limiting at 100 requests per minute...",
+    "context": "Recording the API protection decision",
+    "keywords": ["api", "rate-limiting"],
+    "tags": ["api", "decision"],
     "importance": 8
 })
 
 # Link the person who made the decision
 execute_forgetful_tool("link_entity_to_memory", {
     "entity_id": 42,  # Sarah Chen
-    "memory_id": decision["memory_id"]
+    "memory_id": decision["id"]
 })
 ```
 
@@ -331,19 +337,19 @@ server = execute_forgetful_tool("create_entity", {
     "name": "Cache Server 01",
     "entity_type": "Device",
     "aka": ["redis-primary", "cache-01"],
-    "metadata": {"ip": "10.0.1.50"}
+    "notes": "Primary Redis cache at 10.0.1.50"
 })
 
 # 4. Create relationships
 execute_forgetful_tool("create_entity_relationship", {
-    "from_entity_id": person["entity_id"],
-    "to_entity_id": company["entity_id"],
+    "from_entity_id": person["id"],
+    "to_entity_id": company["id"],
     "relationship_type": "works_for"
 })
 
 execute_forgetful_tool("create_entity_relationship", {
-    "from_entity_id": company["entity_id"],
-    "to_entity_id": server["entity_id"],
+    "from_entity_id": company["id"],
+    "to_entity_id": server["id"],
     "relationship_type": "owns"
 })
 
@@ -351,18 +357,21 @@ execute_forgetful_tool("create_entity_relationship", {
 decision = execute_forgetful_tool("create_memory", {
     "title": "Redis config: maxmemory-policy=allkeys-lru",
     "content": "Set Redis eviction policy after memory incident...",
+    "context": "Recording the resolution of a Redis memory incident",
+    "keywords": ["redis", "memory", "eviction"],
+    "tags": ["redis", "incident"],
     "importance": 8
 })
 
 # 6. Link the memory to relevant entities
 execute_forgetful_tool("link_entity_to_memory", {
-    "entity_id": person["entity_id"],
-    "memory_id": decision["memory_id"]
+    "entity_id": person["id"],
+    "memory_id": decision["id"]
 })
 
 execute_forgetful_tool("link_entity_to_memory", {
-    "entity_id": server["entity_id"],
-    "memory_id": decision["memory_id"]
+    "entity_id": server["id"],
+    "memory_id": decision["id"]
 })
 ```
 
@@ -370,11 +379,11 @@ execute_forgetful_tool("link_entity_to_memory", {
 
 ## Essential Tool Reference
 
-### Memory Tools (7 tools)
+### Memory Tools
 
 | Tool | Required Params | Purpose |
 |------|-----------------|---------|
-| `create_memory` | `title`, `content`, `importance` | Store atomic knowledge |
+| `create_memory` | `title`, `content`, `context`, `keywords`, `tags`, `importance` | Store |
 | `query_memory` | `query`, `query_context` | Semantic search |
 | `get_memory` | `memory_id` | Retrieve by ID |
 | `update_memory` | `memory_id` | Patch fields |
@@ -382,7 +391,7 @@ execute_forgetful_tool("link_entity_to_memory", {
 | `mark_memory_obsolete` | `memory_id`, `reason` | Soft delete |
 | `get_recent_memories` | (none) | Timeline view |
 
-### Project Tools (5 tools)
+### Project Tools
 
 | Tool | Required Params | Purpose |
 |------|-----------------|---------|
@@ -392,7 +401,7 @@ execute_forgetful_tool("link_entity_to_memory", {
 | `update_project` | `project_id` | Modify |
 | `delete_project` | `project_id` | Remove (keeps memories) |
 
-### Entity Tools (15 tools)
+### Entity Tools
 
 **CRUD Operations:**
 
@@ -422,7 +431,7 @@ execute_forgetful_tool("link_entity_to_memory", {
 | `update_entity_relationship` | `relationship_id` | Modify edge |
 | `delete_entity_relationship` | `relationship_id` | Remove edge |
 
-### Document & Code Artifact Tools (4 key tools)
+### Document & Code Artifact Tools
 
 | Tool | Required Params | Purpose |
 |------|-----------------|---------|
@@ -465,7 +474,7 @@ projects = execute_forgetful_tool("list_projects", {
     "repo_name": "owner/repo-name"
 })
 
-project_id = projects[0]["project_id"] if projects else None
+project_id = projects["projects"][0]["id"] if projects["projects"] else None
 ```
 
 ### 3. Memory Creation Template
@@ -490,6 +499,7 @@ For long content, create a document then extract atomic memories:
 # 1. Create document with full content
 doc = execute_forgetful_tool("create_document", {
     "title": "ADR-003: Event-Driven Architecture",
+    "description": "Architecture decision record for event-driven processing",
     "content": "[... 2000+ words ...]",
     "document_type": "markdown",
     "project_id": PROJECT_ID
@@ -499,15 +509,21 @@ doc = execute_forgetful_tool("create_document", {
 memory1 = execute_forgetful_tool("create_memory", {
     "title": "Architecture: Event-driven with Kafka",
     "content": "Selected event-driven architecture...",
+    "context": "Extracted from ADR-003",
+    "keywords": ["architecture", "kafka", "events"],
+    "tags": ["architecture", "decision"],
     "importance": 10,
-    "document_ids": [doc["document_id"]]
+    "document_ids": [doc["id"]]
 })
 
 memory2 = execute_forgetful_tool("create_memory", {
     "title": "Tradeoff: Eventual consistency accepted",
     "content": "Team accepted eventual consistency...",
+    "context": "Extracted from ADR-003",
+    "keywords": ["eventual-consistency", "tradeoff"],
+    "tags": ["architecture", "tradeoff"],
     "importance": 8,
-    "document_ids": [doc["document_id"]]
+    "document_ids": [doc["id"]]
 })
 ```
 
@@ -517,9 +533,11 @@ Build graphs incrementally as you learn:
 
 ```python
 # Find or create entities as you encounter them
-entity = execute_forgetful_tool("search_entities", {"query": "TechFlow"})
+matches = execute_forgetful_tool("search_entities", {"query": "TechFlow"})
 
-if not entity:
+if matches["entities"]:
+    entity = matches["entities"][0]
+else:
     entity = execute_forgetful_tool("create_entity", {
         "name": "TechFlow Systems",
         "entity_type": "Organization"
@@ -527,8 +545,8 @@ if not entity:
 
 # Link to memories when creating them
 execute_forgetful_tool("link_entity_to_memory", {
-    "entity_id": entity["entity_id"],
-    "memory_id": memory["memory_id"]
+    "entity_id": entity["id"],
+    "memory_id": memory["id"]
 })
 ```
 
@@ -575,6 +593,9 @@ execute_forgetful_tool("query_memory", {
 execute_forgetful_tool("create_memory", {
     "title": "Short title",
     "content": "One concept",
+    "context": "Why this matters",
+    "keywords": ["search-term"],
+    "tags": ["category"],
     "importance": 8
 })
 

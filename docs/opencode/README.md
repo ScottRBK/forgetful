@@ -44,7 +44,12 @@ For PostgreSQL, custom embeddings, or remote servers:
       "command": ["uvx", "forgetful-ai"],
       "enabled": true,
       "environment": {
-        "DATABASE_URL": "postgresql://user:pass@localhost:5432/forgetful",
+        "DATABASE": "Postgres",
+        "POSTGRES_HOST": "localhost",
+        "PGPORT": "5432",
+        "POSTGRES_DB": "forgetful",
+        "POSTGRES_USER": "user",
+        "POSTGRES_PASSWORD": "pass",
         "EMBEDDING_PROVIDER": "Google",
         "EMBEDDING_MODEL": "models/text-embedding-001"
       }

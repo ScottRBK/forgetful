@@ -142,7 +142,7 @@ Create a new memory.
   "keywords": ["keyword1", "keyword2"],
   "tags": ["tag1"],
   "importance": 7,
-  "project_id": 1,
+  "project_ids": [1],
   "source_repo": "owner/repo",
   "source_files": ["path/to/file.py"],
   "source_url": "https://example.com/source",
