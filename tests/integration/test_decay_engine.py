@@ -23,7 +23,6 @@ from app.models.memory_models import (
     DecayScanRequest,
     Memory,
     MemoryCreate,
-    MemoryUpdate,
 )
 from app.services.memory_service import MemoryService
 

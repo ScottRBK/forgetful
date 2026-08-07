@@ -8,7 +8,7 @@ This service implements the primary functionality for the Forgetful Memory Syste
     - Retrieval with project associations
     - Usage-aware decay scan (forgetful-hulkito fork, plan `native_memory_decay_engine`)
 """
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 from uuid import UUID
 
