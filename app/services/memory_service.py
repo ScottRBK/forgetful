@@ -6,6 +6,7 @@ This service implements the primary functionality for the Forgetful Memory Syste
     - Memory updates
     - Manual linking between memories
     - Retrieval with project associations
+    - Usage tracking on read paths (forgetful-hulkito fork)
 """
 from typing import TYPE_CHECKING
 from uuid import UUID
@@ -145,6 +146,23 @@ class MemoryService:
                 "truncated": truncated,
             },
         )
+
+        # Usage tracking: record access for the memories actually returned
+        # (post-truncation). Intermediate dense/rerank candidates are NOT
+        # counted. Best-effort: never let access tracking break a query.
+        accessed_ids = [m.id for m in final_primaries]
+        accessed_ids.extend(lm.memory.id for lm in final_linked)
+        if accessed_ids:
+            try:
+                await self.memory_repo.record_memory_access(
+                    user_id=user_id,
+                    memory_ids=accessed_ids,
+                )
+            except Exception as exc:  # noqa: BLE001 - intentional broad guard
+                logger.warning(
+                    "record_memory_access failed during query_memory",
+                    extra={"user_id": str(user_id), "count": len(accessed_ids), "error": str(exc)},
+                )
 
         return MemoryQueryResult(
             query=memory_query.query,
@@ -362,6 +380,19 @@ class MemoryService:
                 action=ActionType.READ,
                 snapshot=memory.model_dump(mode="json"),
             )
+
+        # Usage tracking: best-effort; never let access tracking break get_memory.
+        if memory is not None:
+            try:
+                await self.memory_repo.record_memory_access(
+                    user_id=user_id,
+                    memory_ids=[memory_id],
+                )
+            except Exception as exc:  # noqa: BLE001 - intentional broad guard
+                logger.warning(
+                    "record_memory_access failed during get_memory",
+                    extra={"user_id": str(user_id), "memory_id": memory_id, "error": str(exc)},
+                )
 
         return memory
 
