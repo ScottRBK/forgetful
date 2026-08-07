@@ -1585,8 +1585,10 @@ def register_entity_tools_metadata(
                        "(list of {id, title} objects, same order as memory_ids)",
             "examples": [
                 'execute_forgetful_tool("get_entity_memories", {"entity_id": 42})',
-                '# Returns: {"memory_ids": [3, 7], "count": 2, "memories": '
-                '[{"id": 3, "title": "Q3 Roadmap"}, {"id": 7, "title": "Onboarding Notes"}]}',
+                (
+                    '# Returns: {"memory_ids": [3, 7], "count": 2, "memories": '
+                    '[{"id": 3, "title": "Q3 Roadmap"}, {"id": 7, "title": "Onboarding Notes"}]}'
+                ),
             ],
             "tags": ["entity", "memory", "query", "linking"],
         },
