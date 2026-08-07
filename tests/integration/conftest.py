@@ -531,6 +531,58 @@ class InMemoryMemoryRepository(MemoryRepository):
     async def validate_search_works(self) -> bool:
         return True
 
+    # ------------------------------------------------------------------
+    # Usage tracking + decay engine (forgetful-hulkito fork)
+    # ------------------------------------------------------------------
+
+    async def record_memory_access(
+        self,
+        user_id: UUID,
+        memory_ids: list[int],
+        accessed_at: datetime | None = None,
+    ) -> int:
+        """In-memory access tracking. Does NOT mutate `updated_at`."""
+        if not memory_ids:
+            return 0
+        ts = accessed_at or datetime.now(UTC)
+        user_memories = self._memories.get(user_id, {})
+        updated = 0
+        for mid in memory_ids:
+            mem = user_memories.get(mid)
+            if mem is None or mem.is_obsolete:
+                continue
+            mem.access_count = (mem.access_count or 0) + 1
+            mem.last_accessed_at = ts
+            updated += 1
+        return updated
+
+    async def get_decay_candidates(
+        self,
+        user_id: UUID,
+        memory_ids: list[int] | None = None,
+        project_id: int | None = None,
+        max_age_days: int | None = None,
+    ) -> list[Memory]:
+        """In-memory decay-candidate selection mirroring the repo impl."""
+        from datetime import timedelta
+        user_memories = self._memories.get(user_id, {})
+        memories = [m for m in user_memories.values() if not m.is_obsolete]
+        if memory_ids:
+            id_set = set(memory_ids)
+            memories = [m for m in memories if m.id in id_set]
+        if project_id is not None:
+            memories = [m for m in memories if project_id in m.project_ids]
+
+        def effective_access(mem: Memory) -> datetime:
+            return mem.last_accessed_at or mem.updated_at or mem.created_at
+
+        if max_age_days is not None:
+            cutoff = datetime.now(UTC) - timedelta(days=max_age_days)
+            memories = [m for m in memories if effective_access(m) <= cutoff]
+
+        memories.sort(key=lambda m: (effective_access(m), m.id))
+        return memories
+
 
 @pytest.fixture
 def mock_embeddings_adapter():
@@ -1689,6 +1741,7 @@ class InMemoryTaskRepository(TaskRepository):
         self,
         user_id: UUID,
         plan_ids: list[int] | None = None,
+        project_id: int | None = None,
     ) -> list[TaskSummary]:
         if plan_ids is not None and len(plan_ids) == 0:
             return []

@@ -765,6 +765,60 @@ def register_memory_tools_metadata(
             ],
             "tags": ["memory", "embeddings", "admin", "repair"],
         },
+        {
+            "name": "run_decay_scan",
+            "mutates": True,
+            "description": (
+                "Run a usage-aware memory decay scan (forgetful-hulkito fork). "
+                "Reviews non-obsolete memories owned by the caller and proposes "
+                "confidence decay or obsolescence based on age + access_count. "
+                "Protects importance>=8 and decision/architecture/critical tags. "
+                "dry_run=True (default) is no-write; dry_run=False applies confidence "
+                "decay through update_memory and obsolescence through mark_memory_obsolete."
+            ),
+            "parameters": [
+                {
+                    "name": "ctx",
+                    "type": "Context",
+                    "description": "FastMCP Context (automatically injected)",
+                    "required": True,
+                },
+                {
+                    "name": "memory_ids",
+                    "type": "Optional[List[int]]",
+                    "description": "Explicit memory ids owned by the caller; leave null to use project_id or global user scope",
+                    "required": False,
+                    "default": None,
+                    "example": [123, 124],
+                },
+                {
+                    "name": "project_id",
+                    "type": "Optional[int]",
+                    "description": "Restrict the scan to memories of a single project owned by the caller",
+                    "required": False,
+                    "default": None,
+                    "example": 1,
+                },
+                {
+                    "name": "dry_run",
+                    "type": "bool",
+                    "description": "Preview-only mode (no writes). Default True. Set to False to apply confidence decay and obsolete mutations.",
+                    "required": False,
+                    "default": True,
+                    "example": True,
+                },
+            ],
+            "returns": (
+                "Dict with dry_run (bool), scanned (int), actions (List[Dict]), "
+                "applied (int, 0 in dry-run), failed (List[Dict[memory_id, reason]])"
+            ),
+            "examples": [
+                'execute_forgetful_tool("run_decay_scan", {"dry_run": true})',
+                'execute_forgetful_tool("run_decay_scan", {"project_id": 1, "dry_run": true})',
+                'execute_forgetful_tool("run_decay_scan", {"memory_ids": [123, 124], "dry_run": false})',
+            ],
+            "tags": ["memory", "decay", "admin", "lifecycle", "gc"],
+        },
     ]
 
     for tool_def in tools:

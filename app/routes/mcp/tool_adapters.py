@@ -28,6 +28,8 @@ from app.models.entity_models import (
     EntityUpdate,
 )
 from app.models.memory_models import (
+    DecayScanRequest,
+    DecayScanResponse,
     Memory,
     MemoryCreate,
     MemoryCreateResponse,
@@ -515,6 +517,46 @@ class MemoryToolAdapters:
             "failed": result.failed,
         }
 
+    async def run_decay_scan(
+        self,
+        ctx: Context,
+        memory_ids: list[int] | None = None,
+        project_id: int | None = None,
+        dry_run: bool = True,
+    ) -> DecayScanResponse:
+        """Adapter for `run_decay_scan` MCP tool (forgetful-hulkito fork).
+
+        Runs the usage-aware decay scan over a user-scoped subset of
+        memories. `dry_run=True` (default) is no-write; `dry_run=False`
+        applies confidence decay through the validated `update_memory` path
+        and obsolescence through `mark_memory_obsolete`.
+        """
+        logger.info(
+            "MCP Tool -> run_decay_scan",
+            extra={
+                "memory_ids": memory_ids,
+                "project_id": project_id,
+                "dry_run": dry_run,
+            },
+        )
+
+        user = await get_user_from_auth(ctx)
+
+        if memory_ids is not None and len(memory_ids) == 0:
+            raise ToolError(
+                "VALIDATION_ERROR: memory_ids must be non-empty if provided; "
+                "pass null for global scope",
+            )
+
+        return await self.memory_service.run_decay_scan(
+            user_id=user.id,
+            request=DecayScanRequest(
+                memory_ids=memory_ids,
+                project_id=project_id,
+                dry_run=dry_run,
+            ),
+        )
+
 
 def create_memory_adapters(
     memory_service: MemoryService, user_service: UserService,
@@ -531,6 +573,7 @@ def create_memory_adapters(
         "mark_memory_obsolete": adapters.mark_memory_obsolete,
         "get_recent_memories": adapters.get_recent_memories,
         "rebuild_embeddings": adapters.rebuild_embeddings,
+        "run_decay_scan": adapters.run_decay_scan,
     }
 
 

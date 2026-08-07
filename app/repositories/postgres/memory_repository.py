@@ -1,6 +1,6 @@
 """Memory repository for postgres data access operations
 """
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -1759,3 +1759,95 @@ class PostgresMemoryRepository:
             })
 
             return nodes, truncated
+
+    # ------------------------------------------------------------------
+    # Usage tracking + decay engine (forgetful-hulkito fork)
+    # ------------------------------------------------------------------
+
+    async def record_memory_access(
+        self,
+        user_id: UUID,
+        memory_ids: list[int],
+        accessed_at: datetime | None = None,
+    ) -> int:
+        """Increment `access_count` and update `last_accessed_at` for the given
+        memory ids, scoped to `user_id`. Does NOT mutate `updated_at`.
+
+        Returns the number of rows actually updated (owned + non-obsolete).
+        """
+        if not memory_ids:
+            return 0
+        ts = accessed_at or datetime.now(UTC)
+        async with self.db_adapter.system_session() as session:
+            stmt = (
+                update(MemoryTable)
+                .where(
+                    MemoryTable.user_id == user_id,
+                    MemoryTable.is_obsolete.is_(False),
+                    MemoryTable.id.in_(memory_ids),
+                )
+                .values(
+                    access_count=MemoryTable.access_count + 1,
+                    last_accessed_at=ts,
+                )
+            )
+            result = await session.execute(stmt)
+            return result.rowcount or 0
+
+    async def get_decay_candidates(
+        self,
+        user_id: UUID,
+        memory_ids: list[int] | None = None,
+        project_id: int | None = None,
+        max_age_days: int | None = None,
+    ) -> list[Memory]:
+        """Return non-obsolete memories owned by `user_id` eligible for decay
+        review, ordered oldest (by effective access date) first.
+
+        Effective access date = `last_accessed_at ?? updated_at ?? created_at`.
+        The optional `max_age_days` filter is applied in Python after reading
+        to keep the COALESCE-on-nullable-datetime logic backend-agnostic.
+        """
+        conditions = [
+            MemoryTable.user_id == user_id,
+            MemoryTable.is_obsolete.is_(False),
+        ]
+        if memory_ids:
+            conditions.append(MemoryTable.id.in_(memory_ids))
+
+        stmt = (
+            select(MemoryTable)
+            .options(
+                selectinload(MemoryTable.projects),
+                selectinload(MemoryTable.linked_memories),
+                selectinload(MemoryTable.linking_memories),
+                selectinload(MemoryTable.code_artifacts),
+                selectinload(MemoryTable.documents),
+                selectinload(MemoryTable.files),
+                selectinload(MemoryTable.skills),
+            )
+            .where(*conditions)
+        )
+        if project_id is not None:
+            stmt = stmt.join(MemoryTable.projects).where(
+                ProjectsTable.id == project_id,
+                ProjectsTable.user_id == user_id,
+            )
+
+        async with self.db_adapter.system_session() as session:
+            result = await session.execute(stmt)
+            memories_orm = result.scalars().unique().all()
+            memories = [Memory.model_validate(m) for m in memories_orm]
+
+        def effective_access(mem: Memory) -> datetime:
+            raw = mem.last_accessed_at or mem.updated_at or mem.created_at
+            if raw.tzinfo is None:
+                return raw.replace(tzinfo=UTC)
+            return raw.astimezone(UTC)
+
+        if max_age_days is not None:
+            cutoff = datetime.now(UTC) - timedelta(days=max_age_days)
+            memories = [m for m in memories if effective_access(m) <= cutoff]
+
+        memories.sort(key=lambda m: (effective_access(m), m.id))
+        return memories
