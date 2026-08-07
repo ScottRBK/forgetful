@@ -38,8 +38,11 @@ def _make_memory(
     age_days: int = 0,
     last_accessed_days_ago: int | None = None,
     access_count: int = 0,
+    now: datetime | None = None,
 ) -> Memory:
-    now = datetime.now(UTC)
+    # Shared clock avoids flaky .days truncation when the test captures now
+    # a few microseconds before _make_memory's own datetime.now(UTC).
+    now = now or datetime.now(UTC)
     created = now - timedelta(days=age_days)
     last_access = (
         now - timedelta(days=last_accessed_days_ago) if last_accessed_days_ago is not None else None
@@ -149,12 +152,12 @@ def test_usage_weighting_shrinks_delta():
 
 def test_effective_access_date_fallback_chain():
     now = datetime.now(UTC)
-    # last_accessed_at wins
-    mem = _make_memory(age_days=200, last_accessed_days_ago=10)
+    # last_accessed_at wins (shared now so timedelta.days is exact, not 9 vs 10)
+    mem = _make_memory(age_days=200, last_accessed_days_ago=10, now=now)
     eff = MemoryService._effective_access_date(mem)
     assert (now - eff).days == 10
     # updated_at fallback when last_accessed_at is None
-    mem2 = _make_memory(age_days=200, last_accessed_days_ago=None)
+    mem2 = _make_memory(age_days=200, last_accessed_days_ago=None, now=now)
     eff2 = MemoryService._effective_access_date(mem2)
     assert eff2 == MemoryService._as_utc(mem2.updated_at)
 
