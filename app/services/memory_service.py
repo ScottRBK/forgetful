@@ -51,6 +51,11 @@ class MemoryService:
         self._event_bus = event_bus
         logger.info("Memory service initialised")
 
+    def register_access_tracking_handlers(self, event_bus: "EventBus") -> None:
+        """Subscribe memory access tracking handlers on the given event bus."""
+        event_bus.subscribe("memory.read", self.handle_memory_access_event)
+        event_bus.subscribe("memory.queried", self.handle_memory_access_event)
+
     async def query_memory(
             self,
             user_id: UUID,
