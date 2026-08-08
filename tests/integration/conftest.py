@@ -595,6 +595,16 @@ def test_memory_service_with_event_bus(mock_memory_repository):
     return service, event_bus
 
 
+@pytest.fixture
+def test_memory_service_with_access_tracking(mock_memory_repository):
+    """MemoryService + EventBus with access-tracking handler subscribed."""
+    event_bus = CollectingEventBus()
+    service = MemoryService(mock_memory_repository, event_bus=event_bus)
+    event_bus.subscribe("memory.read", service.handle_memory_access_event)
+    event_bus.subscribe("memory.queried", service.handle_memory_access_event)
+    return service, event_bus
+
+
 # ============ Project Testing Fixtures ============
 
 

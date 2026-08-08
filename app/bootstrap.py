@@ -253,6 +253,9 @@ async def build_runtime() -> Runtime:
 
     user_service = UserService(repos["user"])
     memory_service = MemoryService(repos["memory"], event_bus=event_bus)
+    if event_bus is not None:
+        event_bus.subscribe("memory.read", memory_service.handle_memory_access_event)
+        event_bus.subscribe("memory.queried", memory_service.handle_memory_access_event)
     project_service = ProjectService(repos["project"], event_bus=event_bus)
     code_artifact_service = CodeArtifactService(repos["code_artifact"], event_bus=event_bus)
     document_service = DocumentService(repos["document"], event_bus=event_bus)
