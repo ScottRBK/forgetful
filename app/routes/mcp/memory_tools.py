@@ -17,6 +17,7 @@ from app.models.memory_models import (
     MemoryQueryResult,
     MemoryUpdate,
 )
+from app.routes.mcp.pagination import clamp_list_pagination
 from app.utils.pydantic_helper import filter_none_values
 
 logger = logging.getLogger(__name__)
@@ -585,9 +586,7 @@ def register(mcp: FastMCP):
 
             user = await get_user_from_auth(ctx)
 
-            # Clamp limit to reasonable range
-            limit = max(1, min(limit, 100))
-            offset = max(0, offset)
+            limit, offset = clamp_list_pagination(limit, offset)
 
             memory_service = ctx.fastmcp.memory_service
             # Service returns (memories, total_count) tuple; MCP tool only needs memories

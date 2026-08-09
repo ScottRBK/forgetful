@@ -43,6 +43,7 @@ from app.models.project_models import (
     ProjectUpdate,
 )
 from app.models.user_models import UserResponse, UserUpdate
+from app.routes.mcp.pagination import clamp_list_pagination
 from app.services.code_artifact_service import CodeArtifactService
 from app.services.document_service import DocumentService
 from app.services.entity_service import EntityService
@@ -474,6 +475,7 @@ class MemoryToolAdapters:
         )
 
         user = await get_user_from_auth(ctx)
+        limit, offset = clamp_list_pagination(limit, offset)
 
         # Envelope the list in a dict (like the list_* tools) so an empty result keeps
         # an object root: a bare [] carries no MCP structured content and collapses to

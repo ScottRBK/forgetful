@@ -915,6 +915,102 @@ async def test_get_recent_memories_include_obsolete_and_sort_importance_e2e(mcp_
     assert obsolete_id in with_ids
 
 
+@pytest.mark.e2e
+async def test_get_recent_memories_clamps_negative_offset_e2e(mcp_client):
+    """Test that negative offset is clamped to 0 on the adapter path"""
+    import json
+
+    tag = "e2e-clamp-offset"
+    for i in range(3):
+        await mcp_client.call_tool("execute_forgetful_tool", {
+            "tool_name": "create_memory",
+            "arguments": {
+                "title": f"E2E clamp offset {i}",
+                "content": f"Memory {i} for negative offset clamp test",
+                "context": "Testing offset clamp",
+                "keywords": ["e2e", "clamp", "offset"],
+                "tags": [tag],
+                "importance": 7,
+            },
+        })
+
+    result = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "get_recent_memories",
+        "arguments": {"offset": -1, "limit": 10, "tags": [tag]},
+    })
+
+    assert result.is_error is False
+    envelope = json.loads(result.content[0].text)
+    memories = envelope["memories"]
+    assert len(memories) == 3
+
+
+@pytest.mark.e2e
+async def test_get_recent_memories_clamps_over_limit_e2e(mcp_client):
+    """Smoke-tests that an absurdly large limit does not error or hang the adapter path.
+
+    Does not assert the 100-row cap directly (fixture volume is intentionally small);
+    the numeric clamp itself is exercised by the negative-offset and zero-limit cases
+    via the same clamp_list_pagination call.
+    """
+    import json
+
+    tag = "e2e-clamp-limit"
+    for i in range(2):
+        await mcp_client.call_tool("execute_forgetful_tool", {
+            "tool_name": "create_memory",
+            "arguments": {
+                "title": f"E2E clamp limit {i}",
+                "content": f"Memory {i} for over-limit clamp test",
+                "context": "Testing limit clamp",
+                "keywords": ["e2e", "clamp", "limit"],
+                "tags": [tag],
+                "importance": 7,
+            },
+        })
+
+    result = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "get_recent_memories",
+        "arguments": {"limit": 1_000_000, "tags": [tag]},
+    })
+
+    assert result.is_error is False
+    envelope = json.loads(result.content[0].text)
+    memories = envelope["memories"]
+    assert len(memories) == 2
+    assert envelope["total_count"] >= len(memories)
+
+
+@pytest.mark.e2e
+async def test_get_recent_memories_clamps_zero_limit_e2e(mcp_client):
+    """Test that limit=0 is clamped to 1 on the adapter path"""
+    import json
+
+    tag = "e2e-clamp-zero"
+    for i in range(3):
+        await mcp_client.call_tool("execute_forgetful_tool", {
+            "tool_name": "create_memory",
+            "arguments": {
+                "title": f"E2E clamp zero {i}",
+                "content": f"Memory {i} for zero limit clamp test",
+                "context": "Testing zero limit clamp",
+                "keywords": ["e2e", "clamp", "zero"],
+                "tags": [tag],
+                "importance": 7,
+            },
+        })
+
+    result = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "get_recent_memories",
+        "arguments": {"limit": 0, "tags": [tag]},
+    })
+
+    assert result.is_error is False
+    envelope = json.loads(result.content[0].text)
+    memories = envelope["memories"]
+    assert len(memories) == 1
+
+
 # ============================================================================
 # Provenance Tracking Tests (Issue #9) - PostgreSQL E2E
 # ============================================================================
