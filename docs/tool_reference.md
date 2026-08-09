@@ -23,7 +23,9 @@ This guide provides comprehensive documentation for all tools available in the F
 
 ## Meta-Tools Pattern
 
-Forgetful uses a **meta-tools pattern** to preserve your LLM's context window. Instead of exposing all 42 tools directly, only **3 meta-tools** are visible to MCP clients:
+Forgetful uses a **meta-tools pattern** to preserve your LLM's context window. Only
+**3 meta-tools** are visible to MCP clients; the inner tool catalog depends on the enabled
+feature flags.
 
 ### The Three Meta-Tools
 
@@ -79,6 +81,9 @@ execute_forgetful_tool(
     arguments={
         "title": "Database choice: PostgreSQL",
         "content": "Selected PostgreSQL for pgvector support",
+        "context": "Choosing the database for vector search",
+        "keywords": ["postgresql", "pgvector"],
+        "tags": ["database", "decision"],
         "importance": 9
     }
 )
@@ -88,19 +93,9 @@ execute_forgetful_tool(
 
 ## Tool Categories Overview
 
-Forgetful organizes **69 tools** across **9 categories**:
-
-| Category | Tool Count | Purpose |
-|----------|-----------|---------|
-| **User** | 2 | User authentication and profile management |
-| **Memory** | 7 | Core memory storage, retrieval, and lifecycle |
-| **Project** | 5 | Project organization and scope management |
-| **Code Artifact** | 5 | Reusable code snippet storage |
-| **Document** | 5 | Long-form content storage (>400 words) |
-| **Skill** | 10 | Procedural knowledge storage and Agent Skills standard import/export |
-| **Entity** | 17 | Real-world entity tracking and knowledge graphs |
-| **Plan** | 4 | Plan creation and lifecycle management within projects |
-| **Task** | 11 | Task management with criteria, dependencies, and agent assignment |
+The core catalog covers users, memories, projects, code artifacts, documents, and entities.
+Skills, files, plans, and tasks appear only when their feature flags are enabled. Call
+`discover_forgetful_tools()` for the exact catalog exposed by the running server.
 
 ---
 
@@ -159,12 +154,12 @@ Create an atomic memory with automatic linking to related memories.
 - `title` (required): Short, searchable title (max 200 chars)
 - `content` (required): Memory content - ONE concept (max 2000 chars, ~300-400 words)
 - `importance` (required): Importance score 1-10 (9-10 = foundational, 7-8 = patterns, 5-6 = context)
-- `context` (optional): Contextual description (max 500 chars)
-- `keywords` (optional): List of keywords for semantic clustering (max 10)
-- `tags` (optional): List of categorization tags (max 10)
-- `project_id` (optional): Link to project
-- `linked_document_id` (optional): Link to parent document
-- `linked_code_artifact_id` (optional): Link to code artifact
+- `context` (required): Why the memory matters (max 500 chars)
+- `keywords` (required): Search keywords (max 10)
+- `tags` (required): Categorization tags (max 10)
+- `project_ids` (optional): Project IDs to link
+- `document_ids` (optional): Document IDs to link
+- `code_artifact_ids` (optional): Code artifact IDs to link
 
 **Provenance Tracking (optional):**
 - `source_repo` (optional): Repository source (e.g., 'owner/repo', max 200 chars)
@@ -175,8 +170,10 @@ Create an atomic memory with automatic linking to related memories.
 - `encoding_version` (optional): Version of encoding process/prompt (max 50 chars)
 
 **Returns:**
-- `memory_id`: Created memory ID
-- `auto_linked_to`: List of automatically linked memory IDs
+- `id`: Created memory ID
+- `title`: Created memory title
+- `linked_memory_ids`: Automatically linked memory IDs
+- `similar_memories`: Summaries of the automatic-link candidates
 
 **Example:**
 ```python
@@ -189,10 +186,10 @@ memory = execute_forgetful_tool(
         "context": "Performance and security discussion during API redesign",
         "keywords": ["rate-limiting", "api", "redis", "performance"],
         "tags": ["api", "security", "performance"],
-        "project_id": 12
+        "project_ids": [12]
     }
 )
-# Returns: {"memory_id": 156, "auto_linked_to": [142, 148, 151], ...}
+# Returns: {"id": 156, "linked_memory_ids": [142, 148, 151], ...}
 ```
 
 **Example with provenance:**
@@ -202,9 +199,11 @@ memory = execute_forgetful_tool(
     "create_memory",
     {
         "title": "FastAPI dependency injection pattern",
-        "content": "Use Depends() for request-scoped dependencies. For async database sessions, use async context managers with yield.",
-        "importance": 8,
+        "content": "Use Depends() for request-scoped dependencies.",
+        "context": "Recording a reusable FastAPI implementation pattern",
+        "keywords": ["fastapi", "depends", "dependency-injection"],
         "tags": ["fastapi", "pattern", "dependency-injection"],
+        "importance": 8,
         "source_repo": "tiangolo/fastapi",
         "source_files": ["docs/tutorial/dependencies.md", "docs/advanced/async-database.md"],
         "source_url": "https://fastapi.tiangolo.com/tutorial/dependencies/",
@@ -221,10 +220,13 @@ Semantic search across all memories with context-aware ranking.
 
 **Parameters:**
 - `query` (required): Natural language search query
-- `limit` (optional): Max memories to return (default: 20)
-- `project_id` (optional): Scope search to specific project
-- `min_importance` (optional): Filter by minimum importance score
-- `tags` (optional): Filter by tags
+- `query_context` (required): Why the search is being performed
+- `k` (optional): Number of primary results (default: 3, maximum: 20)
+- `include_links` (optional): Include linked memories (default: true)
+- `max_links_per_primary` (optional): Linked memories per primary result (default: 5)
+- `importance_threshold` (optional): Minimum importance score
+- `project_ids` (optional): Project IDs to search
+- `strict_project_filter` (optional): Apply the project filter to linked memories
 
 **Returns:**
 - List of memories ranked by semantic relevance
@@ -236,11 +238,13 @@ results = execute_forgetful_tool(
     "query_memory",
     {
         "query": "how do we handle authentication",
-        "project_id": 12,
-        "min_importance": 7
+        "query_context": "Implementing authentication for the API",
+        "project_ids": [12],
+        "importance_threshold": 7,
+        "k": 5
     }
 )
-# Returns: [{"memory_id": 89, "title": "Auth: OAuth2 + JWT", "similarity": 0.92, ...}, ...]
+# Returns: {"primary_memories": [...], "linked_memories": [...], ...}
 ```
 
 ### `get_memory`
@@ -313,8 +317,8 @@ execute_forgetful_tool(
 Manually create bidirectional links between memories.
 
 **Parameters:**
-- `memory_id_1` (required): First memory ID
-- `memory_id_2` (required): Second memory ID
+- `memory_id` (required): Source memory ID
+- `related_ids` (required): Target memory IDs
 
 **Returns:**
 - Confirmation of link creation
@@ -325,8 +329,8 @@ Manually create bidirectional links between memories.
 execute_forgetful_tool(
     "link_memories",
     {
-        "memory_id_1": 156,  # Rate limiting decision
-        "memory_id_2": 201   # Redis caching strategy
+        "memory_id": 156,  # Rate limiting decision
+        "related_ids": [201]  # Redis caching strategy
     }
 )
 ```
@@ -337,8 +341,8 @@ Soft delete a memory with audit trail and supersession tracking.
 
 **Parameters:**
 - `memory_id` (required): Memory ID to mark obsolete
-- `reason` (optional): Reason for obsolescence
-- `superseded_by_memory_id` (optional): ID of replacement memory
+- `reason` (required): Reason for obsolescence
+- `superseded_by` (optional): ID of replacement memory
 
 **Returns:**
 - Updated memory with obsolete flag
@@ -350,7 +354,7 @@ execute_forgetful_tool(
     {
         "memory_id": 78,  # Old "Docker Swarm deployment" memory
         "reason": "Migrated to Kubernetes",
-        "superseded_by_memory_id": 312  # New K8s memory
+        "superseded_by": 312  # New K8s memory
     }
 )
 ```
@@ -360,8 +364,8 @@ execute_forgetful_tool(
 Retrieve most recent memories sorted by creation timestamp.
 
 **Parameters:**
-- `limit` (optional): Max memories to return (default: 20)
-- `project_id` (optional): Scope to specific project
+- `limit` (optional): Max memories to return (default: 10)
+- `project_ids` (optional): Scope to specific projects
 
 **Returns:**
 - An object (not a bare list) with two keys:
@@ -372,7 +376,7 @@ Retrieve most recent memories sorted by creation timestamp.
 ```python
 result = execute_forgetful_tool(
     "get_recent_memories",
-    {"limit": 10, "project_id": 12}
+    {"limit": 10, "project_ids": [12]}
 )
 recent = result["memories"]     # the list of memories
 total = result["total_count"]   # how many matched in total
@@ -716,17 +720,20 @@ Adopt event-driven architecture using Apache Kafka as message broker.
         "project_id": 22
     }
 )
-# Returns: {"document_id": 89, ...}
+# Returns: {"id": 89, ...}
 
 # Extract atomic memories from this document
 memory1 = execute_forgetful_tool(
     "create_memory",
     {
         "title": "Architecture decision: Event-driven with Kafka",
-        "content": "Adopted event-driven architecture using Kafka to resolve monolith scaling issues",
+        "content": "Adopted event-driven architecture using Kafka.",
+        "context": "Capturing the decision from the architecture document",
+        "keywords": ["architecture", "kafka", "events"],
+        "tags": ["architecture", "decision"],
         "importance": 10,
-        "linked_document_id": 89,
-        "project_id": 22
+        "document_ids": [89],
+        "project_ids": [22]
     }
 )
 ```
@@ -941,7 +948,7 @@ results = execute_forgetful_tool(
 Import a skill from Agent Skills markdown format (SKILL.md).
 
 **Parameters:**
-- `skill_md` (required): Raw SKILL.md content with YAML frontmatter between `---` delimiters
+- `skill_md_content` (required): Raw SKILL.md content with YAML frontmatter
 - `project_id` (optional): Project association
 - `importance` (optional): Importance level (default: 7)
 
@@ -950,10 +957,22 @@ Import a skill from Agent Skills markdown format (SKILL.md).
 
 **Example:**
 ```python
+skill_md = """---
+name: code-review
+description: Systematic code review
+license: MIT
+---
+
+# Code Review
+
+## Steps
+1. Check for...
+"""
+
 skill = execute_forgetful_tool(
     "import_skill",
     {
-        "skill_md": "---\nname: code-review\ndescription: Systematic code review\nlicense: MIT\n---\n\n# Code Review\n\n## Steps\n1. Check for...",
+        "skill_md_content": skill_md,
         "project_id": 3,
         "importance": 8
     }
@@ -1843,7 +1862,7 @@ project = execute_forgetful_tool(
         "status": "active"
     }
 )
-project_id = project["project_id"]
+project_id = project["id"]
 
 # 2. Store architecture decision document
 adr = execute_forgetful_tool(
@@ -1862,11 +1881,13 @@ decision_memory = execute_forgetful_tool(
     "create_memory",
     {
         "title": "Auth strategy: OAuth2 for third-party + JWT for sessions",
-        "content": "Selected OAuth2 for social login (Google, GitHub) and JWT for internal session management. JWT tokens expire after 24h with refresh token rotation.",
+        "content": "Use OAuth2 for social login and JWT for internal sessions.",
+        "context": "Capturing the authentication architecture decision",
+        "keywords": ["authentication", "oauth2", "jwt"],
+        "tags": ["authentication", "decision"],
         "importance": 10,
-        "tags": ["authentication", "oauth2", "jwt", "decision"],
-        "project_id": project_id,
-        "linked_document_id": adr["document_id"]
+        "project_ids": [project_id],
+        "document_ids": [adr["id"]]
     }
 )
 
@@ -1875,7 +1896,8 @@ middleware = execute_forgetful_tool(
     "create_code_artifact",
     {
         "title": "JWT Authentication Middleware",
-        "content": '''
+        "description": "FastAPI middleware that validates JWT bearer tokens",
+        "code": '''
 from fastapi import Request, HTTPException
 from jose import jwt, JWTError
 
@@ -1888,7 +1910,6 @@ async def verify_jwt(request: Request):
         raise HTTPException(status_code=401, detail="Invalid token")
         ''',
         "language": "python",
-        "framework": "FastAPI",
         "tags": ["authentication", "jwt", "middleware"],
         "project_id": project_id
     }
@@ -1900,7 +1921,7 @@ engineer = execute_forgetful_tool(
     {
         "name": "Alex Kim",
         "entity_type": "Individual",
-        "description": "Senior Full-Stack Engineer",
+        "notes": "Senior Full-Stack Engineer",
         "tags": ["engineering", "fullstack"],
         "aka": ["Alex", "A.K."]
     }
@@ -1910,8 +1931,8 @@ engineer = execute_forgetful_tool(
 execute_forgetful_tool(
     "link_entity_to_memory",
     {
-        "entity_id": engineer["entity_id"],
-        "memory_id": decision_memory["memory_id"]
+        "entity_id": engineer["id"],
+        "memory_id": decision_memory["id"]
     }
 )
 
@@ -1920,7 +1941,8 @@ results = execute_forgetful_tool(
     "query_memory",
     {
         "query": "authentication implementation",
-        "project_id": project_id
+        "query_context": "Reviewing the authentication implementation",
+        "project_ids": [project_id]
     }
 )
 # Returns decision_memory + auto-linked memories + linked document + code artifact + entity
@@ -1937,10 +1959,9 @@ new_hire = execute_forgetful_tool(
     {
         "name": "Jordan Taylor",
         "entity_type": "Individual",
-        "description": "Backend Engineer - Payments Team",
+        "notes": "Backend Engineer - Payments Team",
         "tags": ["engineering", "backend", "payments"],
-        "aka": ["Jordan", "J.T."],
-        "metadata": {"start_date": "2025-01-20", "location": "Remote"}
+        "aka": ["Jordan", "J.T."]
     }
 )
 
@@ -1949,13 +1970,13 @@ company = execute_forgetful_tool(
     "search_entities",
     {"query": "TechFlow"}
 )
-company_id = company[0]["entity_id"]
+company_id = company["entities"][0]["id"]
 
 # 3. Create employment relationship
 execute_forgetful_tool(
     "create_entity_relationship",
     {
-        "from_entity_id": new_hire["entity_id"],
+        "from_entity_id": new_hire["id"],
         "to_entity_id": company_id,
         "relationship_type": "works_for",
         "metadata": {
@@ -1971,10 +1992,11 @@ onboarding_memory = execute_forgetful_tool(
     "create_memory",
     {
         "title": "Jordan Taylor joined - Payments team focus areas",
-        "content": "Jordan will focus on payment gateway integrations (Stripe, PayPal) and PCI compliance. Previous experience with financial systems at FinanceApp Corp.",
-        "importance": 7,
+        "content": "Jordan will focus on payment integrations and PCI compliance.",
+        "context": "New hire onboarding for the payments team",
+        "keywords": ["jordan", "payments", "stripe", "pci"],
         "tags": ["team", "onboarding", "payments"],
-        "context": "New hire onboarding - payments team expansion"
+        "importance": 7
     }
 )
 
@@ -1982,23 +2004,27 @@ onboarding_memory = execute_forgetful_tool(
 execute_forgetful_tool(
     "link_entity_to_memory",
     {
-        "entity_id": new_hire["entity_id"],
-        "memory_id": onboarding_memory["memory_id"]
+        "entity_id": new_hire["id"],
+        "memory_id": onboarding_memory["id"]
     }
 )
 
 # 6. Query existing payment system memories and link relevant ones
 payment_memories = execute_forgetful_tool(
     "query_memory",
-    {"query": "payment gateway stripe paypal", "limit": 5}
+    {
+        "query": "payment gateway stripe paypal",
+        "query_context": "Finding onboarding material for the payments team",
+        "k": 5
+    }
 )
 
-for memory in payment_memories:
+for memory in payment_memories["primary_memories"]:
     execute_forgetful_tool(
         "link_entity_to_memory",
         {
-            "entity_id": new_hire["entity_id"],
-            "memory_id": memory["memory_id"]
+            "entity_id": new_hire["id"],
+            "memory_id": memory["id"]
         }
     )
 ```
@@ -2013,7 +2039,7 @@ server = execute_forgetful_tool(
     "search_entities",
     {"query": "Cache Server 01"}
 )
-server_id = server[0]["entity_id"]
+server_id = server["entities"][0]["id"]
 
 # 2. Create incident memory
 incident = execute_forgetful_tool(
@@ -2033,7 +2059,7 @@ execute_forgetful_tool(
     "link_entity_to_memory",
     {
         "entity_id": server_id,
-        "memory_id": incident["memory_id"]
+        "memory_id": incident["id"]
     }
 )
 
@@ -2042,12 +2068,7 @@ execute_forgetful_tool(
     "update_entity",
     {
         "entity_id": server_id,
-        "metadata": {
-            "maxmemory": "4gb",
-            "maxmemory_policy": "allkeys-lru",
-            "last_incident": "2025-01-18",
-            "monitoring": "enabled"
-        }
+        "notes": "4 GB maxmemory, allkeys-lru policy, monitoring enabled"
     }
 )
 
@@ -2056,7 +2077,7 @@ monitoring_script = execute_forgetful_tool(
     "create_code_artifact",
     {
         "title": "Redis Memory Monitoring Script",
-        "content": '''
+        "code": '''
 import redis
 import os
 
@@ -2080,10 +2101,12 @@ execute_forgetful_tool(
     "create_memory",
     {
         "title": "Implemented Redis memory monitoring",
-        "content": "Added monitoring script to alert at 80% memory usage to prevent future incidents",
-        "importance": 8,
+        "content": "Added an alert at 80% memory usage to prevent future incidents.",
+        "context": "Follow-up action from the Redis memory exhaustion incident",
+        "keywords": ["redis", "memory", "monitoring", "alert"],
         "tags": ["monitoring", "prevention", "redis"],
-        "linked_code_artifact_id": monitoring_script["code_artifact_id"]
+        "importance": 8,
+        "code_artifact_ids": [monitoring_script["id"]]
     }
 )
 ```
@@ -2102,13 +2125,14 @@ research_project = execute_forgetful_tool(
         "status": "active"
     }
 )
-project_id = research_project["project_id"]
+project_id = research_project["id"]
 
 # 2. Create comprehensive research document
 research_doc = execute_forgetful_tool(
     "create_document",
     {
         "title": "Vector Database Comparison: pgvector vs Qdrant vs Weaviate",
+        "description": "Comparison of vector database options",
         "content": "[... 5000-word detailed comparison of features, performance, costs ...]",
         "document_type": "markdown",
         "tags": ["research", "database", "vector-db", "embeddings"],
@@ -2121,11 +2145,13 @@ insight1 = execute_forgetful_tool(
     "create_memory",
     {
         "title": "pgvector: Best for existing PostgreSQL setups",
-        "content": "pgvector extension adds vector similarity search to existing PostgreSQL databases. Best choice when you already have PostgreSQL infrastructure and want to avoid managing separate vector DB.",
+        "content": "pgvector avoids a separate vector database when PostgreSQL is in use.",
+        "context": "Capturing a conclusion from the vector database comparison",
+        "keywords": ["pgvector", "postgresql", "vector-database"],
+        "tags": ["database", "pgvector", "vectors"],
         "importance": 8,
-        "tags": ["database", "pgvector", "postgresql", "vectors"],
-        "project_id": project_id,
-        "linked_document_id": research_doc["document_id"]
+        "project_ids": [project_id],
+        "document_ids": [research_doc["id"]]
     }
 )
 
@@ -2133,11 +2159,13 @@ insight2 = execute_forgetful_tool(
     "create_memory",
     {
         "title": "Qdrant: Best performance for large-scale vector search",
-        "content": "Qdrant provides fastest search performance for >10M vectors with built-in filtering and clustering. Requires separate service deployment.",
+        "content": "Qdrant performs well at large scale but requires a separate service.",
+        "context": "Capturing a conclusion from the vector database comparison",
+        "keywords": ["qdrant", "vector-database", "performance"],
+        "tags": ["database", "qdrant", "vectors"],
         "importance": 8,
-        "tags": ["database", "qdrant", "vectors", "performance"],
-        "project_id": project_id,
-        "linked_document_id": research_doc["document_id"]
+        "project_ids": [project_id],
+        "document_ids": [research_doc["id"]]
     }
 )
 
@@ -2146,23 +2174,25 @@ decision = execute_forgetful_tool(
     "create_memory",
     {
         "title": "Decision: pgvector for Forgetful project",
-        "content": "Selected pgvector for Forgetful because we already use PostgreSQL, need strong ACID guarantees, and <1M vector scale fits well within pgvector performance envelope.",
-        "importance": 10,
+        "content": "Selected pgvector because Forgetful already uses PostgreSQL.",
+        "context": "Final decision from the vector database evaluation",
+        "keywords": ["pgvector", "postgresql", "database-decision"],
         "tags": ["decision", "database", "pgvector", "forgetful"],
-        "project_id": project_id,
-        "linked_document_id": research_doc["document_id"]
+        "importance": 10,
+        "project_ids": [project_id],
+        "document_ids": [research_doc["id"]]
     }
 )
 
 # 5. Manually link related insights to decision
 execute_forgetful_tool(
     "link_memories",
-    {"memory_id_1": decision["memory_id"], "memory_id_2": insight1["memory_id"]}
+    {"memory_id": decision["id"], "related_ids": [insight1["id"]]}
 )
 
 execute_forgetful_tool(
     "link_memories",
-    {"memory_id_1": decision["memory_id"], "memory_id_2": insight2["memory_id"]}
+    {"memory_id": decision["id"], "related_ids": [insight2["id"]]}
 )
 
 # 6. Mark project as completed
@@ -2171,7 +2201,7 @@ execute_forgetful_tool(
     {
         "project_id": project_id,
         "status": "completed",
-        "metadata": {"decision": "pgvector", "completion_date": "2025-01-15"}
+        "notes": "Selected pgvector; evaluation completed 2025-01-15"
     }
 )
 ```

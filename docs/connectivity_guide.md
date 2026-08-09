@@ -27,9 +27,14 @@ claude mcp add --scope user forgetful uvx forgetful-ai
 ### STDIO with Environment Variables (Google)
 ```bash
 claude mcp add --scope user forgetful uvx forgetful-ai \
-  -e DATABASE_URL=postgresql://user:pass@localhost:5432/forgetful \
+  -e DATABASE=Postgres \
+  -e POSTGRES_HOST=localhost \
+  -e PGPORT=5432 \
+  -e POSTGRES_DB=forgetful \
+  -e POSTGRES_USER=user \
+  -e POSTGRES_PASSWORD=pass \
   -e EMBEDDING_PROVIDER=Google \
-  -e EMBEDDING=models/gemini-embedding-001 \
+  -e EMBEDDING_MODEL=models/gemini-embedding-001 \
   -e GOOGLE_AI_API_KEY=your-api-key
 ```
 
@@ -97,7 +102,12 @@ See [VS Code MCP docs](https://code.visualstudio.com/docs/copilot/customization/
       "command": "uvx",
       "args": ["forgetful-ai"],
       "env": {
-        "DATABASE_URL": "postgresql://user:pass@localhost:5432/forgetful",
+        "DATABASE": "Postgres",
+        "POSTGRES_HOST": "localhost",
+        "PGPORT": "5432",
+        "POSTGRES_DB": "forgetful",
+        "POSTGRES_USER": "user",
+        "POSTGRES_PASSWORD": "pass",
         "EMBEDDING_PROVIDER": "Google",
         "EMBEDDING_MODEL": "models/gemini-embedding-001",
         "GOOGLE_AI_API_KEY": "${input:google-api-key}"

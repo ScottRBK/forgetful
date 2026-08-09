@@ -190,7 +190,7 @@ forgetful memory get 812
 forgetful memory recent -n 10 -p my-project
 forgetful project list
 
-# Generic passthrough to any of the 42 tools
+# Generic passthrough to any available tool
 forgetful tools list --category memory
 forgetful tools info query_memory
 forgetful call create_project --args '{"name": "Homelab", "description": "...", "project_type": "personal"}'
@@ -219,7 +219,9 @@ auth, and verification steps end-to-end.
 
 ## Usage Examples
 
-Forgetful exposes tools through a **meta-tools pattern** - only 3 tools visible to your MCP client, with 42 tools accessible via `execute_forgetful_tool`. See [Complete Tool Reference](docs/tool_reference.md) for all tools.
+Forgetful exposes only 3 meta-tools to MCP clients. The tools available through
+`execute_forgetful_tool` depend on the enabled feature flags. Use
+`discover_forgetful_tools` for the current runtime catalog.
 
 ### Example 1: Project-Scoped Memory
 
@@ -241,10 +243,12 @@ memory = execute_forgetful_tool(
     "create_memory",
     {
         "title": "Payment gateway: Stripe chosen over PayPal",
-        "content": "Selected Stripe for better API docs, lower fees, and built-in fraud detection. PayPal lacks webhooks for subscription management.",
+        "content": "Selected Stripe for its API, fees, and fraud detection.",
+        "context": "Choosing the payment provider for the redesign",
+        "keywords": ["payment", "stripe", "paypal"],
+        "tags": ["payment", "decision"],
         "importance": 9,
-        "tags": ["payment", "stripe", "decision"],
-        "project_id": project["project_id"]
+        "project_ids": [project["id"]]
     }
 )
 
@@ -253,7 +257,8 @@ results = execute_forgetful_tool(
     "query_memory",
     {
         "query": "payment processing implementation",
-        "project_id": project["project_id"]
+        "query_context": "Implementing payments for the redesign",
+        "project_ids": [project["id"]]
     }
 )
 # Returns: Stripe decision + auto-linked related memories
@@ -289,8 +294,8 @@ company = execute_forgetful_tool(
 execute_forgetful_tool(
     "create_entity_relationship",
     {
-        "from_entity_id": new_hire["entity_id"],
-        "to_entity_id": company["entity_id"],
+        "from_entity_id": new_hire["id"],
+        "to_entity_id": company["id"],
         "relationship_type": "works_for",
         "metadata": {
             "role": "Backend Engineer II",
@@ -305,9 +310,11 @@ hire_memory = execute_forgetful_tool(
     "create_memory",
     {
         "title": "Jordan Taylor hired - payments focus",
-        "content": "Jordan joins to build Stripe integration and handle PCI compliance. Previous experience with payment systems at FinanceApp Corp.",
-        "importance": 7,
-        "tags": ["team", "hiring", "payments"]
+        "content": "Jordan joins to build the Stripe integration and handle PCI compliance.",
+        "context": "Recording ownership and experience for the payments work",
+        "keywords": ["jordan", "stripe", "payments", "pci"],
+        "tags": ["team", "hiring", "payments"],
+        "importance": 7
     }
 )
 
@@ -315,30 +322,26 @@ hire_memory = execute_forgetful_tool(
 execute_forgetful_tool(
     "link_entity_to_memory",
     {
-        "entity_id": new_hire["entity_id"],
-        "memory_id": hire_memory["memory_id"]
+        "entity_id": new_hire["id"],
+        "memory_id": hire_memory["id"]
     }
 )
 
 # Query Jordan's related knowledge
 results = execute_forgetful_tool(
     "query_memory",
-    {"query": "Jordan payment implementation"}
+    {
+        "query": "Jordan payment implementation",
+        "query_context": "Finding ownership and experience for payments work"
+    }
 )
 # Returns: Hiring memory + linked entity + relationship context
 ```
 
 ### Tool Categories
 
-Forgetful provides tools across **7 categories**:
-
-- **Memory Tools** (7) – create, query, update, link, mark obsolete
-- **Project Tools** (5) – organize knowledge by context/scope
-- **Entity Tools** (15) – track people, orgs, devices; build knowledge graphs
-- **Code Artifact Tools** (5) – store reusable code snippets
-- **Document Tools** (5) – store long-form content (>400 words)
-- **Skill Tools** (10) – store procedural knowledge with semantic search and SKILL.md import/export
-- **User Tools** (2) – profile and authentication
+The core catalog covers users, memories, projects, entities, code artifacts, and documents.
+Skills, files, plans, and tasks appear when their feature flags are enabled.
 
 For complete documentation with extensive examples, see [Complete Tool Reference](docs/tool_reference.md).
 
@@ -408,7 +411,7 @@ For all 40+ environment variables with detailed explanations, see [Configuration
 ### Guides
 
 - **[Core Concepts](docs/concepts.md)** – Memories vs Entities vs Documents explained
-- **[Complete Tool Reference](docs/tool_reference.md)** – All 42 tools with extensive examples
+- **[Complete Tool Reference](docs/tool_reference.md)** – Runtime tools and examples
 - **[REST API Reference](docs/api_reference.md)** – HTTP endpoints for web UI integration
 - [Configuration Guide](docs/configuration.md) – All environment variables explained
 - [Connectivity Guide](docs/connectivity_guide.md) – Connect Claude and other MCP clients
