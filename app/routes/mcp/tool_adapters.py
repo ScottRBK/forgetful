@@ -461,6 +461,9 @@ class MemoryToolAdapters:
         tags: list[str] | None = None,
     ) -> dict:
         """Adapter for get_recent_memories tool"""
+        user = await get_user_from_auth(ctx)
+        limit, offset = clamp_list_pagination(limit, offset)
+
         logger.info(
             "MCP Tool -> get_recent_memories",
             extra={
@@ -473,9 +476,6 @@ class MemoryToolAdapters:
                 "tags": tags,
             },
         )
-
-        user = await get_user_from_auth(ctx)
-        limit, offset = clamp_list_pagination(limit, offset)
 
         # Envelope the list in a dict (like the list_* tools) so an empty result keeps
         # an object root: a bare [] carries no MCP structured content and collapses to

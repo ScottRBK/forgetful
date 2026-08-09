@@ -978,6 +978,7 @@ async def test_get_recent_memories_clamps_over_limit_e2e(mcp_client):
     envelope = json.loads(result.content[0].text)
     memories = envelope["memories"]
     assert len(memories) == 2
+    assert len(memories) <= 100
     assert envelope["total_count"] >= len(memories)
 
 
@@ -1009,6 +1010,37 @@ async def test_get_recent_memories_clamps_zero_limit_e2e(mcp_client):
     envelope = json.loads(result.content[0].text)
     memories = envelope["memories"]
     assert len(memories) == 1
+
+
+@pytest.mark.e2e
+async def test_get_recent_memories_clamps_hundred_cap_e2e(mcp_client):
+    """Test that an over-limit request returns at most 100 rows when more exist"""
+    import json
+
+    tag = "e2e-clamp-cap"
+    for i in range(101):
+        await mcp_client.call_tool("execute_forgetful_tool", {
+            "tool_name": "create_memory",
+            "arguments": {
+                "title": f"E2E clamp cap {i}",
+                "content": f"Memory {i} for hundred cap test",
+                "context": "Testing 100-row cap",
+                "keywords": ["e2e", "clamp", "cap"],
+                "tags": [tag],
+                "importance": 7,
+            },
+        })
+
+    result = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "get_recent_memories",
+        "arguments": {"limit": 1_000_000, "tags": [tag]},
+    })
+
+    assert result.is_error is False
+    envelope = json.loads(result.content[0].text)
+    memories = envelope["memories"]
+    assert len(memories) == 100
+    assert envelope["total_count"] >= 101
 
 
 # ============================================================================

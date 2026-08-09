@@ -574,6 +574,9 @@ def register(mcp: FastMCP):
             List of Memory objects sorted per sort_by/sort_order (newest first by default)
         """
         try:
+            user = await get_user_from_auth(ctx)
+            limit, offset = clamp_list_pagination(limit, offset)
+
             logger.info("MCP Tool -> get_recent_memories", extra={
                 "limit": limit,
                 "offset": offset,
@@ -583,10 +586,6 @@ def register(mcp: FastMCP):
                 "sort_order": sort_order,
                 "tags": tags,
             })
-
-            user = await get_user_from_auth(ctx)
-
-            limit, offset = clamp_list_pagination(limit, offset)
 
             memory_service = ctx.fastmcp.memory_service
             # Service returns (memories, total_count) tuple; MCP tool only needs memories
