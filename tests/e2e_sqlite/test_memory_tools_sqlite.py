@@ -7,6 +7,8 @@ Requires:
 
 Tests the complete stack: HTTP → FastMCP Client → MCP Protocol → Service → Repository → PostgreSQL + Embeddings
 """
+import uuid
+
 import pytest
 
 
@@ -693,6 +695,337 @@ async def test_get_recent_memories_excludes_obsolete_e2e(mcp_client):
     assert active_memory_id in recent_ids
     # Should NOT include obsolete memory
     assert obsolete_memory_id not in recent_ids
+
+
+@pytest.mark.asyncio
+async def test_get_recent_memories_with_tags_filter_e2e(mcp_client):
+    """Test get_recent_memories filters by tags (OR semantics)"""
+    import json
+
+    tag_a = "e2e-recent-tag-a"
+    tag_b = "e2e-recent-tag-b"
+
+    tagged_a = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "create_memory",
+        "arguments": {
+            "title": "E2E recent tag filter A",
+            "content": "Memory with tag A only",
+            "context": "Testing tag filter on get_recent_memories",
+            "keywords": ["e2e", "tag-filter"],
+            "tags": [tag_a, "test"],
+            "importance": 7,
+        },
+    })
+    tagged_b = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "create_memory",
+        "arguments": {
+            "title": "E2E recent tag filter B",
+            "content": "Memory with tag B only",
+            "context": "Testing tag filter on get_recent_memories",
+            "keywords": ["e2e", "tag-filter"],
+            "tags": [tag_b, "test"],
+            "importance": 7,
+        },
+    })
+    untagged = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "create_memory",
+        "arguments": {
+            "title": "E2E recent tag filter none",
+            "content": "Memory without target tags",
+            "context": "Testing tag filter on get_recent_memories",
+            "keywords": ["e2e", "tag-filter"],
+            "tags": ["test"],
+            "importance": 7,
+        },
+    })
+
+    id_a = tagged_a.data["id"]
+    id_b = tagged_b.data["id"]
+    id_none = untagged.data["id"]
+
+    single_tag_result = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "get_recent_memories",
+        "arguments": {"tags": [tag_a], "limit": 50},
+    })
+    single_ids = {m["id"] for m in json.loads(single_tag_result.content[0].text)["memories"]}
+    assert id_a in single_ids
+    assert id_b not in single_ids
+    assert id_none not in single_ids
+
+    multi_tag_result = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "get_recent_memories",
+        "arguments": {"tags": [tag_a, tag_b], "limit": 50},
+    })
+    multi_ids = {m["id"] for m in json.loads(multi_tag_result.content[0].text)["memories"]}
+    assert id_a in multi_ids
+    assert id_b in multi_ids
+    assert id_none not in multi_ids
+
+
+@pytest.mark.asyncio
+async def test_get_recent_memories_tags_with_project_ids_e2e(mcp_client):
+    """Test combined tags + project_ids filter on get_recent_memories"""
+    import json
+
+    project_result = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "create_project",
+        "arguments": {
+            "name": f"e2e-recent-tags-project-{uuid.uuid4().hex[:8]}",
+            "description": "Project for tag+project filter test",
+            "project_type": "development",
+        },
+    })
+    project_id = project_result.data["id"]
+    tag = f"e2e-recent-project-tag-{uuid.uuid4().hex[:8]}"
+
+    in_scope = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "create_memory",
+        "arguments": {
+            "title": "E2E recent project+tag in scope",
+            "content": "Matches project and tag",
+            "context": "Testing combined filters",
+            "keywords": ["e2e", "project-tag"],
+            "tags": [tag, "test"],
+            "importance": 7,
+            "project_ids": [project_id],
+        },
+    })
+    wrong_project = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "create_memory",
+        "arguments": {
+            "title": "E2E recent project+tag wrong project",
+            "content": "Has tag but different project",
+            "context": "Testing combined filters",
+            "keywords": ["e2e", "project-tag"],
+            "tags": [tag, "test"],
+            "importance": 7,
+        },
+    })
+
+    in_scope_id = in_scope.data["id"]
+    wrong_project_id = wrong_project.data["id"]
+
+    filtered = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "get_recent_memories",
+        "arguments": {"tags": [tag], "project_ids": [project_id], "limit": 50},
+    })
+    filtered_ids = {m["id"] for m in json.loads(filtered.content[0].text)["memories"]}
+    assert in_scope_id in filtered_ids
+    assert wrong_project_id not in filtered_ids
+
+
+@pytest.mark.asyncio
+async def test_get_recent_memories_include_obsolete_and_sort_importance_e2e(mcp_client):
+    """Test include_obsolete and importance sort on get_recent_memories"""
+    import json
+
+    low = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "create_memory",
+        "arguments": {
+            "title": "E2E recent sort low",
+            "content": "Lower importance memory",
+            "context": "Sort/importance test",
+            "keywords": ["e2e", "sort"],
+            "tags": ["e2e-recent-sort"],
+            "importance": 3,
+        },
+    })
+    high = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "create_memory",
+        "arguments": {
+            "title": "E2E recent sort high",
+            "content": "Higher importance memory",
+            "context": "Sort/importance test",
+            "keywords": ["e2e", "sort"],
+            "tags": ["e2e-recent-sort"],
+            "importance": 9,
+        },
+    })
+    obsolete = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "create_memory",
+        "arguments": {
+            "title": "E2E recent sort obsolete",
+            "content": "Will be marked obsolete",
+            "context": "Sort/importance test",
+            "keywords": ["e2e", "sort"],
+            "tags": ["e2e-recent-sort"],
+            "importance": 8,
+        },
+    })
+
+    low_id = low.data["id"]
+    high_id = high.data["id"]
+    obsolete_id = obsolete.data["id"]
+
+    await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "mark_memory_obsolete",
+        "arguments": {
+            "memory_id": obsolete_id,
+            "reason": "E2E include_obsolete test",
+        },
+    })
+
+    sorted_result = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "get_recent_memories",
+        "arguments": {
+            "tags": ["e2e-recent-sort"],
+            "sort_by": "importance",
+            "sort_order": "desc",
+            "limit": 10,
+        },
+    })
+    sorted_memories = json.loads(sorted_result.content[0].text)["memories"]
+    sorted_ids = [m["id"] for m in sorted_memories if m["id"] in {low_id, high_id, obsolete_id}]
+    assert sorted_ids.index(high_id) < sorted_ids.index(low_id)
+
+    without_obsolete = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "get_recent_memories",
+        "arguments": {
+            "tags": ["e2e-recent-sort"],
+            "limit": 10,
+        },
+    })
+    without_ids = {m["id"] for m in json.loads(without_obsolete.content[0].text)["memories"]}
+    assert obsolete_id not in without_ids
+
+    with_obsolete = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "get_recent_memories",
+        "arguments": {
+            "tags": ["e2e-recent-sort"],
+            "include_obsolete": True,
+            "limit": 10,
+        },
+    })
+    with_ids = {m["id"] for m in json.loads(with_obsolete.content[0].text)["memories"]}
+    assert obsolete_id in with_ids
+
+
+@pytest.mark.asyncio
+async def test_get_recent_memories_clamps_negative_offset_e2e(mcp_client):
+    """Test that negative offset is clamped to 0 on the adapter path"""
+    import json
+
+    tag = "e2e-clamp-offset"
+    for i in range(3):
+        await mcp_client.call_tool("execute_forgetful_tool", {
+            "tool_name": "create_memory",
+            "arguments": {
+                "title": f"E2E clamp offset {i}",
+                "content": f"Memory {i} for negative offset clamp test",
+                "context": "Testing offset clamp",
+                "keywords": ["e2e", "clamp", "offset"],
+                "tags": [tag],
+                "importance": 7,
+            },
+        })
+
+    result = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "get_recent_memories",
+        "arguments": {"offset": -1, "limit": 10, "tags": [tag]},
+    })
+
+    assert result.is_error is False
+    envelope = json.loads(result.content[0].text)
+    memories = envelope["memories"]
+    assert len(memories) == 3
+
+
+@pytest.mark.asyncio
+async def test_get_recent_memories_clamps_over_limit_e2e(mcp_client):
+    """Smoke-tests that an absurdly large limit does not error or hang the adapter path.
+
+    Does not assert the 100-row cap directly (fixture volume is intentionally small);
+    the numeric clamp itself is exercised by the negative-offset and zero-limit cases
+    via the same clamp_list_pagination call.
+    """
+    import json
+
+    tag = "e2e-clamp-limit"
+    for i in range(2):
+        await mcp_client.call_tool("execute_forgetful_tool", {
+            "tool_name": "create_memory",
+            "arguments": {
+                "title": f"E2E clamp limit {i}",
+                "content": f"Memory {i} for over-limit clamp test",
+                "context": "Testing limit clamp",
+                "keywords": ["e2e", "clamp", "limit"],
+                "tags": [tag],
+                "importance": 7,
+            },
+        })
+
+    result = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "get_recent_memories",
+        "arguments": {"limit": 1_000_000, "tags": [tag]},
+    })
+
+    assert result.is_error is False
+    envelope = json.loads(result.content[0].text)
+    memories = envelope["memories"]
+    assert len(memories) == 2
+    assert len(memories) <= 100
+    assert envelope["total_count"] >= len(memories)
+
+
+@pytest.mark.asyncio
+async def test_get_recent_memories_clamps_zero_limit_e2e(mcp_client):
+    """Test that limit=0 is clamped to 1 on the adapter path"""
+    import json
+
+    tag = "e2e-clamp-zero"
+    for i in range(3):
+        await mcp_client.call_tool("execute_forgetful_tool", {
+            "tool_name": "create_memory",
+            "arguments": {
+                "title": f"E2E clamp zero {i}",
+                "content": f"Memory {i} for zero limit clamp test",
+                "context": "Testing zero limit clamp",
+                "keywords": ["e2e", "clamp", "zero"],
+                "tags": [tag],
+                "importance": 7,
+            },
+        })
+
+    result = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "get_recent_memories",
+        "arguments": {"limit": 0, "tags": [tag]},
+    })
+
+    assert result.is_error is False
+    envelope = json.loads(result.content[0].text)
+    memories = envelope["memories"]
+    assert len(memories) == 1
+
+
+@pytest.mark.asyncio
+async def test_get_recent_memories_clamps_hundred_cap_e2e(mcp_client):
+    """Test that an over-limit request returns at most 100 rows when more exist"""
+    import json
+
+    tag = "e2e-clamp-cap"
+    for i in range(101):
+        await mcp_client.call_tool("execute_forgetful_tool", {
+            "tool_name": "create_memory",
+            "arguments": {
+                "title": f"E2E clamp cap {i}",
+                "content": f"Memory {i} for hundred cap test",
+                "context": "Testing 100-row cap",
+                "keywords": ["e2e", "clamp", "cap"],
+                "tags": [tag],
+                "importance": 7,
+            },
+        })
+
+    result = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "get_recent_memories",
+        "arguments": {"limit": 1_000_000, "tags": [tag]},
+    })
+
+    assert result.is_error is False
+    envelope = json.loads(result.content[0].text)
+    memories = envelope["memories"]
+    assert len(memories) == 100
+    assert envelope["total_count"] >= 101
 
 
 # ============================================================================
