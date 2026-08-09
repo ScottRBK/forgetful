@@ -216,6 +216,11 @@ class MemoryTable(Base):
     superseded_by: Mapped[int] = mapped_column(Integer, ForeignKey("memories.id", ondelete="SET NULL"), nullable=True)
     obsoleted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # Usage tracking (read-access telemetry). Mutated only by the internal
+    # `record_memory_access` repository method so `updated_at` is not distorted.
+    access_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    last_accessed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False,
@@ -402,6 +407,7 @@ class MemoryTable(Base):
         Index("ix_memories_is_obsolete", "is_obsolete"),
         Index("ix_memories_superseded_by", "superseded_by"),
         Index("ix_memories_confidence", "confidence"),
+        Index("ix_memories_last_accessed_at", "last_accessed_at"),
     )
 
 

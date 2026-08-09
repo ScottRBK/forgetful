@@ -6,6 +6,7 @@ This service implements the primary functionality for the Forgetful Memory Syste
     - Memory updates
     - Manual linking between memories
     - Retrieval with project associations
+    - Usage tracking on read paths (forgetful-hulkito fork)
 """
 from typing import TYPE_CHECKING
 from uuid import UUID
@@ -49,6 +50,11 @@ class MemoryService:
         self.memory_repo = memory_repo
         self._event_bus = event_bus
         logger.info("Memory service initialised")
+
+    def register_access_tracking_handlers(self, event_bus: "EventBus") -> None:
+        """Subscribe memory access tracking handlers on the given event bus."""
+        event_bus.subscribe("memory.read", self.handle_memory_access_event)
+        event_bus.subscribe("memory.queried", self.handle_memory_access_event)
 
     async def query_memory(
             self,
@@ -665,6 +671,39 @@ class MemoryService:
             running_total += memory_tokens
 
         return selected, running_total, False
+
+    async def handle_memory_access_event(self, event: ActivityEvent) -> None:
+        """Record memory access from memory.read / memory.queried events."""
+        if not event.user_id:
+            return
+        try:
+            user_id = UUID(event.user_id)
+        except (ValueError, TypeError):
+            logger.warning(
+                "handle_memory_access_event: invalid user_id",
+                extra={"user_id": event.user_id},
+            )
+            return
+
+        memory_ids: list[int] = []
+        if event.action == ActionType.READ:
+            memory_ids = [event.entity_id]
+        elif event.action == ActionType.QUERIED:
+            snapshot = event.snapshot or {}
+            memory_ids = list(snapshot.get("result_ids") or [])
+            memory_ids.extend(snapshot.get("linked_ids") or [])
+        else:
+            return
+
+        if not memory_ids:
+            return
+        try:
+            await self.memory_repo.record_memory_access(user_id=user_id, memory_ids=memory_ids)
+        except Exception as exc:  # noqa: BLE001 - intentional broad guard
+            logger.warning(
+                "record_memory_access failed in handle_memory_access_event",
+                extra={"user_id": str(user_id), "count": len(memory_ids), "error": str(exc)},
+            )
 
     async def _emit_event(
             self,

@@ -531,6 +531,31 @@ class InMemoryMemoryRepository(MemoryRepository):
     async def validate_search_works(self) -> bool:
         return True
 
+    # ------------------------------------------------------------------
+    # Usage tracking (forgetful-hulkito fork)
+    # ------------------------------------------------------------------
+
+    async def record_memory_access(
+        self,
+        user_id: UUID,
+        memory_ids: list[int],
+        accessed_at: datetime | None = None,
+    ) -> int:
+        """In-memory access tracking. Does NOT mutate `updated_at`."""
+        if not memory_ids:
+            return 0
+        ts = accessed_at or datetime.now(UTC)
+        user_memories = self._memories.get(user_id, {})
+        updated = 0
+        for mid in memory_ids:
+            mem = user_memories.get(mid)
+            if mem is None or mem.is_obsolete:
+                continue
+            mem.access_count = (mem.access_count or 0) + 1
+            mem.last_accessed_at = ts
+            updated += 1
+        return updated
+
 
 @pytest.fixture
 def mock_embeddings_adapter():
@@ -567,6 +592,15 @@ def test_memory_service_with_event_bus(mock_memory_repository):
     """Provides a MemoryService with event bus for testing event emission."""
     event_bus = CollectingEventBus()
     service = MemoryService(mock_memory_repository, event_bus=event_bus)
+    return service, event_bus
+
+
+@pytest.fixture
+def test_memory_service_with_access_tracking(mock_memory_repository):
+    """MemoryService + EventBus with access-tracking handler subscribed."""
+    event_bus = CollectingEventBus()
+    service = MemoryService(mock_memory_repository, event_bus=event_bus)
+    service.register_access_tracking_handlers(event_bus)
     return service, event_bus
 
 

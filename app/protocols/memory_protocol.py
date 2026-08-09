@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any, Protocol
 from uuid import UUID
 
@@ -263,6 +264,25 @@ class MemoryRepository(Protocol):
 
     async def validate_search_works(self) -> bool:
         """Run a smoke-test semantic search"""
+        ...
+
+    # ------------------------------------------------------------------
+    # Usage tracking (forgetful-hulkito fork)
+    # ------------------------------------------------------------------
+
+    async def record_memory_access(
+        self,
+        user_id: UUID,
+        memory_ids: list[int],
+        accessed_at: datetime | None = None,
+    ) -> int:
+        """Increment `access_count` and update `last_accessed_at` for the given
+        memory ids, scoped to `user_id`.
+
+        MUST NOT mutate `updated_at` — usage tracking is an internal read-side
+        concern and must not distort normal memory recency. Returns the number
+        of rows actually updated (owned + non-obsolete).
+        """
         ...
 
 

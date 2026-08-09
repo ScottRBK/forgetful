@@ -408,6 +408,8 @@ async def postgres_app(db_adapter, embedding_adapter, reranker_adapter, request)
 
         user_service = UserService(repos["user"])
         memory_service = MemoryService(repos["memory"], event_bus=event_bus)
+        if event_bus is not None:
+            memory_service.register_access_tracking_handlers(event_bus)
         project_service = ProjectService(repos["project"], event_bus=event_bus)
         code_artifact_service = CodeArtifactService(repos["code_artifact"], event_bus=event_bus)
         document_service = DocumentService(repos["document"], event_bus=event_bus)

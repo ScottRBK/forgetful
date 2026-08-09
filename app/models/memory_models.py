@@ -286,6 +286,15 @@ class Memory(MemoryCreate):
     superseded_by: int | None = Field(default=None, description="ID of memory that supersedes this one")
     obsoleted_at: datetime | None = Field(default=None, description="When this memory was marked obsolete")
 
+    # Usage tracking (read-only from the API surface; mutated only by the
+    # internal `record_memory_access` repository method so `updated_at` is not
+    # distorted and external callers cannot fake read counters).
+    access_count: int = Field(default=0, description="Number of times this memory has been returned by a read path")
+    last_accessed_at: datetime | None = Field(
+        default=None,
+        description="Last time this memory was returned by a read path (null = never accessed)",
+    )
+
     model_config = ConfigDict(from_attributes=True)
 
 class MemorySummary(BaseModel):
