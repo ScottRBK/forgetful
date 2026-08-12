@@ -583,6 +583,80 @@ async def test_get_recent_memories_basic_e2e(mcp_client):
 
 
 @pytest.mark.asyncio
+async def test_get_recent_memories_linked_ids_match_get_memory_e2e(mcp_client):
+    """get_recent_memories linked_memory_ids must match get_memory for both link ends."""
+    import json
+
+    project_result = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "create_project", "arguments": {
+            "name": "recent-linked-ids-match-test-sqlite",
+            "description": "Isolation for get_recent linked_memory_ids e2e",
+            "project_type": "development",
+        },
+    })
+    project_id = project_result.data["id"]
+
+    memory_a_result = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "create_memory", "arguments": {
+            "title": "Machine Learning Basics",
+            "content": "Machine learning is a subset of AI focused on pattern recognition",
+            "context": "Testing manual linking between dissimilar memories",
+            "keywords": ["machine-learning", "ai", "patterns"],
+            "tags": ["ml", "basics"],
+            "importance": 7,
+            "project_ids": [project_id],
+        },
+    })
+    memory_a_id = memory_a_result.data["id"]
+
+    memory_b_result = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "create_memory", "arguments": {
+            "title": "CSS Grid Layout",
+            "content": "CSS Grid provides a two-dimensional layout system for web design",
+            "context": "Testing manual linking - dissimilar to ML memory",
+            "keywords": ["css", "web", "layout"],
+            "tags": ["frontend", "css"],
+            "importance": 7,
+            "project_ids": [project_id],
+        },
+    })
+    memory_b_id = memory_b_result.data["id"]
+
+    await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "link_memories",
+        "arguments": {"memory_id": memory_a_id, "related_ids": [memory_b_id]},
+    })
+
+    get_a_result = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "get_memory", "arguments": {"memory_id": memory_a_id},
+    })
+    get_b_result = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "get_memory", "arguments": {"memory_id": memory_b_id},
+    })
+    assert memory_b_id in get_a_result.data["linked_memory_ids"]
+    assert memory_a_id in get_b_result.data["linked_memory_ids"]
+
+    recent_result = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "get_recent_memories", "arguments": {
+            "limit": 20,
+            "project_ids": [project_id],
+        },
+    })
+    envelope = json.loads(recent_result.content[0].text)
+    memories = envelope["memories"]
+    assert envelope["total_count"] >= len(memories)
+
+    recent_by_id = {m["id"]: m for m in memories}
+    recent_a = recent_by_id[memory_a_id]
+    recent_b = recent_by_id[memory_b_id]
+
+    assert set(recent_a["linked_memory_ids"]) == set(get_a_result.data["linked_memory_ids"])
+    assert set(recent_b["linked_memory_ids"]) == set(get_b_result.data["linked_memory_ids"])
+    assert memory_b_id in recent_a["linked_memory_ids"]
+    assert memory_a_id in recent_b["linked_memory_ids"]
+
+
+@pytest.mark.asyncio
 async def test_get_recent_memories_with_project_filter_e2e(mcp_client):
     """Test getting recent memories filtered by project"""
     # Create a project
