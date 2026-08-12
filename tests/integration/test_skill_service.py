@@ -294,6 +294,81 @@ metadata:
 
 
 @pytest.mark.asyncio
+async def test_import_skill_unquoted_colon_in_description(test_skill_service):
+    user_id = uuid4()
+
+    skill_md = """---
+name: keyword-skill
+description: Use when X. Keywords: foo, bar.
+---
+
+# Keyword Skill
+
+Body content.
+"""
+
+    skill = await test_skill_service.import_skill(
+        user_id, skill_md, project_id=1, importance=8,
+    )
+
+    assert skill.name == "keyword-skill"
+    assert skill.description == "Use when X. Keywords: foo, bar."
+
+
+@pytest.mark.asyncio
+async def test_import_skill_quoted_colon_in_description(test_skill_service):
+    user_id = uuid4()
+
+    skill_md = """---
+name: quoted-keyword-skill
+description: "Use when X. Keywords: foo, bar."
+---
+
+# Keyword Skill
+
+Body content.
+"""
+
+    skill = await test_skill_service.import_skill(user_id, skill_md)
+
+    assert skill.description == "Use when X. Keywords: foo, bar."
+
+
+@pytest.mark.asyncio
+async def test_import_skill_nested_metadata_with_colon_description(test_skill_service):
+    user_id = uuid4()
+
+    skill_md = """---
+name: nested-colon-skill
+description: Use when reviewing. Keywords: foo, bar.
+license: MIT
+allowed-tools:
+  - Read
+metadata:
+  author: scottesh
+---
+
+# Nested Skill
+
+Steps here.
+"""
+
+    skill = await test_skill_service.import_skill(user_id, skill_md)
+
+    assert skill.description == "Use when reviewing. Keywords: foo, bar."
+    assert skill.allowed_tools == ["Read"]
+    assert skill.metadata == {"author": "scottesh"}
+
+
+@pytest.mark.asyncio
+async def test_import_skill_missing_frontmatter_raises(test_skill_service):
+    user_id = uuid4()
+
+    with pytest.raises(ValueError, match="expected YAML frontmatter"):
+        await test_skill_service.import_skill(user_id, "# No frontmatter\n")
+
+
+@pytest.mark.asyncio
 async def test_export_skill(test_skill_service):
     user_id = uuid4()
 

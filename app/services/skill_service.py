@@ -6,6 +6,7 @@ This service implements functionality for managing skills:
     - Import/export in Agent Skills markdown format
     - Project association
 """
+import re
 from typing import TYPE_CHECKING
 from uuid import UUID
 
@@ -38,6 +39,34 @@ if TYPE_CHECKING:
     from app.events import EventBus
 
 logger = logging.getLogger(__name__)
+
+
+def _quote_unquoted_frontmatter_scalars(raw: str) -> str:
+    """Quote scalar frontmatter values that contain unescaped colons."""
+    quoted_lines: list[str] = []
+    for line in raw.splitlines():
+        match = re.match(r"^([A-Za-z0-9_-]+):\s+(.*)$", line)
+        if not match:
+            quoted_lines.append(line)
+            continue
+
+        key, value = match.group(1), match.group(2)
+        if not value:
+            quoted_lines.append(line)
+            continue
+
+        stripped = value.lstrip()
+        if stripped.startswith(("[", "{", "|", ">", '"', "'")):
+            quoted_lines.append(line)
+            continue
+
+        if ":" in value:
+            escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+            quoted_lines.append(f'{key}: "{escaped}"')
+        else:
+            quoted_lines.append(line)
+
+    return "\n".join(quoted_lines)
 
 
 class SkillService:
@@ -491,7 +520,7 @@ class SkillService:
         frontmatter_raw = parts[1].strip()
         body = parts[2].strip()
 
-        frontmatter = yaml.safe_load(frontmatter_raw)
+        frontmatter = yaml.safe_load(_quote_unquoted_frontmatter_scalars(frontmatter_raw))
         if not isinstance(frontmatter, dict):
             raise ValueError("Invalid YAML frontmatter: expected a mapping")
 

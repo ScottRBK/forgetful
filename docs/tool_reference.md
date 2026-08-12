@@ -952,6 +952,8 @@ Import a skill from Agent Skills markdown format (SKILL.md).
 - `project_id` (optional): Project association
 - `importance` (optional): Importance level (default: 7)
 
+Scalar frontmatter values may contain unquoted colons (for example `Keywords:` in a description); the importer quotes them before parsing.
+
 **Returns:**
 - Created Skill with generated ID
 
