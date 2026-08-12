@@ -472,6 +472,9 @@ Retrieve complete project details by ID.
 **Returns:**
 - Complete project object
 
+**Errors:**
+- Raises an error (not `null`) when `project_id` does not exist or is not visible to the caller
+
 **Example:**
 ```python
 project = execute_forgetful_tool("get_project", {"project_id": 22})
@@ -1510,6 +1513,9 @@ Retrieve complete plan details by ID.
 **Returns:**
 - Complete plan object with all fields
 
+**Errors:**
+- Raises an error (not `null`) when `plan_id` does not exist or is not visible to the caller
+
 **Example:**
 ```python
 plan = execute_forgetful_tool("get_plan", {"plan_id": 5})
@@ -1640,6 +1646,9 @@ Get task with its acceptance criteria and dependency IDs.
 
 **Returns:**
 - Complete task object including criteria and dependency_ids
+
+**Errors:**
+- Raises an error (not `null`) when `task_id` does not exist or is not visible to the caller
 
 **Example:**
 ```python

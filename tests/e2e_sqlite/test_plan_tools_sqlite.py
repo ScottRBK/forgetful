@@ -283,6 +283,16 @@ async def test_list_plans_filter_by_status_e2e(mcp_client):
 
 
 @pytest.mark.asyncio
+async def test_get_plan_invalid_id_e2e(mcp_client):
+    """Test error handling when getting non-existent plan"""
+    with pytest.raises(ToolError, match="not found"):
+        await mcp_client.call_tool(
+            "execute_forgetful_tool",
+            {"tool_name": "get_plan", "arguments": {"plan_id": 999999}},
+        )
+
+
+@pytest.mark.asyncio
 async def test_plan_discover_tools_e2e(mcp_client):
     """Test that plan tools appear in discover_forgetful_tools"""
     result = await mcp_client.call_tool(

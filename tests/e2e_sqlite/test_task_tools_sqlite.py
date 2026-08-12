@@ -739,6 +739,16 @@ async def test_create_task_with_inline_criteria_e2e(mcp_client):
 # ---- Discover Task Tools ----
 
 @pytest.mark.asyncio
+async def test_get_task_invalid_id_e2e(mcp_client):
+    """Test error handling when getting non-existent task"""
+    with pytest.raises(ToolError, match="not found"):
+        await mcp_client.call_tool(
+            "execute_forgetful_tool",
+            {"tool_name": "get_task", "arguments": {"task_id": 999999}},
+        )
+
+
+@pytest.mark.asyncio
 async def test_task_discover_tools_e2e(mcp_client):
     """Test that task tools appear in discover_forgetful_tools"""
     result = await mcp_client.call_tool(

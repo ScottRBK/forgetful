@@ -5,6 +5,7 @@ from uuid import uuid4
 
 import pytest
 
+from app.exceptions import NotFoundError
 from app.models.project_models import (
     ProjectCreate,
     ProjectStatus,
@@ -105,9 +106,8 @@ async def test_get_project_not_found(test_project_service):
     """Test retrieving a non-existent project"""
     user_id = uuid4()
 
-    project = await test_project_service.get_project(user_id=user_id, project_id=99999)
-
-    assert project is None
+    with pytest.raises(NotFoundError, match="not found"):
+        await test_project_service.get_project(user_id=user_id, project_id=99999)
 
 
 @pytest.mark.asyncio
@@ -474,11 +474,10 @@ async def test_delete_project(test_project_service):
     assert success is True
 
     # Verify project no longer exists
-    deleted_project = await test_project_service.get_project(
-        user_id=user_id, project_id=created_project.id,
-    )
-
-    assert deleted_project is None
+    with pytest.raises(NotFoundError, match="not found"):
+        await test_project_service.get_project(
+            user_id=user_id, project_id=created_project.id,
+        )
 
 
 @pytest.mark.asyncio
@@ -511,11 +510,10 @@ async def test_project_user_isolation(test_project_service):
     )
 
     # User 2 tries to get user 1's project
-    retrieved_project = await test_project_service.get_project(
-        user_id=user2_id, project_id=user1_project.id,
-    )
-
-    assert retrieved_project is None
+    with pytest.raises(NotFoundError, match="not found"):
+        await test_project_service.get_project(
+            user_id=user2_id, project_id=user1_project.id,
+        )
 
     # User 2 lists projects - should not see user 1's project
     user2_projects = await test_project_service.list_projects(user_id=user2_id)

@@ -70,8 +70,9 @@ def register(mcp: FastMCP):
             return JSONResponse({"error": str(e)}, status_code=401)
 
         task_id = int(request.path_params["task_id"])
-        task = await mcp.task_service.get_task(user_id=user.id, task_id=task_id)
-        if not task:
+        try:
+            task = await mcp.task_service.get_task(user_id=user.id, task_id=task_id)
+        except NotFoundError:
             return JSONResponse({"error": "Task not found"}, status_code=404)
         return JSONResponse(task.model_dump(mode="json"))
 

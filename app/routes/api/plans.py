@@ -57,8 +57,9 @@ def register(mcp: FastMCP):
             return JSONResponse({"error": str(e)}, status_code=401)
 
         plan_id = int(request.path_params["plan_id"])
-        plan = await mcp.plan_service.get_plan(user_id=user.id, plan_id=plan_id)
-        if not plan:
+        try:
+            plan = await mcp.plan_service.get_plan(user_id=user.id, plan_id=plan_id)
+        except NotFoundError:
             return JSONResponse({"error": "Plan not found"}, status_code=404)
         return JSONResponse(plan.model_dump(mode="json"))
 

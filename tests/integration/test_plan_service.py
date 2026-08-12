@@ -5,6 +5,7 @@ from uuid import uuid4
 
 import pytest
 
+from app.exceptions import NotFoundError
 from app.models.plan_models import PlanCreate, PlanStatus, PlanUpdate
 
 
@@ -179,8 +180,17 @@ async def test_update_plan_status_invalid_transition(test_plan_service):
 
 
 @pytest.mark.asyncio
+async def test_get_plan_not_found(test_plan_service):
+    """Test retrieving a non-existent plan raises NotFoundError."""
+    user_id = uuid4()
+
+    with pytest.raises(NotFoundError, match="not found"):
+        await test_plan_service.get_plan(user_id=user_id, plan_id=99999)
+
+
+@pytest.mark.asyncio
 async def test_delete_plan(test_plan_service):
-    """Test creating, deleting, then verifying get returns None."""
+    """Test creating, deleting, then verifying get raises NotFoundError."""
     user_id = uuid4()
 
     plan = await test_plan_service.create_plan(
@@ -191,8 +201,8 @@ async def test_delete_plan(test_plan_service):
     success = await test_plan_service.delete_plan(user_id=user_id, plan_id=plan.id)
     assert success is True
 
-    retrieved = await test_plan_service.get_plan(user_id=user_id, plan_id=plan.id)
-    assert retrieved is None
+    with pytest.raises(NotFoundError, match="not found"):
+        await test_plan_service.get_plan(user_id=user_id, plan_id=plan.id)
 
 
 @pytest.mark.asyncio
@@ -207,8 +217,8 @@ async def test_user_isolation(test_plan_service):
     )
 
     # user2 cannot get user1's plan
-    retrieved = await test_plan_service.get_plan(user_id=user2, plan_id=plan.id)
-    assert retrieved is None
+    with pytest.raises(NotFoundError, match="not found"):
+        await test_plan_service.get_plan(user_id=user2, plan_id=plan.id)
 
     # user2 list returns empty
     user2_plans = await test_plan_service.list_plans(user_id=user2)

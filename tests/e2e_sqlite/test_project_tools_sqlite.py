@@ -289,20 +289,11 @@ async def test_project_persistence_e2e(mcp_client):
 @pytest.mark.asyncio
 async def test_get_project_invalid_id_e2e(mcp_client):
     """Test error handling when getting non-existent project"""
-    with pytest.raises((ToolError, Exception)) as exc_info:
-        result = await mcp_client.call_tool(
+    with pytest.raises(ToolError, match="not found"):
+        await mcp_client.call_tool(
             "execute_forgetful_tool",
             {"tool_name": "get_project", "arguments": {"project_id": 999999}},
         )
-        # If no exception, the call succeeded but should return error indication
-        if result.data is None or (hasattr(result, "is_error") and result.is_error):
-            raise ValueError("Project not found")
-    error_message = str(exc_info.value).lower()
-    assert (
-        "not found" in error_message
-        or "validation_error" in error_message
-        or "project not found" in error_message
-    )
 
 
 @pytest.mark.asyncio
