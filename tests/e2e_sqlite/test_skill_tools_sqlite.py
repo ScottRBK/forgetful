@@ -256,6 +256,30 @@ allowed-tools:
 
 
 @pytest.mark.asyncio
+async def test_import_skill_unquoted_colon_in_description(mcp_client):
+    """Import skill with unquoted colon in description scalar (Scott #50 repro)."""
+    skill_md = """---
+name: keyword-skill
+description: Use when X. Keywords: foo, bar.
+---
+
+# Keyword Skill
+
+Body content.
+"""
+    result = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "import_skill",
+        "arguments": {
+            "skill_md_content": skill_md,
+            "importance": 8,
+        },
+    })
+    assert result.data is not None
+    assert result.data["name"] == "keyword-skill"
+    assert result.data["description"] == "Use when X. Keywords: foo, bar."
+
+
+@pytest.mark.asyncio
 async def test_export_skill(mcp_client):
     """Test exporting a skill to SKILL.md format"""
     create_result = await mcp_client.call_tool("execute_forgetful_tool", {
