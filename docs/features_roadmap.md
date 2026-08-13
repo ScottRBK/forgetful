@@ -8,7 +8,7 @@
     - [ ] Audio
     - [ ] Images
     - [ ] Video 
-- [ ] Search Enhancements
+- [x] Search Enhancements
     - [x] Implement Cross-Encoder reranking
 - [x] Dynamic Tool Discovery 
 - [x] Authentication 
@@ -22,7 +22,7 @@
     - [x] Google
     - [x] AzureOpenAI
     - [x] Open AI
-    - [ ] Ollama
+    - [x] Ollama
     - [ ] Open Router
 - [x] First-party CLI (fourth front door over the ToolRegistry)
     - [x] Bootstrap factory shared by server and CLI (app/bootstrap.py)
@@ -32,14 +32,13 @@
     - [x] auth login / status / logout with persistent token cache
     - [x] Curated verbs (memory search/save/get/recent, project list)
 - [x] PyPI package
-- [ ] Plans & Tasks (multi-agent coordination)
-    - [ ] Plans (structured work containers)
-    - [ ] Tasks (state machine, optimistic locking)
-    - [ ] Acceptance Criteria
-    - [ ] Task Dependencies (with cycle detection)
-- [ ] Logging and Telemtry
+- [x] Plans & Tasks (multi-agent coordination)
+    - [x] Plans (structured work containers)
+    - [x] Tasks (state machine, optimistic locking)
+    - [x] Acceptance Criteria
+    - [x] Task Dependencies (with cycle detection)
+- [x] Logging and Telemtry
     - [x] STDIO / JSON log configuration
-    - [ ] Open Telemetry forwarding
-
-- [ ] API Routes
+    - [x] Open Telemetry forwarding
+- [x] API Routes
 
