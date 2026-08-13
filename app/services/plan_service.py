@@ -3,7 +3,7 @@ from uuid import UUID
 
 from app.config.logging_config import logging
 from app.config.settings import settings
-from app.exceptions import InvalidStateTransitionError
+from app.exceptions import InvalidStateTransitionError, NotFoundError
 from app.models.activity_models import (
     ActionType,
     ActivityEvent,
@@ -81,7 +81,7 @@ class PlanService:
         )
         return plan
 
-    async def get_plan(self, user_id: UUID, plan_id: int) -> Plan | None:
+    async def get_plan(self, user_id: UUID, plan_id: int) -> Plan:
         logger.info("getting plan", extra={"user_id": str(user_id), "plan_id": plan_id})
         plan = await self.plan_repo.get_plan_by_id(user_id=user_id, plan_id=plan_id)
         if plan:
@@ -94,9 +94,9 @@ class PlanService:
                     action=ActionType.READ,
                     snapshot=plan.model_dump(mode="json"),
                 )
-        else:
-            logger.info("plan not found", extra={"plan_id": plan_id})
-        return plan
+            return plan
+        logger.info("plan not found", extra={"plan_id": plan_id})
+        raise NotFoundError(f"Plan with id {plan_id} not found")
 
     async def list_plans(
         self,

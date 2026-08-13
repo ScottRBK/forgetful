@@ -3,6 +3,7 @@ from uuid import UUID
 
 from app.config.logging_config import logging
 from app.config.settings import settings
+from app.exceptions import NotFoundError
 from app.models.activity_models import (
     ActionType,
     ActivityEvent,
@@ -155,7 +156,7 @@ class ProjectService:
 
         return projects
 
-    async def get_project(self, user_id: UUID, project_id: int) -> Project | None:
+    async def get_project(self, user_id: UUID, project_id: int) -> Project:
         """Get single project by ID
 
         Retrieves complete project details including description, notes,
@@ -166,7 +167,10 @@ class ProjectService:
             project_id: Project ID to retrieve
 
         Returns:
-            Project if found, None otherwise
+            Project if found
+
+        Raises:
+            NotFoundError: If project does not exist or is not visible to user
         """
         logger.info(
             "getting project", extra={"user_id": str(user_id), "project_id": project_id},
@@ -191,13 +195,13 @@ class ProjectService:
                     action=ActionType.READ,
                     snapshot=project.model_dump(mode="json"),
                 )
-        else:
-            logger.info(
-                "project not found",
-                extra={"project_id": project_id, "user_id": str(user_id)},
-            )
+            return project
 
-        return project
+        logger.info(
+            "project not found",
+            extra={"project_id": project_id, "user_id": str(user_id)},
+        )
+        raise NotFoundError(f"Project with id {project_id} not found")
 
     async def create_project(
         self, user_id: UUID, project_data: ProjectCreate,

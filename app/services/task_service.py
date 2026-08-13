@@ -87,8 +87,6 @@ class TaskService:
 
         # Validate plan exists and is not COMPLETED/ARCHIVED
         plan = await self.plan_service.get_plan(user_id=user_id, plan_id=task_data.plan_id)
-        if not plan:
-            raise NotFoundError(f"Plan with id {task_data.plan_id} not found")
 
         plan_status = PlanStatus(plan.status)
         if plan_status in (PlanStatus.COMPLETED, PlanStatus.ARCHIVED):
@@ -129,14 +127,14 @@ class TaskService:
         )
         return task
 
-    async def get_task(self, user_id: UUID, task_id: int) -> Task | None:
+    async def get_task(self, user_id: UUID, task_id: int) -> Task:
         logger.info("getting task", extra={"user_id": str(user_id), "task_id": task_id})
         task = await self.task_repo.get_task_by_id(user_id=user_id, task_id=task_id)
         if task:
             logger.info("task retrieved", extra={"task_id": task_id})
-        else:
-            logger.info("task not found", extra={"task_id": task_id})
-        return task
+            return task
+        logger.info("task not found", extra={"task_id": task_id})
+        raise NotFoundError(f"Task with id {task_id} not found")
 
     async def list_tasks(
         self,
@@ -498,8 +496,11 @@ class TaskService:
         has_done = any(TaskState(t.state) == TaskState.DONE for t in tasks)
 
         if all_terminal and has_done:
-            plan = await self.plan_service.get_plan(user_id=user_id, plan_id=plan_id)
-            if plan and PlanStatus(plan.status) == PlanStatus.ACTIVE:
+            try:
+                plan = await self.plan_service.get_plan(user_id=user_id, plan_id=plan_id)
+            except NotFoundError:
+                return
+            if PlanStatus(plan.status) == PlanStatus.ACTIVE:
                 logger.info("auto-completing plan", extra={"plan_id": plan_id})
                 await self.plan_service.update_plan(
                     user_id=user_id,

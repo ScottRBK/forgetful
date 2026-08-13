@@ -10,6 +10,7 @@ from app.exceptions import (
     CyclicDependencyError,
     DependencyNotMetError,
     InvalidStateTransitionError,
+    NotFoundError,
 )
 from app.models.plan_models import (
     CriterionCreate,
@@ -558,6 +559,42 @@ async def test_plan_auto_completion(test_task_service):
 
 
 @pytest.mark.asyncio
+async def test_plan_auto_completion_missing_plan_silent(test_task_service, monkeypatch):
+    """D1: swallow NotFoundError if plan disappears during auto-completion."""
+    task_service, plan_service = test_task_service
+    user_id = uuid4()
+
+    plan = await _create_active_plan(plan_service, user_id)
+    task = await task_service.create_task(
+        user_id=user_id,
+        task_data=TaskCreate(title="Only task", plan_id=plan.id),
+    )
+
+    async def get_plan_missing(*_args, **_kwargs):
+        raise NotFoundError(f"Plan with id {plan.id} not found")
+
+    monkeypatch.setattr(plan_service, "get_plan", get_plan_missing)
+
+    await task_service.transition_task(
+        user_id=user_id, task_id=task.id, new_state=TaskState.DOING, expected_version=1,
+    )
+    # Completing the task triggers _check_plan_auto_completion; missing plan must not raise
+    await task_service.transition_task(
+        user_id=user_id, task_id=task.id, new_state=TaskState.DONE, expected_version=2,
+    )
+
+
+@pytest.mark.asyncio
+async def test_get_task_not_found(test_task_service):
+    """Test retrieving a non-existent task raises NotFoundError."""
+    task_service, _plan_service = test_task_service
+    user_id = uuid4()
+
+    with pytest.raises(NotFoundError, match="not found"):
+        await task_service.get_task(user_id=user_id, task_id=99999)
+
+
+@pytest.mark.asyncio
 async def test_user_isolation(test_task_service):
     """Test that a task created by user1 is not visible to user2."""
     task_service, plan_service = test_task_service
@@ -572,8 +609,8 @@ async def test_user_isolation(test_task_service):
     )
 
     # user2 cannot get user1's task
-    retrieved = await task_service.get_task(user_id=user2, task_id=task.id)
-    assert retrieved is None
+    with pytest.raises(NotFoundError, match="not found"):
+        await task_service.get_task(user_id=user2, task_id=task.id)
 
     # user2 list for the same plan_id returns empty
     user2_tasks = await task_service.list_tasks(user_id=user2, plan_id=plan.id)

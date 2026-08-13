@@ -73,12 +73,12 @@ def register(mcp: FastMCP):
 
         project_id = int(request.path_params["project_id"])
 
-        project = await mcp.project_service.get_project(
-            user_id=user.id,
-            project_id=project_id,
-        )
-
-        if not project:
+        try:
+            project = await mcp.project_service.get_project(
+                user_id=user.id,
+                project_id=project_id,
+            )
+        except NotFoundError:
             return JSONResponse({"error": "Project not found"}, status_code=404)
 
         return JSONResponse(project.model_dump(mode="json"))
