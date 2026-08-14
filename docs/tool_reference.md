@@ -371,6 +371,7 @@ Retrieve most recent memories sorted by creation timestamp.
 - An object (not a bare list) with two keys:
   - `memories`: list of recent memories, sorted by `created_at` DESC (newest first)
   - `total_count`: total number of matching memories
+- Each memory's `linked_memory_ids` includes both directions of links (same set as `get_memory`).
 
 **Example:**
 ```python

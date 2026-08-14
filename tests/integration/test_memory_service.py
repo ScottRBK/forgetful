@@ -205,6 +205,55 @@ async def test_link_memories_bidirectional(test_memory_service):
 
 
 @pytest.mark.asyncio
+async def test_get_recent_memories_linked_ids_match_get_memory(test_memory_service):
+    """get_recent_memories linked_memory_ids must match get_memory for both link ends."""
+    user_id = uuid4()
+
+    memory1_data = MemoryCreate(
+        title="Python AsyncIO Event Loop",
+        content="AsyncIO provides event loop for asynchronous programming in Python",
+        context="Technical documentation about Python async features",
+        keywords=["python", "asyncio", "async"],
+        tags=["programming", "python"],
+        importance=7,
+    )
+    memory1, _ = await test_memory_service.create_memory(user_id, memory1_data)
+
+    memory2_data = MemoryCreate(
+        title="Database Connection Pooling",
+        content="Connection pooling improves database performance by reusing connections",
+        context="Database optimization technique",
+        keywords=["database", "pooling", "performance"],
+        tags=["database", "optimization"],
+        importance=7,
+    )
+    memory2, _ = await test_memory_service.create_memory(user_id, memory2_data)
+
+    await test_memory_service.link_memories(
+        user_id=user_id,
+        memory_id=memory1.id,
+        related_ids=[memory2.id],
+    )
+
+    get_a = await test_memory_service.get_memory(user_id, memory1.id)
+    get_b = await test_memory_service.get_memory(user_id, memory2.id)
+    assert memory2.id in get_a.linked_memory_ids
+    assert memory1.id in get_b.linked_memory_ids
+
+    recent, total = await test_memory_service.get_recent_memories(user_id=user_id, limit=10)
+    assert total >= 2
+
+    recent_by_id = {m.id: m for m in recent}
+    recent_a = recent_by_id[memory1.id]
+    recent_b = recent_by_id[memory2.id]
+
+    assert set(recent_a.linked_memory_ids) == set(get_a.linked_memory_ids)
+    assert set(recent_b.linked_memory_ids) == set(get_b.linked_memory_ids)
+    assert memory2.id in recent_a.linked_memory_ids
+    assert memory1.id in recent_b.linked_memory_ids
+
+
+@pytest.mark.asyncio
 async def test_update_memory_content(test_memory_service):
     """Test updating memory content"""
     user_id = uuid4()
