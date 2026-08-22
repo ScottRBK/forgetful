@@ -231,6 +231,7 @@ Semantic search across all memories with context-aware ranking.
 **Returns:**
 - List of memories ranked by semantic relevance
 - Each memory includes linked artifacts and 1-hop graph connections
+- `access_count` / `last_accessed_at` on each returned **full** `Memory` (not on `MemorySummary`). On upstream they increment when `memory.queried` fires, which requires `ACTIVITY_TRACK_READS=true` and an EventBus. Not request parameters.
 
 **Example:**
 ```python
@@ -256,6 +257,7 @@ Retrieve complete memory details by ID.
 
 **Returns:**
 - Complete memory object with all fields and relationships
+- `access_count` / `last_accessed_at` on the **full** `Memory`. On upstream they increment when `memory.read` fires, which requires `ACTIVITY_TRACK_READS=true` and an EventBus. Not writable via `update_memory`.
 
 **Example:**
 ```python

@@ -796,6 +796,14 @@ Activity tracking provides an audit log of all entity lifecycle events (created,
 - **⚠️ Warning**: Enabling this can generate high event volume in active systems
 - **Example**: `ACTIVITY_TRACK_READS=false`
 
+Memory fields `access_count` and `last_accessed_at` are not activity-log rows.
+They live on the `Memory` model. On upstream they increment only when
+`memory.read` / `memory.queried` events fire (`get_memory` / `query_memory`),
+which requires `ACTIVITY_TRACK_READS=true` and a wired EventBus
+(default `ACTIVITY_TRACK_READS=false` → counters stay 0).
+REST list (`get_recent_memories`) does not emit those events.
+`ACTIVITY_TRACK_READS` still also controls activity-log *events*.
+
 ### SSE Streaming Configuration
 
 #### `SSE_MAX_QUEUE_SIZE`
