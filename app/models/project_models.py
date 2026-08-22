@@ -67,6 +67,15 @@ class ProjectCreate(BaseModel):
         max_length=255,  # DB limit: String(255)
         description="GitHub repository in 'owner/repo' format (e.g., 'scottrbk/forgetful'). Optional.",
     )
+    last_encoding_point: str | None = Field(
+        default=None,
+        max_length=255,  # DB limit: String(255)
+        description=(
+            "Opaque, caller-managed checkpoint through which memories were last "
+            "encoded for this project (e.g. a Git commit SHA). The server never "
+            "interprets or advances it. Optional."
+        ),
+    )
     notes: str | None = Field(
         default=None,
         max_length=settings.PROJECT_NOTES_MAX_LENGTH,
@@ -91,7 +100,7 @@ class ProjectCreate(BaseModel):
             return None
         return [item.strip() for item in v if item.strip()]
 
-    @field_validator("name", "description", "repo_name", "notes")
+    @field_validator("name", "description", "repo_name", "last_encoding_point", "notes")
     @classmethod
     def strip_whitespace(cls, v, info):
         """Strip whitespace from string fields"""
@@ -159,6 +168,11 @@ class ProjectUpdate(BaseModel):
         max_length=255,  # DB limit: String(255)
         description="New repository name in 'owner/repo' format. Unchanged if null. Set to empty string to clear.",
     )
+    last_encoding_point: str | None = Field(
+        default=None,
+        max_length=255,  # DB limit: String(255)
+        description="New encoding checkpoint. Unchanged if null. Set to empty string to clear.",
+    )
     notes: str | None = Field(
         default=None,
         max_length=settings.PROJECT_NOTES_MAX_LENGTH,
@@ -183,7 +197,7 @@ class ProjectUpdate(BaseModel):
             return None
         return [item.strip() for item in v if item.strip()]
 
-    @field_validator("name", "description", "repo_name", "notes")
+    @field_validator("name", "description", "repo_name", "last_encoding_point", "notes")
     @classmethod
     def strip_whitespace(cls, v, info):
         """Strip whitespace from string fields"""
@@ -196,7 +210,7 @@ class ProjectUpdate(BaseModel):
         if info.field_name in ["name", "description"] and not stripped:
             raise ValueError(f"{info.field_name} cannot be empty or whitespace only")
 
-        # For optional fields (repo_name, notes), empty string means "clear field"
+        # For optional fields (repo_name, last_encoding_point, notes), empty string means "clear field"
         return stripped or None
 
     @field_validator("repo_name")
@@ -277,6 +291,10 @@ class ProjectSummary(BaseModel):
     repo_name: str | None = Field(
         default=None,
         description="GitHub repository ('owner/repo' format)",
+    )
+    last_encoding_point: str | None = Field(
+        default=None,
+        description="Opaque encoding checkpoint, or null.",
     )
     memory_count: int = Field(
         default=0,

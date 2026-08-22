@@ -4,6 +4,7 @@
 from uuid import uuid4
 
 import pytest
+from pydantic import ValidationError
 
 from app.exceptions import NotFoundError
 from app.models.project_models import (
@@ -615,3 +616,114 @@ async def test_list_projects_filter_by_name_case_insensitive(test_project_servic
     )
     assert len(mixedcase_match) == 1
     assert mixedcase_match[0].name == "Forgetful-Project"
+
+
+@pytest.mark.asyncio
+async def test_create_project_persists_last_encoding_point(test_project_service):
+    """Test that last_encoding_point survives create then get"""
+    user_id = uuid4()
+    checkpoint = "5d41402abc4b2a76b9719d911017c592"
+
+    project_data = ProjectCreate(
+        name="encoding-point-project",
+        description="Project with encoding checkpoint",
+        project_type=ProjectType.DEVELOPMENT,
+        last_encoding_point=checkpoint,
+    )
+
+    created_project = await test_project_service.create_project(
+        user_id=user_id, project_data=project_data,
+    )
+    assert created_project.last_encoding_point == checkpoint
+
+    retrieved_project = await test_project_service.get_project(
+        user_id=user_id, project_id=created_project.id,
+    )
+    assert retrieved_project.last_encoding_point == checkpoint
+
+
+@pytest.mark.asyncio
+async def test_create_project_without_last_encoding_point_defaults_none(
+    test_project_service,
+):
+    """Test that projects created without last_encoding_point read back None"""
+    user_id = uuid4()
+
+    project_data = ProjectCreate(
+        name="no-checkpoint-project",
+        description="Project without encoding checkpoint",
+        project_type=ProjectType.DEVELOPMENT,
+    )
+
+    created_project = await test_project_service.create_project(
+        user_id=user_id, project_data=project_data,
+    )
+    assert created_project.last_encoding_point is None
+
+    retrieved_project = await test_project_service.get_project(
+        user_id=user_id, project_id=created_project.id,
+    )
+    assert retrieved_project.last_encoding_point is None
+
+
+@pytest.mark.asyncio
+async def test_update_project_omit_last_encoding_point_unchanged(test_project_service):
+    """Test that update omitting last_encoding_point leaves it unchanged"""
+    user_id = uuid4()
+    checkpoint = "5d41402abc4b2a76b9719d911017c592"
+
+    created_project = await test_project_service.create_project(
+        user_id=user_id,
+        project_data=ProjectCreate(
+            name="checkpoint-unchanged",
+            description="Original description",
+            project_type=ProjectType.DEVELOPMENT,
+            last_encoding_point=checkpoint,
+        ),
+    )
+
+    updated_project = await test_project_service.update_project(
+        user_id=user_id,
+        project_id=created_project.id,
+        project_data=ProjectUpdate(name="renamed-project"),
+    )
+
+    assert updated_project.name == "renamed-project"
+    assert updated_project.last_encoding_point == checkpoint
+
+
+@pytest.mark.asyncio
+async def test_update_project_clear_last_encoding_point(test_project_service):
+    """Test that update with empty string clears last_encoding_point"""
+    user_id = uuid4()
+    checkpoint = "5d41402abc4b2a76b9719d911017c592"
+
+    created_project = await test_project_service.create_project(
+        user_id=user_id,
+        project_data=ProjectCreate(
+            name="checkpoint-clear",
+            description="Project to clear checkpoint",
+            project_type=ProjectType.DEVELOPMENT,
+            last_encoding_point=checkpoint,
+        ),
+    )
+    assert created_project.last_encoding_point == checkpoint
+
+    updated_project = await test_project_service.update_project(
+        user_id=user_id,
+        project_id=created_project.id,
+        project_data=ProjectUpdate(last_encoding_point=""),
+    )
+
+    assert updated_project.last_encoding_point is None
+
+
+def test_create_project_last_encoding_point_max_length_validation():
+    """Test that a 256-character last_encoding_point is rejected by Pydantic"""
+    with pytest.raises(ValidationError):
+        ProjectCreate(
+            name="too-long-checkpoint",
+            description="Project with oversized checkpoint",
+            project_type=ProjectType.DEVELOPMENT,
+            last_encoding_point="x" * 256,
+        )

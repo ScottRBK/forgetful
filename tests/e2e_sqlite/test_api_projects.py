@@ -186,6 +186,38 @@ class TestProjectAPICrud:
         assert response.status_code == 404
 
 
+class TestProjectAPILastEncodingPoint:
+    """Test last_encoding_point REST round trip."""
+
+    @pytest.mark.asyncio
+    async def test_last_encoding_point_round_trip(self, http_client):
+        """POST with field, GET returns it, PUT clears it."""
+        checkpoint = "5d41402abc4b2a76b9719d911017c592"
+        payload = {
+            "name": "REST Encoding Point Project",
+            "description": "REST round trip for last_encoding_point",
+            "project_type": "development",
+            "last_encoding_point": checkpoint,
+        }
+
+        create_response = await http_client.post("/api/v1/projects", json=payload)
+        assert create_response.status_code == 201
+        created = create_response.json()
+        assert created["last_encoding_point"] == checkpoint
+        project_id = created["id"]
+
+        get_response = await http_client.get(f"/api/v1/projects/{project_id}")
+        assert get_response.status_code == 200
+        assert get_response.json()["last_encoding_point"] == checkpoint
+
+        clear_response = await http_client.put(
+            f"/api/v1/projects/{project_id}",
+            json={"last_encoding_point": ""},
+        )
+        assert clear_response.status_code == 200
+        assert clear_response.json()["last_encoding_point"] is None
+
+
 class TestProjectTypes:
     """Test different project types."""
 

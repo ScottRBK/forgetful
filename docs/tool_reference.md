@@ -423,6 +423,7 @@ Create a new project for organizing knowledge.
 - `status` (optional): Project status (default: `active`)
 - `repository_url` (optional): Git repository URL
 - `metadata` (optional): Additional JSON metadata
+- `last_encoding_point` (optional): Opaque caller-managed encoding checkpoint (e.g. a Git commit SHA). The server never infers or advances it; the encoding client updates it only after a successful run.
 
 **Returns:**
 - Created project with `project_id`
@@ -492,6 +493,7 @@ Update project metadata (PATCH semantics).
 - `status` (optional): Updated status
 - `repository_url` (optional): Updated repository URL
 - `metadata` (optional): Updated metadata
+- `last_encoding_point` (optional): Opaque caller-managed encoding checkpoint (e.g. a Git commit SHA). The server never infers or advances it; the encoding client updates it only after a successful run. Unchanged if omitted; set to empty string to clear.
 
 **Returns:**
 - Updated project object

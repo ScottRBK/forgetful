@@ -445,6 +445,7 @@ class ProjectsTable(Base):
     project_type: Mapped[str] = mapped_column(String(50), nullable=True) # TODO: create a proper enum for this
     status: Mapped[str] = mapped_column(String(50), default="active", nullable=False) # TODO: create a proper enum for this
     repo_name: Mapped[str] = mapped_column(String(255), nullable=True)
+    last_encoding_point: Mapped[str] = mapped_column(String(255), nullable=True)
     notes: Mapped[str] = mapped_column(Text, nullable=True)
 
     # Provenance tracking (optional)
