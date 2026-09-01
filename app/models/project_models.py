@@ -100,7 +100,15 @@ class ProjectCreate(BaseModel):
             return None
         return [item.strip() for item in v if item.strip()]
 
-    @field_validator("name", "description", "repo_name", "last_encoding_point", "notes")
+    @field_validator("last_encoding_point")
+    @classmethod
+    def preserve_last_encoding_point(cls, v):
+        """Preserve opaque checkpoint verbatim; empty string on create means unset."""
+        if v is None or v == "":
+            return None
+        return v
+
+    @field_validator("name", "description", "repo_name", "notes")
     @classmethod
     def strip_whitespace(cls, v, info):
         """Strip whitespace from string fields"""
@@ -197,7 +205,17 @@ class ProjectUpdate(BaseModel):
             return None
         return [item.strip() for item in v if item.strip()]
 
-    @field_validator("name", "description", "repo_name", "last_encoding_point", "notes")
+    @field_validator("last_encoding_point")
+    @classmethod
+    def preserve_last_encoding_point(cls, v):
+        """Preserve opaque checkpoint verbatim; empty string clears the field."""
+        if v is None:
+            return v
+        if v == "":
+            return None
+        return v
+
+    @field_validator("name", "description", "repo_name", "notes")
     @classmethod
     def strip_whitespace(cls, v, info):
         """Strip whitespace from string fields"""
@@ -210,7 +228,7 @@ class ProjectUpdate(BaseModel):
         if info.field_name in ["name", "description"] and not stripped:
             raise ValueError(f"{info.field_name} cannot be empty or whitespace only")
 
-        # For optional fields (repo_name, last_encoding_point, notes), empty string means "clear field"
+        # For optional fields (repo_name, notes), empty string means "clear field"
         return stripped or None
 
     @field_validator("repo_name")

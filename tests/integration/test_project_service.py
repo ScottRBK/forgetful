@@ -718,6 +718,25 @@ async def test_update_project_clear_last_encoding_point(test_project_service):
     assert updated_project.last_encoding_point is None
 
 
+def test_create_project_last_encoding_point_preserved_verbatim():
+    """Test that last_encoding_point is not whitespace-stripped on create"""
+    checkpoint = " abc123 "
+    project = ProjectCreate(
+        name="verbatim-checkpoint",
+        description="Project with padded checkpoint",
+        project_type=ProjectType.DEVELOPMENT,
+        last_encoding_point=checkpoint,
+    )
+    assert project.last_encoding_point == checkpoint
+
+
+def test_update_project_last_encoding_point_preserved_verbatim():
+    """Test that last_encoding_point is not whitespace-stripped on update"""
+    checkpoint = " abc123 "
+    update = ProjectUpdate(last_encoding_point=checkpoint)
+    assert update.last_encoding_point == checkpoint
+
+
 def test_create_project_last_encoding_point_max_length_validation():
     """Test that a 256-character last_encoding_point is rejected by Pydantic"""
     with pytest.raises(ValidationError):

@@ -964,7 +964,7 @@ def register_project_tools_metadata(
                 {"name": "project_type", "type": "Optional[ProjectType]", "description": "New project type", "required": False, "default": None, "example": "work"},
                 {"name": "status", "type": "Optional[ProjectStatus]", "description": "New status", "required": False, "default": None, "example": "archived"},
                 {"name": "repo_name", "type": "Optional[str]", "description": "New repository name", "required": False, "default": None, "example": "user/new-repo"},
-                {"name": "last_encoding_point", "type": "Optional[str]", "description": "Opaque caller-managed encoding checkpoint (e.g. a Git commit SHA). Never advanced by the server.", "required": False, "default": None, "example": "5d41402abc4b2a76b9719d911017c592"},
+                {"name": "last_encoding_point", "type": "Optional[str]", "description": 'Opaque caller-managed encoding checkpoint (e.g. a Git commit SHA). Never advanced by the server. Unchanged if omitted or null; pass empty string "" to clear.', "required": False, "default": None, "example": "5d41402abc4b2a76b9719d911017c592"},
                 {"name": "notes", "type": "Optional[str]", "description": "New notes", "required": False, "default": None, "example": "Additional notes"},
                 {"name": "source_repo", "type": "Optional[str]", "description": "Repository/project source for provenance tracking", "required": False, "default": None, "example": "owner/repo"},
                 {"name": "source_files", "type": "Optional[List[str]]", "description": "Files that informed this for provenance tracking", "required": False, "default": None, "example": ["src/main.py"]},
@@ -979,6 +979,7 @@ def register_project_tools_metadata(
             "returns": "Updated Project object",
             "examples": [
                 'execute_forgetful_tool("update_project", {"project_id": 1, "status": "archived"})',
+                'execute_forgetful_tool("update_project", {"project_id": 1, "last_encoding_point": ""})',
             ],
             "tags": ["project", "update", "patch"],
         },

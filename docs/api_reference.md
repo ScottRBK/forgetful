@@ -302,19 +302,21 @@ List all projects.
 | `status` | string | Filter by status: `active`, `archived`, `completed` |
 | `repo_name` | string | Filter by repository name |
 
-**Response:**
+**Response:** `ProjectSummary` items (lightweight; no `description` or `notes`).
+
 ```json
 {
   "projects": [
     {
       "id": 1,
       "name": "Project Name",
-      "description": "Project description",
       "project_type": "development",
       "status": "active",
       "repo_name": "owner/repo",
       "last_encoding_point": "5d41402abc4b2a76b9719d911017c592",
-      "created_at": "2024-12-05T10:00:00Z"
+      "memory_count": 12,
+      "created_at": "2024-12-05T10:00:00Z",
+      "updated_at": "2024-12-05T10:00:00Z"
     }
   ],
   "total": 5
@@ -325,7 +327,7 @@ List all projects.
 
 Get a single project by ID.
 
-**Response:** Same project object shape as list items (includes `last_encoding_point` when set).
+**Response:** Full `Project` object (includes `description`, `notes`, provenance fields, `memory_count`, and `last_encoding_point` when set). Shape differs from list `ProjectSummary` items.
 
 ### POST /api/v1/projects
 
