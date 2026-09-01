@@ -592,6 +592,43 @@ async def test_query_memory_by_project_e2e(mcp_client):
 
 
 @pytest.mark.e2e
+async def test_last_encoding_point_round_trip_e2e(mcp_client):
+    """Test last_encoding_point via create, get, and list MCP round trip"""
+    checkpoint = "5d41402abc4b2a76b9719d911017c592"
+    project_name = "encoding-point-mcp-pg-test"
+
+    create_result = await mcp_client.call_tool(
+        "execute_forgetful_tool",
+        {
+            "tool_name": "create_project",
+            "arguments": {
+                "name": project_name,
+                "description": "Postgres MCP round trip for last_encoding_point",
+                "project_type": "development",
+                "last_encoding_point": checkpoint,
+            },
+        },
+    )
+    assert create_result.data is not None
+    assert create_result.data["last_encoding_point"] == checkpoint
+    project_id = create_result.data["id"]
+
+    get_result = await mcp_client.call_tool(
+        "execute_forgetful_tool",
+        {"tool_name": "get_project", "arguments": {"project_id": project_id}},
+    )
+    assert get_result.data is not None
+    assert get_result.data["last_encoding_point"] == checkpoint
+
+    list_result = await mcp_client.call_tool(
+        "execute_forgetful_tool", {"tool_name": "list_projects", "arguments": {}},
+    )
+    projects = list_result.data["projects"]
+    our_project = next(p for p in projects if p["name"] == project_name)
+    assert our_project["last_encoding_point"] == checkpoint
+
+
+@pytest.mark.e2e
 async def test_list_projects_filter_by_name_e2e(mcp_client):
     """Test filtering projects by name (case-insensitive partial match)"""
     # Create projects with different names

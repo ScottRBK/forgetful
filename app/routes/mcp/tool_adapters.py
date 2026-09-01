@@ -576,6 +576,7 @@ class ProjectToolAdapters:
         ctx: Context,
         status: ProjectStatus = ProjectStatus.ACTIVE,
         repo_name: str | None = None,
+        last_encoding_point: str | None = None,
         notes: str | None = None,
         # Provenance
         source_repo: str | None = None,
@@ -597,6 +598,7 @@ class ProjectToolAdapters:
             project_type=project_type,
             status=status,
             repo_name=repo_name,
+            last_encoding_point=last_encoding_point,
             notes=notes,
             source_repo=source_repo,
             source_files=source_files,
@@ -624,6 +626,7 @@ class ProjectToolAdapters:
         project_type: ProjectType | None = None,
         status: ProjectStatus | None = None,
         repo_name: str | None = None,
+        last_encoding_point: str | None = None,
         notes: str | None = None,
         # Provenance
         source_repo: str | None = None,
@@ -645,6 +648,7 @@ class ProjectToolAdapters:
             project_type=project_type,
             status=status,
             repo_name=repo_name,
+            last_encoding_point=last_encoding_point,
             notes=notes,
             source_repo=source_repo,
             source_files=source_files,

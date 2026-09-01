@@ -67,6 +67,15 @@ class ProjectCreate(BaseModel):
         max_length=255,  # DB limit: String(255)
         description="GitHub repository in 'owner/repo' format (e.g., 'scottrbk/forgetful'). Optional.",
     )
+    last_encoding_point: str | None = Field(
+        default=None,
+        max_length=255,  # DB limit: String(255)
+        description=(
+            "Opaque, caller-managed checkpoint through which memories were last "
+            "encoded for this project (e.g. a Git commit SHA). The server never "
+            "interprets or advances it. Optional."
+        ),
+    )
     notes: str | None = Field(
         default=None,
         max_length=settings.PROJECT_NOTES_MAX_LENGTH,
@@ -90,6 +99,14 @@ class ProjectCreate(BaseModel):
         if v is None:
             return None
         return [item.strip() for item in v if item.strip()]
+
+    @field_validator("last_encoding_point")
+    @classmethod
+    def preserve_last_encoding_point(cls, v):
+        """Preserve opaque checkpoint verbatim; empty string on create means unset."""
+        if v is None or v == "":
+            return None
+        return v
 
     @field_validator("name", "description", "repo_name", "notes")
     @classmethod
@@ -159,6 +176,11 @@ class ProjectUpdate(BaseModel):
         max_length=255,  # DB limit: String(255)
         description="New repository name in 'owner/repo' format. Unchanged if null. Set to empty string to clear.",
     )
+    last_encoding_point: str | None = Field(
+        default=None,
+        max_length=255,  # DB limit: String(255)
+        description="New encoding checkpoint. Unchanged if null. Set to empty string to clear.",
+    )
     notes: str | None = Field(
         default=None,
         max_length=settings.PROJECT_NOTES_MAX_LENGTH,
@@ -182,6 +204,16 @@ class ProjectUpdate(BaseModel):
         if v is None:
             return None
         return [item.strip() for item in v if item.strip()]
+
+    @field_validator("last_encoding_point")
+    @classmethod
+    def preserve_last_encoding_point(cls, v):
+        """Preserve opaque checkpoint verbatim; empty string clears the field."""
+        if v is None:
+            return v
+        if v == "":
+            return None
+        return v
 
     @field_validator("name", "description", "repo_name", "notes")
     @classmethod
@@ -277,6 +309,10 @@ class ProjectSummary(BaseModel):
     repo_name: str | None = Field(
         default=None,
         description="GitHub repository ('owner/repo' format)",
+    )
+    last_encoding_point: str | None = Field(
+        default=None,
+        description="Opaque encoding checkpoint, or null.",
     )
     memory_count: int = Field(
         default=0,

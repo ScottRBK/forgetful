@@ -306,18 +306,21 @@ List all projects.
 | `status` | string | Filter by status: `active`, `archived`, `completed` |
 | `repo_name` | string | Filter by repository name |
 
-**Response:**
+**Response:** `ProjectSummary` items (lightweight; no `description` or `notes`).
+
 ```json
 {
   "projects": [
     {
       "id": 1,
       "name": "Project Name",
-      "description": "Project description",
       "project_type": "development",
       "status": "active",
       "repo_name": "owner/repo",
-      "created_at": "2024-12-05T10:00:00Z"
+      "last_encoding_point": "5d41402abc4b2a76b9719d911017c592",
+      "memory_count": 12,
+      "created_at": "2024-12-05T10:00:00Z",
+      "updated_at": "2024-12-05T10:00:00Z"
     }
   ],
   "total": 5
@@ -327,6 +330,8 @@ List all projects.
 ### GET /api/v1/projects/{id}
 
 Get a single project by ID.
+
+**Response:** Full `Project` object (includes `description`, `notes`, provenance fields, `memory_count`, and `last_encoding_point` when set). Shape differs from list `ProjectSummary` items.
 
 ### POST /api/v1/projects
 
@@ -338,11 +343,14 @@ Create a new project.
   "name": "Project Name",
   "description": "Project description",
   "project_type": "development",
-  "repo_name": "owner/repo"
+  "repo_name": "owner/repo",
+  "last_encoding_point": "5d41402abc4b2a76b9719d911017c592"
 }
 ```
 
 **Project Types:** `personal`, `work`, `learning`, `development`, `infrastructure`, `template`, `product`, `documentation`, `open-source`
+
+**`last_encoding_point`:** Opaque, caller-managed checkpoint through which memories were last encoded for this project (e.g. a Git commit SHA). The server never infers or advances it; the encoding client updates it only after a successful run.
 
 ### PUT /api/v1/projects/{id}
 
@@ -353,9 +361,12 @@ Update an existing project.
 {
   "name": "Updated Name",
   "description": "Updated description",
-  "status": "completed"
+  "status": "completed",
+  "last_encoding_point": "7d793037a0760186574b0282f2ebc2eb"
 }
 ```
+
+Omit `last_encoding_point` to leave the stored value unchanged; send an empty string to clear it.
 
 ### DELETE /api/v1/projects/{id}
 
