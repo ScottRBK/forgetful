@@ -357,15 +357,15 @@ execute_forgetful_tool(
 
 ### `unlink_memories`
 
-Remove a bidirectional link between two memories.
+Remove bidirectional link(s) between memories.
 
 **Parameters:**
 - `source_id` (required, int): Source memory ID (aliases: `memory_id`, `from_id`, `id`)
-- `target_id` (required, int): Target memory ID (aliases: `related_id`, `to_id`)
-- `memory_ids` (optional, List[int]): Pair of memory IDs `[src, target]`
+- `target_id` (required, int or List[int]): Target memory ID(s) to unlink (aliases: `target_ids`, `related_id`, `related_ids`, `linked_ids`)
+- `memory_ids` (optional, List[int]): List of memory IDs `[src, target1, target2, ...]`
 
 **Returns:**
-- Dict with `success` boolean
+- Dict with `success` boolean (True if all requested links were removed)
 
 **Examples:**
 ```python
@@ -381,7 +381,14 @@ execute_forgetful_tool(
     "unlink_memories",
     {
         "memory_id": 156,
-        "related_id": 201
+        "related_ids": [201, 202]
+    }
+)
+
+execute_forgetful_tool(
+    "unlink_memories",
+    {
+        "memory_ids": [156, 201, 202]
     }
 )
 ```

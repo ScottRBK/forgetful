@@ -4,6 +4,7 @@ This module provides adapter classes that wrap service methods as registry-compa
 callables, ensuring user context is properly extracted and preserved.
 """
 
+import math
 from typing import Any
 
 from fastmcp import Context
@@ -54,6 +55,42 @@ from app.services.user_service import UserService
 from app.utils.pydantic_helper import filter_none_values
 
 logger = logging.getLogger(__name__)
+
+
+def _coerce_int_id(val: Any, param_name: str = "id") -> int:
+    """Validate and convert an ID to integer without lossy truncation.
+
+    Rejects booleans, non-integer floats (e.g. 1.9, NaN, Inf), invalid strings,
+    and non-numeric types.
+    """
+    if val is None:
+        raise ValueError(f"{param_name} cannot be None")
+    if isinstance(val, bool):
+        raise ValueError(f"{param_name} must be an integer, got bool ({val})")
+    if isinstance(val, int):
+        return val
+    if isinstance(val, float):
+        if not math.isfinite(val) or not val.is_integer():
+            raise ValueError(f"{param_name} must be an integer, got fractional float {val}")
+        return int(val)
+    if isinstance(val, str):
+        cleaned = val.strip()
+        if not cleaned:
+            raise ValueError(f"{param_name} cannot be empty string")
+        try:
+            return int(cleaned)
+        except (ValueError, TypeError):
+            raise ValueError(f"{param_name} must be a valid integer, got {val!r}")
+    raise ValueError(f"{param_name} must be an integer, got {type(val).__name__}")
+
+
+def _coerce_int_ids(vals: Any, param_name: str = "ids") -> list[int]:
+    """Validate and convert a collection or scalar of IDs into a list of ints."""
+    if vals is None:
+        return []
+    if isinstance(vals, (list, tuple, set)):
+        return [_coerce_int_id(x, param_name) for x in vals]
+    return [_coerce_int_id(vals, param_name)]
 
 
 # ============================================================================
@@ -186,6 +223,13 @@ class MemoryToolAdapters:
 
         user = await get_user_from_auth(ctx)
 
+        if project_ids is not None:
+            project_ids = [_coerce_int_id(x, "project_ids") for x in project_ids]
+        if code_artifact_ids is not None:
+            code_artifact_ids = [_coerce_int_id(x, "code_artifact_ids") for x in code_artifact_ids]
+        if document_ids is not None:
+            document_ids = [_coerce_int_id(x, "document_ids") for x in document_ids]
+
         memory_data = MemoryCreate(
             title=title,
             content=content,
@@ -257,6 +301,9 @@ class MemoryToolAdapters:
         if importance_threshold is not None:
             importance_threshold = max(1, min(importance_threshold, 10))
 
+        if project_ids is not None:
+            project_ids = [_coerce_int_id(x, "project_ids") for x in project_ids]
+
         result = await self.memory_service.query_memory(
             user_id=user.id,
             memory_query=MemoryQueryRequest(
@@ -312,13 +359,20 @@ class MemoryToolAdapters:
         mid = memory_id if memory_id is not None else id
         if mid is None:
             raise ValueError("update_memory requires memory_id (or id)")
-        mid = int(mid)
+        mid = _coerce_int_id(mid, "memory_id")
         logger.info("MCP Tool -> update_memory", extra={"memory_id": mid})
 
         user = await get_user_from_auth(ctx)
 
         if importance is not None:
             importance = max(1, min(importance, 10))
+
+        if project_ids is not None:
+            project_ids = [_coerce_int_id(x, "project_ids") for x in project_ids]
+        if code_artifact_ids is not None:
+            code_artifact_ids = [_coerce_int_id(x, "code_artifact_ids") for x in code_artifact_ids]
+        if document_ids is not None:
+            document_ids = [_coerce_int_id(x, "document_ids") for x in document_ids]
 
         updated_dict = filter_none_values(
             title=title,
@@ -377,12 +431,16 @@ class MemoryToolAdapters:
         src: int | None = None
         targets: list[int] = []
 
-        if memory_ids and len(memory_ids) >= 2:
-            src = int(memory_ids[0])
-            targets = [int(x) for x in memory_ids[1:]]
-        elif ids and len(ids) >= 2:
-            src = int(ids[0])
-            targets = [int(x) for x in ids[1:]]
+        if memory_ids is not None:
+            if not isinstance(memory_ids, (list, tuple, set)) or len(memory_ids) < 2:
+                raise ValueError("link_memories memory_ids must contain at least 2 IDs [source, target, ...]")
+            src = _coerce_int_id(memory_ids[0], "memory_ids[0]")
+            targets = [_coerce_int_id(x, "memory_ids") for x in memory_ids[1:]]
+        elif ids is not None:
+            if not isinstance(ids, (list, tuple, set)) or len(ids) < 2:
+                raise ValueError("link_memories ids must contain at least 2 IDs [source, target, ...]")
+            src = _coerce_int_id(ids[0], "ids[0]")
+            targets = [_coerce_int_id(x, "ids") for x in ids[1:]]
         else:
             raw_src = memory_id if memory_id is not None else (
                 source_id if source_id is not None else (
@@ -394,7 +452,7 @@ class MemoryToolAdapters:
                 )
             )
             if raw_src is not None:
-                src = int(raw_src)
+                src = _coerce_int_id(raw_src, "memory_id")
 
             raw_targets = (
                 related_ids
@@ -431,10 +489,7 @@ class MemoryToolAdapters:
             )
 
             if raw_targets is not None:
-                if isinstance(raw_targets, (list, tuple, set)):
-                    targets = [int(x) for x in raw_targets]
-                else:
-                    targets = [int(raw_targets)]
+                targets = _coerce_int_ids(raw_targets, "related_ids")
 
         if src is None:
             raise ValueError("link_memories requires memory_id (or source_id)")
@@ -484,18 +539,24 @@ class MemoryToolAdapters:
         from_memory_id: int | None = None,
         to_memory_id: int | None = None,
         id: int | None = None,
+        linked_ids: list[int] | int | None = None,
+        related_memory_ids: list[int] | int | None = None,
         **kwargs,
     ) -> dict:
         """Adapter for unlink_memories tool with alias resilience"""
         src: int | None = None
-        tgt: int | None = None
+        targets: list[int] = []
 
-        if memory_ids and len(memory_ids) >= 2:
-            src = int(memory_ids[0])
-            tgt = int(memory_ids[1])
-        elif ids and len(ids) >= 2:
-            src = int(ids[0])
-            tgt = int(ids[1])
+        if memory_ids is not None:
+            if not isinstance(memory_ids, (list, tuple, set)) or len(memory_ids) < 2:
+                raise ValueError("unlink_memories memory_ids must contain at least 2 IDs [source, target, ...]")
+            src = _coerce_int_id(memory_ids[0], "memory_ids[0]")
+            targets = [_coerce_int_id(x, "memory_ids") for x in memory_ids[1:]]
+        elif ids is not None:
+            if not isinstance(ids, (list, tuple, set)) or len(ids) < 2:
+                raise ValueError("unlink_memories ids must contain at least 2 IDs [source, target, ...]")
+            src = _coerce_int_id(ids[0], "ids[0]")
+            targets = [_coerce_int_id(x, "ids") for x in ids[1:]]
         else:
             raw_src = source_id if source_id is not None else (
                 memory_id if memory_id is not None else (
@@ -507,50 +568,76 @@ class MemoryToolAdapters:
                 )
             )
             if raw_src is not None:
-                src = int(raw_src)
+                src = _coerce_int_id(raw_src, "source_id")
 
-            raw_tgt = target_id if target_id is not None else (
-                related_id if related_id is not None else (
-                    to_id if to_id is not None else (
-                        to_memory_id if to_memory_id is not None else (
-                            memory_id_2 if memory_id_2 is not None else (
-                                (related_ids[0] if isinstance(related_ids, (list, tuple, set)) and related_ids else (related_ids if isinstance(related_ids, int) else None))
-                                if related_ids is not None
+            raw_targets = (
+                target_id
+                if target_id is not None
+                else (
+                    related_id
+                    if related_id is not None
+                    else (
+                        target_ids
+                        if target_ids is not None
+                        else (
+                            related_ids
+                            if related_ids is not None
+                            else (
+                                to_id
+                                if to_id is not None
                                 else (
-                                    (target_ids[0] if isinstance(target_ids, (list, tuple, set)) and target_ids else (target_ids if isinstance(target_ids, int) else None))
-                                    if target_ids is not None
-                                    else None
+                                    to_memory_id
+                                    if to_memory_id is not None
+                                    else (
+                                        memory_id_2
+                                        if memory_id_2 is not None
+                                        else (
+                                            linked_ids
+                                            if linked_ids is not None
+                                            else related_memory_ids
+                                        )
+                                    )
                                 )
                             )
                         )
                     )
                 )
             )
-            if raw_tgt is not None:
-                tgt = int(raw_tgt)
+            if raw_targets is not None:
+                targets = _coerce_int_ids(raw_targets, "target_id")
 
-        if src is None or tgt is None:
-            raise ValueError("unlink_memories requires source_id (or memory_id) and target_id (or related_id)")
+        if src is None:
+            raise ValueError("unlink_memories requires source_id (or memory_id)")
+        if not targets:
+            raise ValueError("unlink_memories requires target_id (or related_ids)")
+
+        cleaned_targets = [tid for tid in dict.fromkeys(targets) if tid != src]
+        if not cleaned_targets:
+            raise ValueError("Cannot unlink memory from itself or no valid target IDs provided")
 
         logger.info(
             "MCP Tool -> unlink_memories",
-            extra={"source_id": src, "target_id": tgt},
+            extra={"source_id": src, "target_ids": cleaned_targets},
         )
 
         user = await get_user_from_auth(ctx)
 
-        success = await self.memory_service.unlink_memories(
-            user_id=user.id,
-            memory_id=src,
-            target_id=tgt,
-        )
+        all_success = True
+        for tgt in cleaned_targets:
+            success = await self.memory_service.unlink_memories(
+                user_id=user.id,
+                memory_id=src,
+                target_id=tgt,
+            )
+            if not success:
+                all_success = False
 
         logger.info(
             "MCP Tool - memories unlinked",
-            extra={"source_id": src, "target_id": tgt, "success": success},
+            extra={"source_id": src, "target_ids": cleaned_targets, "success": all_success},
         )
 
-        return {"success": success}
+        return {"success": all_success}
 
     async def get_memory(
         self,
@@ -563,7 +650,7 @@ class MemoryToolAdapters:
         mid = memory_id if memory_id is not None else id
         if mid is None:
             raise ValueError("get_memory requires memory_id (or id)")
-        mid = int(mid)
+        mid = _coerce_int_id(mid, "memory_id")
         logger.info("MCP Tool -> get_memory", extra={"memory_id": mid})
 
         user = await get_user_from_auth(ctx)
@@ -593,7 +680,9 @@ class MemoryToolAdapters:
         mid = memory_id if memory_id is not None else id
         if mid is None:
             raise ValueError("mark_memory_obsolete requires memory_id (or id)")
-        mid = int(mid)
+        mid = _coerce_int_id(mid, "memory_id")
+        if superseded_by is not None:
+            superseded_by = _coerce_int_id(superseded_by, "superseded_by")
         logger.info("MCP Tool -> mark_memory_obsolete", extra={"memory_id": mid})
 
         user = await get_user_from_auth(ctx)
@@ -621,6 +710,9 @@ class MemoryToolAdapters:
         """Adapter for get_recent_memories tool"""
         user = await get_user_from_auth(ctx)
         limit, offset = clamp_list_pagination(limit, offset)
+
+        if project_ids is not None:
+            project_ids = [_coerce_int_id(x, "project_ids") for x in project_ids]
 
         logger.info(
             "MCP Tool -> get_recent_memories",
@@ -668,6 +760,11 @@ class MemoryToolAdapters:
         Returns a structured result so callers can act on partial success:
         `rebuilt_ids`, `skipped_ids`, `failed`.
         """
+        if memory_ids is not None:
+            memory_ids = [_coerce_int_id(x, "memory_ids") for x in memory_ids]
+        if project_id is not None:
+            project_id = _coerce_int_id(project_id, "project_id")
+
         logger.info(
             "MCP Tool -> rebuild_embeddings",
             extra={

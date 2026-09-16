@@ -18,6 +18,7 @@ from app.models.memory_models import (
     MemoryUpdate,
 )
 from app.routes.mcp.pagination import clamp_list_pagination
+from app.routes.mcp.tool_adapters import _coerce_int_id
 from app.utils.pydantic_helper import filter_none_values
 
 logger = logging.getLogger(__name__)
@@ -421,10 +422,13 @@ def register(mcp: FastMCP):
             List of target memory IDs that were successfully linked
         """
         try:
-            if isinstance(related_ids, (int, str)):
-                related_ids = [int(related_ids)]
-            elif isinstance(related_ids, (list, tuple, set)):
-                related_ids = [int(x) for x in related_ids]
+            memory_id = _coerce_int_id(memory_id, "memory_id")
+            if isinstance(related_ids, (list, tuple, set)):
+                related_ids = [_coerce_int_id(x, "related_ids") for x in related_ids]
+            elif related_ids is not None:
+                related_ids = [_coerce_int_id(related_ids, "related_ids")]
+            else:
+                related_ids = []
 
             logger.info("MCP Tool -> link_memories", extra={
                 "memory_id": memory_id,

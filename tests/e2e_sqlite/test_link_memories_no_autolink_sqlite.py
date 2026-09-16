@@ -428,3 +428,190 @@ async def test_link_memories_aliases_e2e(mcp_client):
     assert m3_id not in get_m1_after.data["linked_memory_ids"]
     assert m4_id in get_m1_after.data["linked_memory_ids"]
 
+
+@pytest.mark.asyncio
+async def test_reject_fractional_and_non_integer_ids_e2e(mcp_client):
+    """Regression test: fractional/non-integer IDs must be rejected without lossy truncation (P1)."""
+    # Create an initial memory that should NOT be modified by fractional IDs
+    create_res = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "create_memory",
+        "arguments": {
+            "title": "Immutable Target Memory",
+            "content": "Original untouched content",
+            "context": "Testing fractional ID rejection",
+            "keywords": ["test", "fractional", "id"],
+            "tags": ["test"],
+            "importance": 6,
+        },
+    })
+    target_id = create_res.data["id"]
+    fractional_id = target_id + 0.9
+
+    # 1. update_memory with fractional ID (e.g. 1.9) must fail and NOT modify target_id
+    with pytest.raises(Exception) as exc_info:
+        await mcp_client.call_tool("execute_forgetful_tool", {
+            "tool_name": "update_memory",
+            "arguments": {"memory_id": fractional_id, "content": "Tampered content"},
+        })
+    assert "integer" in str(exc_info.value).lower() or "fractional" in str(exc_info.value).lower()
+
+    # Verify content was not modified
+    get_res = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "get_memory",
+        "arguments": {"memory_id": target_id},
+    })
+    assert get_res.data["content"] == "Original untouched content"
+
+    # 2. update_memory with boolean ID (True) must fail
+    with pytest.raises(Exception):
+        await mcp_client.call_tool("execute_forgetful_tool", {
+            "tool_name": "update_memory",
+            "arguments": {"memory_id": True, "content": "Tampered via bool"},
+        })
+
+    # 3. get_memory with fractional ID must fail
+    with pytest.raises(Exception):
+        await mcp_client.call_tool("execute_forgetful_tool", {
+            "tool_name": "get_memory",
+            "arguments": {"memory_id": fractional_id},
+        })
+
+    # 4. mark_memory_obsolete with fractional ID must fail
+    with pytest.raises(Exception):
+        await mcp_client.call_tool("execute_forgetful_tool", {
+            "tool_name": "mark_memory_obsolete",
+            "arguments": {"memory_id": fractional_id, "reason": "Testing rejection"},
+        })
+
+    # 5. link_memories with fractional source ID or target ID must fail
+    with pytest.raises(Exception):
+        await mcp_client.call_tool("execute_forgetful_tool", {
+            "tool_name": "link_memories",
+            "arguments": {"source_id": fractional_id, "target_id": target_id},
+        })
+    with pytest.raises(Exception):
+        await mcp_client.call_tool("execute_forgetful_tool", {
+            "tool_name": "link_memories",
+            "arguments": {"source_id": target_id, "related_ids": [fractional_id]},
+        })
+
+    # 6. unlink_memories with fractional source ID or target ID must fail
+    with pytest.raises(Exception):
+        await mcp_client.call_tool("execute_forgetful_tool", {
+            "tool_name": "unlink_memories",
+            "arguments": {"source_id": fractional_id, "target_id": target_id},
+        })
+    with pytest.raises(Exception):
+        await mcp_client.call_tool("execute_forgetful_tool", {
+            "tool_name": "unlink_memories",
+            "arguments": {"source_id": target_id, "target_id": fractional_id},
+        })
+
+
+@pytest.mark.asyncio
+async def test_unlink_memories_multi_target_e2e(mcp_client):
+    """Regression test: unlink_memories must process all requested targets (P2)."""
+    # Create 4 memories
+    m1 = (await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "create_memory",
+        "arguments": {
+            "title": "Multi-unlink Hub",
+            "content": "Hub memory linked to multiple targets",
+            "context": "Testing multi-target unlinking",
+            "keywords": ["hub", "test"],
+            "tags": ["test"],
+            "importance": 7,
+        },
+    })).data["id"]
+
+    m2 = (await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "create_memory",
+        "arguments": {
+            "title": "Target 1",
+            "content": "First target",
+            "context": "Testing multi-target unlinking",
+            "keywords": ["t1", "test"],
+            "tags": ["test"],
+            "importance": 7,
+        },
+    })).data["id"]
+
+    m3 = (await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "create_memory",
+        "arguments": {
+            "title": "Target 2",
+            "content": "Second target",
+            "context": "Testing multi-target unlinking",
+            "keywords": ["t2", "test"],
+            "tags": ["test"],
+            "importance": 7,
+        },
+    })).data["id"]
+
+    m4 = (await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "create_memory",
+        "arguments": {
+            "title": "Target 3",
+            "content": "Third target",
+            "context": "Testing multi-target unlinking",
+            "keywords": ["t3", "test"],
+            "tags": ["test"],
+            "importance": 7,
+        },
+    })).data["id"]
+
+    # Link m1 to [m2, m3, m4]
+    link_res = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "link_memories",
+        "arguments": {"memory_id": m1, "related_ids": [m2, m3, m4]},
+    })
+    assert set(link_res.data["linked_memory_ids"]) == {m2, m3, m4}
+
+    # Verify all 3 are linked
+    hub_state = (await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "get_memory",
+        "arguments": {"memory_id": m1},
+    })).data
+    assert set(hub_state["linked_memory_ids"]) == {m2, m3, m4}
+
+    # Unlink m2 AND m3 in a single call via related_ids=[m2, m3]
+    unlink_res = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "unlink_memories",
+        "arguments": {"memory_id": m1, "related_ids": [m2, m3]},
+    })
+    assert unlink_res.data["success"] is True
+
+    # Verify: m2 and m3 are unlinked, m4 MUST remain linked (no partial silent discard)
+    hub_state_after = (await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "get_memory",
+        "arguments": {"memory_id": m1},
+    })).data
+    assert m2 not in hub_state_after["linked_memory_ids"]
+    assert m3 not in hub_state_after["linked_memory_ids"]
+    assert m4 in hub_state_after["linked_memory_ids"]
+
+    # Re-link m2 and m3 to test memory_ids list syntax with 3+ items [src, t1, t2, ...]
+    await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "link_memories",
+        "arguments": {"memory_ids": [m1, m2, m3]},
+    })
+    hub_relinked = (await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "get_memory",
+        "arguments": {"memory_id": m1},
+    })).data
+    assert set(hub_relinked["linked_memory_ids"]) == {m2, m3, m4}
+
+    # Unlink all via memory_ids=[m1, m2, m3, m4]
+    unlink_all = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "unlink_memories",
+        "arguments": {"memory_ids": [m1, m2, m3, m4]},
+    })
+    assert unlink_all.data["success"] is True
+
+    # Verify no links remain
+    hub_final = (await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "get_memory",
+        "arguments": {"memory_id": m1},
+    })).data
+    assert hub_final["linked_memory_ids"] == []
+
