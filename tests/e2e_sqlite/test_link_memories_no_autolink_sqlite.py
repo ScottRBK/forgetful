@@ -601,6 +601,27 @@ async def test_unlink_memories_multi_target_e2e(mcp_client):
     })).data
     assert set(hub_relinked["linked_memory_ids"]) == {m2, m3, m4}
 
+    # Unlink m2 AND m3 through the target_ids alias, m4 must survive
+    unlink_alias = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "unlink_memories",
+        "arguments": {"memory_id": m1, "target_ids": [m2, m3]},
+    })
+    assert unlink_alias.data["success"] is True
+
+    hub_after_alias = (await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "get_memory",
+        "arguments": {"memory_id": m1},
+    })).data
+    assert m2 not in hub_after_alias["linked_memory_ids"]
+    assert m3 not in hub_after_alias["linked_memory_ids"]
+    assert m4 in hub_after_alias["linked_memory_ids"]
+
+    # Re-link m2 and m3 before the final full unlink
+    await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "link_memories",
+        "arguments": {"memory_ids": [m1, m2, m3]},
+    })
+
     # Unlink all via memory_ids=[m1, m2, m3, m4]
     unlink_all = await mcp_client.call_tool("execute_forgetful_tool", {
         "tool_name": "unlink_memories",
