@@ -563,19 +563,19 @@ def register_memory_tools_metadata(
         {
             "name": "link_memories",
             "mutates": True,
-            "description": "Manually create bidirectional links between memories (symmetric linking)",
+            "description": "Manually create bidirectional links between memories (symmetric linking). Accepts memory_id + related_ids (or aliases source_id + target_id/target_ids, memory_ids=[src, tgt])",
             "parameters": [
                 {
                     "name": "memory_id",
                     "type": "int",
-                    "description": "Source memory ID",
+                    "description": "Source memory ID (aliases: source_id, from_id, id)",
                     "required": True,
                     "example": 42,
                 },
                 {
                     "name": "related_ids",
                     "type": "List[int]",
-                    "description": "List of target memory IDs to link",
+                    "description": "List of target memory IDs to link (or single int; aliases: target_id, target_ids, related_id)",
                     "required": True,
                     "example": [10, 15, 20],
                 },
@@ -589,25 +589,27 @@ def register_memory_tools_metadata(
             "returns": "List of memory IDs that were successfully linked",
             "examples": [
                 'execute_forgetful_tool("link_memories", {"memory_id": 42, "related_ids": [10, 15, 20]})',
+                'execute_forgetful_tool("link_memories", {"source_id": 42, "target_id": 57})',
+                'execute_forgetful_tool("link_memories", {"memory_ids": [42, 57]})',
             ],
             "tags": ["memory", "linking", "relationships"],
         },
         {
             "name": "unlink_memories",
             "mutates": True,
-            "description": "Remove a bidirectional link between two memories",
+            "description": "Remove bidirectional link(s) between memories. Accepts source_id + target_id (or aliases memory_id + related_id, target_ids, related_ids, memory_ids=[src, tgt, ...])",
             "parameters": [
                 {
                     "name": "source_id",
                     "type": "int",
-                    "description": "Source memory ID",
+                    "description": "Source memory ID (aliases: memory_id, from_id, id)",
                     "required": True,
                     "example": 42,
                 },
                 {
                     "name": "target_id",
                     "type": "int",
-                    "description": "Target memory ID to unlink",
+                    "description": "Target memory ID(s) to unlink (aliases: target_ids, related_id, related_ids, to_id)",
                     "required": True,
                     "example": 57,
                 },
@@ -618,9 +620,12 @@ def register_memory_tools_metadata(
                     "required": True,
                 },
             ],
-            "returns": "Dict with 'success' boolean (True if link was removed, False if link didn't exist)",
+            "returns": "Dict with 'success' boolean (True if all requested links were removed, False if any link didn't exist)",
             "examples": [
                 'execute_forgetful_tool("unlink_memories", {"source_id": 42, "target_id": 57})',
+                'execute_forgetful_tool("unlink_memories", {"memory_id": 42, "related_id": 57})',
+                'execute_forgetful_tool("unlink_memories", {"memory_id": 42, "related_ids": [57, 58]})',
+                'execute_forgetful_tool("unlink_memories", {"memory_ids": [42, 57, 58]})',
             ],
             "tags": ["memory", "unlink", "graph", "linking"],
         },

@@ -319,20 +319,76 @@ execute_forgetful_tool(
 Manually create bidirectional links between memories.
 
 **Parameters:**
-- `memory_id` (required): Source memory ID
-- `related_ids` (required): Target memory IDs
+- `memory_id` (required, int): Source memory ID (aliases: `source_id`, `from_id`, `id`)
+- `related_ids` (required, List[int] or int): Target memory IDs (aliases: `target_id`, `target_ids`, `related_id`, `linked_ids`)
+- `memory_ids` (optional, List[int]): Pair/list of memory IDs `[src, target1, target2, ...]`
 
 **Returns:**
-- Confirmation of link creation
+- Dict with `linked_memory_ids` (list of target IDs newly linked)
 
-**Example:**
+**Examples:**
 ```python
-# Link related architecture decisions
+# Standard syntax
 execute_forgetful_tool(
     "link_memories",
     {
         "memory_id": 156,  # Rate limiting decision
         "related_ids": [201]  # Redis caching strategy
+    }
+)
+
+# Alias syntax with source_id and target_id
+execute_forgetful_tool(
+    "link_memories",
+    {
+        "source_id": 156,
+        "target_id": 201
+    }
+)
+
+# Pair list syntax
+execute_forgetful_tool(
+    "link_memories",
+    {
+        "memory_ids": [156, 201]
+    }
+)
+```
+
+### `unlink_memories`
+
+Remove bidirectional link(s) between memories.
+
+**Parameters:**
+- `source_id` (required, int): Source memory ID (aliases: `memory_id`, `from_id`, `id`)
+- `target_id` (required, int or List[int]): Target memory ID(s) to unlink (aliases: `target_ids`, `related_id`, `related_ids`, `linked_ids`)
+- `memory_ids` (optional, List[int]): List of memory IDs `[src, target1, target2, ...]`
+
+**Returns:**
+- Dict with `success` boolean (True if all requested links were removed)
+
+**Examples:**
+```python
+execute_forgetful_tool(
+    "unlink_memories",
+    {
+        "source_id": 156,
+        "target_id": 201
+    }
+)
+
+execute_forgetful_tool(
+    "unlink_memories",
+    {
+        "memory_id": 156,
+        "related_ids": [201, 202]
+    }
+)
+
+execute_forgetful_tool(
+    "unlink_memories",
+    {
+        "memory_ids": [156, 201, 202]
     }
 )
 ```
