@@ -426,6 +426,41 @@ async def test_list_memories_with_project_filter(test_memory_service):
 
 
 @pytest.mark.asyncio
+async def test_list_memories_created_since_accepts_offset_and_counts_matches(test_memory_service):
+    """The service keeps the time floor inclusive before paging."""
+    from datetime import timedelta, timezone
+
+    user_id = uuid4()
+    created = []
+    for importance in (9, 8, 3):
+        memory, _ = await test_memory_service.create_memory(
+            user_id,
+            MemoryCreate(
+                title=f"Created since {importance}",
+                content="Memory for time-floor filtering",
+                context="Testing list_memories",
+                keywords=["created-since"],
+                tags=["created-since"],
+                importance=importance,
+            ),
+        )
+        created.append(memory)
+
+    floor = created[1].created_at.astimezone(timezone(timedelta(hours=2)))
+
+    memories, total = await test_memory_service.list_memories(
+        user_id,
+        limit=1,
+        importance_min=8,
+        created_since=floor,
+        sort_by="importance",
+    )
+
+    assert total == 1
+    assert [memory.id for memory in memories] == [created[1].id]
+
+
+@pytest.mark.asyncio
 async def test_list_memories_excludes_obsolete(test_memory_service):
     """Test that list_memories excludes obsolete memories."""
     user_id = uuid4()

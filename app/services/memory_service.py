@@ -8,6 +8,7 @@ This service implements the primary functionality for the Forgetful Memory Syste
     - Retrieval with project associations
     - Usage tracking on read paths (forgetful-hulkito fork)
 """
+from datetime import datetime
 from typing import TYPE_CHECKING
 from uuid import UUID
 
@@ -382,6 +383,7 @@ class MemoryService:
             sort_order: str = "desc",
             tags: list[str] | None = None,
             importance_min: int | None = None,
+            created_since: datetime | None = None,
     ) -> tuple[list[Memory], int]:
         """Retrieve memories with pagination, sorting, and filtering.
 
@@ -395,6 +397,7 @@ class MemoryService:
             sort_order: Sort direction - asc, desc
             tags: Filter by ANY of these tags (OR logic)
             importance_min: Minimum importance score (optional)
+            created_since: Inclusive creation timestamp floor (UTC-aware)
 
         Returns:
             Tuple of (memories, total_count) where total_count is count before pagination
@@ -409,6 +412,7 @@ class MemoryService:
             sort_order=sort_order,
             tags=tags,
             importance_min=importance_min,
+            created_since=created_since,
         )
 
     async def link_memories(

@@ -889,6 +889,152 @@ async def test_get_recent_memories_tags_with_project_ids_e2e(mcp_client):
 
 
 @pytest.mark.asyncio
+async def test_get_recent_memories_importance_min_filters_before_pagination(mcp_client):
+    """The importance floor controls both the page and its total count."""
+    tag = f"e2e-recent-importance-{uuid.uuid4().hex[:8]}"
+    created = []
+    for importance in (9, 3, 8):
+        result = await mcp_client.call_tool("execute_forgetful_tool", {
+            "tool_name": "create_memory",
+            "arguments": {
+                "title": f"Importance floor {importance}",
+                "content": "Memory for importance filtering",
+                "context": "Testing recent memory filtering",
+                "keywords": ["importance"],
+                "tags": [tag],
+                "importance": importance,
+            },
+        })
+        created.append(result.data["id"])
+
+    result = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "get_recent_memories",
+        "arguments": {
+            "tags": [tag],
+            "importance_min": 8,
+            "sort_by": "importance",
+            "limit": 1,
+        },
+    })
+
+    assert result.data["total_count"] == 2
+    assert [memory["id"] for memory in result.data["memories"]] == [created[0]]
+
+
+@pytest.mark.asyncio
+async def test_get_recent_memories_created_since_is_inclusive(mcp_client):
+    """An exact timestamp match stays in; older memories do not."""
+    from datetime import UTC, datetime, timedelta, timezone
+
+    tag = f"e2e-recent-since-{uuid.uuid4().hex[:8]}"
+    created = []
+    for importance in (9, 8):
+        result = await mcp_client.call_tool("execute_forgetful_tool", {
+            "tool_name": "create_memory",
+            "arguments": {
+                "title": f"Time floor {importance}",
+                "content": "Memory for time filtering",
+                "context": "Testing recent memory filtering",
+                "keywords": ["time-floor"],
+                "tags": [tag],
+                "importance": importance,
+            },
+        })
+        created.append(result.data["id"])
+
+    floor_memory = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "get_memory",
+        "arguments": {"memory_id": created[1]},
+    })
+    timestamp = datetime.fromisoformat(floor_memory.data["created_at"])
+    created_since = timestamp.replace(tzinfo=UTC).astimezone(
+        timezone(timedelta(hours=2)),
+    ).isoformat()
+
+    result = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "get_recent_memories",
+        "arguments": {
+            "tags": [tag],
+            "importance_min": 8,
+            "created_since": created_since,
+            "sort_by": "importance",
+            "limit": 1,
+        },
+    })
+
+    assert result.data["total_count"] == 1
+    assert [memory["id"] for memory in result.data["memories"]] == [created[1]]
+
+
+@pytest.mark.asyncio
+async def test_get_recent_memories_importance_ties_use_creation_time(mcp_client, sqlite_app):
+    """Importance ties use newest creation time, then ID for exact ties."""
+    from datetime import UTC, datetime
+
+    from sqlalchemy import update
+
+    from app.repositories.sqlite.sqlite_tables import MemoryTable
+
+    tag = f"e2e-recent-tie-{uuid.uuid4().hex[:8]}"
+    created = []
+    for index in range(3):
+        result = await mcp_client.call_tool("execute_forgetful_tool", {
+            "tool_name": "create_memory",
+            "arguments": {
+                "title": f"Importance tie {index}",
+                "content": "Memory for importance ordering",
+                "context": "Testing deterministic recent memory ordering",
+                "keywords": ["importance-tie"],
+                "tags": [tag],
+                "importance": 8,
+            },
+        })
+        created.append(result.data["id"])
+
+    timestamps = (
+        datetime(2026, 2, 1, tzinfo=UTC),
+        datetime(2026, 1, 1, tzinfo=UTC),
+        datetime(2026, 2, 1, tzinfo=UTC),
+    )
+    db_adapter = sqlite_app.memory_service.memory_repo.db_adapter
+    async with db_adapter.system_session() as session:
+        for memory_id, created_at in zip(created, timestamps, strict=True):
+            await session.execute(
+                update(MemoryTable)
+                .where(MemoryTable.id == memory_id)
+                .values(created_at=created_at),
+            )
+
+    result = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "get_recent_memories",
+        "arguments": {"tags": [tag], "sort_by": "importance", "limit": 10},
+    })
+
+    assert [memory["id"] for memory in result.data["memories"]] == [
+        created[2], created[0], created[1],
+    ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("arguments, message", [
+    ({"importance_min": 0}, "importance_min must be"),
+    ({"importance_min": 11}, "importance_min must be"),
+    ({"importance_min": True}, "importance_min must be"),
+    ({"created_since": "2026-08-01T00:00:00"}, "created_since must be"),
+    ({"created_since": "not-a-timestamp"}, "created_since must be"),
+])
+async def test_get_recent_memories_rejects_invalid_filters(mcp_client, arguments, message):
+    """Invalid filters fail clearly instead of returning an unfiltered brief."""
+    from fastmcp.exceptions import ToolError
+
+    with pytest.raises(ToolError, match=message):
+        await mcp_client.call_tool("execute_forgetful_tool", {
+            "tool_name": "get_recent_memories",
+            "arguments": arguments,
+        })
+
+
+@pytest.mark.asyncio
 async def test_get_recent_memories_include_obsolete_and_sort_importance_e2e(mcp_client):
     """Test include_obsolete and importance sort on get_recent_memories"""
     import json

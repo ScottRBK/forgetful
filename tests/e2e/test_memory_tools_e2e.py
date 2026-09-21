@@ -904,6 +904,98 @@ async def test_get_recent_memories_tags_with_project_ids_e2e(mcp_client):
 
 
 @pytest.mark.e2e
+async def test_get_recent_memories_filters_before_pagination_e2e(mcp_client):
+    """PostgreSQL applies both filters before counting and paging."""
+    from datetime import datetime
+
+    tag = f"e2e-recent-filter-{uuid.uuid4().hex[:8]}"
+    created = []
+    for importance in (9, 8, 3):
+        result = await mcp_client.call_tool("execute_forgetful_tool", {
+            "tool_name": "create_memory",
+            "arguments": {
+                "title": f"Postgres recent filter {importance}",
+                "content": "Memory for recent filtering",
+                "context": "Testing PostgreSQL recent filters",
+                "keywords": ["recent-filter"],
+                "tags": [tag],
+                "importance": importance,
+            },
+        })
+        created.append(result.data["id"])
+
+    floor_memory = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "get_memory",
+        "arguments": {"memory_id": created[1]},
+    })
+    created_since = datetime.fromisoformat(floor_memory.data["created_at"]).isoformat()
+
+    result = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "get_recent_memories",
+        "arguments": {
+            "tags": [tag],
+            "importance_min": 8,
+            "created_since": created_since,
+            "sort_by": "importance",
+            "limit": 1,
+        },
+    })
+
+    assert result.data["total_count"] == 1
+    assert [memory["id"] for memory in result.data["memories"]] == [created[1]]
+
+
+@pytest.mark.e2e
+async def test_get_recent_memories_importance_ties_use_creation_time_e2e(
+    mcp_client, db_adapter,
+):
+    """PostgreSQL uses creation time and ID to break importance ties."""
+    from datetime import UTC, datetime
+
+    from sqlalchemy import update
+
+    from app.repositories.postgres.postgres_tables import MemoryTable
+
+    tag = f"e2e-recent-tie-{uuid.uuid4().hex[:8]}"
+    created = []
+    for index in range(3):
+        result = await mcp_client.call_tool("execute_forgetful_tool", {
+            "tool_name": "create_memory",
+            "arguments": {
+                "title": f"Postgres importance tie {index}",
+                "content": "Memory for importance ordering",
+                "context": "Testing deterministic recent memory ordering",
+                "keywords": ["importance-tie"],
+                "tags": [tag],
+                "importance": 8,
+            },
+        })
+        created.append(result.data["id"])
+
+    timestamps = (
+        datetime(2026, 2, 1, tzinfo=UTC),
+        datetime(2026, 1, 1, tzinfo=UTC),
+        datetime(2026, 2, 1, tzinfo=UTC),
+    )
+    async with db_adapter.system_session() as session:
+        for memory_id, created_at in zip(created, timestamps, strict=True):
+            await session.execute(
+                update(MemoryTable)
+                .where(MemoryTable.id == memory_id)
+                .values(created_at=created_at),
+            )
+
+    result = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "get_recent_memories",
+        "arguments": {"tags": [tag], "sort_by": "importance", "limit": 10},
+    })
+
+    assert [memory["id"] for memory in result.data["memories"]] == [
+        created[2], created[0], created[1],
+    ]
+
+
+@pytest.mark.e2e
 async def test_get_recent_memories_include_obsolete_and_sort_importance_e2e(mcp_client):
     """Test include_obsolete and importance sort on get_recent_memories"""
     import json

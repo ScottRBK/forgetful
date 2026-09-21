@@ -61,6 +61,19 @@ async def test_discover_forgetful_tools_by_category_e2e(mcp_client):
 
 
 @pytest.mark.asyncio
+async def test_discover_recent_memories_filters_e2e(mcp_client):
+    """Clients can discover the two new recent-memory filters."""
+    result = await mcp_client.call_tool("discover_forgetful_tools", {"category": "memory"})
+    recent = next(
+        tool for tool in result.data["tools_by_category"]["memory"]
+        if tool["name"] == "get_recent_memories"
+    )
+
+    parameters = set(recent["parameters"])
+    assert {"importance_min", "created_since"} <= parameters
+
+
+@pytest.mark.asyncio
 async def test_discover_tools_invalid_category_e2e(mcp_client):
     """Test discovering tools with invalid category raises error"""
     with pytest.raises(Exception) as exc_info:

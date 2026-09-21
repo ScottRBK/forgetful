@@ -759,12 +759,33 @@ def register_memory_tools_metadata(
                     "default": None,
                     "example": ["ai-champion"],
                 },
+                {
+                    "name": "importance_min",
+                    "type": "Optional[int]",
+                    "description": "Minimum importance (1-10, inclusive)",
+                    "required": False,
+                    "default": None,
+                    "example": 8,
+                },
+                {
+                    "name": "created_since",
+                    "type": "Optional[str]",
+                    "description": "Inclusive ISO 8601 creation timestamp with timezone",
+                    "required": False,
+                    "default": None,
+                    "example": "2026-08-01T00:00:00Z",
+                },
             ],
             "returns": "Dictionary with memories list (sorted per sort_by/sort_order) and total_count",
             "examples": [
                 'execute_forgetful_tool("get_recent_memories", {"limit": 5})',
                 'execute_forgetful_tool("get_recent_memories", {"limit": 10, "project_ids": [1, 2]})',
                 'execute_forgetful_tool("get_recent_memories", {"tags": ["ai-champion"], "limit": 20})',
+                (
+                    'execute_forgetful_tool("get_recent_memories", '
+                    '{"importance_min": 8, "created_since": "2026-08-01T00:00:00Z", '
+                    '"sort_by": "importance"})'
+                ),
             ],
             "tags": ["memory", "query", "recency", "timeline"],
         },

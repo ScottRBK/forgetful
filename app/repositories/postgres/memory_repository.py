@@ -694,6 +694,7 @@ class PostgresMemoryRepository:
             sort_order: str = "desc",
             tags: list[str] | None = None,
             importance_min: int | None = None,
+            created_since: datetime | None = None,
     ) -> tuple[list[Memory], int]:
         """Get memories with pagination, sorting, and filtering.
 
@@ -707,6 +708,7 @@ class PostgresMemoryRepository:
             sort_order: Sort direction - asc, desc
             tags: Filter by ANY of these tags (OR logic)
             importance_min: Minimum importance score (optional)
+            created_since: Inclusive creation timestamp floor (UTC-aware)
 
         Returns:
             Tuple of (memories, total_count) where total_count is count before pagination
@@ -722,6 +724,9 @@ class PostgresMemoryRepository:
 
         if importance_min is not None:
             conditions.append(MemoryTable.importance >= importance_min)
+
+        if created_since is not None:
+            conditions.append(MemoryTable.created_at >= created_since)
 
         # Tag filter using Postgres ARRAY overlap
         if tags:
@@ -760,7 +765,10 @@ class PostgresMemoryRepository:
         order = sort_column.desc() if sort_order == "desc" else sort_column.asc()
         # Add deterministic tie-breaker so identical timestamps still return newest IDs first
         id_tiebreak = MemoryTable.id.desc() if sort_order == "desc" else MemoryTable.id.asc()
-        stmt = stmt.order_by(order, id_tiebreak)
+        if sort_by == "importance":
+            stmt = stmt.order_by(order, MemoryTable.created_at.desc(), MemoryTable.id.desc())
+        else:
+            stmt = stmt.order_by(order, id_tiebreak)
 
         # Apply pagination
         stmt = stmt.offset(offset).limit(limit)

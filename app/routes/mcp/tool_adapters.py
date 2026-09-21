@@ -5,6 +5,7 @@ callables, ensuring user context is properly extracted and preserved.
 """
 
 import math
+from datetime import UTC, datetime
 from typing import Any
 
 from fastmcp import Context
@@ -706,10 +707,33 @@ class MemoryToolAdapters:
         sort_by: str = "created_at",
         sort_order: str = "desc",
         tags: list[str] | None = None,
+        importance_min: int | None = None,
+        created_since: str | None = None,
     ) -> dict:
         """Adapter for get_recent_memories tool"""
         user = await get_user_from_auth(ctx)
         limit, offset = clamp_list_pagination(limit, offset)
+
+        if importance_min is not None and (
+            isinstance(importance_min, bool)
+            or not isinstance(importance_min, int)
+            or not 1 <= importance_min <= 10
+        ):
+            raise ToolError("importance_min must be an integer between 1 and 10")
+
+        since = None
+        if created_since is not None:
+            if not isinstance(created_since, str):
+                raise ToolError("created_since must be an ISO 8601 timestamp with a timezone")
+            try:
+                since = datetime.fromisoformat(created_since.replace("Z", "+00:00"))
+            except ValueError as exc:
+                raise ToolError(
+                    "created_since must be an ISO 8601 timestamp with a timezone",
+                ) from exc
+            if "T" not in created_since or since.tzinfo is None or since.utcoffset() is None:
+                raise ToolError("created_since must be an ISO 8601 timestamp with a timezone")
+            since = since.astimezone(UTC)
 
         if project_ids is not None:
             project_ids = [_coerce_int_id(x, "project_ids") for x in project_ids]
@@ -724,6 +748,8 @@ class MemoryToolAdapters:
                 "sort_by": sort_by,
                 "sort_order": sort_order,
                 "tags": tags,
+                "importance_min": importance_min,
+                "created_since": created_since,
             },
         )
 
@@ -739,6 +765,8 @@ class MemoryToolAdapters:
             sort_by=sort_by,
             sort_order=sort_order,
             tags=tags,
+            importance_min=importance_min,
+            created_since=since,
         )
 
         return {"memories": memories, "total_count": total_count}

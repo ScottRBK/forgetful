@@ -761,6 +761,7 @@ class SqliteMemoryRepository:
             sort_order: str = "desc",
             tags: list[str] | None = None,
             importance_min: int | None = None,
+            created_since: datetime | None = None,
     ) -> tuple[list[Memory], int]:
         """Get memories with pagination, sorting, and filtering.
 
@@ -774,6 +775,7 @@ class SqliteMemoryRepository:
             sort_order: Sort direction - asc, desc
             tags: Filter by ANY of these tags (OR logic)
             importance_min: Minimum importance score (optional)
+            created_since: Inclusive creation timestamp floor (UTC-aware)
 
         Returns:
             Tuple of (memories, total_count) where total_count is count before pagination
@@ -802,6 +804,9 @@ class SqliteMemoryRepository:
         if importance_min is not None:
             stmt = stmt.where(MemoryTable.importance >= importance_min)
 
+        if created_since is not None:
+            stmt = stmt.where(MemoryTable.created_at >= created_since.astimezone(UTC))
+
         # Apply project filter if provided
         if project_ids:
             project_filter = select(memory_project_association.c.memory_id).where(
@@ -820,7 +825,10 @@ class SqliteMemoryRepository:
         order = sort_column.desc() if sort_order == "desc" else sort_column.asc()
         # Tie-break on id to keep ordering deterministic when timestamps are equal
         id_tiebreak = MemoryTable.id.desc() if sort_order == "desc" else MemoryTable.id.asc()
-        stmt = stmt.order_by(order, id_tiebreak)
+        if sort_by == "importance":
+            stmt = stmt.order_by(order, MemoryTable.created_at.desc(), MemoryTable.id.desc())
+        else:
+            stmt = stmt.order_by(order, id_tiebreak)
 
         async with self.db_adapter.session(user_id) as session:
             # Execute main query

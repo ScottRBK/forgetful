@@ -95,6 +95,7 @@ class MemoryRepository(Protocol):
             sort_order: str = "desc",
             tags: list[str] | None = None,
             importance_min: int | None = None,
+            created_since: datetime | None = None,
     ) -> tuple[list[Memory], int]:
         """Get memories with pagination, sorting, and filtering.
 
@@ -108,6 +109,7 @@ class MemoryRepository(Protocol):
             sort_order: Sort direction - asc, desc
             tags: Filter by ANY of these tags (OR logic)
             importance_min: Minimum importance score (optional)
+            created_since: Inclusive creation timestamp floor (UTC-aware)
 
         Returns:
             Tuple of (memories, total_count) where total_count is
@@ -286,4 +288,3 @@ class MemoryRepository(Protocol):
         of rows actually updated (owned + non-obsolete).
         """
         ...
-

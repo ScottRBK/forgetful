@@ -437,6 +437,7 @@ class InMemoryMemoryRepository(MemoryRepository):
         sort_order: str = "desc",
         tags: list[str] | None = None,
         importance_min: int | None = None,
+        created_since: datetime | None = None,
     ) -> tuple[list[Memory], int]:
         """Get memories with pagination, sorting, and filtering"""
         user_memories = self._memories.get(user_id, {})
@@ -460,15 +461,21 @@ class InMemoryMemoryRepository(MemoryRepository):
         if importance_min is not None:
             memories = [m for m in memories if m.importance >= importance_min]
 
+        if created_since is not None:
+            memories = [m for m in memories if m.created_at >= created_since]
+
         # Dynamic sorting
         sort_key_map = {
             "created_at": lambda m: m.created_at,
             "updated_at": lambda m: m.updated_at,
             "importance": lambda m: m.importance,
         }
-        sort_key = sort_key_map.get(sort_by, sort_key_map["created_at"])
-        reverse = sort_order == "desc"
-        memories.sort(key=sort_key, reverse=reverse)
+        if sort_by == "importance":
+            memories.sort(key=lambda m: (m.created_at, m.id), reverse=True)
+            memories.sort(key=lambda m: m.importance, reverse=sort_order == "desc")
+        else:
+            sort_key = sort_key_map.get(sort_by, sort_key_map["created_at"])
+            memories.sort(key=sort_key, reverse=sort_order == "desc")
 
         # Get total count before pagination
         total = len(memories)
