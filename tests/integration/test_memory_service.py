@@ -205,8 +205,8 @@ async def test_link_memories_bidirectional(test_memory_service):
 
 
 @pytest.mark.asyncio
-async def test_get_recent_memories_linked_ids_match_get_memory(test_memory_service):
-    """get_recent_memories linked_memory_ids must match get_memory for both link ends."""
+async def test_list_memories_linked_ids_match_get_memory(test_memory_service):
+    """list_memories linked_memory_ids must match get_memory for both link ends."""
     user_id = uuid4()
 
     memory1_data = MemoryCreate(
@@ -240,7 +240,7 @@ async def test_get_recent_memories_linked_ids_match_get_memory(test_memory_servi
     assert memory2.id in get_a.linked_memory_ids
     assert memory1.id in get_b.linked_memory_ids
 
-    recent, total = await test_memory_service.get_recent_memories(user_id=user_id, limit=10)
+    recent, total = await test_memory_service.list_memories(user_id=user_id, limit=10)
     assert total >= 2
 
     recent_by_id = {m.id: m for m in recent}
@@ -342,8 +342,8 @@ async def test_mark_memory_obsolete(test_memory_service):
 
 
 @pytest.mark.asyncio
-async def test_get_recent_memories_basic(test_memory_service):
-    """Test getting recent memories sorted by creation timestamp"""
+async def test_list_memories_defaults_to_recent_first(test_memory_service):
+    """Test listing memories with the default creation timestamp order."""
     user_id = uuid4()
 
     # Create memories with small delays to ensure different timestamps
@@ -363,7 +363,7 @@ async def test_get_recent_memories_basic(test_memory_service):
         await asyncio.sleep(0.01)  # Small delay to ensure different timestamps
 
     # Get recent memories (should be in reverse creation order)
-    recent, total = await test_memory_service.get_recent_memories(user_id, limit=3)
+    recent, total = await test_memory_service.list_memories(user_id, limit=3)
 
     assert len(recent) == 3
     assert total == 5  # Total count before pagination
@@ -374,8 +374,8 @@ async def test_get_recent_memories_basic(test_memory_service):
 
 
 @pytest.mark.asyncio
-async def test_get_recent_memories_with_project_filter(test_memory_service):
-    """Test getting recent memories filtered by project"""
+async def test_list_memories_with_project_filter(test_memory_service):
+    """Test listing memories filtered by project."""
     user_id = uuid4()
 
     # Create memories with different project associations
@@ -413,7 +413,7 @@ async def test_get_recent_memories_with_project_filter(test_memory_service):
     memory3, _ = await test_memory_service.create_memory(user_id, memory3_data)
 
     # Get recent memories for project 1 only
-    recent_project_a, total = await test_memory_service.get_recent_memories(
+    recent_project_a, total = await test_memory_service.list_memories(
         user_id,
         limit=10,
         project_ids=[1],
@@ -426,8 +426,8 @@ async def test_get_recent_memories_with_project_filter(test_memory_service):
 
 
 @pytest.mark.asyncio
-async def test_get_recent_memories_excludes_obsolete(test_memory_service):
-    """Test that get_recent_memories excludes obsolete memories"""
+async def test_list_memories_excludes_obsolete(test_memory_service):
+    """Test that list_memories excludes obsolete memories."""
     user_id = uuid4()
 
     # Create memories
@@ -459,7 +459,7 @@ async def test_get_recent_memories_excludes_obsolete(test_memory_service):
     )
 
     # Get recent memories - should only return active one
-    recent, total = await test_memory_service.get_recent_memories(user_id, limit=10)
+    recent, total = await test_memory_service.list_memories(user_id, limit=10)
 
     assert len(recent) == 1
     assert total == 1  # Only non-obsolete count

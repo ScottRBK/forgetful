@@ -73,17 +73,15 @@ class TestMemoryAPIList:
         assert data["offset"] == 2
 
     @pytest.mark.asyncio
-    async def test_list_with_importance_filter(self, http_client):
-        """GET /api/v1/memories filters by importance_min."""
-        # Create memories with different importance
-        await http_client.post("/api/v1/memories", json={
-            "title": "Low importance memory",
-            "content": "Low importance content",
-            "context": "Filter test",
-            "keywords": ["filter"],
-            "tags": ["test"],
-            "importance": 3,
+    async def test_importance_filter_applies_before_pagination(self, http_client):
+        """GET /api/v1/memories filters by importance before paginating."""
+        project_response = await http_client.post("/api/v1/projects", json={
+            "name": "Importance filter project",
+            "description": "Project for testing importance filtering",
+            "project_type": "development",
         })
+        project_id = project_response.json()["id"]
+
         await http_client.post("/api/v1/memories", json={
             "title": "High importance memory",
             "content": "High importance content",
@@ -91,14 +89,28 @@ class TestMemoryAPIList:
             "keywords": ["filter"],
             "tags": ["test"],
             "importance": 9,
+            "project_ids": [project_id],
+        })
+        await http_client.post("/api/v1/memories", json={
+            "title": "Low importance memory",
+            "content": "Low importance content",
+            "context": "Filter test",
+            "keywords": ["filter"],
+            "tags": ["test"],
+            "importance": 3,
+            "project_ids": [project_id],
         })
 
-        # Filter by importance >= 8
-        response = await http_client.get("/api/v1/memories?importance_min=8")
+        response = await http_client.get(
+            f"/api/v1/memories?project_id={project_id}&importance_min=8&limit=1",
+        )
+
         assert response.status_code == 200
         data = response.json()
-        for memory in data["memories"]:
-            assert memory["importance"] >= 8
+        assert [memory["title"] for memory in data["memories"]] == [
+            "High importance memory",
+        ]
+        assert data["total"] == 1
 
 
 class TestMemoryAPICreate:
@@ -508,6 +520,21 @@ class TestMemoryAPIValidation:
         response = await http_client.get("/api/v1/memories?limit=999")
         assert response.status_code == 400
         assert "limit" in response.json()["error"].lower()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("importance_min", [0, 11])
+    async def test_list_importance_min_out_of_range_returns_400(
+        self,
+        http_client,
+        importance_min,
+    ):
+        """GET /api/v1/memories requires importance_min between 1 and 10."""
+        response = await http_client.get(
+            f"/api/v1/memories?importance_min={importance_min}",
+        )
+
+        assert response.status_code == 400
+        assert "importance_min" in response.json()["error"]
 
     @pytest.mark.asyncio
     async def test_list_invalid_sort_by_returns_400(self, http_client):

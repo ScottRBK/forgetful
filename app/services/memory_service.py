@@ -371,7 +371,7 @@ class MemoryService:
 
         return memory
 
-    async def get_recent_memories(
+    async def list_memories(
             self,
             user_id: UUID,
             limit: int = 10,
@@ -381,6 +381,7 @@ class MemoryService:
             sort_by: str = "created_at",
             sort_order: str = "desc",
             tags: list[str] | None = None,
+            importance_min: int | None = None,
     ) -> tuple[list[Memory], int]:
         """Retrieve memories with pagination, sorting, and filtering.
 
@@ -393,11 +394,12 @@ class MemoryService:
             sort_by: Sort field - created_at, updated_at, importance
             sort_order: Sort direction - asc, desc
             tags: Filter by ANY of these tags (OR logic)
+            importance_min: Minimum importance score (optional)
 
         Returns:
             Tuple of (memories, total_count) where total_count is count before pagination
         """
-        return await self.memory_repo.get_recent_memories(
+        return await self.memory_repo.list_memories(
             user_id=user_id,
             limit=limit,
             offset=offset,
@@ -406,6 +408,7 @@ class MemoryService:
             sort_by=sort_by,
             sort_order=sort_order,
             tags=tags,
+            importance_min=importance_min,
         )
 
     async def link_memories(

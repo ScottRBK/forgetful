@@ -801,7 +801,7 @@ They live on the `Memory` model. On upstream they increment only when
 `memory.read` / `memory.queried` events fire (`get_memory` / `query_memory`),
 which requires `ACTIVITY_TRACK_READS=true` and a wired EventBus
 (default `ACTIVITY_TRACK_READS=false` → counters stay 0).
-REST list (`get_recent_memories`) does not emit those events.
+REST listing does not emit those events.
 `ACTIVITY_TRACK_READS` still also controls activity-log *events*.
 
 ### SSE Streaming Configuration

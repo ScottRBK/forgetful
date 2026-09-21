@@ -177,7 +177,7 @@ def register(mcp: FastMCP):
         # Get memories with pagination
         total_memory_count = 0
         if include_memories:
-            memories, total_memory_count = await mcp.memory_service.get_recent_memories(
+            memories, total_memory_count = await mcp.memory_service.list_memories(
                 user_id=user.id,
                 limit=limit,
                 offset=offset,

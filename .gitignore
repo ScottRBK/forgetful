@@ -8,6 +8,11 @@ wheels/
 debug/
 data/
 
+# Tools
+.pi/
+.codex/
+.forgetful/
+
 # Virtual environments
 .venv
 

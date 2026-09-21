@@ -750,7 +750,7 @@ class SqliteMemoryRepository:
 
             return deleted
 
-    async def get_recent_memories(
+    async def list_memories(
             self,
             user_id: UUID,
             limit: int,
@@ -760,6 +760,7 @@ class SqliteMemoryRepository:
             sort_by: str = "created_at",
             sort_order: str = "desc",
             tags: list[str] | None = None,
+            importance_min: int | None = None,
     ) -> tuple[list[Memory], int]:
         """Get memories with pagination, sorting, and filtering.
 
@@ -772,6 +773,7 @@ class SqliteMemoryRepository:
             sort_by: Sort field - created_at, updated_at, importance
             sort_order: Sort direction - asc, desc
             tags: Filter by ANY of these tags (OR logic)
+            importance_min: Minimum importance score (optional)
 
         Returns:
             Tuple of (memories, total_count) where total_count is count before pagination
@@ -796,6 +798,9 @@ class SqliteMemoryRepository:
         # Conditional obsolete filter
         if not include_obsolete:
             stmt = stmt.where(MemoryTable.is_obsolete.is_(False))
+
+        if importance_min is not None:
+            stmt = stmt.where(MemoryTable.importance >= importance_min)
 
         # Apply project filter if provided
         if project_ids:

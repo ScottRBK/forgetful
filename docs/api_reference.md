@@ -131,7 +131,11 @@ Get a single memory by ID.
 
 **Response:** Memory object (see above)
 
-The object includes server-managed `access_count` (int, default 0) and `last_accessed_at` (ISO datetime or null). Callers cannot set them on POST/PUT; incrementing them does not change `updated_at`. On upstream, counters increment only when `memory.read` / `memory.queried` events fire (`get_memory` / `query_memory`), which requires `ACTIVITY_TRACK_READS=true` and a wired EventBus (default off → counters stay 0). REST list (`get_recent_memories`) does not increment them.
+The object includes server-managed `access_count` (int, default 0) and `last_accessed_at`
+(ISO datetime or null). Callers cannot set them on POST/PUT; incrementing them does not change
+`updated_at`. On upstream, counters increment only when `memory.read` / `memory.queried` events fire
+(`get_memory` / `query_memory`), which requires `ACTIVITY_TRACK_READS=true` and a wired EventBus
+(default off → counters stay 0). REST listing does not increment them.
 
 ### POST /api/v1/memories
 

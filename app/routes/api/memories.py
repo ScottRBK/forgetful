@@ -98,6 +98,12 @@ def register(mcp: FastMCP):
                 status_code=400,
             )
 
+        if importance_min is not None and not 1 <= importance_min <= 10:
+            return JSONResponse(
+                {"error": "importance_min must be between 1 and 10"},
+                status_code=400,
+            )
+
         # Validate sort_by
         sort_by = params.get("sort_by", "created_at")
         if sort_by not in VALID_SORT_BY:
@@ -124,8 +130,7 @@ def register(mcp: FastMCP):
         # Convert project_id to list if provided
         project_ids = [project_id] if project_id else None
 
-        # Get memories via service (now returns tuple with total count)
-        memories, total = await mcp.memory_service.get_recent_memories(
+        memories, total = await mcp.memory_service.list_memories(
             user_id=user.id,
             limit=limit,
             offset=offset,
@@ -134,13 +139,8 @@ def register(mcp: FastMCP):
             sort_by=sort_by,
             sort_order=sort_order,
             tags=tags,
+            importance_min=importance_min,
         )
-
-        # Filter by importance if specified (post-query filter)
-        if importance_min:
-            memories = [m for m in memories if m.importance >= importance_min]
-            # Note: total count may not reflect this filter accurately
-            # Consider adding importance_min to repository layer in future
 
         response = MemoryListResponse(
             memories=memories,

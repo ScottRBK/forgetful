@@ -426,7 +426,7 @@ class InMemoryMemoryRepository(MemoryRepository):
 
         return True
 
-    async def get_recent_memories(
+    async def list_memories(
         self,
         user_id: UUID,
         limit: int,
@@ -436,6 +436,7 @@ class InMemoryMemoryRepository(MemoryRepository):
         sort_by: str = "created_at",
         sort_order: str = "desc",
         tags: list[str] | None = None,
+        importance_min: int | None = None,
     ) -> tuple[list[Memory], int]:
         """Get memories with pagination, sorting, and filtering"""
         user_memories = self._memories.get(user_id, {})
@@ -455,6 +456,9 @@ class InMemoryMemoryRepository(MemoryRepository):
         if tags:
             tag_set = set(tags)
             memories = [m for m in memories if m.tags and tag_set.intersection(m.tags)]
+
+        if importance_min is not None:
+            memories = [m for m in memories if m.importance >= importance_min]
 
         # Dynamic sorting
         sort_key_map = {

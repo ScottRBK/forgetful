@@ -730,7 +730,7 @@ class MemoryToolAdapters:
         # Envelope the list in a dict (like the list_* tools) so an empty result keeps
         # an object root: a bare [] carries no MCP structured content and collapses to
         # null on the remote wire. total_count is already computed by the service.
-        memories, total_count = await self.memory_service.get_recent_memories(
+        memories, total_count = await self.memory_service.list_memories(
             user_id=user.id,
             limit=limit,
             offset=offset,

@@ -598,7 +598,7 @@ def register(mcp: FastMCP):
 
             memory_service = ctx.fastmcp.memory_service
             # Service returns (memories, total_count) tuple; MCP tool only needs memories
-            memories, _ = await memory_service.get_recent_memories(
+            memories, _ = await memory_service.list_memories(
                 user_id=user.id,
                 limit=limit,
                 offset=offset,
