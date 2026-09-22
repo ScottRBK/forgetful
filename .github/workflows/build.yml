@@ -45,8 +45,20 @@ jobs:
           context: .
           file: docker/Dockerfile
           push: true
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Verify published image version
+        env:
+          IMAGE: ghcr.io/${{ steps.repo.outputs.owner }}/forgetful:${{ steps.meta.outputs.version }}
+          EXPECTED_VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          docker pull "$IMAGE"
+          actual=$(docker run --rm --entrypoint /app/.venv/bin/python "$IMAGE" \
+            -c 'from importlib.metadata import version; print(version("forgetful-ai"))')
+          echo "Installed forgetful-ai version: $actual"
+          test "$actual" = "$EXPECTED_VERSION"
