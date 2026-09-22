@@ -505,6 +505,12 @@ These settings control the atomic memory system's behavior and constraints.
 - **Rationale**: Builds knowledge graph automatically
 - **Example**: `MEMORY_NUM_AUTO_LINK=5`
 
+### `MEMORY_SIMILARITY_THRESHOLD`
+- **Default**: `0.7`
+- **Description**: Minimum cosine similarity required for an automatic memory link
+- **Behavior**: Applies on creation and embedding rebuild; existing links are not removed
+- **Example**: `MEMORY_SIMILARITY_THRESHOLD=0.8`
+
 ---
 
 ## Project Configuration

@@ -34,7 +34,7 @@ Use the 1-10 scale consistently:
 ### Auto-Linking
 When you create a memory, Forgetful automatically:
 1. Generates an embedding vector for the content
-2. Finds semantically similar memories (≥0.7 cosine similarity)
+2. Finds semantically similar memories (≥0.7 cosine similarity by default)
 3. Creates bidirectional links (default: 3 connections)
 4. Returns `auto_linked_to` list showing what was connected
 

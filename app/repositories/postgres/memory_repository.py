@@ -57,17 +57,12 @@ class PostgresMemoryRepository:
             project_ids: list[int] | None,
             exclude_ids: list[int] | None,
     ) -> list[Memory]:
-        """Performs four stage memory retrieval
-        1 -> performs a dense search for a list of candidate memories based on the query 
-        2 -> performs a sparse search for a list of candiatte memories based on the query
-        3 -> combines the candidates and provides a final list using reciprocal ranked fusion
-        4 -> uses a cross encoder to score the list of final candidates based on the query
-        AND the query context and returns the top k
+        """Search by vector similarity, then optionally rerank candidates.
 
         Args:
             user_id: user id for isolation
-            query: the search term to perform the dense and spare searches
-            query_context: the context in which the memories are being asked (used in cross encoder ranking)
+            query: text used for vector search
+            query_context: extra context used only when cross-encoder reranking runs
             k: the number of memories to return
             importance_threshold: optional filter to only retrieve memories of a given importance or above
             project_ids: optional list filter to only retrieve memories that belong to certain projects
@@ -462,7 +457,9 @@ class PostgresMemoryRepository:
                 MemoryTable.id!=memory_id,
             )
         )
-        stmt = stmt.order_by(MemoryTable.embedding.cosine_distance(memory_orm.embedding))
+        distance = MemoryTable.embedding.cosine_distance(memory_orm.embedding)
+        stmt = stmt.where(distance <= 1 - settings.MEMORY_SIMILARITY_THRESHOLD)
+        stmt = stmt.order_by(distance)
         stmt = stmt.limit(max_links)
 
         async with self.db_adapter.session(user_id) as session:

@@ -33,11 +33,10 @@ Get any operation's schema at runtime: `how_to_use_forgetful_tool` (MCP) or
 
 ## Step 1 — Shape the query
 
-`query_context` is a required parameter alongside `query`, not optional flavor text — the
-call errors without it. Pass it deliberately: the two are embedded together, and ranking
-genuinely shifts with intent ("auth" while implementing a feature ranks differently than
-"auth" while debugging login). Include exact identifiers verbatim — error codes, function
-names, config keys — the sparse full-text leg of the search matches them literally.
+`query_context` is a required parameter alongside `query`; the call errors without it.
+The vector search embeds `query` alone. When cross-encoder reranking runs, it also uses
+`query_context` to refine the ranking. Include exact identifiers in `query` when they
+matter, but search does not guarantee literal matches.
 
 Done when: both `query` and `query_context` are written, not just a bare keyword.
 

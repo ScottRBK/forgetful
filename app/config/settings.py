@@ -112,6 +112,7 @@ class Settings(BaseSettings):
     MEMORY_TOKEN_BUDGET: int = 8000         # token budget for retrieved memories (to protect context window)
     MEMORY_MAX_MEMORIES: int = 20           # maximum number of memories that can be retrieved from a query
     MEMORY_NUM_AUTO_LINK: int = 3           # number of memories to automatically link
+    MEMORY_SIMILARITY_THRESHOLD: float = 0.7  # minimum cosine similarity for auto-links
 
     # Project Configuration
     PROJECT_DESCRIPTION_MAX_LENGTH: int = 5000  # Text field, no DB limit - reasonable cap

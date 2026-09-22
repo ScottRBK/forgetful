@@ -101,8 +101,8 @@ Done when: the object exists, atomic, scored, and provenance-stamped where appli
 
 ## Step 5 — Link
 
-Auto-linking connects each new memory to its nearest neighbours (similarity ≥ 0.7). Review
-what it picked up, then add `link_memories` manually only for the four kinds embeddings
+Auto-linking connects each new memory to its nearest neighbours (similarity ≥ 0.7 by default).
+Review what it picked up, then add `link_memories` manually only for the four kinds embeddings
 miss: cross-domain connections, prerequisite chains, contrast (this-not-that), and evolution
 (old approach → new approach).
 

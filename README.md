@@ -362,7 +362,7 @@ For detailed content, use Documents and extract 3-7 atomic memories that link to
 
 When you create a memory:
 1. **Embedding generated** – FastEmbed converts content to 384-dimensional vector
-2. **Similarity search** – Finds top semantically-related memories (≥0.7 threshold)
+2. **Similarity search** – Finds related memories (similarity ≥0.7 by default)
 3. **Auto-linking** – Creates bidirectional links to top 3-5 matches (configurable)
 4. **Graph traversal** – Queries return primary results + 1-hop linked memories
 
@@ -386,7 +386,8 @@ Prevents context window overflow:
 
 This ensures agents get the most relevant context without overwhelming the LLM.
 
-For deep dive on search architecture (dense → sparse → RRF → cross-encoder), see [Search Documentation](docs/search.md).
+For vector search and optional cross-encoder reranking, see
+[Search Documentation](docs/search.md).
 
 ---
 
@@ -399,6 +400,7 @@ For deep dive on search architecture (dense → sparse → RRF → cross-encoder
 - `MEMORY_TOKEN_BUDGET` – Max tokens for query results (default: `8000`)
 - `EMBEDDING_MODEL` – Embedding model (default: `BAAI/bge-small-en-v1.5`)
 - `MEMORY_NUM_AUTO_LINK` – Auto-link count (default: `3`, set `0` to disable)
+- `MEMORY_SIMILARITY_THRESHOLD` – Minimum cosine similarity for auto-links (default: `0.7`)
 - `SERVER_PORT` – HTTP server port (default: `8020`)
 - `MAX_GRAPH_LIMIT` – Upper bound for `/api/v1/graph` `?limit` and `/api/v1/graph/subgraph` `?max_nodes` (default: `2000`)
 

@@ -73,7 +73,7 @@ Query the knowledge base for existing content:
 5. list_documents: Check for architecture/setup/API docs
 6. list_code_artifacts: Check for middleware/utilities/patterns
 7. list_entities: Check for team members, external systems
-8. Note: Check auto-linking quality (similarity ≥0.7 threshold)
+8. Note: Check auto-linking quality (similarity ≥0.7 by default)
 ```
 
 #### Step 4: Analyze Current Codebase State
@@ -647,7 +647,8 @@ update_memory({
 ```
 
 #### Auto-Linking:
-Forgetful automatically creates semantic links between memories (similarity ≥0.7 threshold). Verify link quality during validation phase.
+Forgetful automatically creates semantic links between memories (similarity ≥0.7 by default).
+Verify link quality during validation.
 
 ---
 

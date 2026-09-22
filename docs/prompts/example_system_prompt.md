@@ -28,4 +28,4 @@ memories linking to it.
 - **Query first**: Check if similar memory exists before creating
 - **Use projects**: Scope searches with `project_ids` for relevant retrieval
 - **Importance**: 9-10=foundational, 7-8=useful patterns, <6=discourage
-- **Auto-linking**: Similar memories link automatically (≥0.7 similarity)
+- **Auto-linking**: Similar memories link automatically (≥0.7 similarity by default)
