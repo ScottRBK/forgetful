@@ -2,6 +2,18 @@
 
 This guide covers testing and deployment workflows for contributors.
 
+## Community contributors
+
+- [Olivier BERTHET (@bertheto)](https://github.com/bertheto) has contributed memory access
+  tracking ([#53](https://github.com/ScottRBK/forgetful/pull/53)), recent-memory filters
+  ([#52](https://github.com/ScottRBK/forgetful/pull/52)), offline FastEmbed support
+  ([#44](https://github.com/ScottRBK/forgetful/pull/44)), project encoding checkpoints
+  ([#58](https://github.com/ScottRBK/forgetful/pull/58)), and MCP adapter fixes
+  ([#62](https://github.com/ScottRBK/forgetful/pull/62)). See
+  [all merged PRs][bertheto-prs].
+
+[bertheto-prs]: https://github.com/ScottRBK/forgetful/pulls?q=author%3Abertheto+is%3Amerged
+
 ## Running with Docker with source 
 This will approach will fall back to using the build and as such allow you to check any changes you have made inside of a container. 
 
