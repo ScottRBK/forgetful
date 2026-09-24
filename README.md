@@ -380,11 +380,12 @@ Use entities for concrete things (Sarah Chen, TechFlow Systems, Cache Server 01)
 
 Prevents context window overflow:
 - Configurable budget (default 8K tokens)
-- Results prioritized by importance (9-10 first) → recency (newest first)
+- Search finds relevant memories; primary results are then sorted by importance (high first)
+- Equal-importance primary results keep their search order, even when nothing is truncated
 - Truncates gracefully if over budget
 - Respects max memory count (default 20)
 
-This ensures agents get the most relevant context without overwhelming the LLM.
+This keeps query results within the LLM's context budget.
 
 For vector search and optional cross-encoder reranking, see
 [Search Documentation](docs/search.md).

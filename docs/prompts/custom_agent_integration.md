@@ -39,7 +39,9 @@ When you create a memory, Forgetful automatically:
 4. Returns `auto_linked_to` list showing what was connected
 
 ### Token Budget
-Queries return at most 20 memories, capped at ~8K tokens. Results are prioritized by importance (high first) → recency (newest first within same importance).
+Queries return at most 20 memories, capped at ~8K tokens by default. Primary results are
+sorted by importance (high first); ties keep search order. This applies even when nothing
+is truncated.
 
 ---
 

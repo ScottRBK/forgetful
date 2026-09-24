@@ -2321,13 +2321,13 @@ Forgetful protects your LLM context window with configurable token budgets:
 
 - **Default: 8,000 tokens** per query result
 - **Max 20 memories** returned per query
-- **Prioritization**: High importance (9-10) → Medium importance (7-8) → Recency (newest first)
+- **Primary result order**: Importance (high first); ties keep search order, even without truncation
 - **Graceful truncation**: If over budget, lower-priority memories excluded
 
 Configure via environment variables:
 ```bash
 MEMORY_TOKEN_BUDGET=8000
-MEMORY_MAX_QUERY_RESULTS=20
+MEMORY_MAX_MEMORIES=20
 ```
 
 ---
