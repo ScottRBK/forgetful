@@ -1,11 +1,21 @@
 <h1 align="center">Forgetful</h1>
 
-![Python](https://img.shields.io/badge/python-3.12%2B-blue)
-![License](https://img.shields.io/badge/license-MIT-green)
-![MCP](https://img.shields.io/badge/MCP-server-purple)
-[![FastMCP](https://img.shields.io/badge/FastMCP-powered-orange)](https://github.com/jlowin/fastmcp)
-[![FastEmbed](https://img.shields.io/badge/FastEmbed-powered-orange)](https://github.com/qdrant/fastembed)
-[![Discord](https://img.shields.io/badge/Discord-Join%20Us-7289da?logo=discord&logoColor=white)](https://discord.gg/ngaUjKWkFJ)
+<p align="center">
+  <img src="https://img.shields.io/badge/python-3.12%2B-blue" alt="Python">
+  <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
+  <img src="https://img.shields.io/badge/MCP-server-purple" alt="MCP">
+  <a href="https://github.com/jlowin/fastmcp">
+    <img src="https://img.shields.io/badge/FastMCP-powered-orange" alt="FastMCP">
+  </a>
+  <a href="https://github.com/qdrant/fastembed">
+    <img src="https://img.shields.io/badge/FastEmbed-powered-orange" alt="FastEmbed">
+  </a>
+  <a href="https://discord.gg/ngaUjKWkFJ">
+    <img
+      src="https://img.shields.io/badge/Discord-Join%20Us-7289da?logo=discord&amp;logoColor=white"
+      alt="Discord">
+  </a>
+</p>
 
 
 **Forgetful** is a storage and retrieval tool for AI Agents. Designed as a Model Context Protocol (MCP) server built using the FastMCP framework. Once connected to this service, MCP clients such as Coding Agents, Chat Bots or your own custom built Agents can store and retrieve information from the same knowledge base. 
