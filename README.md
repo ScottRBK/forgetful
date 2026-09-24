@@ -1,4 +1,4 @@
-# Forgetful
+<h1 align="center">Forgetful</h1>
 
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
