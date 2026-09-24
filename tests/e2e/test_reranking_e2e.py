@@ -7,7 +7,10 @@ Requires Docker containers running (forgetful-db, forgetful-service).
 """
 import pytest
 
-pytestmark = pytest.mark.asyncio(loop_scope="session")
+pytestmark = [
+    pytest.mark.e2e,
+    pytest.mark.asyncio(loop_scope="session"),
+]
 
 
 async def test_reranking_reorders_by_context_e2e(mcp_client):
