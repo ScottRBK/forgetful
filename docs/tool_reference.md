@@ -173,7 +173,8 @@ Create an atomic memory with automatic linking to related memories.
 - `id`: Created memory ID
 - `title`: Created memory title
 - `linked_memory_ids`: Automatically linked memory IDs
-- `similar_memories`: Summaries of the automatic-link candidates
+- `similar_memories`: Summaries of the automatic-link candidates; each entry includes `similarity` (cosine similarity to the new memory)
+- `obsolete_matches`: Up to 3 obsolete memories similar to the new content (on by default via `OBSOLETE_WARNING_ENABLED`); each match includes `id`, `title`, `similarity`, `obsolete_reason`, `superseded_by`, `obsoleted_at`, `project_ids`. Warning-only; never blocks creation. Empty when the feature is disabled.
 
 **Example:**
 ```python
@@ -231,6 +232,7 @@ Semantic search across all memories with context-aware ranking.
 **Returns:**
 - List of memories ranked by semantic relevance
 - Each memory includes linked artifacts and 1-hop graph connections
+- `scores`: One `MemoryScore` per primary memory (`memory_id`, `similarity`, `rerank_score`), aligned by index with `primary_memories`. Primaries are importance-sorted after retrieval, so list position is not similarity rank.
 - `access_count` / `last_accessed_at` on each returned **full** `Memory` (not on `MemorySummary`). On upstream they increment when `memory.queried` fires, which requires `ACTIVITY_TRACK_READS=true` and an EventBus. Not request parameters.
 
 **Example:**

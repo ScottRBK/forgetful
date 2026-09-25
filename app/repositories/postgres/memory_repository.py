@@ -11,7 +11,7 @@ from sqlalchemy.orm import selectinload
 from app.config.logging_config import logging
 from app.config.settings import settings
 from app.exceptions import NotFoundError
-from app.models.memory_models import Memory, MemoryCreate, MemoryUpdate
+from app.models.memory_models import Memory, MemoryCreate, MemoryScore, MemoryUpdate
 from app.repositories.embeddings.embedding_adapter import EmbeddingsAdapter
 from app.repositories.embeddings.reranker_adapter import RerankAdapter
 from app.repositories.helpers import (
@@ -57,26 +57,32 @@ class PostgresMemoryRepository:
             project_ids: list[int] | None,
             exclude_ids: list[int] | None,
     ) -> list[Memory]:
-        """Search by vector similarity, then optionally rerank candidates.
+        return [memory for memory, _ in await self.search_scored(
+            user_id=user_id,
+            query=query,
+            query_context=query_context,
+            k=k,
+            importance_threshold=importance_threshold,
+            project_ids=project_ids,
+            exclude_ids=exclude_ids,
+        )]
 
-        Args:
-            user_id: user id for isolation
-            query: text used for vector search
-            query_context: extra context used only when cross-encoder reranking runs
-            k: the number of memories to return
-            importance_threshold: optional filter to only retrieve memories of a given importance or above
-            project_ids: optional list filter to only retrieve memories that belong to certain projects
-            exclude_ids: optional list of memory ids to exclude from the search
-                
-        Returns:
-            List of Memories objects
-        """
+    async def search_scored(
+            self,
+            user_id: UUID,
+            query: str,
+            query_context: str,
+            k: int,
+            importance_threshold: int | None,
+            project_ids: list[int] | None,
+            exclude_ids: list[int] | None,
+    ) -> list[tuple[Memory, MemoryScore]]:
         if settings.RERANKING_ENABLED:
             candidates_to_return = settings.DENSE_SEARCH_CANDIDATES
         else:
             candidates_to_return = k
 
-        dense_candidates = await self.semantic_search(
+        dense_candidates = await self.semantic_search_scored(
             user_id=user_id,
             query=query,
             k=candidates_to_return,
@@ -86,10 +92,13 @@ class PostgresMemoryRepository:
         )
 
         if not dense_candidates or not settings.RERANKING_ENABLED or len(dense_candidates) <= k:
-            return dense_candidates
+            return [
+                (m, MemoryScore(memory_id=m.id, similarity=1.0 - d))
+                for m, d in dense_candidates
+            ]
 
         documents = []
-        for memory in dense_candidates:
+        for memory, _distance in dense_candidates:
             memory_text = build_memory_text(memory)
             documents.append(memory_text)
 
@@ -100,11 +109,17 @@ class PostgresMemoryRepository:
 
         ranked = await self.rerank_adapter.rerank(query=rerank_query, documents=documents)
 
-        top_k_memories = [dense_candidates[idx] for idx, score in ranked[:k]]
-
-        return top_k_memories
-
-
+        return [
+            (
+                dense_candidates[idx][0],
+                MemoryScore(
+                    memory_id=dense_candidates[idx][0].id,
+                    similarity=1.0 - dense_candidates[idx][1],
+                    rerank_score=float(score),
+                ),
+            )
+            for idx, score in ranked[:k]
+        ]
 
     async def semantic_search(
             self,
@@ -115,26 +130,30 @@ class PostgresMemoryRepository:
             project_ids: list[int] | None,
             exclude_ids: list[int] | None,
     ) -> list[Memory]:
-        """Perform semantic search using vector similarity
+        return [memory for memory, _ in await self.semantic_search_scored(
+            user_id=user_id,
+            query=query,
+            k=k,
+            importance_threshold=importance_threshold,
+            project_ids=project_ids,
+            exclude_ids=exclude_ids,
+        )]
 
-        Args:
-            session: Database session
-            user_id: User ID (for isolation)
-            query: query to generate embeddings from
-            k: Number of results to return
-            importance_threshold: Minimum importance score
-            project_ids: Filter by project IDs (if provided)
-            exclude_ids: Memory IDs to exclude from results
-
-        Returns:
-            List of Memory objects ordered by similarity
-        """
+    async def semantic_search_scored(
+            self,
+            user_id: UUID,
+            query: str,
+            k: int,
+            importance_threshold: int | None,
+            project_ids: list[int] | None,
+            exclude_ids: list[int] | None,
+    ) -> list[tuple[Memory, float]]:
         query_text = query.strip()
-
         embeddings = await self._generate_embeddings(query_text)
+        distance_expr = MemoryTable.embedding.cosine_distance(embeddings)
 
         stmt = (
-            select(MemoryTable)
+            select(MemoryTable, distance_expr.label("distance"))
             .options(
                 selectinload(MemoryTable.linked_memories),
                 selectinload(MemoryTable.linking_memories),
@@ -144,17 +163,15 @@ class PostgresMemoryRepository:
                 selectinload(MemoryTable.files),
             )
             .where(
-                MemoryTable.user_id==user_id,
+                MemoryTable.user_id == user_id,
                 MemoryTable.is_obsolete.is_(False),
             )
         )
 
-        # Apply filters first to reduce expensive vector call on all memories unless neccesary
         if importance_threshold:
             stmt = stmt.where(MemoryTable.importance >= importance_threshold)
 
         if project_ids:
-            # Use exists() with subquery to avoid DISTINCT+ORDER BY PostgreSQL error
             project_filter = select(memory_project_association.c.memory_id).where(
                 memory_project_association.c.memory_id == MemoryTable.id,
                 memory_project_association.c.project_id.in_(project_ids),
@@ -164,14 +181,12 @@ class PostgresMemoryRepository:
         if exclude_ids:
             stmt = stmt.where(MemoryTable.id.not_in(exclude_ids))
 
-        stmt = stmt.order_by(MemoryTable.embedding.cosine_distance(embeddings))
-        stmt = stmt.limit(k)
+        stmt = stmt.order_by(distance_expr).limit(k)
 
         async with self.db_adapter.session(user_id) as session:
             result = await session.execute(stmt)
-            memories_orm = result.scalars().all()
-            return [Memory.model_validate(memory) for memory in memories_orm]
-
+            rows = result.all()
+            return [(Memory.model_validate(orm), float(dist)) for orm, dist in rows]
 
     async def create_memory(self, user_id: UUID, memory: MemoryCreate) -> Memory:
         """Create a new memory in postgres
@@ -432,17 +447,25 @@ class PostgresMemoryRepository:
             memory_id: int,
             max_links: int,
     ) -> list[Memory]:
-        """Finds similar memories for a given memory
+        return [m for m, _ in await self.find_similar_memories_scored(
+            user_id=user_id,
+            memory_id=memory_id,
+            max_links=max_links,
+        )]
 
-        Args:
-            user_id: User ID
-            memory_id: Memory ID to find similar memories for
-            max_links: Maximum number of similar memories to find
-        """
+    async def find_similar_memories_scored(
+            self,
+            user_id: UUID,
+            memory_id: int,
+            max_links: int,
+    ) -> list[tuple[Memory, float]]:
         memory_orm = await self.get_memory_table_by_id(user_id=user_id, memory_id=memory_id)
 
+        distance_expr = MemoryTable.embedding.cosine_distance(memory_orm.embedding)
+        max_distance = 1 - settings.MEMORY_SIMILARITY_THRESHOLD
+
         stmt = (
-            select(MemoryTable)
+            select(MemoryTable, distance_expr.label("distance"))
             .options(
                 selectinload(MemoryTable.linked_memories),
                 selectinload(MemoryTable.linking_memories),
@@ -452,22 +475,62 @@ class PostgresMemoryRepository:
                 selectinload(MemoryTable.files),
             )
             .where(
-                MemoryTable.user_id==user_id,
+                MemoryTable.user_id == user_id,
                 MemoryTable.is_obsolete.is_(False),
-                MemoryTable.id!=memory_id,
+                MemoryTable.id != memory_id,
+                distance_expr <= max_distance,
             )
+            .order_by(distance_expr)
+            .limit(max_links)
         )
-        distance = MemoryTable.embedding.cosine_distance(memory_orm.embedding)
-        stmt = stmt.where(distance <= 1 - settings.MEMORY_SIMILARITY_THRESHOLD)
-        stmt = stmt.order_by(distance)
-        stmt = stmt.limit(max_links)
 
         async with self.db_adapter.session(user_id) as session:
             result = await session.execute(stmt)
-            memories_orm = result.scalars().all()
-            return [Memory.model_validate(memory) for memory in memories_orm]
+            rows = result.all()
+            return [(Memory.model_validate(orm), 1.0 - float(dist)) for orm, dist in rows]
 
+    async def find_obsolete_matches(
+            self,
+            user_id: UUID,
+            memory_id: int,
+            limit: int,
+            min_similarity: float,
+    ) -> list[tuple[Memory, float]]:
+        try:
+            memory_orm = await self.get_memory_table_by_id(user_id=user_id, memory_id=memory_id)
+        except NotFoundError:
+            return []
 
+        if memory_orm.embedding is None:
+            return []
+
+        distance_expr = MemoryTable.embedding.cosine_distance(memory_orm.embedding)
+        max_distance = 1.0 - min_similarity
+
+        stmt = (
+            select(MemoryTable, distance_expr.label("distance"))
+            .options(
+                selectinload(MemoryTable.linked_memories),
+                selectinload(MemoryTable.linking_memories),
+                selectinload(MemoryTable.projects),
+                selectinload(MemoryTable.code_artifacts),
+                selectinload(MemoryTable.documents),
+                selectinload(MemoryTable.files),
+            )
+            .where(
+                MemoryTable.user_id == user_id,
+                MemoryTable.is_obsolete.is_(True),
+                MemoryTable.id != memory_id,
+                distance_expr <= max_distance,
+            )
+            .order_by(distance_expr)
+            .limit(limit)
+        )
+
+        async with self.db_adapter.session(user_id) as session:
+            result = await session.execute(stmt)
+            rows = result.all()
+            return [(Memory.model_validate(orm), 1.0 - float(dist)) for orm, dist in rows]
 
     async def get_linked_memories(
             self,

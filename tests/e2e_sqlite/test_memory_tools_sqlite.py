@@ -81,6 +81,11 @@ async def test_query_memory_e2e(mcp_client):
     assert query_result.data["total_count"] > 0
     assert query_result.data["token_count"] > 0
     assert isinstance(query_result.data["truncated"], bool)
+    scores = query_result.data["scores"]
+    primaries = query_result.data["primary_memories"]
+    assert len(scores) == len(primaries)
+    for idx, score in enumerate(scores):
+        assert score["memory_id"] == primaries[idx]["id"]
     found_titles = [m["title"] for m in query_result.data["primary_memories"]]
     assert "Python Testing Best Practices" in found_titles
 

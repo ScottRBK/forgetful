@@ -281,6 +281,32 @@ class InMemoryMemoryRepository(MemoryRepository):
 
         return memories[:k]
 
+    async def search_scored(
+        self,
+        user_id: UUID,
+        query: str,
+        query_context: str,
+        k: int,
+        importance_threshold: int | None,
+        project_ids: list[int] | None,
+        exclude_ids: list[int] | None = None,
+    ):
+        from app.models.memory_models import MemoryScore
+
+        result = await self.search(
+            user_id=user_id,
+            query=query,
+            query_context=query_context,
+            k=k,
+            importance_threshold=importance_threshold,
+            project_ids=project_ids,
+            exclude_ids=exclude_ids,
+        )
+        return [
+            (m, MemoryScore(memory_id=m.id, similarity=1.0 - 0.01 * i))
+            for i, m in enumerate(result)
+        ]
+
     async def find_similar_memories(
         self, user_id: UUID, memory_id: int, max_links: int,
     ) -> list[Memory]:
@@ -309,6 +335,73 @@ class InMemoryMemoryRepository(MemoryRepository):
         similar.sort(key=lambda m: m.importance, reverse=True)
 
         return similar[:max_links]
+
+    async def find_similar_memories_scored(
+        self,
+        user_id: UUID,
+        memory_id: int,
+        max_links: int,
+    ):
+        from app.config.settings import settings
+
+        user_memories = self._memories.get(user_id, {})
+
+        source = user_memories.get(memory_id)
+        if not source:
+            from app.exceptions import NotFoundError
+
+            raise NotFoundError(f"Memory {memory_id} not found")
+
+        candidates = [
+            m for m in user_memories.values() if m.id != memory_id and not m.is_obsolete
+        ]
+
+        ranked: list[tuple[Memory, float]] = []
+        for candidate in candidates:
+            overlap = len(set(source.keywords) & set(candidate.keywords))
+            if overlap > 0:
+                distance = max(0.02, 0.15 / overlap)
+                ranked.append((candidate, 1.0 - distance))
+
+        ranked.sort(key=lambda item: -item[1])
+
+        max_distance = 1 - settings.MEMORY_SIMILARITY_THRESHOLD
+
+        kept: list[tuple[Memory, float]] = []
+        for candidate, similarity in ranked:
+            if (1.0 - similarity) <= max_distance:
+                kept.append((candidate, similarity))
+            if len(kept) >= max_links:
+                break
+
+        return kept
+
+    async def find_obsolete_matches(
+        self,
+        user_id: UUID,
+        memory_id: int,
+        limit: int,
+        min_similarity: float,
+    ):
+        user_memories = self._memories.get(user_id, {})
+        source = user_memories.get(memory_id)
+        if not source:
+            return []
+
+        candidates = [
+            m for m in user_memories.values() if m.id != memory_id and m.is_obsolete
+        ]
+
+        ranked: list[tuple[Memory, float]] = []
+        for candidate in candidates:
+            overlap = len(set(source.keywords) & set(candidate.keywords))
+            distance = 0.05 if overlap > 0 else 0.5
+            similarity = 1.0 - distance
+            if similarity >= min_similarity:
+                ranked.append((candidate, similarity))
+
+        ranked.sort(key=lambda item: -item[1])
+        return ranked[:limit]
 
     async def create_links_batch(
         self, user_id: UUID, source_id: int, target_ids: list[int],

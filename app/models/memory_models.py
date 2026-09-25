@@ -306,8 +306,36 @@ class MemorySummary(BaseModel):
     importance: int
     created_at: datetime
     updated_at: datetime
+    similarity: float | None = Field(
+        default=None,
+        description="Cosine similarity to the new memory when returned by create_memory",
+    )
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class MemoryScore(BaseModel):
+    """Retrieval score for one primary memory, aligned by index with primary_memories"""
+
+    memory_id: int
+    similarity: float = Field(..., description="1 - cosine distance to the query embedding")
+    rerank_score: float | None = Field(
+        default=None,
+        description="Cross-encoder score when RERANKING_ENABLED, else null",
+    )
+
+
+class ObsoleteMatch(BaseModel):
+    """Obsolete memory whose embedding is at or above OBSOLETE_WARNING_THRESHOLD"""
+
+    id: int
+    title: str
+    similarity: float
+    obsolete_reason: str | None = None
+    superseded_by: int | None = None
+    obsoleted_at: datetime | None = None
+    project_ids: list[int] = Field(default_factory=list)
+
 
 class MemoryCreateResponse(BaseModel):
     """Lightweight response information to confirm memory creation"""
@@ -322,6 +350,13 @@ class MemoryCreateResponse(BaseModel):
     similar_memories: list[MemorySummary] = Field(
         default_factory=list,
         description="Summaries of similar memories that were auto-linked for review",
+    )
+    obsolete_matches: list[ObsoleteMatch] = Field(
+        default_factory=list,
+        description=(
+            "Obsolete memories at or above OBSOLETE_WARNING_THRESHOLD when OBSOLETE_WARNING_ENABLED; "
+            "always [] when OBSOLETE_WARNING_ENABLED is false; check superseded_by before keeping this memory"
+        ),
     )
 
 
@@ -395,6 +430,10 @@ class MemoryQueryResult(BaseModel):
     query: str
     primary_memories: list[Memory]
     linked_memories: list[LinkedMemory] = Field(default_factory=list)
+    scores: list[MemoryScore] = Field(
+        default_factory=list,
+        description="One entry per primary memory, same order",
+    )
     total_count: int
     token_count: int
     truncated: bool = Field(False, description="Whether the results were truncated due to token budget")

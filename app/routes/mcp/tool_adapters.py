@@ -255,6 +255,10 @@ class MemoryToolAdapters:
         memory, similar_memories = await self.memory_service.create_memory(
             user_id=user.id, memory_data=memory_data,
         )
+        obsolete_matches = await self.memory_service.find_obsolete_matches(
+            user_id=user.id,
+            memory_id=memory.id,
+        )
 
         logger.info(
             "MCP Tool Call -> create memory completed",
@@ -275,6 +279,7 @@ class MemoryToolAdapters:
             code_artifact_ids=memory.code_artifact_ids,
             document_ids=memory.document_ids,
             similar_memories=similar_memories,
+            obsolete_matches=obsolete_matches,
         )
 
     async def query_memory(

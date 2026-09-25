@@ -92,7 +92,12 @@ def register(mcp: FastMCP):
             encoding_version: Version of encoding process/prompt for provenance tracking (optional)
 
         Returns:
-            {ID, title, linked_memory_ids, project_ids, code_artifact_ids, document_ids}
+            {ID, title, linked_memory_ids, project_ids, code_artifact_ids, document_ids, file_ids, skill_ids,
+            similar_memories[].similarity,
+            obsolete_matches: obsolete memories at or above OBSOLETE_WARNING_THRESHOLD when OBSOLETE_WARNING_ENABLED
+            (on by default; disable with OBSOLETE_WARNING_ENABLED=false). Fields: id, title, similarity,
+            obsolete_reason, superseded_by, obsoleted_at, project_ids. If non-empty, read superseded_by before
+            keeping this memory.}
 
         """
         logger.info("MCP Tool Called -> create memory", extra={
@@ -126,6 +131,10 @@ def register(mcp: FastMCP):
                 user_id=user.id,
                 memory_data=memory_data,
             )
+            obsolete_matches = await memory_service.find_obsolete_matches(
+                user_id=user.id,
+                memory_id=memory.id,
+            )
 
             logger.info("MCP Tool Call -> create memory completed", extra={
                 "user_id": user.id,
@@ -143,6 +152,7 @@ def register(mcp: FastMCP):
                 code_artifact_ids=memory.code_artifact_ids,
                 document_ids=memory.document_ids,
                 similar_memories=similar_memories,
+                obsolete_matches=obsolete_matches,
             )
 
         except NotFoundError as e:
@@ -214,6 +224,7 @@ def register(mcp: FastMCP):
             query: origional query text
             primary_memories: List of primary related memories
             linked_memories: List of linked memories to each of the primary memories
+            scores: one {memory_id, similarity, rerank_score} per primary memory, same order
             total_count: int total count of memories
             token_count: token count of retrieved memories
             truncated: boolean to indicate if the memories have been truncated as a result of the token budget
