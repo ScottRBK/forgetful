@@ -23,6 +23,7 @@ from app.models.memory_models import (
     MemoryQueryResult,
     MemorySummary,
     MemoryUpdate,
+    ObsoleteMatch,
 )
 from app.protocols.memory_protocol import MemoryRepository
 from app.utils.provenance import (
@@ -78,7 +79,7 @@ class MemoryService:
             MemoryQueryResults with primary memories, linked memories, and metadata
         """
         logger.info("querying primary memories", extra={"query": memory_query.query})
-        primary_memories = await self.memory_repo.search(
+        scored = await self.memory_repo.search_scored(
             user_id=user_id,
             query=memory_query.query,
             query_context=memory_query.query_context,
@@ -86,7 +87,9 @@ class MemoryService:
             importance_threshold=memory_query.importance_threshold,
             project_ids=memory_query.project_ids,
             exclude_ids=None,
-         )
+        )
+        primary_memories = [m for m, _ in scored]
+        score_by_id = {m.id: s for m, s in scored}
         logger.info("primary memory query completed", extra={"number of messages found": len(primary_memories)})
 
         linked_memories = []
@@ -157,6 +160,7 @@ class MemoryService:
             query=memory_query.query,
             primary_memories=final_primaries,
             linked_memories=final_linked,
+            scores=[score_by_id[m.id] for m in final_primaries if m.id in score_by_id],
             total_count=len(final_primaries) + len(final_linked),
             token_count=token_count,
             truncated=truncated,
@@ -182,14 +186,14 @@ class MemoryService:
         similar_memories = []
         linked_ids = []
         if settings.MEMORY_NUM_AUTO_LINK > 0:
-            similar_memories_full = await self.memory_repo.find_similar_memories(
+            similar_scored = await self.memory_repo.find_similar_memories_scored(
                 memory_id=memory.id,
                 user_id=user_id,
                 max_links=settings.MEMORY_NUM_AUTO_LINK,
             )
 
-            if similar_memories_full:
-                target_ids = [m.id for m in similar_memories_full]
+            if similar_scored:
+                target_ids = [m.id for m, _ in similar_scored]
                 linked_ids = await self.memory_repo.create_links_batch(
                     user_id=user_id,
                     source_id=memory.id,
@@ -207,8 +211,9 @@ class MemoryService:
                         importance=m.importance,
                         created_at=m.created_at,
                         updated_at=m.updated_at,
+                        similarity=round(sim, 4),
                     )
-                    for m in similar_memories_full
+                    for m, sim in similar_scored
                 ]
 
                 logger.info("Automatically linked memories", extra={
@@ -371,6 +376,42 @@ class MemoryService:
             )
 
         return memory
+
+    async def find_obsolete_matches(
+            self,
+            user_id: UUID,
+            memory_id: int,
+    ) -> list[ObsoleteMatch]:
+        if not settings.OBSOLETE_WARNING_ENABLED:
+            return []
+
+        try:
+            matches = await self.memory_repo.find_obsolete_matches(
+                user_id=user_id,
+                memory_id=memory_id,
+                limit=3,
+                min_similarity=settings.OBSOLETE_WARNING_THRESHOLD,
+            )
+        except Exception as exc:  # noqa: BLE001 - create must not fail on warning lookup
+            logger.warning(
+                "find_obsolete_matches failed for memory %s: %s",
+                memory_id,
+                exc,
+            )
+            return []
+
+        return [
+            ObsoleteMatch(
+                id=m.id,
+                title=m.title,
+                similarity=round(sim, 4),
+                obsolete_reason=m.obsolete_reason,
+                superseded_by=m.superseded_by,
+                obsoleted_at=m.obsoleted_at,
+                project_ids=m.project_ids,
+            )
+            for m, sim in matches
+        ]
 
     async def list_memories(
             self,

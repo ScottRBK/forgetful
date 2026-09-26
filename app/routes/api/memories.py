@@ -194,6 +194,10 @@ def register(mcp: FastMCP):
             user_id=user.id,
             memory_data=memory_data,
         )
+        obsolete_matches = await mcp.memory_service.find_obsolete_matches(
+            user_id=user.id,
+            memory_id=memory.id,
+        )
 
         response = MemoryCreateResponse(
             id=memory.id,
@@ -204,6 +208,7 @@ def register(mcp: FastMCP):
             document_ids=memory.document_ids,
             file_ids=memory.file_ids,
             similar_memories=similar_memories,
+            obsolete_matches=obsolete_matches,
         )
 
         return JSONResponse(response.model_dump(mode="json"), status_code=201)

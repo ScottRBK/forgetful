@@ -12,7 +12,7 @@ from sqlalchemy.orm import selectinload
 from app.config.logging_config import logging
 from app.config.settings import settings
 from app.exceptions import NotFoundError
-from app.models.memory_models import Memory, MemoryCreate, MemoryUpdate
+from app.models.memory_models import Memory, MemoryCreate, MemoryScore, MemoryUpdate
 from app.repositories.embeddings.embedding_adapter import EmbeddingsAdapter
 from app.repositories.embeddings.reranker_adapter import RerankAdapter
 from app.repositories.helpers import (
@@ -64,26 +64,34 @@ class SqliteMemoryRepository:
         project_ids: list[int] | None,
         exclude_ids: list[int] | None,
     ) -> list[Memory]:
-        """Search by vector similarity, then optionally rerank candidates.
+        """Search by vector similarity, then optionally rerank candidates."""
+        return [memory for memory, _ in await self.search_scored(
+            user_id=user_id,
+            query=query,
+            query_context=query_context,
+            k=k,
+            importance_threshold=importance_threshold,
+            project_ids=project_ids,
+            exclude_ids=exclude_ids,
+        )]
 
-        Args:
-            user_id: user id for isolation
-            query: text used for vector search
-            query_context: extra context used only when cross-encoder reranking runs
-            k: the number of memories to return
-            importance_threshold: optional filter to only retrieve memories of a given importance or above
-            project_ids: optional list filter to only retrieve memories that belong to certain projects
-            exclude_ids: optional list of memory ids to exclude from the search
-
-        Returns:
-            List of Memories objects
-        """
+    async def search_scored(
+        self,
+        user_id: UUID,
+        query: str,
+        query_context: str,
+        k: int,
+        importance_threshold: int | None,
+        project_ids: list[int] | None,
+        exclude_ids: list[int] | None,
+    ) -> list[tuple[Memory, MemoryScore]]:
+        """Search by vector similarity, then optionally rerank candidates (with scores)."""
         if settings.RERANKING_ENABLED:
             candidates_to_return = settings.DENSE_SEARCH_CANDIDATES
         else:
             candidates_to_return = k
 
-        dense_candidates = await self.semantic_search(
+        dense_candidates = await self.semantic_search_scored(
             user_id=user_id,
             query=query,
             k=candidates_to_return,
@@ -93,10 +101,13 @@ class SqliteMemoryRepository:
         )
 
         if not dense_candidates or not settings.RERANKING_ENABLED or len(dense_candidates) <= k:
-            return dense_candidates
+            return [
+                (m, MemoryScore(memory_id=m.id, similarity=1.0 - d))
+                for m, d in dense_candidates
+            ]
 
         documents = []
-        for memory in dense_candidates:
+        for memory, _distance in dense_candidates:
             memory_text = build_memory_text(memory)
             documents.append(memory_text)
 
@@ -107,9 +118,17 @@ class SqliteMemoryRepository:
 
         ranked = await self.rerank_adapter.rerank(query=rerank_query, documents=documents)
 
-        top_k_memories = [dense_candidates[idx] for idx, score in ranked[:k]]
-
-        return top_k_memories
+        return [
+            (
+                dense_candidates[idx][0],
+                MemoryScore(
+                    memory_id=dense_candidates[idx][0].id,
+                    similarity=1.0 - dense_candidates[idx][1],
+                    rerank_score=float(score),
+                ),
+            )
+            for idx, score in ranked[:k]
+        ]
 
     async def semantic_search(
         self,
@@ -120,19 +139,25 @@ class SqliteMemoryRepository:
         project_ids: list[int] | None,
         exclude_ids: list[int] | None,
     ) -> list[Memory]:
-        """Perform semantic search using vector similarity with sqlite-vec
+        return [memory for memory, _ in await self.semantic_search_scored(
+            user_id=user_id,
+            query=query,
+            k=k,
+            importance_threshold=importance_threshold,
+            project_ids=project_ids,
+            exclude_ids=exclude_ids,
+        )]
 
-        Args:
-            user_id: User ID (for isolation)
-            query: query to generate embeddings from
-            k: Number of results to return
-            importance_threshold: Minimum importance score
-            project_ids: Filter by project IDs (if provided)
-            exclude_ids: Memory IDs to exclude from results
-
-        Returns:
-            List of Memory objects ordered by similarity
-        """
+    async def semantic_search_scored(
+        self,
+        user_id: UUID,
+        query: str,
+        k: int,
+        importance_threshold: int | None,
+        project_ids: list[int] | None,
+        exclude_ids: list[int] | None,
+    ) -> list[tuple[Memory, float]]:
+        """Perform semantic search using vector similarity with sqlite-vec."""
         query_text = query.strip()
         embeddings = await self._generate_embeddings(query_text)
 
@@ -147,7 +172,8 @@ class SqliteMemoryRepository:
                 """
                 SELECT m.id, m.user_id, m.title, m.content, m.context, m.keywords, m.tags,
                        m.importance, m.is_obsolete, m.obsolete_reason, m.superseded_by,
-                       m.obsoleted_at, m.created_at, m.updated_at
+                       m.obsoleted_at, m.created_at, m.updated_at,
+                       vec_distance_cosine(vm.embedding, :query_embedding) AS distance
                 FROM memories m
                 INNER JOIN vec_memories vm ON m.id = vm.memory_id
                 WHERE m.user_id = :user_id AND m.is_obsolete = 0
@@ -187,7 +213,7 @@ class SqliteMemoryRepository:
             # Add vector similarity ordering and limit
             sql_parts.append(
                 """
-                ORDER BY vec_distance_cosine(vm.embedding, :query_embedding)
+                ORDER BY distance
                 LIMIT :k
                 """,
             )
@@ -197,11 +223,11 @@ class SqliteMemoryRepository:
             result = await session.execute(text(sql_query), params)
             rows = result.fetchall()
 
-            # Convert rows to Memory IDs, then load via SQLAlchemy with relationships
             if not rows:
                 return []
 
             memory_ids = [row[0] for row in rows]
+            distance_by_id = {row[0]: float(row[-1]) for row in rows}
 
             # Load full Memory objects with relationships
             stmt = (
@@ -224,7 +250,10 @@ class SqliteMemoryRepository:
             memory_dict = {m.id: m for m in memories_orm}
             ordered_memories = [memory_dict[mid] for mid in memory_ids if mid in memory_dict]
 
-            return [Memory.model_validate(memory) for memory in ordered_memories]
+            return [
+                (Memory.model_validate(memory), distance_by_id[memory.id])
+                for memory in ordered_memories
+            ]
 
     async def create_memory(self, user_id: UUID, memory: MemoryCreate) -> Memory:
         """Create a new memory in SQLite with vector storage
@@ -478,16 +507,19 @@ class SqliteMemoryRepository:
             return True
 
     async def find_similar_memories(self, user_id: UUID, memory_id: int, max_links: int) -> list[Memory]:
-        """Finds similar memories for a given memory using vector similarity
+        return [m for m, _ in await self.find_similar_memories_scored(
+            user_id=user_id,
+            memory_id=memory_id,
+            max_links=max_links,
+        )]
 
-        Args:
-            user_id: User ID
-            memory_id: Memory ID to find similar memories for
-            max_links: Maximum number of similar memories to find
-        """
-        # Get the source memory's embedding from vec_memories
+    async def find_similar_memories_scored(
+        self,
+        user_id: UUID,
+        memory_id: int,
+        max_links: int,
+    ) -> list[tuple[Memory, float]]:
         async with self.db_adapter.session(user_id) as session:
-            # Get the embedding for the source memory
             embedding_result = await session.execute(
                 text("SELECT embedding FROM vec_memories WHERE memory_id = :memory_id"),
                 {"memory_id": str(memory_id)},
@@ -497,17 +529,17 @@ class SqliteMemoryRepository:
                 raise NotFoundError(f"Memory {memory_id} not found or has no embedding")
 
             source_embedding = embedding_row[0]
+            max_distance = 1 - settings.MEMORY_SIMILARITY_THRESHOLD
 
-            # Find similar memories using vector similarity
             sql_query = """
-                SELECT m.id
+                SELECT m.id, vec_distance_cosine(vm.embedding, :source_embedding) AS distance
                 FROM memories m
                 INNER JOIN vec_memories vm ON m.id = vm.memory_id
                 WHERE m.user_id = :user_id
                   AND m.is_obsolete = 0
                   AND m.id != :memory_id
                   AND vec_distance_cosine(vm.embedding, :source_embedding) <= :max_distance
-                ORDER BY vec_distance_cosine(vm.embedding, :source_embedding)
+                ORDER BY distance
                 LIMIT :max_links
             """
 
@@ -517,17 +549,17 @@ class SqliteMemoryRepository:
                     "user_id": str(user_id),
                     "memory_id": memory_id,
                     "source_embedding": source_embedding,
-                    "max_distance": 1 - settings.MEMORY_SIMILARITY_THRESHOLD,
+                    "max_distance": max_distance,
                     "max_links": max_links,
                 },
             )
             rows = result.fetchall()
-            memory_ids = [row[0] for row in rows]
-
-            if not memory_ids:
+            if not rows:
                 return []
 
-            # Load full Memory objects with relationships
+            memory_ids = [row[0] for row in rows]
+            similarity_by_id = {row[0]: 1.0 - float(row[1]) for row in rows}
+
             stmt = (
                 select(MemoryTable)
                 .where(MemoryTable.id.in_(memory_ids))
@@ -544,11 +576,79 @@ class SqliteMemoryRepository:
             result = await session.execute(stmt)
             memories_orm = result.scalars().all()
 
-            # Preserve order from similarity search
             memory_dict = {m.id: m for m in memories_orm}
             ordered_memories = [memory_dict[mid] for mid in memory_ids if mid in memory_dict]
 
-            return [Memory.model_validate(memory) for memory in ordered_memories]
+            return [
+                (Memory.model_validate(memory), similarity_by_id[memory.id])
+                for memory in ordered_memories
+            ]
+
+    async def find_obsolete_matches(
+        self,
+        user_id: UUID,
+        memory_id: int,
+        limit: int,
+        min_similarity: float,
+    ) -> list[tuple[Memory, float]]:
+        async with self.db_adapter.session(user_id) as session:
+            embedding_result = await session.execute(
+                text("SELECT embedding FROM vec_memories WHERE memory_id = :memory_id"),
+                {"memory_id": str(memory_id)},
+            )
+            embedding_row = embedding_result.fetchone()
+            if not embedding_row:
+                return []
+
+            source_embedding = embedding_row[0]
+            max_distance = 1.0 - min_similarity
+
+            sql_query = """
+                SELECT m.id, vec_distance_cosine(vm.embedding, :source_embedding) AS distance
+                FROM memories m
+                INNER JOIN vec_memories vm ON m.id = vm.memory_id
+                WHERE m.user_id = :user_id AND m.is_obsolete = 1 AND m.id != :memory_id
+                  AND vec_distance_cosine(vm.embedding, :source_embedding) <= :max_distance
+                ORDER BY distance
+                LIMIT :limit
+            """
+            params = {
+                "user_id": str(user_id),
+                "memory_id": memory_id,
+                "source_embedding": source_embedding,
+                "max_distance": max_distance,
+                "limit": limit,
+            }
+
+            result = await session.execute(text(sql_query), params)
+            rows = result.fetchall()
+            if not rows:
+                return []
+
+            memory_ids = [row[0] for row in rows]
+            similarity_by_id = {row[0]: 1.0 - float(row[1]) for row in rows}
+
+            stmt = (
+                select(MemoryTable)
+                .where(MemoryTable.id.in_(memory_ids))
+                .options(
+                    selectinload(MemoryTable.linked_memories),
+                    selectinload(MemoryTable.linking_memories),
+                    selectinload(MemoryTable.projects),
+                    selectinload(MemoryTable.code_artifacts),
+                    selectinload(MemoryTable.documents),
+                    selectinload(MemoryTable.files),
+                )
+            )
+            result = await session.execute(stmt)
+            memories_orm = result.scalars().all()
+            memory_dict = {m.id: m for m in memories_orm}
+            ordered_memories = [memory_dict[mid] for mid in memory_ids if mid in memory_dict]
+
+            return [
+                (Memory.model_validate(memory), similarity_by_id[memory.id])
+                for memory in ordered_memories
+            ]
 
     async def get_linked_memories(
         self,

@@ -304,7 +304,7 @@ def register_memory_tools_metadata(
                     "example": "claude-sonnet-4-6",
                 },
             ],
-            "returns": "MemoryCreateResponse with id, title, linked_memory_ids, similar_memories",
+            "returns": "MemoryCreateResponse with id, title, linked_memory_ids, similar_memories, obsolete_matches",
             "examples": [
                 'execute_forgetful_tool("create_memory", {"title": "FastAPI auth pattern", "content": "Use JWT with httponly cookies...", "context": "Security decision", "keywords": ["auth", "jwt"], "tags": ["security"], "importance": 9})',
             ],
@@ -383,7 +383,7 @@ def register_memory_tools_metadata(
                     "example": False,
                 },
             ],
-            "returns": "MemoryQueryResult with primary_memories, linked_memories, total_count, token_count, truncated flag",
+            "returns": "MemoryQueryResult with primary_memories, linked_memories, scores, total_count, token_count, truncated flag",
             "examples": [
                 'execute_forgetful_tool("query_memory", {"query": "authentication patterns", "query_context": "building API login", "k": 5})',
                 'execute_forgetful_tool("query_memory", {"query": "database design", "query_context": "schema review", "importance_threshold": 8, "k": 3})',

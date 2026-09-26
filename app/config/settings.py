@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from platformdirs import user_config_dir, user_data_dir
-from pydantic import ConfigDict
+from pydantic import ConfigDict, field_validator
 from pydantic_settings import BaseSettings
 
 from app.version import get_version
@@ -113,6 +113,8 @@ class Settings(BaseSettings):
     MEMORY_MAX_MEMORIES: int = 20           # maximum number of memories that can be retrieved from a query
     MEMORY_NUM_AUTO_LINK: int = 3           # number of memories to automatically link
     MEMORY_SIMILARITY_THRESHOLD: float = 0.7  # minimum cosine similarity for auto-links
+    OBSOLETE_WARNING_ENABLED: bool = True  # create_memory warns when content matches superseded memories
+    OBSOLETE_WARNING_THRESHOLD: float = 0.89  # minimum cosine similarity for obsolete-memory warnings
 
     # Project Configuration
     PROJECT_DESCRIPTION_MAX_LENGTH: int = 5000  # Text field, no DB limit - reasonable cap
@@ -227,6 +229,13 @@ class Settings(BaseSettings):
     # FASTEMBED CACHE CONFIGURATION
     FASTEMBED_CACHE_DIR: str = str(_default_data_dir / "models" / "fastembed")
     FASTEMBED_LOCAL_FILES_ONLY: bool = False      # When True, FastEmbed only loads models from local cache
+
+    @field_validator("OBSOLETE_WARNING_THRESHOLD")
+    @classmethod
+    def _validate_obsolete_warning_threshold(cls, value: float) -> float:
+        if not 0.0 < value <= 1.0:
+            raise ValueError("OBSOLETE_WARNING_THRESHOLD must be in (0, 1]")
+        return value
 
     """Pydantic Configuration"""
 

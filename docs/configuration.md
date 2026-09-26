@@ -511,6 +511,18 @@ These settings control the atomic memory system's behavior and constraints.
 - **Behavior**: Applies on creation and embedding rebuild; existing links are not removed
 - **Example**: `MEMORY_SIMILARITY_THRESHOLD=0.8`
 
+### `OBSOLETE_WARNING_ENABLED`
+- **Default**: `true`
+- **Description**: Warn when a created memory is similar to superseded memories
+- **Behavior**: Warning-only in response payload, max 3 matches, same user, all projects; never blocks creation; adds one vector query per `create_memory`; when `false`, `obsolete_matches` is always `[]` and no query runs
+- **Example**: `OBSOLETE_WARNING_ENABLED=false`
+
+### `OBSOLETE_WARNING_THRESHOLD`
+- **Default**: `0.89`
+- **Description**: Minimum cosine similarity for obsolete-memory warnings
+- **Behavior**: Validated in (0, 1]; ignored when OBSOLETE_WARNING_ENABLED is false
+- **Example**: `OBSOLETE_WARNING_THRESHOLD=0.92`
+
 ---
 
 ## Project Configuration

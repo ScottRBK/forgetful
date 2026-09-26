@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Any, Protocol
 from uuid import UUID
 
-from app.models.memory_models import Memory, MemoryCreate, MemoryUpdate
+from app.models.memory_models import Memory, MemoryCreate, MemoryScore, MemoryUpdate
 
 
 @dataclass
@@ -32,6 +32,19 @@ class MemoryRepository(Protocol):
             exclude_ids: list[int] | None,
     ) -> list[Memory]:
         ...
+
+    async def search_scored(
+            self,
+            user_id: UUID,
+            query: str,
+            query_context: str,
+            k: int,
+            importance_threshold: int | None,
+            project_ids: list[int] | None,
+            exclude_ids: list[int] | None,
+    ) -> list[tuple[Memory, MemoryScore]]:
+        ...
+
     async def create_memory(
             self,
             user_id: UUID,
@@ -82,6 +95,23 @@ class MemoryRepository(Protocol):
             memory_id: int,
             max_links: int,
     ) -> list[Memory]:
+        ...
+
+    async def find_similar_memories_scored(
+            self,
+            user_id: UUID,
+            memory_id: int,
+            max_links: int,
+    ) -> list[tuple[Memory, float]]:
+        ...
+
+    async def find_obsolete_matches(
+            self,
+            user_id: UUID,
+            memory_id: int,
+            limit: int = 3,
+            min_similarity: float = 0.89,
+    ) -> list[tuple[Memory, float]]:
         ...
 
     async def list_memories(
