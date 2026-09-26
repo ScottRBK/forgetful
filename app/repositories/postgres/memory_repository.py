@@ -972,22 +972,19 @@ class PostgresMemoryRepository:
     # ============ Re-embedding support methods ============
 
     async def count_all_memories(self) -> int:
-        """Count all non-obsolete memories across all users"""
+        """Count all memories, including obsolete ones, across all users."""
         from sqlalchemy import func
         async with self.db_adapter.system_session() as session:
             result = await session.scalar(
-                select(func.count()).select_from(MemoryTable).where(
-                    MemoryTable.is_obsolete.is_(False),
-                ),
+                select(func.count()).select_from(MemoryTable),
             )
             return result
 
     async def get_memories_for_reembedding(self, limit: int, offset: int) -> list[Memory]:
-        """Fetch memories in batches for re-embedding (all users, ordered by id)"""
+        """Fetch all memories, including obsolete ones, in batches ordered by id."""
         async with self.db_adapter.system_session() as session:
             stmt = (
                 select(MemoryTable)
-                .where(MemoryTable.is_obsolete.is_(False))
                 .options(
                     selectinload(MemoryTable.projects),
                     selectinload(MemoryTable.linked_memories),
@@ -1148,17 +1145,14 @@ class PostgresMemoryRepository:
             return written
 
     async def validate_embedding_count(self) -> bool:
-        """Check embedding count matches non-obsolete memory count"""
+        """Check embedding count matches all memories, including obsolete ones."""
         from sqlalchemy import func
         async with self.db_adapter.system_session() as session:
             memory_count = await session.scalar(
-                select(func.count()).select_from(MemoryTable).where(
-                    MemoryTable.is_obsolete.is_(False),
-                ),
+                select(func.count()).select_from(MemoryTable),
             )
             embedding_count = await session.scalar(
                 select(func.count()).select_from(MemoryTable).where(
-                    MemoryTable.is_obsolete.is_(False),
                     MemoryTable.embedding.isnot(None),
                 ),
             )
@@ -1171,7 +1165,7 @@ class PostgresMemoryRepository:
                 text("""
                     SELECT vector_dims(embedding) as dims
                     FROM memories
-                    WHERE is_obsolete = false AND embedding IS NOT NULL
+                    WHERE embedding IS NOT NULL
                     LIMIT 5
                 """),
             )
@@ -1189,10 +1183,10 @@ class PostgresMemoryRepository:
             return True
 
     async def validate_search_works(self) -> bool:
-        """Run a smoke-test semantic search using a random memory's title"""
+        """Smoke-test vector storage, including obsolete memories."""
         async with self.db_adapter.system_session() as session:
             title_result = await session.execute(
-                text("SELECT title FROM memories WHERE is_obsolete = false LIMIT 1"),
+                text("SELECT title FROM memories LIMIT 1"),
             )
             row = title_result.fetchone()
             if not row:
@@ -1203,7 +1197,7 @@ class PostgresMemoryRepository:
 
             search_result = await session.execute(
                 select(MemoryTable.id)
-                .where(MemoryTable.is_obsolete.is_(False))
+                .where(MemoryTable.embedding.isnot(None))
                 .order_by(MemoryTable.embedding.cosine_distance(embeddings))
                 .limit(1),
             )

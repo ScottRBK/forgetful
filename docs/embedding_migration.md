@@ -49,7 +49,9 @@ uv run main.py --re-embed
 
 ### `--re-embed`
 
-Runs the re-embedding migration instead of starting the server. Processes all memories with the currently configured embedding provider.
+Runs the re-embedding migration instead of starting the server. Processes all memories across all
+users, including obsolete memories, with the currently configured embedding provider and dimensions.
+Counts and progress include obsolete memories. Their status and supersession metadata are preserved.
 
 ```bash
 forgetful --re-embed [--batch-size N] [--dry-run]
@@ -116,7 +118,7 @@ Resizes the vector storage to match the new `EMBEDDING_DIMENSIONS`:
 
 ### Step 4: Re-embed Memories
 
-Processes all memories in batches:
+Processes all active and obsolete memories in batches:
 1. Reads a batch of memories from the database
 2. Generates new embeddings using the configured provider
 3. Writes the new embeddings back
@@ -131,9 +133,9 @@ Processes all memories in batches:
 
 Runs three automated checks:
 
-1. **Count check** - Verifies every memory has an embedding
+1. **Count check** - Verifies every memory, including obsolete memories, has an embedding
 2. **Dimension check** - Samples embeddings and confirms correct dimension count
-3. **Search check** - Runs a smoke-test semantic search to confirm results are returned
+3. **Search check** - Tests vector retrieval, including when all memories are obsolete
 
 ```
 [5/5] Validating...
@@ -141,6 +143,20 @@ Runs three automated checks:
   Dimension check: ✓
   Search check: ✓
 ```
+
+---
+
+## Recovering Obsolete-Memory Warnings
+
+Older full rebuilds removed vectors for obsolete memories. This prevented `create_memory` from
+warning when new content closely matched them. After upgrading, run `forgetful --re-embed` once,
+even if your embedding settings have not changed. The rebuild regenerates missing vectors from the
+stored memory content using the current model and dimensions. It also works when every memory is
+obsolete.
+
+Obsolete memories remain excluded from normal queries and automatic links. The targeted
+`rebuild_embeddings` tool still processes active memories only; use the full CLI rebuild for
+recovery.
 
 ---
 

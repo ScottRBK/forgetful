@@ -1039,19 +1039,18 @@ class SqliteMemoryRepository:
     # ============ Re-embedding support methods ============
 
     async def count_all_memories(self) -> int:
-        """Count all non-obsolete memories across all users"""
+        """Count all memories, including obsolete ones, across all users."""
         async with self.db_adapter.system_session() as session:
             result = await session.execute(
-                text("SELECT COUNT(*) FROM memories WHERE is_obsolete = 0"),
+                text("SELECT COUNT(*) FROM memories"),
             )
             return result.scalar()
 
     async def get_memories_for_reembedding(self, limit: int, offset: int) -> list[Memory]:
-        """Fetch memories in batches for re-embedding (all users, ordered by id)"""
+        """Fetch all memories, including obsolete ones, in batches ordered by id."""
         async with self.db_adapter.system_session() as session:
             stmt = (
                 select(MemoryTable)
-                .where(MemoryTable.is_obsolete.is_(False))
                 .options(
                     selectinload(MemoryTable.projects),
                     selectinload(MemoryTable.linked_memories),
@@ -1216,10 +1215,10 @@ class SqliteMemoryRepository:
             return written
 
     async def validate_embedding_count(self) -> bool:
-        """Check embedding count matches non-obsolete memory count"""
+        """Check embedding count matches all memories, including obsolete ones."""
         async with self.db_adapter.system_session() as session:
             mem_result = await session.execute(
-                text("SELECT COUNT(*) FROM memories WHERE is_obsolete = 0"),
+                text("SELECT COUNT(*) FROM memories"),
             )
             memory_count = mem_result.scalar()
 
@@ -1253,11 +1252,11 @@ class SqliteMemoryRepository:
             return True
 
     async def validate_search_works(self) -> bool:
-        """Run a smoke-test semantic search using a random memory's title"""
+        """Smoke-test vector storage, including obsolete memories."""
         async with self.db_adapter.system_session() as session:
             # Pick a random memory title
             title_result = await session.execute(
-                text("SELECT title FROM memories WHERE is_obsolete = 0 LIMIT 1"),
+                text("SELECT title FROM memories LIMIT 1"),
             )
             row = title_result.fetchone()
             if not row:

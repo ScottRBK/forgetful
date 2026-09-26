@@ -607,15 +607,12 @@ class InMemoryMemoryRepository(MemoryRepository):
     # Re-embedding support stubs
 
     async def count_all_memories(self) -> int:
-        return sum(
-            1 for user_mems in self._memories.values()
-            for m in user_mems.values() if not m.is_obsolete
-        )
+        return sum(len(user_mems) for user_mems in self._memories.values())
 
     async def get_memories_for_reembedding(self, limit: int, offset: int) -> list[Memory]:
         all_memories = [
             m for user_mems in self._memories.values()
-            for m in user_mems.values() if not m.is_obsolete
+            for m in user_mems.values()
         ]
         all_memories.sort(key=lambda m: m.id)
         return all_memories[offset:offset + limit]

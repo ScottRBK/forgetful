@@ -190,6 +190,58 @@ async def test_re_embed_preserves_memory_data(sqlite_repo, embedding_adapter):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("obsolete_only", [False, True], ids=["mixed", "all-obsolete"])
+@pytest.mark.parametrize("previous_storage", ["missing_vector", "old_dimensions"])
+async def test_re_embed_recovers_obsolete_vectors(
+    sqlite_repo, embedding_adapter, monkeypatch, obsolete_only, previous_storage,
+):
+    repo, db_adapter = sqlite_repo
+    user_id, memories = await _create_test_memories(repo, db_adapter, count=3)
+    old = memories[-1]
+    await repo.mark_obsolete(user_id, old.id, "superseded", memories[0].id)
+    if obsolete_only:
+        for memory in memories[:-1]:
+            await repo.mark_obsolete(user_id, memory.id, "outdated")
+    original = await repo.get_memory_by_id(user_id, old.id)
+
+    if previous_storage == "missing_vector":
+        # Reproduce the obsolete vector loss caused by older full rebuilds.
+        async with db_adapter.system_session() as session:
+            await session.execute(
+                text("DELETE FROM vec_memories WHERE memory_id = :id"),
+                {"id": str(old.id)},
+            )
+    else:
+        # Model startup uses the new dimensions; stored vectors still use the old model.
+        with monkeypatch.context() as old_settings:
+            old_settings.setattr(settings, "EMBEDDING_DIMENSIONS", 8)
+            await repo.reset_embedding_storage()
+        await repo.bulk_update_embeddings([
+            (memory.id, [1.0] + [0.0] * 7) for memory in memories
+        ])
+
+    progress = []
+    result = await ReEmbeddingService(repo, embedding_adapter, batch_size=2).re_embed_all(
+        progress_callback=lambda done, total: progress.append((done, total)),
+    )
+
+    assert result.total_memories == result.total_processed == 3
+    assert progress == [(2, 3), (3, 3)]
+    assert result.validation.all_passed
+    refreshed = await repo.get_memory_by_id(user_id, old.id)
+    preserved_fields = {
+        "title", "content", "context", "keywords", "tags", "importance", "created_at",
+        "is_obsolete", "obsolete_reason", "superseded_by", "obsoleted_at",
+    }
+    assert refreshed.model_dump(include=preserved_fields) == original.model_dump(
+        include=preserved_fields,
+    )
+    recreated = await repo.create_memory(user_id, MemoryCreate.model_validate(old.model_dump()))
+    matches = await repo.find_obsolete_matches(user_id, recreated.id, limit=3, min_similarity=0.99)
+    assert old.id in {memory.id for memory, _ in matches}
+
+
+@pytest.mark.asyncio
 async def test_re_embed_empty_database(sqlite_repo, embedding_adapter):
     """Re-embedding an empty database should succeed with no work done"""
     repo, db_adapter = sqlite_repo
@@ -223,6 +275,28 @@ async def test_re_embed_validation_checks(sqlite_repo, embedding_adapter):
     assert result.validation.dimensions_ok
     assert result.validation.search_ok
     assert result.validation.all_passed
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("problem", ["missing_embeddings", "wrong_dimensions"])
+async def test_validation_checks_obsolete_only_database(
+    sqlite_repo, embedding_adapter, monkeypatch, problem,
+):
+    repo, db_adapter = sqlite_repo
+    user_id, memories = await _create_test_memories(repo, db_adapter, count=1)
+    await repo.mark_obsolete(user_id, memories[0].id, "outdated")
+    if problem == "missing_embeddings":
+        await repo.reset_embedding_storage()
+    else:
+        monkeypatch.setattr(settings, "EMBEDDING_DIMENSIONS", settings.EMBEDDING_DIMENSIONS + 1)
+
+    validation = await ReEmbeddingService(repo, embedding_adapter).validate()
+
+    if problem == "missing_embeddings":
+        assert not validation.count_ok
+        assert not validation.search_ok
+    else:
+        assert not validation.dimensions_ok
 
 
 # ---------------------------------------------------------------------------

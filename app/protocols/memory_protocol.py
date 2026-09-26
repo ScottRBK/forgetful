@@ -211,11 +211,11 @@ class MemoryRepository(Protocol):
     # Re-embedding support methods
 
     async def count_all_memories(self) -> int:
-        """Count all non-obsolete memories across all users"""
+        """Count all memories, including obsolete ones, across all users."""
         ...
 
     async def get_memories_for_reembedding(self, limit: int, offset: int) -> list[Memory]:
-        """Fetch memories in batches for re-embedding (all users, ordered by id)"""
+        """Fetch all memories, including obsolete ones, in batches ordered by id."""
         ...
 
     async def count_memories_for_targeted_rebuild(
@@ -289,7 +289,7 @@ class MemoryRepository(Protocol):
         ...
 
     async def validate_embedding_count(self) -> bool:
-        """Check embedding count matches non-obsolete memory count"""
+        """Check embedding count matches all memories, including obsolete ones."""
         ...
 
     async def validate_embedding_dimensions(self) -> bool:
@@ -297,7 +297,7 @@ class MemoryRepository(Protocol):
         ...
 
     async def validate_search_works(self) -> bool:
-        """Run a smoke-test semantic search"""
+        """Smoke-test vector storage, including obsolete memories."""
         ...
 
     # ------------------------------------------------------------------
