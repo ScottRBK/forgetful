@@ -2,8 +2,6 @@
 
 Uses PostgreSQL + REST API with ACTIVITY_ENABLED and ACTIVITY_TRACK_READS enabled.
 """
-import asyncio
-
 import pytest
 
 pytestmark = pytest.mark.asyncio(loop_scope="session")
@@ -15,16 +13,11 @@ SETTINGS_OVERRIDE = {
 }
 
 
-async def _wait_for_access_handler() -> None:
-    """Allow async EventBus access-tracking handler to complete."""
-    await asyncio.sleep(0.5)
-
-
 @pytest.mark.e2e
 class TestMemoryUsageTrackingE2E:
     """access_count updates on read paths when activity read tracking is enabled."""
 
-    async def test_get_memory_increments_access_count(self, http_client):
+    async def test_get_memory_increments_access_count(self, http_client, wait_for_events):
         """GET /api/v1/memories/{id} bumps access_count when read tracking is on."""
         create_response = await http_client.post("/api/v1/memories", json={
             "title": "Access Count GET E2E",
@@ -40,15 +33,15 @@ class TestMemoryUsageTrackingE2E:
         read_response = await http_client.get(f"/api/v1/memories/{memory_id}")
         assert read_response.status_code == 200
 
-        await _wait_for_access_handler()
+        await wait_for_events()
 
         refreshed_response = await http_client.get(f"/api/v1/memories/{memory_id}")
         assert refreshed_response.status_code == 200
         refreshed = refreshed_response.json()
-        assert refreshed["access_count"] >= 1
+        assert refreshed["access_count"] == 1
         assert refreshed["last_accessed_at"] is not None
 
-    async def test_query_memory_increments_access_count(self, http_client):
+    async def test_query_memory_increments_access_count(self, http_client, wait_for_events):
         """POST /api/v1/memories/search records access for returned memory IDs."""
         primary_response = await http_client.post("/api/v1/memories", json={
             "title": "Access Count Query Primary E2E",
@@ -77,12 +70,13 @@ class TestMemoryUsageTrackingE2E:
             json={"related_ids": [linked_id]},
         )
         assert link_response.status_code == 200
-        await _wait_for_access_handler()
+        await wait_for_events()
 
         primary_before = (await http_client.get(f"/api/v1/memories/{primary_id}")).json()
         linked_before = (await http_client.get(f"/api/v1/memories/{linked_id}")).json()
         primary_count_before = primary_before["access_count"]
         linked_count_before = linked_before["access_count"]
+        await wait_for_events()
 
         search_response = await http_client.post("/api/v1/memories/search", json={
             "query": "access-count-e2e-query-primary",
@@ -100,13 +94,15 @@ class TestMemoryUsageTrackingE2E:
         assert primary_id in tracked_ids
         assert linked_id in tracked_ids
 
-        await _wait_for_access_handler()
+        await wait_for_events()
 
         primary_after = (await http_client.get(f"/api/v1/memories/{primary_id}")).json()
         linked_after = (await http_client.get(f"/api/v1/memories/{linked_id}")).json()
 
-        assert primary_after["access_count"] > primary_count_before
+        # Each count includes one baseline GET and one search access. The baseline GET
+        # alone must not satisfy the assertion if search tracking stops working.
+        assert primary_after["access_count"] == primary_count_before + 2
         assert primary_after["last_accessed_at"] is not None
 
-        assert linked_after["access_count"] > linked_count_before
+        assert linked_after["access_count"] == linked_count_before + 2
         assert linked_after["last_accessed_at"] is not None

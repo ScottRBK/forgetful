@@ -106,12 +106,6 @@ async def _create_test_memories(repo, db_adapter, count=3):
     return user_id, memories
 
 
-async def _truncate_memories(db_adapter):
-    """Truncate memories table for test isolation."""
-    async with db_adapter.system_session() as session:
-        await session.execute(text("TRUNCATE memories, users CASCADE"))
-
-
 @pytest.mark.e2e
 async def test_backup_and_restore_after_schema_modification(memory_repo, db_adapter, embedding_adapter):
     """Verify backup restores correctly after schema has been modified.
@@ -123,7 +117,6 @@ async def test_backup_and_restore_after_schema_modification(memory_repo, db_adap
     4. Something fails — restore from backup
     5. Original data and schema should be intact
     """
-    await _truncate_memories(db_adapter)
     user_id, memories = await _create_test_memories(memory_repo, db_adapter, count=3)
 
     # Verify memories exist with embeddings before backup
@@ -183,7 +176,6 @@ async def test_backup_and_restore_with_data_changes(memory_repo, db_adapter, emb
     """Verify backup restores to the point-in-time state, discarding
     data added after the backup was taken.
     """
-    await _truncate_memories(db_adapter)
     user_id, original_memories = await _create_test_memories(memory_repo, db_adapter, count=2)
 
     # Create backup with 2 memories

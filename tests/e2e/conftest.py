@@ -1,9 +1,11 @@
 """E2E test fixtures with in-process FastMCP server + session-scoped PostgreSQL
 
 Architecture:
-- Session: One PostgreSQL container (docker compose), one db_adapter with migrations
-- Module: TRUNCATE tables for isolation, fresh FastMCP app per module
-- Function: Fresh MCP client / HTTP client per test
+- Session: One PostgreSQL container, connection pool, migrations, and loaded models
+- Function: Empty application tables, fresh app/services, restored settings and clients
+
+Each test creates all the data it needs. Background event handlers finish before
+the next test clears the tables. Tests sharing this database must run sequentially.
 
 This replaces the previous Docker Compose orchestration (which spun up both
 postgres + forgetful-service containers per module) with a much faster approach:
@@ -24,7 +26,6 @@ import pytest
 import pytest_asyncio
 from fastmcp import Client, FastMCP
 from httpx import ASGITransport, AsyncByteStream, AsyncClient, Request, Response
-from sqlalchemy import text
 
 from app.bootstrap import create_repositories
 from app.config.settings import settings
@@ -41,6 +42,7 @@ from app.repositories.embeddings.reranker_adapter import (
     HttpRerankAdapter,
 )
 from app.repositories.postgres.postgres_adapter import PostgresDatabaseAdapter
+from app.repositories.postgres.postgres_tables import Base
 from app.repositories.postgres.skill_repository import PostgresSkillRepository
 from app.routes.api import (
     activity,
@@ -195,7 +197,7 @@ class StreamingASGITransport(ASGITransport):
         return Response(status_code, headers=response_headers, stream=stream)
 
 
-# All tables to TRUNCATE between modules (order doesn't matter with CASCADE)
+# Clear child/association tables before their parents, leaving migration history intact.
 ALL_TABLES = [
     "activity_log",
     "task_dependencies",
@@ -349,45 +351,39 @@ def reranker_adapter():
 
 
 # ---------------------------------------------------------------------------
-# MODULE-SCOPED FIXTURES (once per test file)
+# FUNCTION-SCOPED FIXTURES (per test, reusing the expensive session fixtures)
 # ---------------------------------------------------------------------------
 
 
-@pytest_asyncio.fixture(scope="module", loop_scope="session", autouse=True)
-async def truncate_tables(db_adapter):
-    """Clean all application tables before each module for isolation."""
-    table_list = ", ".join(ALL_TABLES)
+@pytest_asyncio.fixture(loop_scope="session", autouse=True)
+async def clean_database(db_adapter):
+    """Clean all application tables before each test, including repeated runs."""
+    # Small test datasets are much cheaper to DELETE than to TRUNCATE 26 tables and
+    # restart their sequences. Tests must use returned IDs, not assume they start at 1.
     async with db_adapter.system_session() as session:
-        await session.execute(text(f"TRUNCATE {table_list} RESTART IDENTITY CASCADE"))
-    print(f"\n  Truncated {len(ALL_TABLES)} tables")
+        for table in ALL_TABLES:
+            await session.execute(Base.metadata.tables[table].delete())
 
 
-@pytest_asyncio.fixture(scope="module", loop_scope="session")
-async def postgres_app(db_adapter, embedding_adapter, reranker_adapter, request):
-    """Module-scoped FastMCP app backed by PostgreSQL.
-
-    Reads SETTINGS_OVERRIDE from the test module to apply per-module settings
-    (e.g. MEMORY_NUM_AUTO_LINK=0, ACTIVITY_TRACK_READS=True).
-    """
-    # Apply module-level settings overrides
-    overrides = {}
-    if hasattr(request, "module") and hasattr(request.module, "SETTINGS_OVERRIDE"):
-        overrides = request.module.SETTINGS_OVERRIDE
-
-    saved = {}
+@pytest.fixture
+def app_settings(request, monkeypatch):
+    """Apply module overrides per test; restore even if app setup fails."""
+    overrides = {
+        **getattr(request.module, "SETTINGS_OVERRIDE", {}),
+        "DATABASE": "Postgres",
+        "POSTGRES_HOST": "127.0.0.1",
+        "PLANNING_ENABLED": True,
+        "FILES_ENABLED": True,
+    }
     for key, value in overrides.items():
-        saved[key] = getattr(settings, key)
-        setattr(settings, key, value)
+        monkeypatch.setattr(settings, key, value)
 
-    # Ensure database setting is Postgres for repo creation
-    original_database = settings.DATABASE
-    original_host = settings.POSTGRES_HOST
-    original_planning = settings.PLANNING_ENABLED
-    original_files = settings.FILES_ENABLED
-    settings.DATABASE = "Postgres"
-    settings.POSTGRES_HOST = "127.0.0.1"
-    settings.PLANNING_ENABLED = True
-    settings.FILES_ENABLED = True
+
+@pytest_asyncio.fixture(loop_scope="session")
+async def postgres_app(
+    db_adapter, embedding_adapter, reranker_adapter, clean_database, app_settings,
+):
+    """Fresh FastMCP app and services per test, sharing the pool and loaded models."""
 
     repos = create_repositories(db_adapter, embedding_adapter, reranker_adapter)
     skill_repository = PostgresSkillRepository(
@@ -477,7 +473,11 @@ async def postgres_app(db_adapter, embedding_adapter, reranker_adapter, request)
             skill_service=skill_service,
         )
 
-        yield
+        try:
+            yield
+        finally:
+            if event_bus is not None:
+                await event_bus.wait_for_pending(timeout=5.0)
 
     mcp = FastMCP("Forgetful-Postgres-E2E", lifespan=lifespan)
 
@@ -500,18 +500,15 @@ async def postgres_app(db_adapter, embedding_adapter, reranker_adapter, request)
 
     yield mcp
 
-    # Restore settings
-    settings.DATABASE = original_database
-    settings.POSTGRES_HOST = original_host
-    settings.PLANNING_ENABLED = original_planning
-    settings.FILES_ENABLED = original_files
-    for key, value in saved.items():
-        setattr(settings, key, value)
 
+@pytest.fixture
+def wait_for_events(postgres_app):
+    """Wait for event handlers instead of sleeping before API assertions."""
+    async def wait():
+        assert postgres_app.event_bus is not None, "Enable ACTIVITY_ENABLED for this test"
+        await postgres_app.event_bus.wait_for_pending(timeout=5.0)
 
-# ---------------------------------------------------------------------------
-# FUNCTION-SCOPED FIXTURES (per test)
-# ---------------------------------------------------------------------------
+    return wait
 
 
 @pytest_asyncio.fixture(loop_scope="session")
@@ -536,5 +533,3 @@ async def http_client(postgres_app):
         transport = StreamingASGITransport(app=asgi_app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             yield client
-
-

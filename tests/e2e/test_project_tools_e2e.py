@@ -70,8 +70,9 @@ async def test_get_project_e2e(mcp_client):
 
 
 @pytest.mark.e2e
-async def test_list_projects_e2e(mcp_client):
-    """Test listing projects"""
+@pytest.mark.parametrize("_repeat", range(2), ids=["first", "repeat"])
+async def test_list_projects_e2e(mcp_client, _repeat):
+    """List exactly this test's projects, including when the workflow is repeated."""
     project_names = ["list-test-1", "list-test-2", "list-test-3"]
     for name in project_names:
         await mcp_client.call_tool(
@@ -92,7 +93,8 @@ async def test_list_projects_e2e(mcp_client):
     assert "projects" in list_result.data
     assert "total_count" in list_result.data
     projects = list_result.data["projects"]
-    assert len(projects) >= 3
+    assert list_result.data["total_count"] == 3
+    assert len(projects) == 3
     project_names_in_result = [p["name"] for p in projects]
     for name in project_names:
         assert name in project_names_in_result

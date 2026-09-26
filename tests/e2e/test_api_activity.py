@@ -32,7 +32,7 @@ class TestActivityAPIList:
         assert data["limit"] == 50
         assert data["offset"] == 0
 
-    async def test_list_activity_after_memory_created(self, http_client):
+    async def test_list_activity_after_memory_created(self, http_client, wait_for_events):
         """GET /api/v1/activity returns events after memory creation."""
         payload = {
             "title": "Test Memory for Activity",
@@ -46,7 +46,7 @@ class TestActivityAPIList:
         assert create_response.status_code == 201
 
         # Wait for async event processing
-        await asyncio.sleep(0.5)
+        await wait_for_events()
 
         response = await http_client.get("/api/v1/activity")
         assert response.status_code == 200
@@ -57,7 +57,7 @@ class TestActivityAPIList:
         created_events = [e for e in data["events"] if e["action"] == "created"]
         assert len(created_events) >= 1
 
-    async def test_list_activity_filter_by_entity_type(self, http_client):
+    async def test_list_activity_filter_by_entity_type(self, http_client, wait_for_events):
         """GET /api/v1/activity filters by entity_type."""
         await http_client.post("/api/v1/memories", json={
             "title": "Memory for Entity Type Filter",
@@ -68,7 +68,7 @@ class TestActivityAPIList:
             "importance": 7,
         })
 
-        await asyncio.sleep(0.5)
+        await wait_for_events()
 
         response = await http_client.get("/api/v1/activity?entity_type=memory")
         assert response.status_code == 200
@@ -77,7 +77,7 @@ class TestActivityAPIList:
         for event in data["events"]:
             assert event["entity_type"] == "memory"
 
-    async def test_list_activity_filter_by_action(self, http_client):
+    async def test_list_activity_filter_by_action(self, http_client, wait_for_events):
         """GET /api/v1/activity filters by action."""
         create_response = await http_client.post("/api/v1/memories", json={
             "title": "Memory for Action Filter",
@@ -94,7 +94,7 @@ class TestActivityAPIList:
             json={"title": "Updated Title"},
         )
 
-        await asyncio.sleep(0.5)
+        await wait_for_events()
 
         response = await http_client.get("/api/v1/activity?action=created")
         assert response.status_code == 200
@@ -108,7 +108,7 @@ class TestActivityAPIList:
 class TestActivityAPIUpdates:
     """Test activity tracking for update operations."""
 
-    async def test_update_generates_event_with_changes(self, http_client):
+    async def test_update_generates_event_with_changes(self, http_client, wait_for_events):
         """Memory update generates event with changes diff."""
         create_response = await http_client.post("/api/v1/memories", json={
             "title": "Original Title",
@@ -125,7 +125,7 @@ class TestActivityAPIUpdates:
             json={"title": "New Title", "importance": 9},
         )
 
-        await asyncio.sleep(0.5)
+        await wait_for_events()
 
         response = await http_client.get(
             f"/api/v1/activity?entity_id={memory_id}&action=updated",
@@ -148,7 +148,7 @@ class TestActivityAPIUpdates:
 class TestActivityAPIDelete:
     """Test activity tracking for delete operations."""
 
-    async def test_delete_generates_event(self, http_client):
+    async def test_delete_generates_event(self, http_client, wait_for_events):
         """Memory deletion generates deleted event."""
         create_response = await http_client.post("/api/v1/memories", json={
             "title": "Memory to Delete",
@@ -166,7 +166,7 @@ class TestActivityAPIDelete:
             json={"reason": "Test deletion"},
         )
 
-        await asyncio.sleep(0.5)
+        await wait_for_events()
 
         response = await http_client.get(
             f"/api/v1/activity?entity_id={memory_id}&action=deleted",
@@ -184,7 +184,7 @@ class TestActivityAPIDelete:
 class TestActivityAPIReads:
     """Test activity tracking for read operations."""
 
-    async def test_get_memory_generates_read_event(self, http_client):
+    async def test_get_memory_generates_read_event(self, http_client, wait_for_events):
         """GET /api/v1/memories/{id} generates read event when tracking enabled."""
         create_response = await http_client.post("/api/v1/memories", json={
             "title": "Memory for Read Test",
@@ -198,7 +198,7 @@ class TestActivityAPIReads:
 
         await http_client.get(f"/api/v1/memories/{memory_id}")
 
-        await asyncio.sleep(0.5)
+        await wait_for_events()
 
         response = await http_client.get(
             f"/api/v1/activity?entity_id={memory_id}&action=read",
@@ -216,7 +216,7 @@ class TestActivityAPIReads:
 class TestActivityAPIEntityHistory:
     """Test GET /api/v1/activity/{entity_type}/{entity_id} endpoint."""
 
-    async def test_get_entity_history(self, http_client):
+    async def test_get_entity_history(self, http_client, wait_for_events):
         """GET entity history returns all events for a specific entity."""
         create_response = await http_client.post("/api/v1/memories", json={
             "title": "Memory for History Test",
@@ -233,7 +233,7 @@ class TestActivityAPIEntityHistory:
             json={"title": "Updated Title", "importance": 8},
         )
 
-        await asyncio.sleep(0.5)
+        await wait_for_events()
 
         response = await http_client.get(f"/api/v1/activity/memory/{memory_id}")
         assert response.status_code == 200
@@ -467,7 +467,7 @@ class TestActivityAPIStreamSSE:
 class TestActivityAPIProject:
     """Test activity tracking for Project operations."""
 
-    async def test_project_created_event(self, http_client):
+    async def test_project_created_event(self, http_client, wait_for_events):
         """POST /api/v1/projects generates created event."""
         create_response = await http_client.post(
             "/api/v1/projects",
@@ -480,7 +480,7 @@ class TestActivityAPIProject:
         assert create_response.status_code == 201
         project_id = create_response.json()["id"]
 
-        await asyncio.sleep(0.5)
+        await wait_for_events()
 
         response = await http_client.get(
             f"/api/v1/activity?entity_type=project&entity_id={project_id}&action=created",
@@ -493,7 +493,7 @@ class TestActivityAPIProject:
         assert event["entity_type"] == "project"
         assert event["action"] == "created"
 
-    async def test_project_updated_event(self, http_client):
+    async def test_project_updated_event(self, http_client, wait_for_events):
         """PUT /api/v1/projects/{id} generates updated event with changes."""
         create_response = await http_client.post(
             "/api/v1/projects",
@@ -510,7 +510,7 @@ class TestActivityAPIProject:
             json={"name": "Updated Project Name"},
         )
 
-        await asyncio.sleep(0.5)
+        await wait_for_events()
 
         response = await http_client.get(
             f"/api/v1/activity?entity_type=project&entity_id={project_id}&action=updated",
@@ -524,7 +524,7 @@ class TestActivityAPIProject:
         assert event["changes"] is not None
         assert "name" in event["changes"]
 
-    async def test_project_deleted_event(self, http_client):
+    async def test_project_deleted_event(self, http_client, wait_for_events):
         """DELETE /api/v1/projects/{id} generates deleted event."""
         create_response = await http_client.post(
             "/api/v1/projects",
@@ -538,7 +538,7 @@ class TestActivityAPIProject:
 
         await http_client.delete(f"/api/v1/projects/{project_id}")
 
-        await asyncio.sleep(0.5)
+        await wait_for_events()
 
         response = await http_client.get(
             f"/api/v1/activity?entity_type=project&entity_id={project_id}&action=deleted",
@@ -561,7 +561,7 @@ class TestActivityAPIProject:
 class TestActivityAPIDocument:
     """Test activity tracking for Document operations."""
 
-    async def test_document_created_event(self, http_client):
+    async def test_document_created_event(self, http_client, wait_for_events):
         """POST /api/v1/documents generates created event."""
         create_response = await http_client.post(
             "/api/v1/documents",
@@ -576,7 +576,7 @@ class TestActivityAPIDocument:
         assert create_response.status_code == 201
         doc_id = create_response.json()["id"]
 
-        await asyncio.sleep(0.5)
+        await wait_for_events()
 
         response = await http_client.get(
             f"/api/v1/activity?entity_type=document&entity_id={doc_id}&action=created",
@@ -589,7 +589,7 @@ class TestActivityAPIDocument:
         assert event["entity_type"] == "document"
         assert event["action"] == "created"
 
-    async def test_document_deleted_event(self, http_client):
+    async def test_document_deleted_event(self, http_client, wait_for_events):
         """DELETE /api/v1/documents/{id} generates deleted event."""
         create_response = await http_client.post(
             "/api/v1/documents",
@@ -605,7 +605,7 @@ class TestActivityAPIDocument:
 
         await http_client.delete(f"/api/v1/documents/{doc_id}")
 
-        await asyncio.sleep(0.5)
+        await wait_for_events()
 
         response = await http_client.get(
             f"/api/v1/activity?entity_type=document&entity_id={doc_id}&action=deleted",
@@ -628,7 +628,7 @@ class TestActivityAPIDocument:
 class TestActivityAPICodeArtifact:
     """Test activity tracking for Code Artifact operations."""
 
-    async def test_code_artifact_created_event(self, http_client):
+    async def test_code_artifact_created_event(self, http_client, wait_for_events):
         """POST /api/v1/code-artifacts generates created event."""
         create_response = await http_client.post(
             "/api/v1/code-artifacts",
@@ -643,7 +643,7 @@ class TestActivityAPICodeArtifact:
         assert create_response.status_code == 201
         artifact_id = create_response.json()["id"]
 
-        await asyncio.sleep(0.5)
+        await wait_for_events()
 
         response = await http_client.get(
             f"/api/v1/activity?entity_type=code_artifact&entity_id={artifact_id}&action=created",
@@ -656,7 +656,7 @@ class TestActivityAPICodeArtifact:
         assert event["entity_type"] == "code_artifact"
         assert event["action"] == "created"
 
-    async def test_code_artifact_deleted_event(self, http_client):
+    async def test_code_artifact_deleted_event(self, http_client, wait_for_events):
         """DELETE /api/v1/code-artifacts/{id} generates deleted event."""
         create_response = await http_client.post(
             "/api/v1/code-artifacts",
@@ -672,7 +672,7 @@ class TestActivityAPICodeArtifact:
 
         await http_client.delete(f"/api/v1/code-artifacts/{artifact_id}")
 
-        await asyncio.sleep(0.5)
+        await wait_for_events()
 
         response = await http_client.get(
             f"/api/v1/activity?entity_type=code_artifact&entity_id={artifact_id}&action=deleted",
@@ -695,7 +695,7 @@ class TestActivityAPICodeArtifact:
 class TestActivityAPIEntity:
     """Test activity tracking for Entity operations."""
 
-    async def test_entity_created_event(self, http_client):
+    async def test_entity_created_event(self, http_client, wait_for_events):
         """POST /api/v1/entities generates created event."""
         create_response = await http_client.post(
             "/api/v1/entities",
@@ -709,7 +709,7 @@ class TestActivityAPIEntity:
         assert create_response.status_code == 201
         entity_id = create_response.json()["id"]
 
-        await asyncio.sleep(0.5)
+        await wait_for_events()
 
         response = await http_client.get(
             f"/api/v1/activity?entity_type=entity&entity_id={entity_id}&action=created",
@@ -722,7 +722,7 @@ class TestActivityAPIEntity:
         assert event["entity_type"] == "entity"
         assert event["action"] == "created"
 
-    async def test_entity_deleted_event(self, http_client):
+    async def test_entity_deleted_event(self, http_client, wait_for_events):
         """DELETE /api/v1/entities/{id} generates deleted event."""
         create_response = await http_client.post(
             "/api/v1/entities",
@@ -736,7 +736,7 @@ class TestActivityAPIEntity:
 
         await http_client.delete(f"/api/v1/entities/{entity_id}")
 
-        await asyncio.sleep(0.5)
+        await wait_for_events()
 
         response = await http_client.get(
             f"/api/v1/activity?entity_type=entity&entity_id={entity_id}&action=deleted",
@@ -749,7 +749,7 @@ class TestActivityAPIEntity:
         assert event["entity_type"] == "entity"
         assert event["action"] == "deleted"
 
-    async def test_entity_memory_link_created_event(self, http_client):
+    async def test_entity_memory_link_created_event(self, http_client, wait_for_events):
         """POST /api/v1/entities/{id}/memories generates entity_memory_link created event."""
         memory_response = await http_client.post(
             "/api/v1/memories",
@@ -779,7 +779,7 @@ class TestActivityAPIEntity:
             json={"memory_id": memory_id},
         )
 
-        await asyncio.sleep(0.5)
+        await wait_for_events()
 
         response = await http_client.get(
             "/api/v1/activity?entity_type=entity_memory_link&action=created",
@@ -797,7 +797,7 @@ class TestActivityAPIEntity:
         assert event["entity_type"] == "entity_memory_link"
         assert event["action"] == "created"
 
-    async def test_entity_relationship_created_event(self, http_client):
+    async def test_entity_relationship_created_event(self, http_client, wait_for_events):
         """POST /api/v1/entities/{id}/relationships generates entity_relationship created event."""
         entity1_response = await http_client.post(
             "/api/v1/entities",
@@ -829,7 +829,7 @@ class TestActivityAPIEntity:
         assert rel_response.status_code == 201
         relationship_id = rel_response.json()["id"]
 
-        await asyncio.sleep(0.5)
+        await wait_for_events()
 
         response = await http_client.get(
             f"/api/v1/activity?entity_type=entity_relationship&entity_id={relationship_id}&action=created",
@@ -842,7 +842,7 @@ class TestActivityAPIEntity:
         assert event["entity_type"] == "entity_relationship"
         assert event["action"] == "created"
 
-    async def test_entity_relationship_deleted_event(self, http_client):
+    async def test_entity_relationship_deleted_event(self, http_client, wait_for_events):
         """DELETE /api/v1/entities/relationships/{id} generates deleted event."""
         entity1_response = await http_client.post(
             "/api/v1/entities",
@@ -875,7 +875,7 @@ class TestActivityAPIEntity:
 
         await http_client.delete(f"/api/v1/entities/relationships/{relationship_id}")
 
-        await asyncio.sleep(0.5)
+        await wait_for_events()
 
         response = await http_client.get(
             f"/api/v1/activity?entity_type=entity_relationship&entity_id={relationship_id}&action=deleted",

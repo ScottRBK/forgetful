@@ -61,7 +61,8 @@ async def test_list_code_artifacts_e2e(mcp_client):
     assert "code_artifacts" in list_result.data
     assert "total_count" in list_result.data
     artifacts = list_result.data["code_artifacts"]
-    assert len(artifacts) >= 3
+    assert len(artifacts) == 3
+    assert list_result.data["total_count"] == 3
     artifact_titles_in_result = [a["title"] for a in artifacts]
     for title in artifact_titles:
         assert title in artifact_titles_in_result

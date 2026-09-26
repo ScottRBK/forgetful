@@ -64,7 +64,8 @@ async def test_list_entities_e2e(mcp_client):
     assert "entities" in list_result.data
     assert "total_count" in list_result.data
     entities = list_result.data["entities"]
-    assert len(entities) >= 3
+    assert len(entities) == 3
+    assert list_result.data["total_count"] == 3
     entity_names_in_result = [e["name"] for e in entities]
     for name in entity_names:
         assert name in entity_names_in_result
@@ -518,9 +519,8 @@ async def test_search_entities_no_results_e2e(mcp_client):
     assert search_result.data is not None
     assert "entities" in search_result.data
     assert "total_count" in search_result.data
-    # May have results from other tests, but none should match our query
-    entities = search_result.data["entities"]
-    assert all("xyznonexistententity12345" not in e["name"].lower() for e in entities)
+    assert search_result.data["entities"] == []
+    assert search_result.data["total_count"] == 0
 
 
 # Entity-Project Many-to-Many Relationship E2E Tests

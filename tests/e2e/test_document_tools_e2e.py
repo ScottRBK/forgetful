@@ -69,7 +69,8 @@ async def test_list_documents_e2e(mcp_client):
     assert "documents" in list_result.data
     assert "total_count" in list_result.data
     documents = list_result.data["documents"]
-    assert len(documents) >= 3
+    assert len(documents) == 3
+    assert list_result.data["total_count"] == 3
     document_titles_in_result = [d["title"] for d in documents]
     for title in document_titles:
         assert title in document_titles_in_result

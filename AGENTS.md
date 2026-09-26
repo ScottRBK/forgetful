@@ -8,6 +8,8 @@ No pollution of service layer with integration/implementation details
 ## Testing Philosophy
 We focus on **integration and E2E tests** over unit tests. Tests should cover critical workflows without exhaustive edge case coverage.
 
+Aim for each test to finish in under 15 seconds; this is advisory, with no enforced timing checks.
+
 ### Integration Tests
 **Location**: `tests/integration/`
 **Purpose**: Test business logic with stubbed I/O (no real database required)

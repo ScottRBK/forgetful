@@ -75,16 +75,9 @@ async def _create_test_memories(repo, db_adapter, count=5):
     return user_id, memories
 
 
-async def _truncate_memories(db_adapter):
-    """Truncate memories table for test isolation."""
-    async with db_adapter.system_session() as session:
-        await session.execute(text("TRUNCATE memories CASCADE"))
-
-
 @pytest.mark.e2e
 async def test_re_embed_search_works_after(memory_repo, db_adapter, embedding_adapter):
     """Create memories, re-embed, run semantic search, verify results returned."""
-    await _truncate_memories(db_adapter)
     user_id, memories = await _create_test_memories(memory_repo, db_adapter, count=3)
 
     service = ReEmbeddingService(
@@ -112,7 +105,6 @@ async def test_re_embed_search_works_after(memory_repo, db_adapter, embedding_ad
 @pytest.mark.e2e
 async def test_re_embed_count_integrity(memory_repo, db_adapter, embedding_adapter):
     """After re-embed, verify embedding count matches memory count."""
-    await _truncate_memories(db_adapter)
     user_id, memories = await _create_test_memories(memory_repo, db_adapter, count=5)
 
     service = ReEmbeddingService(
@@ -129,7 +121,6 @@ async def test_re_embed_count_integrity(memory_repo, db_adapter, embedding_adapt
 @pytest.mark.e2e
 async def test_re_embed_preserves_memory_data(memory_repo, db_adapter, embedding_adapter):
     """After re-embed, verify all memory fields unchanged."""
-    await _truncate_memories(db_adapter)
     user_id, original_memories = await _create_test_memories(memory_repo, db_adapter, count=3)
 
     service = ReEmbeddingService(
@@ -152,7 +143,6 @@ async def test_re_embed_preserves_memory_data(memory_repo, db_adapter, embedding
 @pytest.mark.e2e
 async def test_re_embed_empty_database(memory_repo, db_adapter, embedding_adapter):
     """Re-embedding an empty database should succeed with no work done."""
-    await _truncate_memories(db_adapter)
 
     service = ReEmbeddingService(
         memory_repository=memory_repo,
@@ -169,7 +159,6 @@ async def test_re_embed_empty_database(memory_repo, db_adapter, embedding_adapte
 @pytest.mark.e2e
 async def test_re_embed_validation_checks(memory_repo, db_adapter, embedding_adapter):
     """Verify all validation checks pass after successful re-embed."""
-    await _truncate_memories(db_adapter)
     user_id, memories = await _create_test_memories(memory_repo, db_adapter, count=4)
 
     service = ReEmbeddingService(
