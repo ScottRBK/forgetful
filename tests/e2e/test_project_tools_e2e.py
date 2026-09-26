@@ -227,7 +227,7 @@ async def test_list_projects_filter_by_status_e2e(mcp_client):
 
 @pytest.mark.e2e
 async def test_list_projects_filter_by_repo_e2e(mcp_client):
-    """Test filtering projects by repository name"""
+    """MCP finds a stored HTTPS repository through its SSH address"""
     await mcp_client.call_tool(
         "execute_forgetful_tool",
         {
@@ -236,7 +236,7 @@ async def test_list_projects_filter_by_repo_e2e(mcp_client):
                 "name": "forgetful-repo-test",
                 "description": "Forgetful project",
                 "project_type": "development",
-                "repo_name": "scottrbk/forgetful",
+                "repo_name": "https://github.com/scottrbk/forgetful.git",
             },
         },
     )
@@ -256,14 +256,14 @@ async def test_list_projects_filter_by_repo_e2e(mcp_client):
         "execute_forgetful_tool",
         {
             "tool_name": "list_projects",
-            "arguments": {"repo_name": "scottrbk/forgetful"},
+            "arguments": {"repo_name": "git@github.com:scottrbk/forgetful.git"},
         },
     )
     forgetful_projects = forgetful_result.data["projects"]
     forgetful_names = [p["name"] for p in forgetful_projects]
     assert "forgetful-repo-test" in forgetful_names
     for project in forgetful_projects:
-        assert project["repo_name"] == "scottrbk/forgetful"
+        assert project["repo_name"] == "https://github.com/scottrbk/forgetful.git"
 
 
 @pytest.mark.e2e
@@ -335,25 +335,21 @@ async def test_delete_project_invalid_id_e2e(mcp_client):
 
 
 @pytest.mark.e2e
-async def test_create_project_validation_error_e2e(mcp_client):
-    """Test validation error with invalid repo_name format"""
-    try:
-        await mcp_client.call_tool(
-            "execute_forgetful_tool",
-            {
-                "tool_name": "create_project",
-                "arguments": {
-                    "name": "invalid-repo",
-                    "description": "Project with invalid repo format",
-                    "project_type": "development",
-                    "repo_name": "invalid-format-no-slash",
-                },
+async def test_create_project_with_opaque_repository_e2e(mcp_client):
+    """MCP accepts a repository identifier without imposing a path format."""
+    result = await mcp_client.call_tool(
+        "execute_forgetful_tool",
+        {
+            "tool_name": "create_project",
+            "arguments": {
+                "name": "Local project",
+                "description": "Project with an opaque repository identifier",
+                "project_type": "development",
+                "repo_name": "local-project",
             },
-        )
-        assert False, "Expected validation error for invalid repo_name"
-    except Exception as e:
-        error_message = str(e).lower()
-        assert "validation" in error_message or "owner/repo" in error_message
+        },
+    )
+    assert result.data["repo_name"] == "local-project"
 
 
 @pytest.mark.e2e

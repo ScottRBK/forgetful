@@ -111,7 +111,7 @@ class ProjectService:
         Args:
             user_id: User ID for RLS (row-level security)
             status: Optional filter by project status (active/archived/completed)
-            repo_name: Optional filter by repository name (e.g., 'owner/repo')
+            repo_name: Match equivalent repository addresses or literal identifiers
             name: Optional filter by project name (case-insensitive partial match)
 
         Returns:

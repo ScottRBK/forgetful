@@ -19,6 +19,7 @@ from app.models.project_models import (
 )
 from app.repositories.postgres.postgres_adapter import PostgresDatabaseAdapter
 from app.repositories.postgres.postgres_tables import ProjectsTable
+from app.utils.repository_identity import repository_identity
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +56,7 @@ class PostgresProjectRepository:
         Args:
             user_id: User ID for RLS (row-level security)
             status: Optional filter by project status
-            repo_name: Optional filter by repository name
+            repo_name: Match equivalent repository addresses or literal identifiers
             name: Optional filter by project name (case-insensitive partial match)
 
         Returns:
@@ -72,10 +73,9 @@ class PostgresProjectRepository:
         )
 
         async with self.db_adapter.session(user_id) as session:
-            # Build base query with eager loading
+            # Apply ownership and existing filters before comparing repository identities.
             stmt = (
                 select(ProjectsTable)
-                .options(selectinload(ProjectsTable.memories))
                 .where(ProjectsTable.user_id == user_id)
             )
 
@@ -83,11 +83,23 @@ class PostgresProjectRepository:
             if status:
                 stmt = stmt.where(ProjectsTable.status == status.value)
 
-            if repo_name:
-                stmt = stmt.where(ProjectsTable.repo_name == repo_name)
-
             if name:
                 stmt = stmt.where(ProjectsTable.name.ilike(f"%{name}%"))
+
+            if repo_name:
+                identity = repository_identity(repo_name)
+                candidates = await session.execute(
+                    stmt.with_only_columns(ProjectsTable.id, ProjectsTable.repo_name)
+                    .where(ProjectsTable.repo_name.is_not(None)),
+                )
+                matching_ids = [
+                    project_id for project_id, stored_repo in candidates
+                    if repository_identity(stored_repo) == identity
+                ]
+                stmt = stmt.where(ProjectsTable.id.in_(matching_ids))
+
+            # Load relationships only for matching projects.
+            stmt = stmt.options(selectinload(ProjectsTable.memories))
 
             # Order by creation date (newest first)
             stmt = stmt.order_by(ProjectsTable.created_at.desc())

@@ -959,7 +959,16 @@ def register_project_tools_metadata(
                 {"name": "project_type", "type": "ProjectType", "description": "Project category (personal, work, learning, development, infrastructure, template, product, marketing, finance, documentation, development-environment, third-party-library, open-source)", "required": True, "example": "development"},
                 {"name": "ctx", "type": "Context", "description": "FastMCP Context (automatically injected)", "required": True},
                 {"name": "status", "type": "ProjectStatus", "description": "Project lifecycle status (active, archived, completed)", "required": False, "default": "active", "example": "active"},
-                {"name": "repo_name", "type": "Optional[str]", "description": "GitHub repository in 'owner/repo' format", "required": False, "default": None, "example": "scottrbk/forgetful"},
+                {
+                    "name": "repo_name",
+                    "type": "Optional[str]",
+                    "description": (
+                        "Git repository identifier or HTTPS/SSH address (max 255 chars)"
+                    ),
+                    "required": False,
+                    "default": None,
+                    "example": "scottrbk/forgetful",
+                },
                 {"name": "last_encoding_point", "type": "Optional[str]", "description": "Opaque caller-managed encoding checkpoint (e.g. a Git commit SHA). Never advanced by the server.", "required": False, "default": None, "example": "5d41402abc4b2a76b9719d911017c592"},
                 {"name": "notes", "type": "Optional[str]", "description": "Workflow notes, setup instructions (max ~4000 chars)", "required": False, "default": None, "example": "Uses uv for dependency management"},
                 {"name": "source_repo", "type": "Optional[str]", "description": "Repository/project source for provenance tracking", "required": False, "default": None, "example": "owner/repo"},
@@ -989,7 +998,16 @@ def register_project_tools_metadata(
                 {"name": "description", "type": "Optional[str]", "description": "New description", "required": False, "default": None, "example": "Updated description"},
                 {"name": "project_type", "type": "Optional[ProjectType]", "description": "New project type", "required": False, "default": None, "example": "work"},
                 {"name": "status", "type": "Optional[ProjectStatus]", "description": "New status", "required": False, "default": None, "example": "archived"},
-                {"name": "repo_name", "type": "Optional[str]", "description": "New repository name", "required": False, "default": None, "example": "user/new-repo"},
+                {
+                    "name": "repo_name",
+                    "type": "Optional[str]",
+                    "description": (
+                        "New Git repository identifier or address; empty string clears"
+                    ),
+                    "required": False,
+                    "default": None,
+                    "example": "user/new-repo",
+                },
                 {"name": "last_encoding_point", "type": "Optional[str]", "description": 'Opaque caller-managed encoding checkpoint (e.g. a Git commit SHA). Never advanced by the server. Unchanged if omitted or null; pass empty string "" to clear.', "required": False, "default": None, "example": "5d41402abc4b2a76b9719d911017c592"},
                 {"name": "notes", "type": "Optional[str]", "description": "New notes", "required": False, "default": None, "example": "Additional notes"},
                 {"name": "source_repo", "type": "Optional[str]", "description": "Repository/project source for provenance tracking", "required": False, "default": None, "example": "owner/repo"},
@@ -1029,7 +1047,17 @@ def register_project_tools_metadata(
             "parameters": [
                 {"name": "ctx", "type": "Context", "description": "FastMCP Context (automatically injected)", "required": True},
                 {"name": "status", "type": "Optional[ProjectStatus]", "description": "Filter by status (active, archived, completed)", "required": False, "default": None, "example": "active"},
-                {"name": "repo_name", "type": "Optional[str]", "description": "Filter by repository name", "required": False, "default": None, "example": "scottrbk/forgetful"},
+                {
+                    "name": "repo_name",
+                    "type": "Optional[str]",
+                    "description": (
+                        "Match equivalent HTTPS/SSH/host-qualified addresses; otherwise "
+                        "literal. No partial match"
+                    ),
+                    "required": False,
+                    "default": None,
+                    "example": "scottrbk/forgetful",
+                },
             ],
             "returns": "Dictionary with projects list and count",
             "examples": [

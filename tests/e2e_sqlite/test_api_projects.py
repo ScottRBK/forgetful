@@ -5,9 +5,94 @@ Tests the /api/v1/projects endpoints.
 """
 import pytest
 
+from app.config.settings import settings
+
 
 class TestProjectAPIList:
     """Test GET /api/v1/projects endpoint."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("query", [
+        "github.com/ScottRBK/forgetful",
+        " https://GITHUB.COM/ScottRBK/forgetful.git/ ",
+        "git@github.com:ScottRBK/forgetful.git",
+        "ssh://git@github.com/ScottRBK/forgetful.git",
+    ])
+    async def test_lookup_equivalent_repositories(self, http_client, monkeypatch, query):
+        """Lookup finds every equivalent address and still respects the status filter."""
+        repositories = [
+            ("github.com/ScottRBK/forgetful", "active"),
+            ("https://github.com/ScottRBK/forgetful.git", "active"),
+            ("git@github.com:ScottRBK/forgetful.git", "active"),
+            ("ssh://git@github.com/ScottRBK/forgetful.git", "archived"),
+            ("gitlab.com/ScottRBK/forgetful", "active"),
+            ("github.com/ScottRBK/forgetful-plugin", "active"),
+            ("github.com/ScottRBK/subgroup/forgetful", "active"),
+            ("github.com/scottrbk/forgetful", "active"),
+            ("ssh://git@github.com:2222/ScottRBK/forgetful.git", "active"),
+            ("ScottRBK/forgetful", "active"),
+        ]
+        created_ids = []
+        for repo_name, status in repositories:
+            created = await http_client.post("/api/v1/projects", json={
+                "name": "Repository lookup",
+                "description": "Check repository identity",
+                "project_type": "development",
+                "repo_name": repo_name,
+                "status": status,
+            })
+            assert created.status_code == 201
+            created_ids.append(created.json()["id"])
+
+        # A matching repository belonging to another user must stay private.
+        with monkeypatch.context() as other_user:
+            other_user.setattr(settings, "DEFAULT_USER_ID", "repository-lookup-other-user")
+            other_user.setattr(settings, "DEFAULT_USER_EMAIL", "other-repo-user@example.test")
+            private = await http_client.post("/api/v1/projects", json={
+                "name": "Private project",
+                "description": "Another user's repository",
+                "project_type": "development",
+                "repo_name": "github.com/ScottRBK/forgetful",
+            })
+            assert private.status_code == 201
+
+        result = await http_client.get("/api/v1/projects", params={"repo_name": query})
+        active = await http_client.get("/api/v1/projects", params={
+            "repo_name": query, "status": "active",
+        })
+
+        assert result.status_code == active.status_code == 200
+        assert {p["id"] for p in result.json()["projects"]} == set(created_ids[:4])
+        assert result.json()["total"] == 4
+        assert {p["id"] for p in active.json()["projects"]} == set(created_ids[:3])
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(("stored", "query", "different"), [
+        ("group/subgroup/repo.git", "group/subgroup/repo/", "group/repo"),
+        ("local project", "local project", "local-project"),
+        ("https://git.test:bad/team/repo", "https://git.test:bad/team/repo",
+         "https://git.test/team/repo"),
+        ("git.test/team//repo", "git.test/team//repo", "git.test/team/repo"),
+    ])
+    async def test_lookup_hostless_and_opaque_repositories(
+        self, http_client, stored, query, different,
+    ):
+        """Hostless paths and uninterpreted values stay searchable without false matches."""
+        created_ids = []
+        for repo_name in (stored, different):
+            created = await http_client.post("/api/v1/projects", json={
+                "name": "Other repository formats",
+                "description": "Hostless and opaque lookup",
+                "project_type": "development",
+                "repo_name": repo_name,
+            })
+            assert created.status_code == 201
+            created_ids.append(created.json()["id"])
+
+        result = await http_client.get("/api/v1/projects", params={"repo_name": query})
+
+        assert result.status_code == 200
+        assert [p["id"] for p in result.json()["projects"]] == [created_ids[0]]
 
     @pytest.mark.asyncio
     async def test_list_projects_empty(self, http_client):
@@ -82,28 +167,64 @@ class TestProjectAPICrud:
         assert data["status"] == "active"  # Default status
 
     @pytest.mark.asyncio
-    async def test_create_project_with_repo_name(self, http_client):
-        """POST /api/v1/projects creates project with repo_name."""
+    @pytest.mark.parametrize("repo_name", [
+        "owner/repo",
+        "group/subgroup/repo",
+        "git.example.test/team/repo",
+        "dev.azure.com/contoso/widgets/_git/api",
+        "https://github.com/ScottRBK/forgetful.git",
+        "git@github.com:ScottRBK/forgetful.git",
+        "local project",
+    ])
+    async def test_repository_round_trip(self, http_client, repo_name):
+        """Repository identifiers survive creation, clearing, and linking an existing project."""
         payload = {
-            "name": "GitHub Project",
-            "description": "A project linked to GitHub",
-            "project_type": "open-source",
-            "repo_name": "owner/repo",
+            "name": "Repository project",
+            "description": "A project linked to a repository",
+            "project_type": "development",
+            "repo_name": f"  {repo_name}  ",
         }
-        response = await http_client.post("/api/v1/projects", json=payload)
-        assert response.status_code == 201
-        data = response.json()
-        assert data["repo_name"] == "owner/repo"
+
+        created = await http_client.post("/api/v1/projects", json=payload)
+        assert created.status_code == 201
+        project_url = f"/api/v1/projects/{created.json()['id']}"
+        retrieved = await http_client.get(project_url)
+        assert retrieved.json()["repo_name"] == repo_name
+
+        cleared = await http_client.put(project_url, json={"repo_name": ""})
+        assert cleared.status_code == 200
+        assert cleared.json()["repo_name"] is None
+
+        linked = await http_client.put(project_url, json={"repo_name": repo_name})
+        assert linked.status_code == 200
+        retrieved = await http_client.get(project_url)
+        assert retrieved.json()["repo_name"] == repo_name
 
     @pytest.mark.asyncio
-    async def test_create_project_validation_error(self, http_client):
-        """POST /api/v1/projects returns 400 for invalid data."""
+    @pytest.mark.parametrize("method", ["POST", "PUT"])
+    @pytest.mark.parametrize(("invalid", "field", "message"), [
+        ({"name": "   "}, "name", "cannot be empty or whitespace only"),
+        ({"repo_name": "x" * 256}, "repo_name", "at most 255 characters"),
+    ])
+    async def test_project_validation_error(self, http_client, method, invalid, field, message):
+        """Create and update return useful JSON for custom validators and length limits."""
         payload = {
-            "name": "",  # Empty name should fail
+            "name": "Validation project",
+            "description": "Check error responses",
             "project_type": "development",
         }
-        response = await http_client.post("/api/v1/projects", json=payload)
+        url = "/api/v1/projects"
+        if method == "PUT":
+            created = await http_client.post(url, json=payload)
+            assert created.status_code == 201
+            url = f"{url}/{created.json()['id']}"
+
+        response = await http_client.request(method, url, json={**payload, **invalid})
+
         assert response.status_code == 400
+        error = response.json()["error"][0]
+        assert error["loc"] == [field]
+        assert message in error["msg"]
 
     @pytest.mark.asyncio
     async def test_get_project(self, http_client):

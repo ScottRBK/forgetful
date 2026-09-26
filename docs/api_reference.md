@@ -308,7 +308,15 @@ List all projects.
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `status` | string | Filter by status: `active`, `archived`, `completed` |
-| `repo_name` | string | Filter by repository name |
+| `repo_name` | string | Match equivalent repository addresses or literal identifiers |
+
+Repository lookup recognises equivalent HTTPS, SSH, and host-qualified addresses. For example,
+`github.com/ScottRBK/forgetful`, `https://github.com/ScottRBK/forgetful.git`, and
+`git@github.com:ScottRBK/forgetful.git` match each other. A trailing slash is optional.
+Hostnames are case-insensitive; repository paths and explicit ports remain significant.
+Hostless paths such as `group/subgroup/repo` do not imply GitHub or another host.
+Unsupported or ambiguous forms use literal matching. Lookup returns every matching project and
+can be combined with the status filter; it does not perform partial-name or fuzzy search.
 
 **Response:** `ProjectSummary` items (lightweight; no `description` or `notes`).
 
@@ -340,6 +348,12 @@ Get a single project by ID.
 ### POST /api/v1/projects
 
 Create a new project.
+
+`repo_name` is an optional Git repository identifier or address (maximum 255 characters).
+Nested paths, host-qualified identifiers, HTTPS/SSH addresses, and opaque values are accepted.
+Surrounding whitespace is trimmed; the supplied format is otherwise preserved in responses.
+An empty string clears the repository when updating a project. Invalid project fields return
+HTTP 400 with JSON field locations and error messages.
 
 **Request Body:**
 ```json

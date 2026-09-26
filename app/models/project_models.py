@@ -65,7 +65,9 @@ class ProjectCreate(BaseModel):
     repo_name: str | None = Field(
         default=None,
         max_length=255,  # DB limit: String(255)
-        description="GitHub repository in 'owner/repo' format (e.g., 'scottrbk/forgetful'). Optional.",
+        description=(
+            "Git repository identifier or address. Optional; surrounding whitespace is trimmed."
+        ),
     )
     last_encoding_point: str | None = Field(
         default=None,
@@ -123,22 +125,6 @@ class ProjectCreate(BaseModel):
 
         return stripped or None
 
-    @field_validator("repo_name")
-    @classmethod
-    def validate_repo_format(cls, v):
-        """Validate repo_name follows 'owner/repo' format if provided"""
-        if v is None or not v:
-            return None
-
-        if "/" not in v:
-            raise ValueError("repo_name must follow 'owner/repo' format (e.g., 'scottrbk/forgetful')")
-
-        parts = v.split("/")
-        if len(parts) != 2 or not parts[0] or not parts[1]:
-            raise ValueError("repo_name must follow 'owner/repo' format with non-empty owner and repo names")
-
-        return v
-
 
 class ProjectUpdate(BaseModel):
     """Request model for updating a project
@@ -174,7 +160,9 @@ class ProjectUpdate(BaseModel):
     repo_name: str | None = Field(
         default=None,
         max_length=255,  # DB limit: String(255)
-        description="New repository name in 'owner/repo' format. Unchanged if null. Set to empty string to clear.",
+        description=(
+            "New Git repository identifier or address. Set to empty string to clear."
+        ),
     )
     last_encoding_point: str | None = Field(
         default=None,
@@ -230,22 +218,6 @@ class ProjectUpdate(BaseModel):
 
         # For optional fields (repo_name, notes), empty string means "clear field"
         return stripped or None
-
-    @field_validator("repo_name")
-    @classmethod
-    def validate_repo_format(cls, v):
-        """Validate repo_name follows 'owner/repo' format if provided"""
-        if v is None or not v:
-            return None
-
-        if "/" not in v:
-            raise ValueError("repo_name must follow 'owner/repo' format (e.g., 'scottrbk/forgetful')")
-
-        parts = v.split("/")
-        if len(parts) != 2 or not parts[0] or not parts[1]:
-            raise ValueError("repo_name must follow 'owner/repo' format with non-empty owner and repo names")
-
-        return v
 
 
 class Project(ProjectCreate):
@@ -308,7 +280,7 @@ class ProjectSummary(BaseModel):
     )
     repo_name: str | None = Field(
         default=None,
-        description="GitHub repository ('owner/repo' format)",
+        description="Git repository identifier or address",
     )
     last_encoding_point: str | None = Field(
         default=None,

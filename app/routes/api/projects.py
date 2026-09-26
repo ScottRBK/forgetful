@@ -30,7 +30,7 @@ def register(mcp: FastMCP):
 
         Query params:
             status: Filter by status (active, archived, completed)
-            repo_name: Filter by repository name
+            repo_name: Match equivalent repository addresses or literal identifiers
         """
         try:
             user = await get_user_from_request(request, mcp)
@@ -95,7 +95,7 @@ def register(mcp: FastMCP):
             body = await request.json()
             project_data = ProjectCreate(**body)
         except ValidationError as e:
-            return JSONResponse({"error": e.errors()}, status_code=400)
+            return JSONResponse({"error": e.errors(include_context=False)}, status_code=400)
 
         project = await mcp.project_service.create_project(
             user_id=user.id,
@@ -118,7 +118,7 @@ def register(mcp: FastMCP):
             body = await request.json()
             update_data = ProjectUpdate(**body)
         except ValidationError as e:
-            return JSONResponse({"error": e.errors()}, status_code=400)
+            return JSONResponse({"error": e.errors(include_context=False)}, status_code=400)
 
         try:
             project = await mcp.project_service.update_project(

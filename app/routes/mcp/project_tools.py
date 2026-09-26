@@ -64,7 +64,7 @@ def register(mcp: FastMCP):
                 development, infrastructure, template, product, marketing, finance,
                 documentation, development-environment, third-party-library, open-source
             status: Project lifecycle status (default: active). Options: active, archived, completed
-            repo_name: GitHub repository in 'owner/repo' format (optional, e.g., 'scottrbk/forgetful')
+            repo_name: Git repository identifier or address (optional)
             notes: Workflow notes, setup instructions (optional, max ~4000 chars)
             ctx: Context (automatically injected by FastMCP)
 
@@ -186,7 +186,7 @@ def register(mcp: FastMCP):
             description: New description (optional, unchanged if null)
             project_type: New project type (optional, unchanged if null)
             status: New lifecycle status (optional, unchanged if null). Options: active, archived, completed
-            repo_name: New repository 'owner/repo' format (optional, unchanged if null)
+            repo_name: New Git repository identifier or address (optional, unchanged if null)
             notes: New notes (optional, unchanged if null, max ~4000 chars)
             ctx: Context (automatically injected by FastMCP)
 
@@ -396,7 +396,7 @@ def register(mcp: FastMCP):
         Args:
             status: Filter by project status (optional). Options: active, archived, completed.
                 None returns all statuses.
-            repo_name: Filter by repository name (optional, e.g., "scottrbk/forgetful").
+            repo_name: Match equivalent repository addresses or literal identifiers (optional).
                 None returns all repos.
             name: Filter by project name (optional, case-insensitive partial match).
                 Example: "forget" matches "Forgetful", "forgetful-ui", etc.
