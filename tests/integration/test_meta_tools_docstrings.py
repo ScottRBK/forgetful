@@ -13,7 +13,31 @@ from app.routes.mcp.meta_tools import (
     _build_execute_docstring,
     _build_tool_categories_line,
     _get_mcp_descriptor_mode,
+    build_tool_documentation,
 )
+from app.routes.mcp.tool_adapters import create_plan_adapters
+from app.routes.mcp.tool_metadata_registry import register_plan_tools_metadata
+from app.routes.mcp.tool_registry import ToolRegistry
+
+
+def test_plan_status_documentation_uses_archived():
+    """Generated plan usage help must advertise the supported lifecycle states."""
+    registry = ToolRegistry()
+    # Documentation generation does not invoke adapters or require services.
+    register_plan_tools_metadata(registry, create_plan_adapters(None, None))
+    permitted = {"create_plan", "update_plan", "list_plans"}
+
+    docs = {
+        name: build_tool_documentation(registry, permitted, name)
+        for name in sorted(permitted)
+    }
+
+    for name, doc in docs.items():
+        status = next(param for param in doc["parameters"] if param["name"] == "status")
+        schema_status = doc["json_schema"]["properties"]["status"]
+        for description in (status["description"], schema_status["description"]):
+            assert "(draft, active, completed, archived)" in description, name
+        assert "abandoned" not in str(doc), name
 
 
 class TestBuildCategoryList:

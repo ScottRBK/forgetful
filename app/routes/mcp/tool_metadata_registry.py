@@ -1689,7 +1689,11 @@ def register_plan_tools_metadata(
                 {"name": "ctx", "type": "Context", "description": "FastMCP Context (automatically injected)", "required": True},
                 {"name": "goal", "type": "Optional[str]", "description": "High-level goal for this plan", "required": False, "default": None, "example": "Add JWT-based authentication"},
                 {"name": "context", "type": "Optional[str]", "description": "Background context or constraints", "required": False, "default": None, "example": "Must support OAuth2 providers"},
-                {"name": "status", "type": "str", "description": "Plan status (draft, active, completed, abandoned)", "required": False, "default": "draft", "example": "draft"},
+                {
+                    "name": "status", "type": "str",
+                    "description": "Plan status (draft, active, completed, archived)",
+                    "required": False, "default": "draft", "example": "draft",
+                },
                 {"name": "source_repo", "type": "Optional[str]", "description": "Repository/project source for provenance tracking", "required": False, "default": None, "example": "owner/repo"},
                 {"name": "source_files", "type": "Optional[List[str]]", "description": "Files that informed this for provenance tracking", "required": False, "default": None, "example": ["src/main.py"]},
                 {"name": "source_url", "type": "Optional[str]", "description": "URL to source material for provenance tracking", "required": False, "default": None, "example": "https://example.com"},
@@ -1716,7 +1720,11 @@ def register_plan_tools_metadata(
                 {"name": "title", "type": "Optional[str]", "description": "New plan title", "required": False, "default": None, "example": "Updated plan title"},
                 {"name": "goal", "type": "Optional[str]", "description": "New goal description", "required": False, "default": None, "example": "Revised goal"},
                 {"name": "context", "type": "Optional[str]", "description": "New context", "required": False, "default": None, "example": "Updated constraints"},
-                {"name": "status", "type": "Optional[str]", "description": "New status (draft, active, completed, abandoned)", "required": False, "default": None, "example": "active"},
+                {
+                    "name": "status", "type": "Optional[str]",
+                    "description": "New status (draft, active, completed, archived)",
+                    "required": False, "default": None, "example": "active",
+                },
                 {"name": "source_repo", "type": "Optional[str]", "description": "Repository/project source for provenance tracking", "required": False, "default": None, "example": "owner/repo"},
                 {"name": "source_files", "type": "Optional[List[str]]", "description": "Files that informed this for provenance tracking", "required": False, "default": None, "example": ["src/main.py"]},
                 {"name": "source_url", "type": "Optional[str]", "description": "URL to source material for provenance tracking", "required": False, "default": None, "example": "https://example.com"},
@@ -1752,7 +1760,11 @@ def register_plan_tools_metadata(
             "parameters": [
                 {"name": "ctx", "type": "Context", "description": "FastMCP Context (automatically injected)", "required": True},
                 {"name": "project_id", "type": "Optional[int]", "description": "Filter by project ID", "required": False, "default": None, "example": 1},
-                {"name": "status", "type": "Optional[str]", "description": "Filter by status (draft, active, completed, abandoned)", "required": False, "default": None, "example": "active"},
+                {
+                    "name": "status", "type": "Optional[str]",
+                    "description": "Filter by status (draft, active, completed, archived)",
+                    "required": False, "default": None, "example": "active",
+                },
             ],
             "returns": "Dictionary with plans list and total_count",
             "examples": [
