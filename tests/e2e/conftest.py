@@ -37,10 +37,6 @@ from app.repositories.embeddings.embedding_adapter import (
     OllamaEmbeddingsAdapter,
     OpenAIEmbeddingsAdapter,
 )
-from app.repositories.embeddings.reranker_adapter import (
-    FastEmbedCrossEncoderAdapter,
-    HttpRerankAdapter,
-)
 from app.repositories.postgres.postgres_adapter import PostgresDatabaseAdapter
 from app.repositories.postgres.postgres_tables import Base
 from app.repositories.postgres.skill_repository import PostgresSkillRepository
@@ -342,12 +338,10 @@ def embedding_adapter():
 
 @pytest.fixture(scope="session")
 def reranker_adapter():
-    """Session-scoped reranker adapter (model loading is expensive ~1-2s)."""
-    if not settings.RERANKING_ENABLED:
-        return None
-    if settings.RERANKING_PROVIDER == "HTTP":
-        return HttpRerankAdapter()
-    return FastEmbedCrossEncoderAdapter(cache_dir=settings.FASTEMBED_CACHE_DIR)
+    """Share the production-configured reranker (model loading is expensive ~1-2s)."""
+    from app.bootstrap import get_reranker_adapter
+
+    return get_reranker_adapter()
 
 
 # ---------------------------------------------------------------------------

@@ -49,6 +49,8 @@ def get_reranker_adapter():
         FastEmbedCrossEncoderAdapter,
     )
     return FastEmbedCrossEncoderAdapter(
+        threads=settings.RERANKING_THREADS,
+        workers=settings.RERANKING_WORKERS,
         cache_dir=settings.FASTEMBED_CACHE_DIR,
     )
 

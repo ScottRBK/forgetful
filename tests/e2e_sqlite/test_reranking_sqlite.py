@@ -5,14 +5,39 @@ not just embedding similarity.
 """
 import pytest
 
+from app.config.settings import settings
+from app.repositories.embeddings.reranker_adapter import FastEmbedCrossEncoderAdapter
+
+
+@pytest.fixture
+def reranker_adapter(monkeypatch):
+    """Use local reranking; pytest restores all settings overrides after each test."""
+    monkeypatch.setattr(settings, "RERANKING_ENABLED", True)
+    monkeypatch.setattr(settings, "RERANKING_PROVIDER", "FastEmbed")
+    monkeypatch.setattr(settings, "DENSE_SEARCH_CANDIDATES", 20)
+    monkeypatch.setattr(settings, "MEMORY_NUM_AUTO_LINK", 0)
+    return FastEmbedCrossEncoderAdapter(
+        model="Xenova/ms-marco-MiniLM-L-12-v2",
+        cache_dir=settings.FASTEMBED_CACHE_DIR,
+    )
+
+
+def _assert_reranked(result):
+    """Scores must be present and aligned with the returned memory order."""
+    memories = result.data["primary_memories"]
+    scores = result.data["scores"]
+    assert len(memories) == len(scores) == 2
+    assert [score["memory_id"] for score in scores] == [memory["id"] for memory in memories]
+    reranks = [score["rerank_score"] for score in scores]
+    assert reranks and all(score is not None for score in reranks)
+    assert reranks == sorted(reranks, reverse=True)
+
 
 @pytest.mark.asyncio
-async def test_reranking_reorders_by_context_sqlite(mcp_client):
-    """Test that cross-encoder reranking promotes results matching query context.
+async def test_reranking_orders_by_score_sqlite(mcp_client):
+    """Create three memories and request two so reranking must run.
 
-    Creates 3 database-related memories with similar embeddings.
-    Uses a context that clearly favors caching/speed.
-    Verifies Redis (caching-focused) ranks first after reranking.
+    Verify score ordering without depending on a particular model's top choice.
     """
     # Create memories with similar embeddings (all about databases)
     # but different focuses that the cross-encoder can distinguish
@@ -61,27 +86,19 @@ async def test_reranking_reorders_by_context_sqlite(mcp_client):
     query_result = await mcp_client.call_tool("execute_forgetful_tool", {
         "tool_name": "query_memory", "arguments": {
             "query": "database for application",
-            "query_context": "I need extremely fast caching with sub-millisecond latency for session storage",
-            "k": 3,
+            "query_context": (
+                "I need extremely fast caching with sub-millisecond latency for session storage"
+            ),
+            "k": 2,
             "include_links": False,
         },
     })
 
     assert query_result.data is not None
+    _assert_reranked(query_result)
     primary_memories = query_result.data["primary_memories"]
-    assert len(primary_memories) >= 3
-
-    # Get the ranking order
     result_ids = [m["id"] for m in primary_memories]
-
-    # Verify all memories are in results
-    assert postgres_id in result_ids
-    assert mongodb_id in result_ids
-    assert redis_id in result_ids
-
-    # Verify reranking code path executed successfully
-    # Cross-encoder model behavior varies - just check all results returned
-    # and code didn't crash (functional test, not model eval)
+    assert set(result_ids) <= {postgres_id, mongodb_id, redis_id}
 
 
 @pytest.mark.asyncio
@@ -126,37 +143,35 @@ async def test_reranking_with_different_contexts_sqlite(mcp_client):
             "importance": 7,
         },
     })
-    result3.data["id"]  # Rust - not used in assertions but needed for reranking pool
+    rust_id = result3.data["id"]
 
     # Query 1: Context favoring data science
     query1 = await mcp_client.call_tool("execute_forgetful_tool", {
         "tool_name": "query_memory", "arguments": {
             "query": "programming language",
             "query_context": "I want to build machine learning models and analyze datasets",
-            "k": 3,
+            "k": 2,
             "include_links": False,
         },
     })
 
     result1_ids = [m["id"] for m in query1.data["primary_memories"]]
+    _assert_reranked(query1)
 
     # Query 2: Context favoring web development
     query2 = await mcp_client.call_tool("execute_forgetful_tool", {
         "tool_name": "query_memory", "arguments": {
             "query": "programming language",
             "query_context": "I need to build an interactive web application with React",
-            "k": 3,
+            "k": 2,
             "include_links": False,
         },
     })
 
     result2_ids = [m["id"] for m in query2.data["primary_memories"]]
 
-    # Verify all memories appear in both result sets
-    # (functional test: reranking code path executes correctly with different contexts)
-    assert python_id in result1_ids, "Python missing from ML context results"
-    assert js_id in result1_ids, "JavaScript missing from ML context results"
-    assert python_id in result2_ids, "Python missing from web context results"
-    assert js_id in result2_ids, "JavaScript missing from web context results"
-    assert len(result1_ids) >= 3, f"Expected at least 3 results for ML context, got {len(result1_ids)}"
-    assert len(result2_ids) >= 3, f"Expected at least 3 results for web context, got {len(result2_ids)}"
+    _assert_reranked(query2)
+    assert set(result1_ids) <= {python_id, js_id, rust_id}
+    assert set(result2_ids) <= {python_id, js_id, rust_id}
+    # The same dense query with different context must change the rerank output.
+    assert query1.data["scores"] != query2.data["scores"]

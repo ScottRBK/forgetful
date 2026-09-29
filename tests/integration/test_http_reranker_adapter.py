@@ -2,6 +2,8 @@
 
 Tests the adapter class in isolation - no real reranking API required.
 """
+import asyncio
+import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -189,3 +191,54 @@ async def test_rerank_http_error_propagates(mock_settings):
 
         with pytest.raises(httpx.HTTPStatusError):
             await adapter.rerank("query", ["doc"])
+
+
+async def test_http_reranks_overlap_independently_of_local_worker_limit(monkeypatch):
+    """A local worker limit of one must not serialize or alter remote requests."""
+    from app.bootstrap import get_reranker_adapter
+    from app.config.settings import settings
+
+    monkeypatch.setattr(settings, "RERANKING_ENABLED", True)
+    monkeypatch.setattr(settings, "RERANKING_PROVIDER", "HTTP")
+    monkeypatch.setattr(settings, "RERANKING_THREADS", 4)
+    monkeypatch.setattr(settings, "RERANKING_WORKERS", 1)
+    monkeypatch.setattr(settings, "RERANKING_URL", "https://reranker.test/v1/rerank")
+    monkeypatch.setattr(settings, "RERANKING_MODEL", "remote-model")
+    monkeypatch.setattr(settings, "RERANKING_API_KEY", "test-key")
+    received = {}
+    both_started = asyncio.Event()
+
+    async def handle_request(request):
+        payload = json.loads(request.content)
+        received[payload["query"]] = payload
+        if len(received) == 2:
+            both_started.set()
+        await asyncio.wait_for(both_started.wait(), timeout=3)
+        assert str(request.url) == "https://reranker.test/v1/rerank"
+        assert request.headers["Authorization"] == "Bearer test-key"
+        index = 0 if payload["query"] == "redis" else 1
+        return httpx.Response(200, json={
+            "results": [{"index": index, "relevance_score": 0.9}],
+        })
+
+    def reject_local_model(**_kwargs):
+        pytest.fail("HTTP reranking must not load a local model")
+
+    client_class = httpx.AsyncClient
+    transport = httpx.MockTransport(handle_request)
+    monkeypatch.setattr(httpx, "AsyncClient", lambda: client_class(transport=transport))
+    monkeypatch.setattr("fastembed.rerank.cross_encoder.TextCrossEncoder", reject_local_model)
+    adapter = get_reranker_adapter()
+
+    results = await asyncio.gather(
+        adapter.rerank("redis", ["redis", "postgres"]),
+        adapter.rerank("postgres", ["redis", "postgres"]),
+    )
+
+    assert results == [[(0, 0.9)], [(1, 0.9)]]
+    assert received == {
+        "redis": {"query": "redis", "documents": ["redis", "postgres"], "model": "remote-model"},
+        "postgres": {
+            "query": "postgres", "documents": ["redis", "postgres"], "model": "remote-model",
+        },
+    }

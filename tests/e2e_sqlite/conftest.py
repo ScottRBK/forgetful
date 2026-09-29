@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 import pytest
 from fastmcp import FastMCP
 
+from app.bootstrap import get_reranker_adapter
 from app.events import EventBus
 
 # Shared imports
@@ -24,10 +25,6 @@ from app.repositories.embeddings.embedding_adapter import (
     GoogleEmbeddingsAdapter,
     OllamaEmbeddingsAdapter,
     OpenAIEmbeddingsAdapter,
-)
-from app.repositories.embeddings.reranker_adapter import (
-    FastEmbedCrossEncoderAdapter,
-    HttpRerankAdapter,
 )
 from app.repositories.sqlite.activity_repository import SqliteActivityRepository
 from app.repositories.sqlite.code_artifact_repository import (
@@ -147,16 +144,10 @@ def embedding_adapter():
 def reranker_adapter():
     """Module-scoped reranker adapter to avoid reloading model for each test.
 
-    Returns FastEmbedCrossEncoderAdapter if reranking is enabled, None otherwise.
-    Cross-encoder model loading is expensive, so we share across tests.
+    Uses production provider/thread/worker settings. Model loading is expensive,
+    so we share across tests.
     """
-    from app.config.settings import settings
-
-    if not settings.RERANKING_ENABLED:
-        return None
-    if settings.RERANKING_PROVIDER == "HTTP":
-        return HttpRerankAdapter()
-    return FastEmbedCrossEncoderAdapter()
+    return get_reranker_adapter()
 
 
 # ============================================================================

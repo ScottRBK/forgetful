@@ -23,9 +23,10 @@ class FastEmbedCrossEncoderAdapter:
             self,
             model: str = settings.RERANKING_MODEL,
             threads: int = 1,
-            cache_dir: str | None  = None,
+            cache_dir: str | None = None,
+            workers: int = 1,
     ):
-        """Intialise FastEmbed cross encoder"""
+        """Set inference threads and the maximum number of concurrent reranking jobs."""
         self.model_name = model
         self.threads = threads
         self.cache_dir = cache_dir
@@ -42,7 +43,7 @@ class FastEmbedCrossEncoderAdapter:
                 fastembed_kwargs=fastembed_kwargs,
             ),
         )
-        self._executor = ThreadPoolExecutor(max_workers=1)
+        self._executor = ThreadPoolExecutor(max_workers=workers)
 
     def _create_text_cross_encoder(
             self,

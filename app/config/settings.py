@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from platformdirs import user_config_dir, user_data_dir
-from pydantic import ConfigDict, field_validator
+from pydantic import ConfigDict, Field, field_validator
 from pydantic_settings import BaseSettings
 
 from app.version import get_version
@@ -224,6 +224,9 @@ class Settings(BaseSettings):
     RERANKING_URL: str = ""                      # custom endpoints (e.g. http://localhost:8080/v1/rerank)
     RERANKING_API_KEY: str = ""
     RERANKING_MODEL: str = "Xenova/ms-marco-MiniLM-L-12-v2"
+    # Local FastEmbed only; HTTP concurrency is controlled by the remote server.
+    RERANKING_THREADS: int = Field(default=1, ge=1)  # ONNX inference threads
+    RERANKING_WORKERS: int = Field(default=1, ge=1)  # Concurrent reranking jobs per adapter
     DENSE_SEARCH_CANDIDATES: int = 20 # number of candidates to retrieve from the dense search
 
     # FASTEMBED CACHE CONFIGURATION

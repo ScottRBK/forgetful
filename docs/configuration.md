@@ -977,6 +977,31 @@ ACTIVITY_TRACK_READS=false
 - **Note**: For HTTP provider, set to the model name your endpoint expects (e.g., `jina-reranker-v2-base-multilingual`)
 - **Example**: `RERANKING_MODEL=Xenova/ms-marco-MiniLM-L-12-v2`
 
+#### `RERANKING_THREADS`
+- **Default**: `1`
+- **Values**: Positive integers
+- **Description**: Inference threading for the shared local ONNX reranking model
+- **Note**: Only used when `RERANKING_PROVIDER=FastEmbed`; does not affect HTTP rerankers
+- **Example**: `RERANKING_THREADS=4`
+
+#### `RERANKING_WORKERS`
+- **Default**: `1`
+- **Values**: Positive integers
+- **Description**: Maximum reranking jobs running concurrently on one local adapter
+- **Note**: Only used when `RERANKING_PROVIDER=FastEmbed`; does not limit HTTP requests
+- **Example**: `RERANKING_WORKERS=2`
+
+The defaults preserve serial, single-threaded local reranking. On a multi-core host, try
+`RERANKING_THREADS=4` and `RERANKING_WORKERS=2`, then measure with your actual search workload.
+More threads or workers can increase CPU contention rather than improve latency. Workers share
+one model; these settings are not a guarantee of a dedicated CPU allocation per request.
+Restart the service after changing them. Each server process has its own adapter and limits.
+
+The worker limit bounds active jobs, not the waiting queue. Cancelling a request cannot stop
+inference already running in a thread; that worker stays occupied until inference finishes.
+HTTP reranking already uses asynchronous requests. Its processing capacity and rate limits
+are controlled by the remote service, not these local settings.
+
 #### `RERANKING_URL`
 - **Default**: (empty string)
 - **Description**: HTTP endpoint URL for re-ranking requests
