@@ -34,7 +34,7 @@ def get_embedding_adapter():
         return OpenAIEmbeddingsAdapter()
     if settings.EMBEDDING_PROVIDER == "Ollama":
         return OllamaEmbeddingsAdapter()
-    return FastEmbeddingAdapter()
+    return FastEmbeddingAdapter(providers=settings.embedding_onnx_providers)
 
 
 def get_reranker_adapter():
@@ -51,6 +51,7 @@ def get_reranker_adapter():
     return FastEmbedCrossEncoderAdapter(
         threads=settings.RERANKING_THREADS,
         workers=settings.RERANKING_WORKERS,
+        providers=settings.reranking_onnx_providers,
         cache_dir=settings.FASTEMBED_CACHE_DIR,
     )
 

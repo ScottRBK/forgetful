@@ -7,6 +7,8 @@ import httpx
 from app.config.settings import settings
 from app.repositories.embeddings.fastembed_offline import load_fastembed_model
 
+DIRECTML_PROVIDER = "DmlExecutionProvider"
+
 
 class RerankAdapter(Protocol):
     """Contract for a Reranker Adapter"""
@@ -25,11 +27,19 @@ class FastEmbedCrossEncoderAdapter:
             threads: int = 1,
             cache_dir: str | None = None,
             workers: int = 1,
+            providers: list[str] | None = None,
     ):
         """Set inference threads and the maximum number of concurrent reranking jobs."""
+        if providers and any(p.strip() == DIRECTML_PROVIDER for p in providers) and workers > 1:
+            raise ValueError(
+                f"RERANKING_WORKERS={workers} is not supported with {DIRECTML_PROVIDER}: "
+                "DirectML allows only one inference call at a time per session. "
+                "Set RERANKING_WORKERS=1.",
+            )
         self.model_name = model
         self.threads = threads
         self.cache_dir = cache_dir
+        self.providers = providers
 
         effective_cache_dir = cache_dir or settings.FASTEMBED_CACHE_DIR
         self._model = load_fastembed_model(
@@ -40,6 +50,7 @@ class FastEmbedCrossEncoderAdapter:
                 model=model,
                 threads=threads,
                 cache_dir=cache_dir,
+                providers=providers,
                 fastembed_kwargs=fastembed_kwargs,
             ),
         )
@@ -51,15 +62,18 @@ class FastEmbedCrossEncoderAdapter:
             model: str,
             threads: int,
             cache_dir: str | None,
+            providers: list[str] | None = None,
             fastembed_kwargs: dict[str, bool],
     ):
         from fastembed.rerank.cross_encoder import TextCrossEncoder
 
+        provider_kwargs = {"providers": providers} if providers is not None else {}
         return TextCrossEncoder(
             model_name=model,
             threads=threads,
             cache_dir=cache_dir,
             **fastembed_kwargs,
+            **provider_kwargs,
         )
 
     async def rerank(

@@ -21,11 +21,12 @@ class EmbeddingsAdapter(Protocol):
 class FastEmbeddingAdapter(EmbeddingsAdapter):
     """Generate embeddings using the fastembed libary"""
 
-    def __init__(self):
+    def __init__(self, providers: list[str] | None = None):
         logger.info("Initialising Fastembed model", extra={
             "embedding_model": settings.EMBEDDING_MODEL,
             "cache_dir": settings.FASTEMBED_CACHE_DIR,
         })
+        self.providers = providers
 
         start_time = time.time()
         self.model = load_fastembed_model(
@@ -44,10 +45,12 @@ class FastEmbeddingAdapter(EmbeddingsAdapter):
     def _create_text_embedding(self, fastembed_kwargs: dict[str, bool]):
         from fastembed import TextEmbedding
 
+        provider_kwargs = {"providers": self.providers} if self.providers is not None else {}
         return TextEmbedding(
             model_name=settings.EMBEDDING_MODEL,
             cache_dir=settings.FASTEMBED_CACHE_DIR,
             **fastembed_kwargs,
+            **provider_kwargs,
         )
 
     async def generate_embedding(self, text: str) -> list[float]:
