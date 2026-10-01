@@ -20,6 +20,16 @@ _default_data_dir = Path(user_data_dir("forgetful", ensure_exists=False))
 _default_config_dir = Path(user_config_dir("forgetful", ensure_exists=False))
 
 
+def parse_onnx_providers(value: str | None) -> list[str] | None:
+    """Split a comma-separated ONNX Runtime provider list; None keeps FastEmbed's default."""
+    if value is None or not value.strip():
+        return None
+    providers = [name.strip() for name in value.split(",")]
+    if any(not name for name in providers):
+        raise ValueError("ONNX provider lists must not contain empty entries")
+    return providers
+
+
 class Settings(BaseSettings):
     # Application Info
     SERVICE_NAME: str = "Forgetful"
@@ -200,6 +210,7 @@ class Settings(BaseSettings):
     EMBEDDING_PROVIDER: str = "FastEmbed" # FastEmbed | Azure | Google | OpenAI | Ollama
     EMBEDDING_MODEL: str = "BAAI/bge-small-en-v1.5"
     EMBEDDING_DIMENSIONS: int = 384
+    EMBEDDING_ONNX_PROVIDERS: str = ""  # FastEmbed only; comma-separated ONNX Runtime providers, empty = default
 
     # AZURE EMBEDDING PROVIDER CONFIG
     AZURE_ENDPOINT: str = ""
@@ -227,6 +238,7 @@ class Settings(BaseSettings):
     # Local FastEmbed only; HTTP concurrency is controlled by the remote server.
     RERANKING_THREADS: int = Field(default=1, ge=1)  # ONNX inference threads
     RERANKING_WORKERS: int = Field(default=1, ge=1)  # Concurrent reranking jobs per adapter
+    RERANKING_ONNX_PROVIDERS: str = ""  # Comma-separated ONNX Runtime providers, empty = FastEmbed default
     DENSE_SEARCH_CANDIDATES: int = 20 # number of candidates to retrieve from the dense search
 
     # FASTEMBED CACHE CONFIGURATION
@@ -239,6 +251,20 @@ class Settings(BaseSettings):
         if not 0.0 < value <= 1.0:
             raise ValueError("OBSOLETE_WARNING_THRESHOLD must be in (0, 1]")
         return value
+
+    @field_validator("RERANKING_ONNX_PROVIDERS", "EMBEDDING_ONNX_PROVIDERS")
+    @classmethod
+    def _validate_onnx_providers(cls, value: str) -> str:
+        parse_onnx_providers(value)
+        return value
+
+    @property
+    def embedding_onnx_providers(self) -> list[str] | None:
+        return parse_onnx_providers(self.EMBEDDING_ONNX_PROVIDERS)
+
+    @property
+    def reranking_onnx_providers(self) -> list[str] | None:
+        return parse_onnx_providers(self.RERANKING_ONNX_PROVIDERS)
 
     """Pydantic Configuration"""
 
