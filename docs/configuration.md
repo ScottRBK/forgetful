@@ -874,6 +874,13 @@ ACTIVITY_TRACK_READS=false
 - **Note**: Must match the model's output dimensions
 - **Example**: `EMBEDDING_DIMENSIONS=384`
 
+### `EMBEDDING_ONNX_PROVIDERS`
+- **Default**: (empty string)
+- **Values**: Comma-separated ONNX Runtime execution provider names, in priority order
+- **Description**: Execution providers for the local FastEmbed embedding model
+- **Note**: Only used when `EMBEDDING_PROVIDER=FastEmbed`. Empty keeps FastEmbed's default provider selection. Same runtime requirements as [`RERANKING_ONNX_PROVIDERS`](#reranking_onnx_providers)
+- **Example**: `EMBEDDING_ONNX_PROVIDERS=DmlExecutionProvider,CPUExecutionProvider`
+
 ### `DENSE_SEARCH_CANDIDATES`
 - **Default**: `50`
 - **Description**: Number of candidates to retrieve from dense (embedding) search before re-ranking
@@ -1001,6 +1008,29 @@ The worker limit bounds active jobs, not the waiting queue. Cancelling a request
 inference already running in a thread; that worker stays occupied until inference finishes.
 HTTP reranking already uses asynchronous requests. Its processing capacity and rate limits
 are controlled by the remote service, not these local settings.
+
+#### `RERANKING_ONNX_PROVIDERS`
+- **Default**: (empty string)
+- **Values**: Comma-separated ONNX Runtime execution provider names, in priority order
+- **Description**: Execution providers for the local FastEmbed reranking model
+- **Note**: Only used when `RERANKING_PROVIDER=FastEmbed`; does not affect HTTP rerankers. Empty keeps FastEmbed's default provider selection
+- **Example**: `RERANKING_ONNX_PROVIDERS=DmlExecutionProvider,CPUExecutionProvider`
+
+The list is passed to FastEmbed as is. Every provider in it must be available in the installed
+ONNX Runtime package: FastEmbed refuses to load the model when one is missing, even if
+`CPUExecutionProvider` comes after it in the list. Check what your environment offers with
+`python -c "import onnxruntime; print(onnxruntime.get_available_providers())"`.
+
+Forgetful does not install accelerated runtimes. Replace the default `onnxruntime` package in
+Forgetful's environment with the build that ships your provider, for example `onnxruntime-directml`
+for `DmlExecutionProvider` on Windows or `onnxruntime-gpu` for `CUDAExecutionProvider`. See the
+[ONNX Runtime install guide](https://onnxruntime.ai/docs/install/). If you run from a source checkout
+with `uv run`, uv re-syncs the environment to the lock file and puts the default `onnxruntime` back.
+
+DirectML allows only one inference call at a time per session, and local reranking workers share
+one model, so `DmlExecutionProvider` requires `RERANKING_WORKERS=1`. Forgetful refuses to start the
+local reranker otherwise. [DirectML is in sustained engineering](https://onnxruntime.ai/docs/execution-providers/DirectML-ExecutionProvider.html);
+it stays available here as an optional provider. Restart the service after changing providers.
 
 #### `RERANKING_URL`
 - **Default**: (empty string)
