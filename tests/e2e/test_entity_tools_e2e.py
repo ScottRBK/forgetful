@@ -943,3 +943,63 @@ async def test_get_entity_memories_after_unlink_e2e(mcp_client):
     assert result.data["count"] == 1
     assert memory_ids[1] in result.data["memory_ids"]
     assert memory_ids[0] not in result.data["memory_ids"]
+
+
+# Memory-Entity Query E2E Tests (get_memory_entities)
+
+
+@pytest.mark.e2e
+async def test_get_memory_entities_basic_e2e(mcp_client):
+    """Test getting entities linked to a memory via MCP tool"""
+    memory_result = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "create_memory", "arguments": {
+            "title": "Memory for Entity Reverse Query PG",
+            "content": "Content for reverse lookup test",
+            "context": "Testing get_memory_entities",
+            "keywords": ["test"],
+            "tags": ["memory-entity-reverse-e2e-pg"],
+            "importance": 7,
+        },
+    })
+    memory_id = memory_result.data["id"]
+
+    entity_ids = []
+    for name in ("Entity A PG", "Entity B PG"):
+        entity_result = await mcp_client.call_tool("execute_forgetful_tool", {
+            "tool_name": "create_entity", "arguments": {
+                "name": name,
+                "entity_type": "Organization",
+                "tags": ["memory-entity-reverse-e2e-pg"],
+            },
+        })
+        entity_ids.append(entity_result.data["id"])
+        await mcp_client.call_tool("execute_forgetful_tool", {
+            "tool_name": "link_entity_to_memory", "arguments": {
+                "entity_id": entity_result.data["id"],
+                "memory_id": memory_id,
+            },
+        })
+
+    result = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "get_memory_entities", "arguments": {
+            "memory_id": memory_id,
+        },
+    })
+
+    assert result.data is not None
+    assert result.data["count"] == 2
+    assert result.data["entity_ids"] == sorted(entity_ids)
+
+
+@pytest.mark.e2e
+async def test_get_memory_entities_not_found_e2e(mcp_client):
+    """Test error handling for non-existent memory"""
+    try:
+        await mcp_client.call_tool("execute_forgetful_tool", {
+            "tool_name": "get_memory_entities", "arguments": {
+                "memory_id": 999999,
+            },
+        })
+        assert False, "Expected error for non-existent memory"
+    except Exception as e:
+        assert "not found" in str(e).lower()

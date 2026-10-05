@@ -1732,6 +1732,23 @@ class EntityToolAdapters:
             "memories": [{"id": mid, "title": title} for mid, title in memories],
         }
 
+    async def get_memory_entities(self, memory_id: int, ctx: Context) -> dict:
+        """Adapter for get_memory_entities tool"""
+        user = await get_user_from_auth(ctx)
+
+        entity_ids, count, entities = await self.entity_service.get_memory_entities(
+            user_id=user.id, memory_id=memory_id,
+        )
+
+        return {
+            "entity_ids": entity_ids,
+            "count": count,
+            "entities": [
+                {"id": entity_id, "name": name, "entity_type": entity_type}
+                for entity_id, name, entity_type in entities
+            ],
+        }
+
 
 def create_entity_adapters(
     entity_service: EntityService, user_service: UserService,
@@ -1754,6 +1771,7 @@ def create_entity_adapters(
         "update_entity_relationship": adapters.update_entity_relationship,
         "delete_entity_relationship": adapters.delete_entity_relationship,
         "get_entity_memories": adapters.get_entity_memories,
+        "get_memory_entities": adapters.get_memory_entities,
     }
 
 

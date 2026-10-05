@@ -400,3 +400,22 @@ class EntityRepository(Protocol):
             NotFoundError: If entity not found or not owned by user
         """
         ...
+
+    async def get_memory_entities(
+        self,
+        user_id: UUID,
+        memory_id: int,
+    ) -> list[tuple[int, str, str]]:
+        """Get all entities directly linked to a specific memory
+
+        Args:
+            user_id: User ID for ownership verification
+            memory_id: Memory ID to get entities for
+
+        Returns:
+            List of (entity_id, name, entity_type) tuples ordered by entity_id
+
+        Raises:
+            NotFoundError: If memory not found or not owned by user
+        """
+        ...

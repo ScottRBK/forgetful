@@ -1336,6 +1336,25 @@ execute_forgetful_tool(
 )
 ```
 
+#### `get_memory_entities`
+
+Get every entity directly linked to a memory (reverse of `get_entity_memories`).
+
+**Parameters:**
+- `memory_id` (required): Memory ID
+
+**Returns:**
+- `entity_ids`: Linked entity IDs, ordered by ID
+- `count`: Number of linked entities
+- `entities`: `{id, name, entity_type}` objects in the same order as `entity_ids`
+- The full set is always returned (no pagination). An existing memory with no links returns empty lists; a missing or inaccessible memory raises a not found error.
+
+**Example:**
+```python
+execute_forgetful_tool("get_memory_entities", {"memory_id": 156})
+# Returns: {"entity_ids": [42], "count": 1, "entities": [{"id": 42, "name": "Sarah Chen", "entity_type": "Individual"}]}
+```
+
 ### Entity-Project Linking
 
 #### `link_entity_to_project`

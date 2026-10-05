@@ -1079,3 +1079,94 @@ async def test_get_entity_memories_user_isolation(test_entity_service):
     # User 2 should get NotFoundError (entity not owned by them)
     with pytest.raises(NotFoundError):
         await test_entity_service.get_entity_memories(user_id_2, entity.id)
+
+
+# Memory-Entity Query Tests (get_memory_entities)
+
+
+async def _create_entity(service, user_id, name, entity_type):
+    return await service.create_entity(
+        user_id, EntityCreate(name=name, entity_type=entity_type, tags=["reverse-lookup"]),
+    )
+
+
+@pytest.mark.asyncio
+async def test_get_memory_entities_basic(test_entity_service, mock_entity_repository):
+    """Every entity directly linked to the memory is returned with name and type"""
+    user_id = uuid4()
+    mock_entity_repository.register_memory(user_id, 1)
+    org = await _create_entity(test_entity_service, user_id, "Acme", EntityType.ORGANIZATION)
+    person = await _create_entity(test_entity_service, user_id, "Sarah", EntityType.INDIVIDUAL)
+    await test_entity_service.link_entity_to_memory(user_id, org.id, 1)
+    await test_entity_service.link_entity_to_memory(user_id, person.id, 1)
+
+    entity_ids, count, entities = await test_entity_service.get_memory_entities(user_id, 1)
+
+    assert count == 2
+    assert entity_ids == sorted([org.id, person.id])
+    assert [entity_id for entity_id, _, _ in entities] == entity_ids
+    assert {(name, entity_type) for _, name, entity_type in entities} == {
+        ("Acme", "Organization"), ("Sarah", "Individual"),
+    }
+
+
+@pytest.mark.asyncio
+async def test_get_memory_entities_empty(test_entity_service, mock_entity_repository):
+    """An existing memory with no links returns empty results, not an error"""
+    user_id = uuid4()
+    mock_entity_repository.register_memory(user_id, 7)
+
+    entity_ids, count, entities = await test_entity_service.get_memory_entities(user_id, 7)
+
+    assert (entity_ids, count, entities) == ([], 0, [])
+
+
+@pytest.mark.asyncio
+async def test_get_memory_entities_not_found(test_entity_service):
+    """A missing memory raises NotFoundError"""
+    with pytest.raises(NotFoundError):
+        await test_entity_service.get_memory_entities(uuid4(), 999999)
+
+
+@pytest.mark.asyncio
+async def test_get_memory_entities_excludes_other_memories(test_entity_service, mock_entity_repository):
+    """Entities linked only to another memory are not returned"""
+    user_id = uuid4()
+    mock_entity_repository.register_memory(user_id, 1)
+    mock_entity_repository.register_memory(user_id, 2)
+    mine = await _create_entity(test_entity_service, user_id, "Mine", EntityType.TEAM)
+    other = await _create_entity(test_entity_service, user_id, "Other", EntityType.TEAM)
+    await test_entity_service.link_entity_to_memory(user_id, mine.id, 1)
+    await test_entity_service.link_entity_to_memory(user_id, other.id, 2)
+
+    entity_ids, _, _ = await test_entity_service.get_memory_entities(user_id, 1)
+
+    assert entity_ids == [mine.id]
+
+
+@pytest.mark.asyncio
+async def test_get_memory_entities_after_unlink(test_entity_service, mock_entity_repository):
+    """Link and unlink are reflected in subsequent reads"""
+    user_id = uuid4()
+    mock_entity_repository.register_memory(user_id, 1)
+    first = await _create_entity(test_entity_service, user_id, "First", EntityType.DEVICE)
+    second = await _create_entity(test_entity_service, user_id, "Second", EntityType.DEVICE)
+    await test_entity_service.link_entity_to_memory(user_id, first.id, 1)
+    await test_entity_service.link_entity_to_memory(user_id, second.id, 1)
+
+    await test_entity_service.unlink_entity_from_memory(user_id, first.id, 1)
+    entity_ids, count, _ = await test_entity_service.get_memory_entities(user_id, 1)
+
+    assert (entity_ids, count) == ([second.id], 1)
+
+
+@pytest.mark.asyncio
+async def test_get_memory_entities_user_isolation(test_entity_service, mock_entity_repository):
+    """Another user's memory is reported as not found"""
+    owner_id = uuid4()
+    mock_entity_repository.register_memory(owner_id, 1)
+    entity = await _create_entity(test_entity_service, owner_id, "Owned", EntityType.ORGANIZATION)
+    await test_entity_service.link_entity_to_memory(owner_id, entity.id, 1)
+
+    with pytest.raises(NotFoundError):
+        await test_entity_service.get_memory_entities(uuid4(), 1)
