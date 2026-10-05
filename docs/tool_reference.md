@@ -159,6 +159,7 @@ Create an atomic memory with automatic linking to related memories.
 - `tags` (required): Categorization tags (max 10)
 - `project_ids` (optional): Project IDs to link
 - `document_ids` (optional): Document IDs to link
+- `file_ids` (optional): Existing file IDs to link (files must belong to the current user; unknown IDs fail)
 - `code_artifact_ids` (optional): Code artifact IDs to link
 
 **Provenance Tracking (optional):**
@@ -278,6 +279,7 @@ Update existing memory fields (PATCH semantics - only updates provided fields).
 - `context` (optional): Updated context
 - `keywords` (optional): Updated keywords
 - `tags` (optional): Updated tags
+- `file_ids` (optional): Replaces existing file links; `[]` clears them; omit to leave them unchanged
 
 **Provenance Tracking (optional):**
 - `source_repo` (optional): Repository source (e.g., 'owner/repo')

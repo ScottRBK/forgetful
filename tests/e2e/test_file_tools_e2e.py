@@ -270,14 +270,8 @@ async def test_delete_file(mcp_client):
         assert "not found" in str(e).lower()
 
 
-async def test_create_memory_with_file_ids(mcp_client, postgres_app):
-    """Create a file, then a memory linking to it via service layer, verify association.
-
-    Note: file_ids is not yet wired through the MCP tool adapter for create_memory,
-    so this test exercises the repository/service layer directly to validate the
-    memory_file_association table works correctly in Postgres.
-    """
-    # Create a file via MCP tool
+async def test_create_memory_with_file_ids(mcp_client):
+    """Create a file, then a memory linking to it via MCP, verify association."""
     file_result = await mcp_client.call_tool("execute_forgetful_tool", {
         "tool_name": "create_file",
         "arguments": {
@@ -290,44 +284,25 @@ async def test_create_memory_with_file_ids(mcp_client, postgres_app):
     })
     file_id = file_result.data["id"]
 
-    # Create a memory with file_ids via the service layer directly
-    # (file_ids not exposed through MCP tool adapter yet)
-    from app.config.settings import settings
-    from app.models.memory_models import MemoryCreate
-    from app.models.user_models import UserCreate
+    memory_result = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "create_memory",
+        "arguments": {
+            "title": "Memory with file link",
+            "content": "This memory is linked to a file for testing.",
+            "context": "E2E test for memory-file association",
+            "keywords": ["file", "association"],
+            "tags": ["e2e-test"],
+            "importance": 7,
+            "file_ids": [file_id],
+        },
+    })
+    assert file_id in memory_result.data["file_ids"]
 
-    # Get the default user (auth is disabled in tests)
-    user = await postgres_app.user_service.get_or_create_user(
-        UserCreate(
-            external_id=settings.DEFAULT_USER_ID,
-            name=settings.DEFAULT_USER_NAME,
-            email=settings.DEFAULT_USER_EMAIL,
-        ),
-    )
-
-    memory_data = MemoryCreate(
-        title="Memory with file link",
-        content="This memory is linked to a file for testing.",
-        context="E2E test for memory-file association",
-        keywords=["file", "association"],
-        tags=["e2e-test"],
-        importance=7,
-        file_ids=[file_id],
-    )
-
-    memory, _ = await postgres_app.memory_service.create_memory(
-        user_id=user.id,
-        memory_data=memory_data,
-    )
-
-    assert file_id in memory.file_ids
-
-    # Verify via get_memory that the association persists
-    retrieved = await postgres_app.memory_service.get_memory(
-        user_id=user.id,
-        memory_id=memory.id,
-    )
-    assert file_id in retrieved.file_ids
+    get_result = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "get_memory",
+        "arguments": {"memory_id": memory_result.data["id"]},
+    })
+    assert file_id in get_result.data["file_ids"]
 
 
 async def test_text_file_round_trip(mcp_client):

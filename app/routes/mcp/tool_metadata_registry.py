@@ -232,6 +232,14 @@ def register_memory_tools_metadata(
                     "example": [2],
                 },
                 {
+                    "name": "file_ids",
+                    "type": "Optional[List[int]]",
+                    "description": "Existing file IDs to link (optional). Files must belong to the current user; unknown IDs fail with not found",
+                    "required": False,
+                    "default": None,
+                    "example": [4],
+                },
+                {
                     "name": "source_repo",
                     "type": "Optional[str]",
                     "description": "Repository/project source (e.g., 'owner/repo') for provenance tracking",
@@ -479,6 +487,14 @@ def register_memory_tools_metadata(
                     "required": False,
                     "default": None,
                     "example": [3],
+                },
+                {
+                    "name": "file_ids",
+                    "type": "Optional[List[int]]",
+                    "description": "New file IDs - replaces existing links (optional). Empty list clears all file links",
+                    "required": False,
+                    "default": None,
+                    "example": [4],
                 },
                 {
                     "name": "source_repo",
