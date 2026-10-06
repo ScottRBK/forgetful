@@ -94,21 +94,6 @@ def _coerce_int_ids(vals: Any, param_name: str = "ids") -> list[int]:
     return [_coerce_int_id(vals, param_name)]
 
 
-def _coerce_int_list(vals: Any, param_name: str = "ids") -> list[int] | None:
-    """Validate optional list[int] params (comma-separated strings, scalars, or sequences)."""
-    if vals is None:
-        return None
-    if isinstance(vals, str):
-        cleaned = vals.strip()
-        if not cleaned:
-            return []
-        parts = [part.strip() for part in cleaned.split(",") if part.strip()]
-        return [_coerce_int_id(part, param_name) for part in parts]
-    if isinstance(vals, (list, tuple, set)):
-        return [_coerce_int_id(x, param_name) for x in vals]
-    return [_coerce_int_id(vals, param_name)]
-
-
 # ============================================================================
 # User Tool Adapters
 # ============================================================================
@@ -247,7 +232,7 @@ class MemoryToolAdapters:
         if document_ids is not None:
             document_ids = [_coerce_int_id(x, "document_ids") for x in document_ids]
         if file_ids is not None:
-            file_ids = _coerce_int_list(file_ids, "file_ids")
+            file_ids = _coerce_int_ids(file_ids, "file_ids")
 
         memory_data = MemoryCreate(
             title=title,
@@ -383,11 +368,6 @@ class MemoryToolAdapters:
         **kwargs,
     ) -> Memory:
         """Adapter for update_memory tool"""
-        if file_ids is None and "file_ids" in kwargs:
-            file_ids = kwargs.pop("file_ids")
-        elif "file_ids" in kwargs:
-            kwargs.pop("file_ids")
-
         mid = memory_id if memory_id is not None else id
         if mid is None:
             raise ValueError("update_memory requires memory_id (or id)")
@@ -406,7 +386,7 @@ class MemoryToolAdapters:
         if document_ids is not None:
             document_ids = [_coerce_int_id(x, "document_ids") for x in document_ids]
         if file_ids is not None:
-            file_ids = _coerce_int_list(file_ids, "file_ids")
+            file_ids = _coerce_int_ids(file_ids, "file_ids")
 
         updated_dict = filter_none_values(
             title=title,
