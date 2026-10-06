@@ -9,7 +9,7 @@ from uuid import UUID, uuid4
 import pytest
 
 from app.events import EventBus
-from app.exceptions import ConflictError
+from app.exceptions import ConflictError, NotFoundError
 from app.models.activity_models import ActivityEvent
 from app.models.code_artifact_models import (
     CodeArtifact,
@@ -1228,12 +1228,17 @@ class InMemoryEntityRepository(EntityRepository):
             int, set[int],
         ] = {}  # entity_id -> set of project_ids
         self._memory_titles: dict[int, str] = {}  # memory_id -> title
+        self._memory_owners: dict[int, UUID] = {}  # memory_id -> owning user_id
         self._next_entity_id = 1
         self._next_relationship_id = 1
 
     def set_memory_title(self, memory_id: int, title: str) -> None:
         """Test helper: register a title for a memory_id (mimics a real Memory row)"""
         self._memory_titles[memory_id] = title
+
+    def register_memory(self, user_id: UUID, memory_id: int) -> None:
+        """Test helper: mark memory_id as owned by user_id (mimics a real Memory row)"""
+        self._memory_owners[memory_id] = user_id
 
     async def create_entity(self, user_id: UUID, entity_data: EntityCreate) -> Entity:
         entity_id = self._next_entity_id
@@ -1567,6 +1572,22 @@ class InMemoryEntityRepository(EntityRepository):
         memory_ids = self._entity_memory_links.get(entity_id, set())
         return [
             (mid, self._memory_titles.get(mid, f"Memory {mid}")) for mid in memory_ids
+        ]
+
+    async def get_memory_entities(self, user_id: UUID, memory_id: int) -> list[tuple[int, str, str]]:
+        """Get all (entity_id, name, entity_type) triples linked to a specific memory"""
+        user_entities = self._entities.get(user_id, {})
+        linked = sorted(
+            entity_id
+            for entity_id, memory_ids in self._entity_memory_links.items()
+            if memory_id in memory_ids and entity_id in user_entities
+        )
+        owner = self._memory_owners.get(memory_id)
+        if owner != user_id:
+            raise NotFoundError(f"Memory {memory_id} not found")
+        return [
+            (entity_id, user_entities[entity_id].name, user_entities[entity_id].entity_type)
+            for entity_id in linked
         ]
 
 

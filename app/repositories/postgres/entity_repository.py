@@ -1249,6 +1249,64 @@ class PostgresEntityRepository:
             )
             raise
 
+    async def get_memory_entities(
+        self,
+        user_id: UUID,
+        memory_id: int,
+    ) -> list[tuple[int, str, str]]:
+        """Get all entities directly linked to a specific memory
+
+        Args:
+            user_id: User ID for ownership verification
+            memory_id: Memory ID to get entities for
+
+        Returns:
+            List of (entity_id, name, entity_type) tuples ordered by entity_id
+
+        Raises:
+            NotFoundError: If memory not found or not owned by user
+        """
+        try:
+            async with self.db_adapter.session(user_id) as session:
+                memory_stmt = select(MemoryTable.id).where(
+                    MemoryTable.id == memory_id,
+                    MemoryTable.user_id == user_id,
+                )
+                memory_result = await session.execute(memory_stmt)
+                if memory_result.scalar_one_or_none() is None:
+                    raise NotFoundError(f"Memory {memory_id} not found")
+
+                stmt = select(
+                    EntitiesTable.id,
+                    EntitiesTable.name,
+                    EntitiesTable.entity_type,
+                ).select_from(
+                    memory_entity_association,
+                ).join(
+                    EntitiesTable,
+                    EntitiesTable.id == memory_entity_association.c.entity_id,
+                ).where(
+                    memory_entity_association.c.memory_id == memory_id,
+                    EntitiesTable.user_id == user_id,
+                ).order_by(EntitiesTable.id)
+
+                result = await session.execute(stmt)
+                return [(row.id, row.name, row.entity_type) for row in result]
+
+        except NotFoundError:
+            raise
+        except Exception as e:
+            logger.error(
+                "Failed to get memory entities",
+                exc_info=True,
+                extra={
+                    "user_id": str(user_id),
+                    "memory_id": memory_id,
+                    "error": str(e),
+                },
+            )
+            raise
+
     async def get_entity_memories(
         self,
         user_id: UUID,

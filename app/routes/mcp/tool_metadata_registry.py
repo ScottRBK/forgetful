@@ -1666,6 +1666,25 @@ def register_entity_tools_metadata(
             ],
             "tags": ["entity", "memory", "query", "linking"],
         },
+        {
+            "name": "get_memory_entities",
+            "description": "Get all entities directly linked to a specific memory (reverse of get_entity_memories)",
+            "parameters": [
+                {"name": "memory_id", "type": "int", "description": "ID of the memory to get entities for", "required": True, "example": 156},
+                {"name": "ctx", "type": "Context", "description": "FastMCP Context (automatically injected)", "required": True},
+            ],
+            "returns": "Dictionary with entity_ids (list of int), count (int), and entities "
+                       "(list of {id, name, entity_type} objects, same order as entity_ids). "
+                       "Always the complete set; not paginated",
+            "examples": [
+                'execute_forgetful_tool("get_memory_entities", {"memory_id": 156})',
+                (
+                    '# Returns: {"entity_ids": [42], "count": 1, "entities": '
+                    '[{"id": 42, "name": "Sarah Chen", "entity_type": "Individual"}]}'
+                ),
+            ],
+            "tags": ["entity", "memory", "query", "linking"],
+        },
     ]
 
     for tool_def in tools:
