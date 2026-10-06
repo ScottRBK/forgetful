@@ -1583,7 +1583,7 @@ class InMemoryEntityRepository(EntityRepository):
             if memory_id in memory_ids and entity_id in user_entities
         )
         owner = self._memory_owners.get(memory_id)
-        if not (owner == user_id or (owner is None and linked)):
+        if owner != user_id:
             raise NotFoundError(f"Memory {memory_id} not found")
         return [
             (entity_id, user_entities[entity_id].name, user_entities[entity_id].entity_type)

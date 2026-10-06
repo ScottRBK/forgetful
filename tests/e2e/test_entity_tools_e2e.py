@@ -989,6 +989,11 @@ async def test_get_memory_entities_basic_e2e(mcp_client):
     assert result.data is not None
     assert result.data["count"] == 2
     assert result.data["entity_ids"] == sorted(entity_ids)
+    assert [entity["id"] for entity in result.data["entities"]] == result.data["entity_ids"]
+    entities_by_id = {entity["id"]: entity for entity in result.data["entities"]}
+    for entity_id in entity_ids:
+        assert entities_by_id[entity_id]["name"] in ("Entity A PG", "Entity B PG")
+        assert entities_by_id[entity_id]["entity_type"] == "Organization"
 
 
 @pytest.mark.e2e

@@ -1153,3 +1153,254 @@ async def test_get_entity_memories_after_unlink_e2e(mcp_client):
     assert len(result.data["memories"]) == 1
     assert result.data["memories"][0]["id"] == memory_ids[1]
     assert result.data["memories"][0]["title"] == "Memory for Unlink Test SQLite 1"
+
+
+# Memory-Entity Query E2E Tests (get_memory_entities)
+
+
+@pytest.mark.asyncio
+async def test_get_memory_entities_returns_all_direct_links_e2e(mcp_client):
+    memory_result = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "create_memory", "arguments": {
+            "title": "Memory with three entities",
+            "content": "Memory body for Memory with three entities",
+            "context": "Testing get_memory_entities",
+            "keywords": ["entity", "reverse"],
+            "tags": ["test"],
+            "importance": 6,
+        },
+    })
+    memory_id = memory_result.data["id"]
+    expected = {}
+    for name, entity_type in [("Acme", "Organization"), ("Sarah", "Individual"), ("Ops", "Team")]:
+        entity_result = await mcp_client.call_tool("execute_forgetful_tool", {
+            "tool_name": "create_entity", "arguments": {
+                "name": name, "entity_type": entity_type, "tags": ["reverse-lookup"],
+            },
+        })
+        entity_id = entity_result.data["id"]
+        await mcp_client.call_tool("execute_forgetful_tool", {
+            "tool_name": "link_entity_to_memory", "arguments": {
+                "entity_id": entity_id, "memory_id": memory_id,
+            },
+        })
+        expected[entity_id] = (name, entity_type)
+
+    result = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "get_memory_entities", "arguments": {"memory_id": memory_id},
+    })
+    data = result.data
+
+    assert data["count"] == 3
+    assert data["entity_ids"] == sorted(expected)
+    assert [entity["id"] for entity in data["entities"]] == data["entity_ids"]
+    assert {entity["id"]: (entity["name"], entity["entity_type"]) for entity in data["entities"]} == expected
+
+
+@pytest.mark.asyncio
+async def test_get_memory_entities_empty_e2e(mcp_client):
+    memory_result = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "create_memory", "arguments": {
+            "title": "Memory without entities",
+            "content": "Memory body for Memory without entities",
+            "context": "Testing get_memory_entities",
+            "keywords": ["entity", "reverse"],
+            "tags": ["test"],
+            "importance": 6,
+        },
+    })
+    memory_id = memory_result.data["id"]
+
+    result = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "get_memory_entities", "arguments": {"memory_id": memory_id},
+    })
+
+    assert result.data == {"entity_ids": [], "count": 0, "entities": []}
+
+
+@pytest.mark.asyncio
+async def test_get_memory_entities_excludes_other_memories_e2e(mcp_client):
+    target_result = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "create_memory", "arguments": {
+            "title": "Target memory",
+            "content": "Memory body for Target memory",
+            "context": "Testing get_memory_entities",
+            "keywords": ["entity", "reverse"],
+            "tags": ["test"],
+            "importance": 6,
+        },
+    })
+    target_id = target_result.data["id"]
+    other_result = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "create_memory", "arguments": {
+            "title": "Other memory",
+            "content": "Memory body for Other memory",
+            "context": "Testing get_memory_entities",
+            "keywords": ["entity", "reverse"],
+            "tags": ["test"],
+            "importance": 6,
+        },
+    })
+    other_id = other_result.data["id"]
+    mine_result = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "create_entity", "arguments": {
+            "name": "Linked to target", "entity_type": "Organization", "tags": ["reverse-lookup"],
+        },
+    })
+    mine = mine_result.data["id"]
+    theirs_result = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "create_entity", "arguments": {
+            "name": "Linked to other", "entity_type": "Organization", "tags": ["reverse-lookup"],
+        },
+    })
+    theirs = theirs_result.data["id"]
+    await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "link_entity_to_memory", "arguments": {
+            "entity_id": mine, "memory_id": target_id,
+        },
+    })
+    await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "link_entity_to_memory", "arguments": {
+            "entity_id": theirs, "memory_id": other_id,
+        },
+    })
+
+    result = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "get_memory_entities", "arguments": {"memory_id": target_id},
+    })
+
+    assert result.data["entity_ids"] == [mine]
+
+
+@pytest.mark.asyncio
+async def test_get_memory_entities_missing_memory_e2e(mcp_client):
+    try:
+        await mcp_client.call_tool("execute_forgetful_tool", {
+            "tool_name": "get_memory_entities", "arguments": {"memory_id": 999999},
+        })
+        assert False, "Expected error for non-existent memory"
+    except Exception as e:
+        assert "not found" in str(e).lower()
+
+
+@pytest.mark.asyncio
+async def test_get_memory_entities_reflects_link_and_unlink_e2e(mcp_client):
+    memory_result = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "create_memory", "arguments": {
+            "title": "Memory for link changes",
+            "content": "Memory body for Memory for link changes",
+            "context": "Testing get_memory_entities",
+            "keywords": ["entity", "reverse"],
+            "tags": ["test"],
+            "importance": 6,
+        },
+    })
+    memory_id = memory_result.data["id"]
+    entity_result = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "create_entity", "arguments": {
+            "name": "Comes and goes", "entity_type": "Organization", "tags": ["reverse-lookup"],
+        },
+    })
+    entity_id = entity_result.data["id"]
+
+    await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "link_entity_to_memory", "arguments": {
+            "entity_id": entity_id, "memory_id": memory_id,
+        },
+    })
+    linked = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "get_memory_entities", "arguments": {"memory_id": memory_id},
+    })
+    assert linked.data["entity_ids"] == [entity_id]
+
+    await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "unlink_entity_from_memory", "arguments": {
+            "entity_id": entity_id, "memory_id": memory_id,
+        },
+    })
+    unlinked = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "get_memory_entities", "arguments": {"memory_id": memory_id},
+    })
+    assert unlinked.data["entity_ids"] == []
+
+
+@pytest.mark.asyncio
+async def test_get_memory_entities_large_set_is_complete_e2e(mcp_client):
+    memory_result = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "create_memory", "arguments": {
+            "title": "Memory with many entities",
+            "content": "Memory body for Memory with many entities",
+            "context": "Testing get_memory_entities",
+            "keywords": ["entity", "reverse"],
+            "tags": ["test"],
+            "importance": 6,
+        },
+    })
+    memory_id = memory_result.data["id"]
+    entity_ids = []
+    for index in range(25):
+        entity_result = await mcp_client.call_tool("execute_forgetful_tool", {
+            "tool_name": "create_entity", "arguments": {
+                "name": f"Bulk entity {index}",
+                "entity_type": "Organization",
+                "tags": ["reverse-lookup"],
+            },
+        })
+        entity_id = entity_result.data["id"]
+        await mcp_client.call_tool("execute_forgetful_tool", {
+            "tool_name": "link_entity_to_memory", "arguments": {
+                "entity_id": entity_id, "memory_id": memory_id,
+            },
+        })
+        entity_ids.append(entity_id)
+
+    result = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "get_memory_entities", "arguments": {"memory_id": memory_id},
+    })
+    data = result.data
+
+    assert data["count"] == 25
+    assert data["entity_ids"] == sorted(entity_ids)
+
+
+@pytest.mark.asyncio
+async def test_get_memory_entities_available_with_read_scope_e2e(mcp_client, sqlite_app):
+    from app.routes.mcp.scope_resolver import parse_scopes, resolve_permitted_tools
+
+    memory_result = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "create_memory", "arguments": {
+            "title": "Memory for read scope",
+            "content": "Memory body for Memory for read scope",
+            "context": "Testing get_memory_entities",
+            "keywords": ["entity", "reverse"],
+            "tags": ["test"],
+            "importance": 6,
+        },
+    })
+    memory_id = memory_result.data["id"]
+    entity_result = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "create_entity", "arguments": {
+            "name": "Readable entity", "entity_type": "Organization", "tags": ["reverse-lookup"],
+        },
+    })
+    entity_id = entity_result.data["id"]
+    await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "link_entity_to_memory", "arguments": {
+            "entity_id": entity_id, "memory_id": memory_id,
+        },
+    })
+
+    instance_scopes = parse_scopes("read")
+    sqlite_app._instance_permitted_tools = resolve_permitted_tools(instance_scopes, sqlite_app.registry)
+    sqlite_app._instance_scopes = instance_scopes
+
+    discovered = await mcp_client.call_tool("discover_forgetful_tools", {})
+    tools = [tool for cat_tools in discovered.data["tools_by_category"].values() for tool in cat_tools]
+    matches = [tool for tool in tools if tool["name"] == "get_memory_entities"]
+    assert len(matches) == 1
+    assert matches[0]["mutates"] is False
+
+    result = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "get_memory_entities", "arguments": {"memory_id": memory_id},
+    })
+    assert result.data["entity_ids"] == [entity_id]
