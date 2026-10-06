@@ -1,6 +1,9 @@
 """E2E tests for entity MCP tools with real PostgreSQL database
 """
 import pytest
+from fastmcp.exceptions import ToolError
+
+from app.config.settings import settings
 
 pytestmark = pytest.mark.asyncio(loop_scope="session")
 
@@ -1008,3 +1011,51 @@ async def test_get_memory_entities_not_found_e2e(mcp_client):
         assert False, "Expected error for non-existent memory"
     except Exception as e:
         assert "not found" in str(e).lower()
+
+
+@pytest.mark.e2e
+@pytest.mark.parametrize("has_linked_entity", [False, True])
+async def test_get_memory_entities_user_isolation_e2e(
+    mcp_client, monkeypatch, has_linked_entity,
+):
+    """Another user's memory is inaccessible, whether or not it has entity links."""
+    # Arrange: create a memory and verify its owner can read the associations.
+    memory_result = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "create_memory", "arguments": {
+            "title": "Private memory",
+            "content": "Only the owner may inspect this memory's entity links",
+            "context": "Testing cross-user memory entity lookup",
+            "keywords": ["entity", "ownership"],
+            "tags": ["test"],
+            "importance": 6,
+        },
+    })
+    memory_id = memory_result.data["id"]
+    expected_entity_ids = []
+    if has_linked_entity:
+        entity_result = await mcp_client.call_tool("execute_forgetful_tool", {
+            "tool_name": "create_entity", "arguments": {
+                "name": "Private entity", "entity_type": "Organization", "tags": ["test"],
+            },
+        })
+        entity_id = entity_result.data["id"]
+        await mcp_client.call_tool("execute_forgetful_tool", {
+            "tool_name": "link_entity_to_memory", "arguments": {
+                "entity_id": entity_id, "memory_id": memory_id,
+            },
+        })
+        expected_entity_ids = [entity_id]
+
+    owner_result = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "get_memory_entities", "arguments": {"memory_id": memory_id},
+    })
+    assert owner_result.data["entity_ids"] == expected_entity_ids
+
+    # Act and assert: a different user must get an error, not an empty success.
+    with monkeypatch.context() as other_user:
+        other_user.setattr(settings, "DEFAULT_USER_ID", "memory-entities-other-user")
+        other_user.setattr(settings, "DEFAULT_USER_EMAIL", "other-entity-user@example.test")
+        with pytest.raises(ToolError, match=f"Memory {memory_id} not found"):
+            await mcp_client.call_tool("execute_forgetful_tool", {
+                "tool_name": "get_memory_entities", "arguments": {"memory_id": memory_id},
+            })
