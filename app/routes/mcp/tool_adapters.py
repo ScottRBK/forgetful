@@ -208,6 +208,7 @@ class MemoryToolAdapters:
         project_ids: list[int] | None = None,
         code_artifact_ids: list[int] | None = None,
         document_ids: list[int] | None = None,
+        file_ids: list[int] | None = None,
         # Provenance tracking fields
         source_repo: str | None = None,
         source_files: list[str] | None = None,
@@ -230,6 +231,8 @@ class MemoryToolAdapters:
             code_artifact_ids = [_coerce_int_id(x, "code_artifact_ids") for x in code_artifact_ids]
         if document_ids is not None:
             document_ids = [_coerce_int_id(x, "document_ids") for x in document_ids]
+        if file_ids is not None:
+            file_ids = _coerce_int_ids(file_ids, "file_ids")
 
         memory_data = MemoryCreate(
             title=title,
@@ -241,6 +244,7 @@ class MemoryToolAdapters:
             project_ids=project_ids,
             code_artifact_ids=code_artifact_ids,
             document_ids=document_ids,
+            file_ids=file_ids,
             source_repo=source_repo,
             source_files=source_files,
             source_url=source_url,
@@ -278,6 +282,7 @@ class MemoryToolAdapters:
             project_ids=memory.project_ids,
             code_artifact_ids=memory.code_artifact_ids,
             document_ids=memory.document_ids,
+            file_ids=memory.file_ids,
             similar_memories=similar_memories,
             obsolete_matches=obsolete_matches,
         )
@@ -349,6 +354,7 @@ class MemoryToolAdapters:
         project_ids: list[int] | None = None,
         code_artifact_ids: list[int] | None = None,
         document_ids: list[int] | None = None,
+        file_ids: list[int] | None = None,
         # Provenance tracking fields
         source_repo: str | None = None,
         source_files: list[str] | None = None,
@@ -379,6 +385,8 @@ class MemoryToolAdapters:
             code_artifact_ids = [_coerce_int_id(x, "code_artifact_ids") for x in code_artifact_ids]
         if document_ids is not None:
             document_ids = [_coerce_int_id(x, "document_ids") for x in document_ids]
+        if file_ids is not None:
+            file_ids = _coerce_int_ids(file_ids, "file_ids")
 
         updated_dict = filter_none_values(
             title=title,
@@ -390,6 +398,7 @@ class MemoryToolAdapters:
             project_ids=project_ids,
             code_artifact_ids=code_artifact_ids,
             document_ids=document_ids,
+            file_ids=file_ids,
             source_repo=source_repo,
             source_files=source_files,
             source_url=source_url,
