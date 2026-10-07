@@ -2,6 +2,22 @@
 
 This guide covers testing and deployment workflows for contributors.
 
+## Architecture map
+
+Before changing code, read the [Mycelium class diagram](assets/mycelium_class_diagram.md).
+After completing code changes, regenerate it using [Mycelium][mycelium] and its
+[`mycelium-mermaid` skill][mycelium-mermaid]. Follow the linked skill instructions if it
+is not installed.
+
+Run a fresh analysis rather than reusing an older map, and keep the JSON map outside the
+repository. From the repository root, export to `docs/assets/mycelium_class_diagram.md` with
+`--max-classes 1000`, `--test-path tests`, and `--test-path test_harness/runs`.
+Verify the diagram is nonempty and include the updated diagram with your code changes.
+
+[mycelium]: https://github.com/ScottRBK/mycelium
+[mycelium-mermaid]:
+  https://github.com/ScottRBK/mycelium/blob/master/skills/mycelium-mermaid/SKILL.md
+
 ## Running with Docker with source 
 This will approach will fall back to using the build and as such allow you to check any changes you have made inside of a container. 
 

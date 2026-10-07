@@ -1,6 +1,21 @@
 # Forgetful Development Guide
 
 ## Architecture
+
+Before changing code or reasoning about this repository's architecture, read the
+[Mycelium class diagram](docs/assets/mycelium_class_diagram.md).
+
+After completing code changes, regenerate the diagram using [Mycelium][mycelium] and its
+[`mycelium-mermaid` skill][mycelium-mermaid]. If the skill is not installed, follow the
+instructions at that link.
+Run a fresh analysis; do not reuse an older map. Keep the JSON map outside the repository.
+Export to `docs/assets/mycelium_class_diagram.md` with `--max-classes 1000`,
+`--test-path tests`, and `--test-path test_harness/runs`. Verify the diagram is nonempty.
+
+[mycelium]: https://github.com/ScottRBK/mycelium
+[mycelium-mermaid]:
+  https://github.com/ScottRBK/mycelium/blob/master/skills/mycelium-mermaid/SKILL.md
+
 Layered architecture:
  routes -> services -> protocols -> repositories/adapters 
 No pollution of service layer with integration/implementation details
