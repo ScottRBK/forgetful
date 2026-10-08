@@ -3,16 +3,25 @@
 ## Architecture
 
 Before changing code or reasoning about this repository's architecture, read the
-[Mycelium class diagram](docs/assets/mycelium_class_diagram.md).
+[architecture overview](architecture.md).
 
-After completing code changes, regenerate the diagram using [Mycelium][mycelium] and its
-[`mycelium-mermaid` skill][mycelium-mermaid]. If the skill is not installed, follow the
-instructions at that link.
-Run a fresh analysis; do not reuse an older map. Keep the JSON map outside the repository.
-Export to `docs/assets/mycelium_class_diagram.md` with `--max-classes 1000`,
-`--test-path tests`, and `--test-path test_harness/runs`. Verify the diagram is nonempty.
+Consult the [detailed class map](docs/assets/mycelium_class_diagram.md) only as needed,
+using the overview's reading advisories. Do not load the entire map into context by default.
+
+After major code changes, check whether the architecture diagram or explanations are still
+accurate and update them if needed. Small changes do not require diagram regeneration.
+Preserve reviewed explanations that remain accurate. Keep the overview at most 500 lines;
+it has no column-width limit, including Mermaid statements.
+
+Mycelium is optional tooling, not a prerequisite for contributing or updating the overview.
+Its [architecture skill][mycelium-architecture] and [map-generation skill][mycelium-mermaid]
+are available in [ScottRBK/mycelium][mycelium] if useful. If refreshing the generated backup,
+use fresh analysis, keep the JSON outside the repository, and export full detail with
+`--max-classes 1000`, `--test-path tests`, and `--test-path test_harness/runs`.
 
 [mycelium]: https://github.com/ScottRBK/mycelium
+[mycelium-architecture]:
+  https://github.com/ScottRBK/mycelium/blob/master/skills/mycelium-architecture/SKILL.md
 [mycelium-mermaid]:
   https://github.com/ScottRBK/mycelium/blob/master/skills/mycelium-mermaid/SKILL.md
 
