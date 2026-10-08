@@ -2,6 +2,30 @@
 
 This guide covers testing and deployment workflows for contributors.
 
+## Architecture
+
+Before changing code, read the [architecture overview](../architecture.md).
+The [detailed class map](assets/mycelium_class_diagram.md) is supporting material;
+use the overview's advisories to read relevant sections rather than the whole file.
+
+After major code changes, check whether the architecture diagram or explanations need updating.
+Update them when the architecture has changed; small changes do not require regeneration.
+Preserve reviewed explanations that remain accurate. Keep the overview at most 500 lines,
+with no column-width limit, including Mermaid statements.
+
+You do not need Mycelium to contribute or update the overview. If useful, the optional
+[Mycelium architecture skill][mycelium-architecture] and [map-generation skill][mycelium-mermaid]
+are published in [ScottRBK/mycelium][mycelium]. When refreshing the generated backup, run fresh
+analysis, keep the JSON outside the repository, and export full detail to
+`docs/assets/mycelium_class_diagram.md` with `--max-classes 1000`, `--test-path tests`, and
+`--test-path test_harness/runs`. Verify nonempty diagrams and repeat-export consistency.
+
+[mycelium]: https://github.com/ScottRBK/mycelium
+[mycelium-architecture]:
+  https://github.com/ScottRBK/mycelium/blob/master/skills/mycelium-architecture/SKILL.md
+[mycelium-mermaid]:
+  https://github.com/ScottRBK/mycelium/blob/master/skills/mycelium-mermaid/SKILL.md
+
 ## Running with Docker with source 
 This will approach will fall back to using the build and as such allow you to check any changes you have made inside of a container. 
 
