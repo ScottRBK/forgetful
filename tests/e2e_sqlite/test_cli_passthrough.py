@@ -118,6 +118,31 @@ def test_call_malformed_args_json_exits_with_usage_error(cli_sqlite_env, monkeyp
     assert "JSON" in err
 
 
+def test_call_plan_external_reference(cli_sqlite_env, monkeypatch, capsys):
+    def call(tool_name, arguments):
+        code, out, err = invoke_cli(
+            monkeypatch, capsys, ["call", tool_name, "--args", json.dumps(arguments)],
+        )
+        assert code == 0, err
+        return json.loads(out)
+
+    project = call("create_project", {
+        "name": "CLI references", "description": "Watcher plans", "project_type": "development",
+    })
+
+    plan = call("create_plan", {
+        "title": "Watcher plan", "project_id": project["id"], "external_ref": " issue:42 ",
+    })
+
+    assert plan["external_ref"] == "issue:42"
+    preserved = call("update_plan", {"plan_id": plan["id"], "external_ref": None})
+    assert preserved["external_ref"] == "issue:42"
+    found = call("list_plans", {"external_ref": "issue:42"})
+    assert found["total_count"] == 1
+    assert found["plans"][0]["id"] == plan["id"]
+    assert found["plans"][0]["external_ref"] == "issue:42"
+
+
 def test_call_json_flag_emits_parseable_output(cli_sqlite_env, monkeypatch, capsys):
     code, out, _ = invoke_cli(
         monkeypatch, capsys, ["call", "get_current_user", "--args", "{}", "--json"],

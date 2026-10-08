@@ -1632,6 +1632,7 @@ class InMemoryPlanRepository(PlanRepository):
             goal=plan_data.goal,
             context=plan_data.context,
             status=plan_data.status,
+            external_ref=plan_data.external_ref,
             task_count=0,
             created_at=now,
             updated_at=now,
@@ -1660,6 +1661,7 @@ class InMemoryPlanRepository(PlanRepository):
         user_id: UUID,
         project_id: int | None = None,
         status: PlanStatus | None = None,
+        external_ref: str | None = None,
     ) -> list[PlanSummary]:
         user_plans = self._plans.get(user_id, {})
         plans = list(user_plans.values())
@@ -1669,6 +1671,9 @@ class InMemoryPlanRepository(PlanRepository):
         if status is not None:
             plans = [p for p in plans if p.status == status]
 
+        if external_ref is not None:
+            plans = [p for p in plans if p.external_ref == external_ref]
+
         plans.sort(key=lambda p: p.created_at, reverse=True)
 
         return [
@@ -1677,6 +1682,7 @@ class InMemoryPlanRepository(PlanRepository):
                 title=p.title,
                 project_id=p.project_id,
                 status=p.status,
+                external_ref=p.external_ref,
                 task_count=p.task_count,
                 created_at=p.created_at,
                 updated_at=p.updated_at,

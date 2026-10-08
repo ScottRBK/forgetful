@@ -1,6 +1,10 @@
 """E2E tests for Plan REST API endpoints (SQLite)."""
 import pytest
 
+from tests.plan_external_ref_cases import (
+    TestPlanExternalRefAPI as TestPlanExternalRefAPI,
+)
+
 
 class TestPlanAPICrud:
     """Test Plan GET operations."""

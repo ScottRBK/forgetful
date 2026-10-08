@@ -1543,9 +1543,10 @@ Create a new plan within a project.
 - `goal` (optional): High-level goal for the plan
 - `context` (optional): Additional context or background
 - `status` (optional): Plan status (default: `draft`)
+- `external_ref` (optional): Opaque reference unique across the authenticated user's plans
 
 **Returns:**
-- Created plan with `plan_id`
+- Created plan with `id` and `external_ref` (null when not supplied)
 
 **Example:**
 ```python
@@ -1559,7 +1560,7 @@ plan = execute_forgetful_tool(
         "status": "draft"
     }
 )
-# Returns: {"plan_id": 5, "title": "Migrate Authentication to OAuth2", ...}
+# Returns: {"id": 5, "title": "Migrate Authentication to OAuth2", ...}
 ```
 
 ### `update_plan`
@@ -1572,6 +1573,7 @@ Update plan metadata (PATCH semantics - only provided fields changed).
 - `goal` (optional): Updated goal
 - `context` (optional): Updated context
 - `status` (optional): Updated status
+- `external_ref` (optional): Replacement reference; omitted or null leaves it unchanged
 
 **Returns:**
 - Updated plan object
@@ -1614,9 +1616,10 @@ List plans with optional filtering.
 **Parameters:**
 - `project_id` (optional): Filter by project
 - `status` (optional): Filter by status
+- `external_ref` (optional): Exact reference lookup within your plans
 
 **Returns:**
-- List of matching plans
+- Object with `plans` summaries (including `external_ref`) and `total_count`
 
 **Example:**
 ```python
@@ -1625,6 +1628,44 @@ active_plans = execute_forgetful_tool(
     "list_plans",
     {"project_id": 12, "status": "active"}
 )
+```
+
+### External reference rules and conflict recovery
+
+References are opaque strings: surrounding whitespace is trimmed on create, update, and lookup.
+The trimmed value must contain 1–255 characters. Matching is case-sensitive; all other characters
+are preserved. For example, `github:ScottRBK/factory#42` and `github:scottrbk/factory#42` differ.
+No GitHub parsing or synchronization is performed. Callers must manage changes to their identifiers,
+such as repository renames, or choose stable identifiers.
+
+A reference is unique across all of your projects and plan statuses, including completed and
+archived plans. Different users can use the same reference. Multiple plans without a reference
+are allowed. Existing plans keep a null reference after migration; `source_url` remains independent
+provenance and is never used to backfill or enforce uniqueness.
+
+Duplicate creates or updates fail with a conflict error. The database enforces uniqueness even
+for concurrent requests, and a rejected update leaves the entire plan unchanged. Recover the
+existing plan by looking up the reference **without project or status filters**:
+
+```python
+result = execute_forgetful_tool(
+    "list_plans", {"external_ref": "github:ScottRBK/factory#42"}
+)
+# result["plans"] contains zero or one summary; its "id" can be passed to get_plan.
+```
+
+Omitting `external_ref` or supplying null during an update leaves it unchanged. There is no clear
+operation: empty/whitespace-only strings are rejected. Replacing the reference or deleting the
+plan releases the old value for reuse. Completing or archiving a plan retains its reference.
+A unique reference prevents duplicate plans; it does not claim tasks or prevent duplicate agents.
+
+Generic CLI calls accept the same arguments:
+
+```bash
+forgetful call create_plan --args '{
+  "title": "Factory issue", "project_id": 12, "external_ref": "github:ScottRBK/factory#42"
+}'
+forgetful call list_plans --args '{"external_ref":"github:ScottRBK/factory#42"}'
 ```
 
 ---

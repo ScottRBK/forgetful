@@ -124,7 +124,7 @@ _DISCOVER_PLAN_SECTION = """
     - create_plan: Create plan with title, project_id, goal, context
     - update_plan: Modify plan metadata (PATCH semantics)
     - get_plan: Retrieve plan details by ID
-    - list_plans: List plans with project/status filters"""
+    - list_plans: List plans with project/status/exact external_ref filters"""
 
 _DISCOVER_TASK_SECTION = """
 

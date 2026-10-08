@@ -6,7 +6,7 @@ Members and connections within each view are uncapped.
 Parallel arrows are summarized.
 Cross-diagram relationships are retained in the complete relationship list.
 
-Included: 295 boxes. Calls without in-scope endpoints: 0.
+Included: 296 boxes. Calls without in-scope endpoints: 0.
 
 ## Test filtering
 
@@ -14,7 +14,7 @@ Mode: exclude.
 Saved detector version: 2.
 Test paths: `test_harness/runs`, `tests`.
 Keep paths: none.
-Calls removed by test filtering: 4502. Type relationships removed: 119.
+Calls removed by test filtering: 4561. Type relationships removed: 119.
 
 -
   `test_harness/runs/20260710-211850-opencode/forgetful-encode-repo/workspace/fixture-repo/src/calc.
@@ -42,6 +42,7 @@ Calls removed by test filtering: 4502. Type relationships removed: 119.
 - `tests/e2e/test_memory_usage_tracking_disabled_e2e.py`: 2 source occurrences (test-path).
 - `tests/e2e/test_meta_tools_e2e.py`: 17 source occurrences (test-path).
 - `tests/e2e/test_obsolete_matches_e2e.py`: 2 source occurrences (test-path).
+- `tests/e2e/test_plan_external_ref_e2e.py`: 2 source occurrences (test-path).
 - `tests/e2e/test_plan_tools_e2e.py`: 11 source occurrences (test-path).
 - `tests/e2e/test_project_tools_e2e.py`: 21 source occurrences (test-path).
 - `tests/e2e/test_provenance_e2e.py`: 13 source occurrences (test-path).
@@ -69,7 +70,7 @@ Calls removed by test filtering: 4502. Type relationships removed: 119.
 - `tests/e2e_sqlite/test_auth_cache_sqlite.py`: 8 source occurrences (test-path).
 - `tests/e2e_sqlite/test_auth_sqlite.py`: 6 source occurrences (test-path).
 - `tests/e2e_sqlite/test_auto_link_threshold_sqlite.py`: 7 source occurrences (test-path).
-- `tests/e2e_sqlite/test_cli_passthrough.py`: 12 source occurrences (test-path).
+- `tests/e2e_sqlite/test_cli_passthrough.py`: 13 source occurrences (test-path).
 - `tests/e2e_sqlite/test_cli_remote.py`: 10 source occurrences (test-path).
 - `tests/e2e_sqlite/test_cli_verbs.py`: 12 source occurrences (test-path).
 - `tests/e2e_sqlite/test_code_artifact_tools_sqlite.py`: 8 source occurrences (test-path).
@@ -84,6 +85,7 @@ Calls removed by test filtering: 4502. Type relationships removed: 119.
 - `tests/e2e_sqlite/test_memory_tools_sqlite.py`: 42 source occurrences (test-path).
 - `tests/e2e_sqlite/test_meta_tools_sqlite.py`: 18 source occurrences (test-path).
 - `tests/e2e_sqlite/test_obsolete_matches_sqlite.py`: 8 source occurrences (test-path).
+- `tests/e2e_sqlite/test_plan_external_ref_storage.py`: 2 source occurrences (test-path).
 - `tests/e2e_sqlite/test_plan_tools_sqlite.py`: 12 source occurrences (test-path).
 - `tests/e2e_sqlite/test_project_tools_sqlite.py`: 21 source occurrences (test-path).
 - `tests/e2e_sqlite/test_provenance_sqlite.py`: 16 source occurrences (test-path).
@@ -142,6 +144,7 @@ Calls removed by test filtering: 4502. Type relationships removed: 119.
 - `tests/integration/test_task_service.py`: 22 source occurrences (test-path).
 - `tests/integration/test_tool_registry.py`: 32 source occurrences (test-path).
 - `tests/integration/test_user_service.py`: 7 source occurrences (test-path).
+- `tests/plan_external_ref_cases.py`: 16 source occurrences (test-path).
 
 ## Diagram 1
 
@@ -227,7 +230,12 @@ classDiagram
         +upgrade() None
         +downgrade() None
     }
-    class c0013["Runtime"] {
+    class c0013["alembic/versions/20261008_add_plan_external_ref.py"] {
+        <<module>>
+        +upgrade() None
+        +downgrade() None
+    }
+    class c0014["Runtime"] {
         <<class>>
         +db_adapter: Any
         +repos: Type1
@@ -237,7 +245,7 @@ classDiagram
         +instance_scopes: frozenset[str]
         +event_bus: Type2
     }
-    class c0014["Services"] {
+    class c0015["Services"] {
         <<class>>
         +user: Any
         +memory: Any
@@ -252,7 +260,7 @@ classDiagram
         +plan: Type2
         +task: Type2
     }
-    class c0015["app/bootstrap.py"] {
+    class c0016["app/bootstrap.py"] {
         <<module>>
         +get_embedding_adapter() unknown
         +get_reranker_adapter() unknown
@@ -262,7 +270,7 @@ classDiagram
         +build_runtime() Runtime
         +dispose_runtime(runtime: Runtime) None
     }
-    class c0016["app/config/auth.py"] {
+    class c0017["app/config/auth.py"] {
         <<module>>
         -_register(class_path: str) unknown
         -_required(value: str, field_name: str) str
@@ -273,29 +281,29 @@ classDiagram
         -_build_introspection() unknown
         +build_auth_provider() unknown
     }
-    class c0017["ConsoleFormatter"] {
+    class c0018["ConsoleFormatter"] {
         <<class>>
         +COLOURS: unknown
         +RESET: unknown
         +format(record: logging.LogRecord) str
     }
-    class c0018["JSONFormatter"] {
+    class c0019["JSONFormatter"] {
         <<class>>
         +format(record: logging.LogRecord) str
     }
-    class c0019["SensitiveDataFilter"] {
+    class c0020["SensitiveDataFilter"] {
         <<class>>
         +SENSITIVE_PATTERNS: unknown
         +filter(record: logging.LogRecord) bool
         -_mask_value(value: unknown) unknown
     }
-    class c0020["app/config/logging_config.py"] {
+    class c0021["app/config/logging_config.py"] {
         <<module>>
         -_serialise_log_value(obj: unknown) unknown
         +configure_logging(log_level: str, log_format: str) logging.handlers.QueueListener
         +shutdown_logging() unknown
     }
-    class c0021["Settings"] {
+    class c0022["Settings"] {
         <<class>>
         +SERVICE_NAME: str
         +SERVICE_VERSION: str
@@ -432,11 +440,11 @@ classDiagram
         +reranking_onnx_providers: Type3
         +model_config: unknown
     }
-    class c0022["app/config/settings.py"] {
+    class c0023["app/config/settings.py"] {
         <<module>>
         +parse_onnx_providers(value: Type5) Type3
     }
-    class c0023["EventBus"] {
+    class c0024["EventBus"] {
         <<class>>
         -__init__(max_queue_size: int) None
         -_subscribers: Type6
@@ -461,27 +469,27 @@ classDiagram
         +stream_subscriber_count(user_id: Type5) int
         +get_current_seq(user_id: str) int
     }
-    class c0024["ConflictError"] {
+    class c0025["ConflictError"] {
         <<class>>
     }
-    class c0025["CyclicDependencyError"] {
+    class c0026["CyclicDependencyError"] {
         <<class>>
     }
-    class c0026["DependencyNotMetError"] {
+    class c0027["DependencyNotMetError"] {
         <<class>>
     }
-    class c0027["InvalidStateTransitionError"] {
+    class c0028["InvalidStateTransitionError"] {
         <<class>>
     }
-    class c0028["NotFoundError"] {
+    class c0029["NotFoundError"] {
         <<class>>
     }
-    class c0029["CacheEntry"] {
+    class c0030["CacheEntry"] {
         <<class>>
         +user: User
         +expires_at: float
     }
-    class c0030["TokenCache"] {
+    class c0031["TokenCache"] {
         <<class>>
         -__init__(ttl_seconds: int, max_size: int) unknown
         -_cache: Type11
@@ -498,19 +506,19 @@ classDiagram
         +clear() None
         +stats: dict
     }
-    class c0031["app/middleware/auth.py"] {
+    class c0032["app/middleware/auth.py"] {
         <<module>>
         +get_user_from_auth(ctx: Context) User
         +get_user_from_request(request: Request, mcp: FastMCP) User
     }
-    class c0032["app/middleware/logging_middleware.py"] {
+    class c0033["app/middleware/logging_middleware.py"] {
         <<module>>
         +get_request_id() Type5
         +set_request_id(request_id: str) None
         +get_user_id() Type5
         +set_user_id(user_id: str) None
     }
-    class c0033["ActionType"] {
+    class c0034["ActionType"] {
         <<class>>
         +CREATED: unknown
         +UPDATED: unknown
@@ -518,7 +526,7 @@ classDiagram
         +READ: unknown
         +QUERIED: unknown
     }
-    class c0034["ActivityEvent"] {
+    class c0035["ActivityEvent"] {
         <<class>>
         +entity_type: EntityType
         +entity_id: int
@@ -532,7 +540,7 @@ classDiagram
         +user_id: Type5
         +model_config: unknown
     }
-    class c0035["ActivityListResponse"] {
+    class c0036["ActivityListResponse"] {
         <<class>>
         +events: list[ActivityLogEntry]
         +total: int
@@ -540,7 +548,7 @@ classDiagram
         +offset: int
         +model_config: unknown
     }
-    class c0036["ActivityLogEntry"] {
+    class c0037["ActivityLogEntry"] {
         <<class>>
         +id: int
         +user_id: str
@@ -555,13 +563,13 @@ classDiagram
         +created_at: datetime
         +model_config: unknown
     }
-    class c0037["ActorType"] {
+    class c0038["ActorType"] {
         <<class>>
         +USER: unknown
         +SYSTEM: unknown
         +LLM_MAINTENANCE: unknown
     }
-    class c0038["EntityType"] {
+    class c0039["EntityType"] {
         <<class>>
         +MEMORY: unknown
         +PROJECT: unknown
@@ -579,7 +587,7 @@ classDiagram
         +FILE: unknown
         +SKILL: unknown
     }
-    class c0039["CodeArtifact"] {
+    class c0040["CodeArtifact"] {
         <<class>>
         +id: int
         +project_id: Type4
@@ -587,7 +595,7 @@ classDiagram
         +updated_at: datetime
         +model_config: unknown
     }
-    class c0040["CodeArtifactCreate"] {
+    class c0041["CodeArtifactCreate"] {
         <<class>>
         +title: str
         +description: str
@@ -609,7 +617,7 @@ classDiagram
         +lowercase_language(v: unknown) unknown
         +validate_tags(v: unknown) unknown
     }
-    class c0041["CodeArtifactSummary"] {
+    class c0042["CodeArtifactSummary"] {
         <<class>>
         +id: int
         +title: str
@@ -621,7 +629,7 @@ classDiagram
         +updated_at: datetime
         +model_config: unknown
     }
-    class c0042["CodeArtifactUpdate"] {
+    class c0043["CodeArtifactUpdate"] {
         <<class>>
         +title: Type5
         +description: Type5
@@ -643,7 +651,7 @@ classDiagram
         +lowercase_language(v: unknown) unknown
         +validate_tags(v: unknown) unknown
     }
-    class c0043["Document"] {
+    class c0044["Document"] {
         <<class>>
         +id: int
         +project_id: Type4
@@ -651,7 +659,7 @@ classDiagram
         +updated_at: datetime
         +model_config: unknown
     }
-    class c0044["DocumentCreate"] {
+    class c0045["DocumentCreate"] {
         <<class>>
         +title: str
         +description: str
@@ -675,7 +683,7 @@ classDiagram
         +validate_tags(v: unknown) unknown
         +calculate_size_bytes(v: unknown, info: unknown) unknown
     }
-    class c0045["DocumentSummary"] {
+    class c0046["DocumentSummary"] {
         <<class>>
         +id: int
         +title: str
@@ -689,7 +697,7 @@ classDiagram
         +updated_at: datetime
         +model_config: unknown
     }
-    class c0046["DocumentUpdate"] {
+    class c0047["DocumentUpdate"] {
         <<class>>
         +title: Type5
         +description: Type5
@@ -712,7 +720,7 @@ classDiagram
         +strip_whitespace(v: unknown, info: unknown) unknown
         +validate_tags(v: unknown) unknown
     }
-    class c0047["Entity"] {
+    class c0048["Entity"] {
         <<class>>
         +id: int
         +project_ids: Type15
@@ -720,7 +728,7 @@ classDiagram
         +updated_at: datetime
         +model_config: unknown
     }
-    class c0048["EntityCreate"] {
+    class c0049["EntityCreate"] {
         <<class>>
         +name: str
         +entity_type: EntityType
@@ -744,21 +752,21 @@ classDiagram
         +validate_aka(v: unknown) unknown
         +validate_custom_type() unknown
     }
-    class c0049["EntityListResponse"] {
+    class c0050["EntityListResponse"] {
         <<class>>
         +entities: list[EntitySummary]
         +total: int
         +limit: int
         +offset: int
     }
-    class c0050["EntityRelationship"] {
+    class c0051["EntityRelationship"] {
         <<class>>
         +id: int
         +created_at: datetime
         +updated_at: datetime
         +model_config: unknown
     }
-    class c0051["EntityRelationshipCreate"] {
+    class c0052["EntityRelationshipCreate"] {
         <<class>>
         +source_entity_id: int
         +target_entity_id: int
@@ -778,7 +786,7 @@ classDiagram
         +strip_whitespace(v: unknown) unknown
         +validate_different_entities() unknown
     }
-    class c0052["EntityRelationshipUpdate"] {
+    class c0053["EntityRelationshipUpdate"] {
         <<class>>
         +relationship_type: Type5
         +strength: Type9
@@ -795,7 +803,7 @@ classDiagram
         +validate_source_files(v: unknown) unknown
         +strip_whitespace(v: unknown) unknown
     }
-    class c0053["EntitySummary"] {
+    class c0054["EntitySummary"] {
         <<class>>
         +id: int
         +name: str
@@ -808,7 +816,7 @@ classDiagram
         +updated_at: datetime
         +model_config: unknown
     }
-    class c0054["EntityType"] {
+    class c0055["EntityType"] {
         <<class>>
         +ORGANIZATION: unknown
         +INDIVIDUAL: unknown
@@ -818,7 +826,7 @@ classDiagram
         +OTHER: unknown
         -_missing_(value: unknown) unknown
     }
-    class c0055["EntityUpdate"] {
+    class c0056["EntityUpdate"] {
         <<class>>
         +name: Type5
         +entity_type: Type16
@@ -842,7 +850,7 @@ classDiagram
         +validate_aka(v: unknown) unknown
         +validate_custom_type() unknown
     }
-    class c0056["File"] {
+    class c0057["File"] {
         <<class>>
         +id: int
         +size_bytes: int
@@ -851,7 +859,7 @@ classDiagram
         +updated_at: datetime
         +model_config: unknown
     }
-    class c0057["FileCreate"] {
+    class c0058["FileCreate"] {
         <<class>>
         +filename: str
         +description: str
@@ -873,7 +881,7 @@ classDiagram
         +validate_tags(v: unknown) unknown
         +validate_base64_data(v: unknown) unknown
     }
-    class c0058["FileSummary"] {
+    class c0059["FileSummary"] {
         <<class>>
         +id: int
         +filename: str
@@ -886,7 +894,7 @@ classDiagram
         +updated_at: datetime
         +model_config: unknown
     }
-    class c0059["FileUpdate"] {
+    class c0060["FileUpdate"] {
         <<class>>
         +filename: Type5
         +description: Type5
@@ -908,7 +916,7 @@ classDiagram
         +validate_tags(v: unknown) unknown
         +validate_base64_data(v: unknown) unknown
     }
-    class c0060["SubgraphEdge"] {
+    class c0061["SubgraphEdge"] {
         <<class>>
         +id: str
         +source: str
@@ -916,7 +924,7 @@ classDiagram
         +type: Type17
         +data: Type14
     }
-    class c0061["SubgraphMeta"] {
+    class c0062["SubgraphMeta"] {
         <<class>>
         +center_node_id: str
         +depth: int
@@ -953,7 +961,7 @@ classDiagram
         +plan_task_count: int
         +truncated: bool
     }
-    class c0062["SubgraphNode"] {
+    class c0063["SubgraphNode"] {
         <<class>>
         +id: str
         +type: Type18
@@ -961,19 +969,19 @@ classDiagram
         +label: str
         +data: Type1
     }
-    class c0063["SubgraphResponse"] {
+    class c0064["SubgraphResponse"] {
         <<class>>
         +nodes: list[SubgraphNode]
         +edges: list[SubgraphEdge]
         +meta: SubgraphMeta
     }
-    class c0064["LinkedMemory"] {
+    class c0065["LinkedMemory"] {
         <<class>>
         +memory: Memory
         +link_source_id: int
         +model_config: unknown
     }
-    class c0065["Memory"] {
+    class c0066["Memory"] {
         <<class>>
         +id: int
         +created_at: datetime
@@ -992,7 +1000,7 @@ classDiagram
         +last_accessed_at: Type19
         +model_config: unknown
     }
-    class c0066["MemoryCreate"] {
+    class c0067["MemoryCreate"] {
         <<class>>
         +title: str
         +content: str
@@ -1017,7 +1025,7 @@ classDiagram
         +validate_lists(v: unknown, info: unknown) unknown
         +validate_source_files(v: unknown) unknown
     }
-    class c0067["MemoryCreateResponse"] {
+    class c0068["MemoryCreateResponse"] {
         <<class>>
         +id: int
         +title: str
@@ -1030,20 +1038,20 @@ classDiagram
         +similar_memories: list[MemorySummary]
         +obsolete_matches: list[ObsoleteMatch]
     }
-    class c0068["MemoryLinkRequest"] {
+    class c0069["MemoryLinkRequest"] {
         <<class>>
         +memory_id: int
         +related_ids: list[int]
         +validate_related_ids(v: unknown, info: unknown) unknown
     }
-    class c0069["MemoryListResponse"] {
+    class c0070["MemoryListResponse"] {
         <<class>>
         +memories: list[Memory]
         +total: int
         +limit: int
         +offset: int
     }
-    class c0070["MemoryQueryRequest"] {
+    class c0071["MemoryQueryRequest"] {
         <<class>>
         +query: str
         +query_context: str
@@ -1055,7 +1063,7 @@ classDiagram
         +project_ids: Type15
         +strict_project_filter: bool
     }
-    class c0071["MemoryQueryResult"] {
+    class c0072["MemoryQueryResult"] {
         <<class>>
         +query: str
         +primary_memories: list[Memory]
@@ -1065,13 +1073,13 @@ classDiagram
         +token_count: int
         +truncated: bool
     }
-    class c0072["MemoryScore"] {
+    class c0073["MemoryScore"] {
         <<class>>
         +memory_id: int
         +similarity: float
         +rerank_score: Type9
     }
-    class c0073["MemorySummary"] {
+    class c0074["MemorySummary"] {
         <<class>>
         +id: int
         +title: str
@@ -1083,7 +1091,7 @@ classDiagram
         +similarity: Type9
         +model_config: unknown
     }
-    class c0074["MemoryUpdate"] {
+    class c0075["MemoryUpdate"] {
         <<class>>
         +title: Type5
         +content: Type5
@@ -1108,7 +1116,7 @@ classDiagram
         +validate_lists(v: unknown, info: unknown) unknown
         +validate_source_files(v: unknown) unknown
     }
-    class c0075["ObsoleteMatch"] {
+    class c0076["ObsoleteMatch"] {
         <<class>>
         +id: int
         +title: str
@@ -1118,14 +1126,14 @@ classDiagram
         +obsoleted_at: Type19
         +project_ids: list[int]
     }
-    class c0076["HealthStatus"] {
+    class c0077["HealthStatus"] {
         <<class>>
         +status: str
         +timestamp: datetime
         +service: str
         +version: str
     }
-    class c0077["Criterion"] {
+    class c0078["Criterion"] {
         <<class>>
         +id: int
         +task_id: int
@@ -1136,18 +1144,18 @@ classDiagram
         +updated_at: datetime
         +model_config: unknown
     }
-    class c0078["CriterionCreate"] {
+    class c0079["CriterionCreate"] {
         <<class>>
         +description: str
         +strip_description(v: str) str
     }
-    class c0079["CriterionUpdate"] {
+    class c0080["CriterionUpdate"] {
         <<class>>
         +description: Type5
         +met: Type21
         +strip_description(v: Type5) Type5
     }
-    class c0080["Plan"] {
+    class c0081["Plan"] {
         <<class>>
         +id: int
         +task_count: int
@@ -1155,13 +1163,14 @@ classDiagram
         +updated_at: datetime
         +model_config: unknown
     }
-    class c0081["PlanCreate"] {
+    class c0082["PlanCreate"] {
         <<class>>
         +title: str
         +project_id: int
         +goal: Type5
         +context: Type5
         +status: PlanStatus
+        +external_ref: Type22
         +source_repo: Type5
         +source_files: Type3
         +source_url: Type5
@@ -1175,30 +1184,32 @@ classDiagram
         +strip_title(v: str) str
         +strip_optional(v: Type5) Type5
     }
-    class c0082["PlanStatus"] {
+    class c0083["PlanStatus"] {
         <<class>>
         +DRAFT: unknown
         +ACTIVE: unknown
         +COMPLETED: unknown
         +ARCHIVED: unknown
     }
-    class c0083["PlanSummary"] {
+    class c0084["PlanSummary"] {
         <<class>>
         +id: int
         +title: str
         +project_id: int
         +status: PlanStatus
+        +external_ref: Type5
         +task_count: int
         +created_at: datetime
         +updated_at: datetime
         +model_config: unknown
     }
-    class c0084["PlanUpdate"] {
+    class c0085["PlanUpdate"] {
         <<class>>
         +title: Type5
         +goal: Type5
         +context: Type5
-        +status: Type22
+        +status: Type23
+        +external_ref: Type22
         +source_repo: Type5
         +source_files: Type3
         +source_url: Type5
@@ -1208,11 +1219,12 @@ classDiagram
         +agent_id: Type5
         +agent_version: Type5
         +agent_model: Type5
+        +ignore_null_external_ref(data: Any) Any
         +validate_source_files(v: unknown) unknown
         +strip_title(v: Type5) Type5
         +strip_optional(v: Type5) Type5
     }
-    class c0085["Task"] {
+    class c0086["Task"] {
         <<class>>
         +id: int
         +plan_id: int
@@ -1237,14 +1249,14 @@ classDiagram
         +updated_at: datetime
         +model_config: unknown
     }
-    class c0086["TaskCreate"] {
+    class c0087["TaskCreate"] {
         <<class>>
         +title: str
         +plan_id: int
         +description: Type5
         +priority: TaskPriority
         +assigned_agent: Type5
-        +criteria: Type23
+        +criteria: Type24
         +dependency_ids: Type15
         +source_repo: Type5
         +source_files: Type3
@@ -1259,7 +1271,7 @@ classDiagram
         +strip_title(v: str) str
         +strip_description(v: Type5) Type5
     }
-    class c0087["TaskDependency"] {
+    class c0088["TaskDependency"] {
         <<class>>
         +id: int
         +task_id: int
@@ -1267,20 +1279,20 @@ classDiagram
         +created_at: datetime
         +model_config: unknown
     }
-    class c0088["TaskDependencyCreate"] {
+    class c0089["TaskDependencyCreate"] {
         <<class>>
         +task_id: int
         +depends_on_task_id: int
         +cannot_depend_on_self(v: int, info: unknown) int
     }
-    class c0089["TaskPriority"] {
+    class c0090["TaskPriority"] {
         <<class>>
         +P0: unknown
         +P1: unknown
         +P2: unknown
         +P3: unknown
     }
-    class c0090["TaskState"] {
+    class c0091["TaskState"] {
         <<class>>
         +TODO: unknown
         +DOING: unknown
@@ -1288,7 +1300,7 @@ classDiagram
         +DONE: unknown
         +CANCELLED: unknown
     }
-    class c0091["TaskSummary"] {
+    class c0092["TaskSummary"] {
         <<class>>
         +id: int
         +title: str
@@ -1304,11 +1316,11 @@ classDiagram
         +updated_at: datetime
         +model_config: unknown
     }
-    class c0092["TaskUpdate"] {
+    class c0093["TaskUpdate"] {
         <<class>>
         +title: Type5
         +description: Type5
-        +priority: Type24
+        +priority: Type25
         +source_repo: Type5
         +source_files: Type3
         +source_url: Type5
@@ -1322,7 +1334,7 @@ classDiagram
         +strip_title(v: Type5) Type5
         +strip_description(v: Type5) Type5
     }
-    class c0093["Project"] {
+    class c0094["Project"] {
         <<class>>
         +id: int
         +memory_count: int
@@ -1330,7 +1342,7 @@ classDiagram
         +updated_at: datetime
         +model_config: unknown
     }
-    class c0094["ProjectCreate"] {
+    class c0095["ProjectCreate"] {
         <<class>>
         +name: str
         +description: str
@@ -1352,13 +1364,13 @@ classDiagram
         +preserve_last_encoding_point(v: unknown) unknown
         +strip_whitespace(v: unknown, info: unknown) unknown
     }
-    class c0095["ProjectStatus"] {
+    class c0096["ProjectStatus"] {
         <<class>>
         +ACTIVE: unknown
         +ARCHIVED: unknown
         +COMPLETED: unknown
     }
-    class c0096["ProjectSummary"] {
+    class c0097["ProjectSummary"] {
         <<class>>
         +id: int
         +name: str
@@ -1371,7 +1383,7 @@ classDiagram
         +updated_at: datetime
         +model_config: unknown
     }
-    class c0097["ProjectType"] {
+    class c0098["ProjectType"] {
         <<class>>
         +PERSONAL: unknown
         +WORK: unknown
@@ -1387,12 +1399,12 @@ classDiagram
         +THIRD_PARTY_LIBRARY: unknown
         +OPEN_SOURCE: unknown
     }
-    class c0098["ProjectUpdate"] {
+    class c0099["ProjectUpdate"] {
         <<class>>
         +name: Type5
         +description: Type5
-        +project_type: Type25
-        +status: Type26
+        +project_type: Type26
+        +status: Type27
         +repo_name: Type5
         +last_encoding_point: Type5
         +notes: Type5
@@ -1409,14 +1421,14 @@ classDiagram
         +preserve_last_encoding_point(v: unknown) unknown
         +strip_whitespace(v: unknown, info: unknown) unknown
     }
-    class c0099["Skill"] {
+    class c0100["Skill"] {
         <<class>>
         +id: int
         +created_at: datetime
         +updated_at: datetime
         +model_config: unknown
     }
-    class c0100["SkillCreate"] {
+    class c0101["SkillCreate"] {
         <<class>>
         +name: str
         +description: str
@@ -1424,7 +1436,7 @@ classDiagram
         +license: Type5
         +compatibility: Type5
         +allowed_tools: Type3
-        +metadata: Type27
+        +metadata: Type28
         +tags: list[str]
         +importance: int
         +project_id: Type4
@@ -1441,14 +1453,14 @@ classDiagram
         +validate_name_kebab_case(v: unknown) unknown
         +validate_tags(v: unknown) unknown
     }
-    class c0101["SkillLinks"] {
+    class c0102["SkillLinks"] {
         <<class>>
         +memory_ids: list[int]
         +file_ids: list[int]
         +code_artifact_ids: list[int]
         +document_ids: list[int]
     }
-    class c0102["SkillSummary"] {
+    class c0103["SkillSummary"] {
         <<class>>
         +id: int
         +name: str
@@ -1461,7 +1473,7 @@ classDiagram
         +updated_at: datetime
         +model_config: unknown
     }
-    class c0103["SkillUpdate"] {
+    class c0104["SkillUpdate"] {
         <<class>>
         +name: Type5
         +description: Type5
@@ -1469,7 +1481,7 @@ classDiagram
         +license: Type5
         +compatibility: Type5
         +allowed_tools: Type3
-        +metadata: Type27
+        +metadata: Type28
         +tags: Type3
         +importance: Type4
         +project_id: Type4
@@ -1486,7 +1498,7 @@ classDiagram
         +validate_name_kebab_case(v: unknown) unknown
         +validate_tags(v: unknown) unknown
     }
-    class c0104["ToolCategory"] {
+    class c0105["ToolCategory"] {
         <<class>>
         +USER: unknown
         +MEMORY: unknown
@@ -1500,17 +1512,17 @@ classDiagram
         +FILE: unknown
         +SKILL: unknown
     }
-    class c0105["ToolDataDetailed"] {
+    class c0106["ToolDataDetailed"] {
         <<class>>
         +json_schema: Type1
         +further_examples: list[str]
     }
-    class c0106["ToolImplementation"] {
+    class c0107["ToolImplementation"] {
         <<class>>
         +metadata: ToolMetadata
-        +implementation: Type28
+        +implementation: Type29
     }
-    class c0107["ToolMetadata"] {
+    class c0108["ToolMetadata"] {
         <<class>>
         +name: str
         +category: ToolCategory
@@ -1525,7 +1537,7 @@ classDiagram
         -_generate_json_schema() Type1
         -_map_python_type_to_json_type(python_type: str) str
     }
-    class c0108["ToolParameter"] {
+    class c0109["ToolParameter"] {
         <<class>>
         +name: str
         +type: str
@@ -1534,22 +1546,22 @@ classDiagram
         +default: Type2
         +example: Type2
     }
-    class c0109["User"] {
+    class c0110["User"] {
         <<class>>
         +id: UUID
         +updated_at: datetime
         +created_at: datetime
         +model_config: unknown
     }
-    class c0110["UserCreate"] {
+    class c0111["UserCreate"] {
         <<class>>
         +external_id: str
         +name: str
         +email: str
-        +idp_metadata: Type27
+        +idp_metadata: Type28
         +notes: Type5
     }
-    class c0111["UserResponse"] {
+    class c0112["UserResponse"] {
         <<class>>
         +name: str
         +notes: Type5
@@ -1557,41 +1569,41 @@ classDiagram
         +created_at: datetime
         +model_config: unknown
     }
-    class c0112["UserUpdate"] {
+    class c0113["UserUpdate"] {
         <<class>>
         +external_id: Type5
         +name: Type5
         +email: Type5
-        +idp_metadata: Type27
+        +idp_metadata: Type28
         +notes: Type5
     }
-    class c0113["ActivityRepository"] {
+    class c0114["ActivityRepository"] {
         <<class>>
         +save_event(user_id: UUID, event: ActivityEvent) ActivityLogEntry
         +query_events(Signature2)
         +cleanup_expired(user_id: UUID, retention_days: int) int
-        +count_events(user_id: UUID, entity_type: Type16, action: Type30) int
+        +count_events(user_id: UUID, entity_type: Type16, action: Type31) int
     }
-    class c0114["CodeArtifactRepository"] {
+    class c0115["CodeArtifactRepository"] {
         <<class>>
         +create_code_artifact(user_id: UUID, artifact_data: CodeArtifactCreate) CodeArtifact
-        +get_code_artifact_by_id(user_id: UUID, artifact_id: int) Type32
+        +get_code_artifact_by_id(user_id: UUID, artifact_id: int) Type33
         +list_code_artifacts(Signature3)
         +update_code_artifact(Signature4)
         +delete_code_artifact(user_id: UUID, artifact_id: int) bool
     }
-    class c0115["DocumentRepository"] {
+    class c0116["DocumentRepository"] {
         <<class>>
         +create_document(user_id: UUID, document_data: DocumentCreate) Document
-        +get_document_by_id(user_id: UUID, document_id: int) Type33
+        +get_document_by_id(user_id: UUID, document_id: int) Type34
         +list_documents(Signature5)
         +update_document(Signature6)
         +delete_document(user_id: UUID, document_id: int) bool
     }
-    class c0116["EntityRepository"] {
+    class c0117["EntityRepository"] {
         <<class>>
         +create_entity(user_id: UUID, entity_data: EntityCreate) Entity
-        +get_entity_by_id(user_id: UUID, entity_id: int) Type34
+        +get_entity_by_id(user_id: UUID, entity_id: int) Type35
         +list_entities(Signature7)
         +search_entities(Signature8)
         +update_entity(user_id: UUID, entity_id: int, entity_data: EntityUpdate) Entity
@@ -1605,28 +1617,28 @@ classDiagram
         +update_entity_relationship(Signature11)
         +delete_entity_relationship(user_id: UUID, relationship_id: int) bool
         +get_all_entity_relationships(user_id: UUID) list[EntityRelationship]
-        +get_all_entity_memory_links(user_id: UUID) Type36
-        +get_all_entity_project_links(user_id: UUID) Type36
-        +get_all_entity_file_links(user_id: UUID) Type36
-        +get_entity_memories(user_id: UUID, entity_id: int) Type37
-        +get_memory_entities(user_id: UUID, memory_id: int) Type38
+        +get_all_entity_memory_links(user_id: UUID) Type37
+        +get_all_entity_project_links(user_id: UUID) Type37
+        +get_all_entity_file_links(user_id: UUID) Type37
+        +get_entity_memories(user_id: UUID, entity_id: int) Type38
+        +get_memory_entities(user_id: UUID, memory_id: int) Type39
     }
-    class c0117["ToolExecutor"] {
+    class c0118["ToolExecutor"] {
         <<class>>
         +execute(tool_name: str, arguments: Type1) Any
         +list_tools(category: Type5) Type1
         +tool_info(tool_name: str) Type1
         +close() None
     }
-    class c0118["FileRepository"] {
+    class c0119["FileRepository"] {
         <<class>>
         +create_file(user_id: UUID, file_data: FileCreate) File
-        +get_file_by_id(user_id: UUID, file_id: int) Type39
+        +get_file_by_id(user_id: UUID, file_id: int) Type40
         +list_files(Signature12)
         +update_file(user_id: UUID, file_id: int, file_data: FileUpdate) File
         +delete_file(user_id: UUID, file_id: int) bool
     }
-    class c0119["MemoryRepository"] {
+    class c0120["MemoryRepository"] {
         <<class>>
         +search(Signature13)
         +search_scored(Signature14)
@@ -1637,7 +1649,7 @@ classDiagram
         +mark_obsolete(user_id: UUID, memory_id: int, reason: str, superseded_by: int) bool
         +get_linked_memories(Signature16)
         +find_similar_memories(user_id: UUID, memory_id: int, max_links: int) list[Memory]
-        +find_similar_memories_scored(user_id: UUID, memory_id: int, max_links: int) Type42
+        +find_similar_memories_scored(user_id: UUID, memory_id: int, max_links: int) Type43
         +find_obsolete_matches(Signature17)
         +list_memories(Signature18)
         +unlink_memories(user_id: UUID, source_id: int, target_id: int) bool
@@ -1646,43 +1658,43 @@ classDiagram
         +get_memories_for_reembedding(limit: int, offset: int) list[Memory]
         +count_memories_for_targeted_rebuild(Signature20)
         +get_memories_for_targeted_rebuild(Signature21)
-        +upsert_targeted_embeddings(user_id: UUID, updates: Type45) list[int]
+        +upsert_targeted_embeddings(user_id: UUID, updates: Type46) list[int]
         +reset_embedding_storage() None
-        +bulk_update_embeddings(updates: Type45) None
+        +bulk_update_embeddings(updates: Type46) None
         +validate_embedding_count() bool
         +validate_embedding_dimensions() bool
         +validate_search_works() bool
         +record_memory_access(user_id: UUID, memory_ids: list[int], accessed_at: Type19) int
     }
-    class c0120["ValidationResult"] {
+    class c0121["ValidationResult"] {
         <<class>>
         +count_ok: bool
         +dimensions_ok: bool
         +search_ok: bool
         +all_passed: bool
     }
-    class c0121["PlanRepository"] {
+    class c0122["PlanRepository"] {
         <<class>>
         +create_plan(user_id: UUID, plan_data: PlanCreate) Plan
-        +get_plan_by_id(user_id: UUID, plan_id: int) Type46
-        +list_plans(user_id: UUID, project_id: Type4, status: Type22) list[PlanSummary]
+        +get_plan_by_id(user_id: UUID, plan_id: int) Type47
+        +list_plans(Signature22)
         +update_plan(user_id: UUID, plan_id: int, plan_data: PlanUpdate) Plan
         +delete_plan(user_id: UUID, plan_id: int) bool
     }
-    class c0122["ProjectRepository"] {
+    class c0123["ProjectRepository"] {
         <<class>>
-        +list_projects(Signature22)
-        +get_project_by_id(user_id: UUID, project_id: int) Type47
+        +list_projects(Signature23)
+        +get_project_by_id(user_id: UUID, project_id: int) Type48
         +create_project(user_id: UUID, project_data: ProjectCreate) Project
         +update_project(user_id: UUID, project_id: int, project_data: ProjectUpdate) Project
         +delete_project(user_id: UUID, project_id: int) bool
     }
-    class c0123["SkillRepository"] {
+    class c0124["SkillRepository"] {
         <<class>>
         +create_skill(user_id: UUID, skill_data: SkillCreate) Skill
         +skill_name_exists(user_id: UUID, name: str) bool
-        +get_skill_by_id(user_id: UUID, skill_id: int) Type48
-        +list_skills(Signature23)
+        +get_skill_by_id(user_id: UUID, skill_id: int) Type49
+        +list_skills(Signature24)
         +update_skill(user_id: UUID, skill_id: int, skill_data: SkillUpdate) Skill
         +delete_skill(user_id: UUID, skill_id: int) bool
         +search_skills(user_id: UUID, query: str, k: int, project_id: Type4) list[SkillSummary]
@@ -1691,25 +1703,25 @@ classDiagram
         +link_skill_to_file(user_id: UUID, skill_id: int, file_id: int) dict
         +unlink_skill_from_file(user_id: UUID, skill_id: int, file_id: int) dict
         +link_skill_to_code_artifact(user_id: UUID, skill_id: int, code_artifact_id: int) dict
-        +unlink_skill_from_code_artifact(Signature24)
+        +unlink_skill_from_code_artifact(Signature25)
         +link_skill_to_document(user_id: UUID, skill_id: int, document_id: int) dict
         +unlink_skill_from_document(user_id: UUID, skill_id: int, document_id: int) dict
         +get_skill_links(user_id: UUID, skill_id: int) SkillLinks
-        +get_all_skill_file_links(user_id: UUID) Type36
-        +get_all_skill_code_artifact_links(user_id: UUID) Type36
-        +get_all_skill_document_links(user_id: UUID) Type36
+        +get_all_skill_file_links(user_id: UUID) Type37
+        +get_all_skill_code_artifact_links(user_id: UUID) Type37
+        +get_all_skill_document_links(user_id: UUID) Type37
     }
-    class c0124["TaskRepository"] {
+    class c0125["TaskRepository"] {
         <<class>>
         +create_task(user_id: UUID, task_data: TaskCreate) Task
-        +get_task_by_id(user_id: UUID, task_id: int) Type49
-        +list_tasks(Signature25)
+        +get_task_by_id(user_id: UUID, task_id: int) Type50
+        +list_tasks(Signature26)
         +list_tasks_for_user(user_id: UUID, plan_ids: Type15) list[TaskSummary]
         +update_task(user_id: UUID, task_id: int, task_data: TaskUpdate) Task
         +delete_task(user_id: UUID, task_id: int) bool
-        +transition_task_state(Signature26)
-        +create_criterion(Signature27)
-        +update_criterion(Signature28)
+        +transition_task_state(Signature27)
+        +create_criterion(Signature28)
+        +update_criterion(Signature29)
         +delete_criterion(user_id: UUID, criterion_id: int) bool
         +get_criteria_for_task(user_id: UUID, task_id: int) list[Criterion]
         +add_dependency(user_id: UUID, task_id: int, depends_on_task_id: int) TaskDependency
@@ -1717,47 +1729,47 @@ classDiagram
         +get_dependencies(user_id: UUID, task_id: int) list[int]
         +get_dependents(user_id: UUID, task_id: int) list[int]
     }
-    class c0125["UserRepository"] {
+    class c0126["UserRepository"] {
         <<class>>
         +get_user_by_id(user_id: UUID) Type12
         +get_user_by_external_id(external_id: str) Type12
         +create_user(user: UserCreate) User
         +update_user(user_id: UUID, updated_user: UserUpdate) User
     }
-    class c0126["AzureOpenAIAdapter"] {
+    class c0127["AzureOpenAIAdapter"] {
         <<class>>
         -__init__() unknown
         +client: unknown
         +model: unknown
         +generate_embedding(text: unknown) list[float]
     }
-    class c0127["EmbeddingsAdapter"] {
+    class c0128["EmbeddingsAdapter"] {
         <<class>>
         +generate_embedding(text: str) list[float]
     }
-    class c0128["FastEmbeddingAdapter"] {
+    class c0129["FastEmbeddingAdapter"] {
         <<class>>
         -__init__(providers: Type3) unknown
         +providers: unknown
         +model: unknown
-        -_create_text_embedding(fastembed_kwargs: Type51) unknown
+        -_create_text_embedding(fastembed_kwargs: Type52) unknown
         +generate_embedding(text: str) list[float]
     }
-    class c0129["GoogleEmbeddingsAdapter"] {
+    class c0130["GoogleEmbeddingsAdapter"] {
         <<class>>
         -__init__() unknown
         +model: unknown
         +client: unknown
         +generate_embedding(text: str) list[float]
     }
-    class c0130["OllamaEmbeddingsAdapter"] {
+    class c0131["OllamaEmbeddingsAdapter"] {
         <<class>>
         -__init__() unknown
         +client: unknown
         +model: unknown
         +generate_embedding(text: str) list[float]
     }
-    class c0131["OpenAIEmbeddingsAdapter"] {
+    class c0132["OpenAIEmbeddingsAdapter"] {
         <<class>>
         -__init__() unknown
         +supports_dimensions: unknown
@@ -1765,79 +1777,79 @@ classDiagram
         +model: unknown
         +generate_embedding(text: str) list[float]
     }
-    class c0132["app/repositories/embeddings/fastembed_offline.py"] {
+    class c0133["app/repositories/embeddings/fastembed_offline.py"] {
         <<module>>
-        +get_fastembed_kwargs() Type51
-        +load_fastembed_model(Signature29)
+        +get_fastembed_kwargs() Type52
+        +load_fastembed_model(Signature30)
     }
-    class c0133["FastEmbedCrossEncoderAdapter"] {
+    class c0134["FastEmbedCrossEncoderAdapter"] {
         <<class>>
-        -__init__(Signature30)
+        -__init__(Signature31)
         +model_name: unknown
         +threads: unknown
         +cache_dir: unknown
         +providers: unknown
         -_model: unknown
         -_executor: unknown
-        -_create_text_cross_encoder(Signature31)
-        +rerank(query: str, documents: list[str]) Type53
-        -_rerank_sync(query: str, documents: list[str]) Type54
+        -_create_text_cross_encoder(Signature32)
+        +rerank(query: str, documents: list[str]) Type54
+        -_rerank_sync(query: str, documents: list[str]) Type55
         -__del__() unknown
     }
-    class c0134["HttpRerankAdapter"] {
+    class c0135["HttpRerankAdapter"] {
         <<class>>
         -__init__(model: Type5, url: Type5, api_key: Type5) unknown
         +model: unknown
         +url: unknown
         +api_key: unknown
-        +rerank(query: str, documents: list[str]) Type53
+        +rerank(query: str, documents: list[str]) Type54
     }
-    class c0135["RerankAdapter"] {
+    class c0136["RerankAdapter"] {
         <<class>>
-        +rerank(query: str, documents: list[str]) Type53
+        +rerank(query: str, documents: list[str]) Type54
     }
-    class c0136["app/repositories/helpers.py"] {
+    class c0137["app/repositories/helpers.py"] {
         <<module>>
         +build_embedding_text(memory_data: MemoryCreate) str
         +build_memory_text(memory: Memory) str
         +build_skill_embedding_text(skill_data: unknown) str
         +build_contextual_query(query: str, context: str) str
     }
-    class c0137["PostgresActivityRepository"] {
+    class c0138["PostgresActivityRepository"] {
         <<class>>
         -__init__(db_adapter: PostgresDatabaseAdapter) unknown
         +db_adapter: unknown
         +save_event(user_id: UUID, event: ActivityEvent) ActivityLogEntry
         +query_events(Signature2)
         +cleanup_expired(user_id: UUID, retention_days: int) int
-        +count_events(user_id: UUID, entity_type: Type16, action: Type30) int
+        +count_events(user_id: UUID, entity_type: Type16, action: Type31) int
     }
-    class c0138["PostgresCodeArtifactRepository"] {
+    class c0139["PostgresCodeArtifactRepository"] {
         <<class>>
         -__init__(db_adapter: PostgresDatabaseAdapter) unknown
         +db_adapter: unknown
         +create_code_artifact(user_id: UUID, artifact_data: CodeArtifactCreate) CodeArtifact
-        +get_code_artifact_by_id(user_id: UUID, artifact_id: int) Type32
+        +get_code_artifact_by_id(user_id: UUID, artifact_id: int) Type33
         +list_code_artifacts(Signature3)
         +update_code_artifact(Signature4)
         +delete_code_artifact(user_id: UUID, artifact_id: int) bool
     }
-    class c0139["PostgresDocumentRepository"] {
+    class c0140["PostgresDocumentRepository"] {
         <<class>>
         -__init__(db_adapter: PostgresDatabaseAdapter) unknown
         +db_adapter: unknown
         +create_document(user_id: UUID, document_data: DocumentCreate) Document
-        +get_document_by_id(user_id: UUID, document_id: int) Type33
+        +get_document_by_id(user_id: UUID, document_id: int) Type34
         +list_documents(Signature5)
         +update_document(Signature6)
         +delete_document(user_id: UUID, document_id: int) bool
     }
-    class c0140["PostgresEntityRepository"] {
+    class c0141["PostgresEntityRepository"] {
         <<class>>
         -__init__(db_adapter: PostgresDatabaseAdapter) unknown
         +db_adapter: unknown
         +create_entity(user_id: UUID, entity_data: EntityCreate) Entity
-        +get_entity_by_id(user_id: UUID, entity_id: int) Type34
+        +get_entity_by_id(user_id: UUID, entity_id: int) Type35
         +list_entities(Signature7)
         +search_entities(Signature8)
         +update_entity(user_id: UUID, entity_id: int, entity_data: EntityUpdate) Entity
@@ -1851,77 +1863,77 @@ classDiagram
         +update_entity_relationship(Signature11)
         +delete_entity_relationship(user_id: UUID, relationship_id: int) bool
         +get_all_entity_relationships(user_id: UUID) list[EntityRelationship]
-        +get_all_entity_memory_links(user_id: UUID) Type36
-        +get_all_entity_project_links(user_id: UUID) Type36
-        +get_all_entity_file_links(user_id: UUID) Type36
-        +get_memory_entities(user_id: UUID, memory_id: int) Type38
-        +get_entity_memories(user_id: UUID, entity_id: int) Type37
+        +get_all_entity_memory_links(user_id: UUID) Type37
+        +get_all_entity_project_links(user_id: UUID) Type37
+        +get_all_entity_file_links(user_id: UUID) Type37
+        +get_memory_entities(user_id: UUID, memory_id: int) Type39
+        +get_entity_memories(user_id: UUID, entity_id: int) Type38
     }
-    class c0141["PostgresFileRepository"] {
+    class c0142["PostgresFileRepository"] {
         <<class>>
         -__init__(db_adapter: PostgresDatabaseAdapter) unknown
         +db_adapter: unknown
         +create_file(user_id: UUID, file_data: FileCreate) File
-        +get_file_by_id(user_id: UUID, file_id: int) Type39
+        +get_file_by_id(user_id: UUID, file_id: int) Type40
         +list_files(Signature12)
         +update_file(user_id: UUID, file_id: int, file_data: FileUpdate) File
         +delete_file(user_id: UUID, file_id: int) bool
         -_to_file_model(file_table: FilesTable) File
     }
-    class c0142["PostgresMemoryRepository"] {
+    class c0143["PostgresMemoryRepository"] {
         <<class>>
-        -__init__(Signature32)
+        -__init__(Signature33)
         +db_adapter: unknown
         +embedding_adapter: unknown
         +rerank_adapter: unknown
         +search(Signature13)
         +search_scored(Signature14)
-        +semantic_search(Signature33)
-        +semantic_search_scored(Signature34)
+        +semantic_search(Signature34)
+        +semantic_search_scored(Signature35)
         +create_memory(user_id: UUID, memory: MemoryCreate) Memory
-        +update_memory(Signature35)
+        +update_memory(Signature36)
         +get_memory_by_id(user_id: UUID, memory_id: int) Memory
         +get_memory_table_by_id(user_id: UUID, memory_id: int) MemoryTable
         +mark_obsolete(user_id: UUID, memory_id: int, reason: str, superseded_by: Type4) bool
         +find_similar_memories(user_id: UUID, memory_id: int, max_links: int) list[Memory]
-        +find_similar_memories_scored(user_id: UUID, memory_id: int, max_links: int) Type42
+        +find_similar_memories_scored(user_id: UUID, memory_id: int, max_links: int) Type43
         +find_obsolete_matches(Signature17)
         +get_linked_memories(Signature16)
         +create_link(user_id: UUID, source_id: int, target_id: int) MemoryLinkTable
         +create_links_batch(user_id: UUID, source_id: int, target_ids: list[int]) list[int]
         +unlink_memories(user_id: UUID, source_id: int, target_id: int) bool
         +list_memories(Signature18)
-        -_link_projects(Signature36)
-        -_link_code_artifacts(Signature37)
-        -_link_documents(Signature38)
-        -_link_files(Signature39)
-        -_link_skills(Signature40)
+        -_link_projects(Signature37)
+        -_link_code_artifacts(Signature38)
+        -_link_documents(Signature39)
+        -_link_files(Signature40)
+        -_link_skills(Signature41)
         +count_all_memories() int
         +get_memories_for_reembedding(limit: int, offset: int) list[Memory]
         +reset_embedding_storage() None
-        +bulk_update_embeddings(updates: Type45) None
-        -_build_targeted_rebuild_filter(Signature41)
+        +bulk_update_embeddings(updates: Type46) None
+        -_build_targeted_rebuild_filter(Signature42)
         +count_memories_for_targeted_rebuild(Signature20)
         +get_memories_for_targeted_rebuild(Signature21)
-        +upsert_targeted_embeddings(user_id: UUID, updates: Type45) list[int]
+        +upsert_targeted_embeddings(user_id: UUID, updates: Type46) list[int]
         +validate_embedding_count() bool
         +validate_embedding_dimensions() bool
         +validate_search_works() bool
         -_generate_embeddings(text: str) list[float]
-        +get_subgraph_nodes(Signature42)
+        +get_subgraph_nodes(Signature43)
         +record_memory_access(user_id: UUID, memory_ids: list[int], accessed_at: Type19) int
     }
-    class c0143["PostgresPlanRepository"] {
+    class c0144["PostgresPlanRepository"] {
         <<class>>
         -__init__(db_adapter: PostgresDatabaseAdapter) unknown
         +db_adapter: unknown
         +create_plan(user_id: UUID, plan_data: PlanCreate) Plan
-        +get_plan_by_id(user_id: UUID, plan_id: int) Type46
-        +list_plans(user_id: UUID, project_id: Type4, status: Type22) list[PlanSummary]
+        +get_plan_by_id(user_id: UUID, plan_id: int) Type47
+        +list_plans(Signature22)
         +update_plan(user_id: UUID, plan_id: int, plan_data: PlanUpdate) Plan
         +delete_plan(user_id: UUID, plan_id: int) bool
     }
-    class c0144["PostgresDatabaseAdapter"] {
+    class c0145["PostgresDatabaseAdapter"] {
         <<class>>
         -__init__() unknown
         -_engine: AsyncEngine
@@ -1933,7 +1945,7 @@ classDiagram
         +dispose() None
         +construct_postgres_connection_string() str
     }
-    class c0145["ActivityLogTable"] {
+    class c0146["ActivityLogTable"] {
         <<class>>
         -__tablename__: unknown
         +id: Mapped[int]
@@ -1949,10 +1961,10 @@ classDiagram
         +created_at: Mapped[datetime]
         -__table_args__: unknown
     }
-    class c0146["Base"] {
+    class c0147["Base"] {
         <<class>>
     }
-    class c0147["CodeArtifactsTable"] {
+    class c0148["CodeArtifactsTable"] {
         <<class>>
         -__tablename__: unknown
         +id: Mapped[int]
@@ -1974,13 +1986,13 @@ classDiagram
         +agent_model: Mapped[str]
         +created_at: Mapped[datetime]
         +updated_at: Mapped[datetime]
-        +user: Type56
-        +project: Type57
-        +memories: Type58
-        +skills: Type59
+        +user: Type57
+        +project: Type58
+        +memories: Type59
+        +skills: Type60
         -__table_args__: unknown
     }
-    class c0148["CriteriaTable"] {
+    class c0149["CriteriaTable"] {
         <<class>>
         -__tablename__: unknown
         +id: Mapped[int]
@@ -1991,10 +2003,10 @@ classDiagram
         +met_at: Mapped[datetime]
         +created_at: Mapped[datetime]
         +updated_at: Mapped[datetime]
-        +task: Type60
+        +task: Type61
         -__table_args__: unknown
     }
-    class c0149["DocumentsTable"] {
+    class c0150["DocumentsTable"] {
         <<class>>
         -__tablename__: unknown
         +id: Mapped[int]
@@ -2018,13 +2030,13 @@ classDiagram
         +agent_model: Mapped[str]
         +created_at: Mapped[datetime]
         +updated_at: Mapped[datetime]
-        +user: Type56
-        +project: Type57
-        +memories: Type58
-        +skills: Type59
+        +user: Type57
+        +project: Type58
+        +memories: Type59
+        +skills: Type60
         -__table_args__: unknown
     }
-    class c0150["EntitiesTable"] {
+    class c0151["EntitiesTable"] {
         <<class>>
         -__tablename__: unknown
         +id: Mapped[int]
@@ -2046,16 +2058,16 @@ classDiagram
         +agent_model: Mapped[str]
         +created_at: Mapped[datetime]
         +updated_at: Mapped[datetime]
-        +user: Type56
-        +projects: Type61
-        +memories: Type58
-        +files: Type62
-        +outgoing_relationships: Type63
-        +incoming_relationships: Type63
+        +user: Type57
+        +projects: Type62
+        +memories: Type59
+        +files: Type63
+        +outgoing_relationships: Type64
+        +incoming_relationships: Type64
         +project_ids: list[int]
         -__table_args__: unknown
     }
-    class c0151["EntityRelationshipsTable"] {
+    class c0152["EntityRelationshipsTable"] {
         <<class>>
         -__tablename__: unknown
         +id: Mapped[int]
@@ -2076,11 +2088,11 @@ classDiagram
         +agent_model: Mapped[str]
         +created_at: Mapped[datetime]
         +updated_at: Mapped[datetime]
-        +source_entity: Type64
-        +target_entity: Type64
+        +source_entity: Type65
+        +target_entity: Type65
         -__table_args__: unknown
     }
-    class c0152["FilesTable"] {
+    class c0153["FilesTable"] {
         <<class>>
         -__tablename__: unknown
         +id: Mapped[int]
@@ -2103,14 +2115,14 @@ classDiagram
         +agent_model: Mapped[str]
         +created_at: Mapped[datetime]
         +updated_at: Mapped[datetime]
-        +user: Type56
-        +project: Type57
-        +memories: Type58
-        +entities: Type65
-        +skills: Type59
+        +user: Type57
+        +project: Type58
+        +memories: Type59
+        +entities: Type66
+        +skills: Type60
         -__table_args__: unknown
     }
-    class c0153["MemoryLinkTable"] {
+    class c0154["MemoryLinkTable"] {
         <<class>>
         -__tablename__: unknown
         +id: Mapped[int]
@@ -2120,7 +2132,7 @@ classDiagram
         +created_at: Mapped[datetime]
         -__table_args__: unknown
     }
-    class c0154["MemoryTable"] {
+    class c0155["MemoryTable"] {
         <<class>>
         -__tablename__: unknown
         +id: Mapped[int]
@@ -2149,15 +2161,15 @@ classDiagram
         +last_accessed_at: Mapped[datetime]
         +created_at: Mapped[datetime]
         +updated_at: Mapped[datetime]
-        +user: Type56
-        +projects: Type61
-        +code_artifacts: Type66
-        +documents: Type67
-        +files: Type62
-        +skills: Type59
-        +entities: Type65
-        +linked_memories: Type58
-        +linking_memories: Type58
+        +user: Type57
+        +projects: Type62
+        +code_artifacts: Type67
+        +documents: Type68
+        +files: Type63
+        +skills: Type60
+        +entities: Type66
+        +linked_memories: Type59
+        +linking_memories: Type59
         +linked_memory_ids: list[int]
         +project_ids: list[int]
         +code_artifact_ids: list[int]
@@ -2167,7 +2179,7 @@ classDiagram
         +entity_ids: list[int]
         -__table_args__: unknown
     }
-    class c0155["PlansTable"] {
+    class c0156["PlansTable"] {
         <<class>>
         -__tablename__: unknown
         +id: Mapped[int]
@@ -2177,6 +2189,7 @@ classDiagram
         +goal: Mapped[str]
         +context: Mapped[str]
         +status: Mapped[str]
+        +external_ref: Type69
         +source_repo: Mapped[str]
         +source_files: Mapped[list[str]]
         +source_url: Mapped[str]
@@ -2188,13 +2201,13 @@ classDiagram
         +agent_model: Mapped[str]
         +created_at: Mapped[datetime]
         +updated_at: Mapped[datetime]
-        +user: Type56
-        +project: Type57
-        +tasks: Type68
+        +user: Type57
+        +project: Type58
+        +tasks: Type70
         +task_count() int
         -__table_args__: unknown
     }
-    class c0156["ProjectsTable"] {
+    class c0157["ProjectsTable"] {
         <<class>>
         -__tablename__: unknown
         +id: Mapped[int]
@@ -2217,18 +2230,18 @@ classDiagram
         +agent_model: Mapped[str]
         +created_at: Mapped[datetime]
         +updated_at: Mapped[datetime]
-        +user: Type56
-        +memories: Type58
-        +code_artifacts: Type66
-        +documents: Type67
-        +entities: Type65
-        +files: Type62
-        +skills: Type59
-        +plans: Type69
+        +user: Type57
+        +memories: Type59
+        +code_artifacts: Type67
+        +documents: Type68
+        +entities: Type66
+        +files: Type63
+        +skills: Type60
+        +plans: Type71
         +memory_count() int
         -__table_args__: unknown
     }
-    class c0157["SkillsTable"] {
+    class c0158["SkillsTable"] {
         <<class>>
         -__tablename__: unknown
         +id: Mapped[int]
@@ -2255,15 +2268,15 @@ classDiagram
         +agent_model: Mapped[str]
         +created_at: Mapped[datetime]
         +updated_at: Mapped[datetime]
-        +user: Type56
-        +project: Type57
-        +memories: Type58
-        +files: Type62
-        +code_artifacts: Type66
-        +documents: Type67
+        +user: Type57
+        +project: Type58
+        +memories: Type59
+        +files: Type63
+        +code_artifacts: Type67
+        +documents: Type68
         -__table_args__: unknown
     }
-    class c0158["TaskDependenciesTable"] {
+    class c0159["TaskDependenciesTable"] {
         <<class>>
         -__tablename__: unknown
         +id: Mapped[int]
@@ -2271,10 +2284,10 @@ classDiagram
         +task_id: Mapped[int]
         +depends_on_task_id: Mapped[int]
         +created_at: Mapped[datetime]
-        +task: Type60
+        +task: Type61
         -__table_args__: unknown
     }
-    class c0159["TasksTable"] {
+    class c0160["TasksTable"] {
         <<class>>
         -__tablename__: unknown
         +id: Mapped[int]
@@ -2297,13 +2310,13 @@ classDiagram
         +agent_model: Mapped[str]
         +created_at: Mapped[datetime]
         +updated_at: Mapped[datetime]
-        +plan: Type70
-        +criteria: Type71
+        +plan: Type72
+        +criteria: Type73
         +dependency_ids: list[int]
-        +depends_on: Type72
+        +depends_on: Type74
         -__table_args__: unknown
     }
-    class c0160["UsersTable"] {
+    class c0161["UsersTable"] {
         <<class>>
         -__tablename__: unknown
         +id: Mapped[UUID]
@@ -2314,35 +2327,35 @@ classDiagram
         +notes: Mapped[str]
         +updated_at: Mapped[datetime]
         +created_at: Mapped[datetime]
-        +memories: Type58
-        +projects: Type61
-        +code_artifacts: Type66
-        +documents: Type67
-        +entities: Type65
-        +files: Type62
-        +skills: Type59
-        +plans: Type69
+        +memories: Type59
+        +projects: Type62
+        +code_artifacts: Type67
+        +documents: Type68
+        +entities: Type66
+        +files: Type63
+        +skills: Type60
+        +plans: Type71
     }
-    class c0161["PostgresProjectRepository"] {
+    class c0162["PostgresProjectRepository"] {
         <<class>>
         -__init__(db_adapter: PostgresDatabaseAdapter) unknown
         +db_adapter: unknown
-        +list_projects(Signature22)
-        +get_project_by_id(user_id: UUID, project_id: int) Type47
+        +list_projects(Signature23)
+        +get_project_by_id(user_id: UUID, project_id: int) Type48
         +create_project(user_id: UUID, project_data: ProjectCreate) Project
         +update_project(user_id: UUID, project_id: int, project_data: ProjectUpdate) Project
         +delete_project(user_id: UUID, project_id: int) bool
     }
-    class c0162["PostgresSkillRepository"] {
+    class c0163["PostgresSkillRepository"] {
         <<class>>
-        -__init__(Signature32)
+        -__init__(Signature33)
         +db_adapter: unknown
         +embedding_adapter: unknown
         +rerank_adapter: unknown
         +create_skill(user_id: UUID, skill_data: SkillCreate) Skill
         +skill_name_exists(user_id: UUID, name: str) bool
-        +get_skill_by_id(user_id: UUID, skill_id: int) Type48
-        +list_skills(Signature23)
+        +get_skill_by_id(user_id: UUID, skill_id: int) Type49
+        +list_skills(Signature24)
         +update_skill(user_id: UUID, skill_id: int, skill_data: SkillUpdate) Skill
         +delete_skill(user_id: UUID, skill_id: int) bool
         +search_skills(user_id: UUID, query: str, k: int, project_id: Type4) list[SkillSummary]
@@ -2351,28 +2364,28 @@ classDiagram
         +link_skill_to_file(user_id: UUID, skill_id: int, file_id: int) dict
         +unlink_skill_from_file(user_id: UUID, skill_id: int, file_id: int) dict
         +link_skill_to_code_artifact(user_id: UUID, skill_id: int, code_artifact_id: int) dict
-        +unlink_skill_from_code_artifact(Signature24)
+        +unlink_skill_from_code_artifact(Signature25)
         +link_skill_to_document(user_id: UUID, skill_id: int, document_id: int) dict
         +unlink_skill_from_document(user_id: UUID, skill_id: int, document_id: int) dict
         +get_skill_links(user_id: UUID, skill_id: int) SkillLinks
-        +get_all_skill_file_links(user_id: UUID) Type36
-        +get_all_skill_code_artifact_links(user_id: UUID) Type36
-        +get_all_skill_document_links(user_id: UUID) Type36
+        +get_all_skill_file_links(user_id: UUID) Type37
+        +get_all_skill_code_artifact_links(user_id: UUID) Type37
+        +get_all_skill_document_links(user_id: UUID) Type37
         -_to_skill(row: SkillsTable) Skill
     }
-    class c0163["PostgresTaskRepository"] {
+    class c0164["PostgresTaskRepository"] {
         <<class>>
         -__init__(db_adapter: PostgresDatabaseAdapter) unknown
         +db_adapter: unknown
         +create_task(user_id: UUID, task_data: TaskCreate) Task
-        +get_task_by_id(user_id: UUID, task_id: int) Type49
-        +list_tasks(Signature25)
+        +get_task_by_id(user_id: UUID, task_id: int) Type50
+        +list_tasks(Signature26)
         +list_tasks_for_user(user_id: UUID, plan_ids: Type15) list[TaskSummary]
         +update_task(user_id: UUID, task_id: int, task_data: TaskUpdate) Task
         +delete_task(user_id: UUID, task_id: int) bool
-        +transition_task_state(Signature26)
-        +create_criterion(Signature27)
-        +update_criterion(Signature28)
+        +transition_task_state(Signature27)
+        +create_criterion(Signature28)
+        +update_criterion(Signature29)
         +delete_criterion(user_id: UUID, criterion_id: int) bool
         +get_criteria_for_task(user_id: UUID, task_id: int) list[Criterion]
         +add_dependency(user_id: UUID, task_id: int, depends_on_task_id: int) TaskDependency
@@ -2380,7 +2393,7 @@ classDiagram
         +get_dependencies(user_id: UUID, task_id: int) list[int]
         +get_dependents(user_id: UUID, task_id: int) list[int]
     }
-    class c0164["PostgresUserRepository"] {
+    class c0165["PostgresUserRepository"] {
         <<class>>
         -__init__(db_adapter: PostgresDatabaseAdapter) unknown
         +db_adapter: unknown
@@ -2389,41 +2402,41 @@ classDiagram
         +create_user(user: UserCreate) User
         +update_user(user_id: UUID, updated_user: UserUpdate) User
     }
-    class c0165["SqliteActivityRepository"] {
+    class c0166["SqliteActivityRepository"] {
         <<class>>
         -__init__(db_adapter: SqliteDatabaseAdapter) unknown
         +db_adapter: unknown
         +save_event(user_id: UUID, event: ActivityEvent) ActivityLogEntry
         +query_events(Signature2)
         +cleanup_expired(user_id: UUID, retention_days: int) int
-        +count_events(user_id: UUID, entity_type: Type16, action: Type30) int
+        +count_events(user_id: UUID, entity_type: Type16, action: Type31) int
     }
-    class c0166["SqliteCodeArtifactRepository"] {
+    class c0167["SqliteCodeArtifactRepository"] {
         <<class>>
         -__init__(db_adapter: SqliteDatabaseAdapter) unknown
         +db_adapter: unknown
         +create_code_artifact(user_id: UUID, artifact_data: CodeArtifactCreate) CodeArtifact
-        +get_code_artifact_by_id(user_id: UUID, artifact_id: int) Type32
+        +get_code_artifact_by_id(user_id: UUID, artifact_id: int) Type33
         +list_code_artifacts(Signature3)
         +update_code_artifact(Signature4)
         +delete_code_artifact(user_id: UUID, artifact_id: int) bool
     }
-    class c0167["SqliteDocumentRepository"] {
+    class c0168["SqliteDocumentRepository"] {
         <<class>>
         -__init__(db_adapter: SqliteDatabaseAdapter) unknown
         +db_adapter: unknown
         +create_document(user_id: UUID, document_data: DocumentCreate) Document
-        +get_document_by_id(user_id: UUID, document_id: int) Type33
+        +get_document_by_id(user_id: UUID, document_id: int) Type34
         +list_documents(Signature5)
         +update_document(Signature6)
         +delete_document(user_id: UUID, document_id: int) bool
     }
-    class c0168["SqliteEntityRepository"] {
+    class c0169["SqliteEntityRepository"] {
         <<class>>
         -__init__(db_adapter: SqliteDatabaseAdapter) unknown
         +db_adapter: unknown
         +create_entity(user_id: UUID, entity_data: EntityCreate) Entity
-        +get_entity_by_id(user_id: UUID, entity_id: int) Type34
+        +get_entity_by_id(user_id: UUID, entity_id: int) Type35
         +list_entities(Signature7)
         +search_entities(Signature8)
         +update_entity(user_id: UUID, entity_id: int, entity_data: EntityUpdate) Entity
@@ -2437,96 +2450,96 @@ classDiagram
         +update_entity_relationship(Signature11)
         +delete_entity_relationship(user_id: UUID, relationship_id: int) bool
         +get_all_entity_relationships(user_id: UUID) list[EntityRelationship]
-        +get_all_entity_memory_links(user_id: UUID) Type36
-        +get_all_entity_project_links(user_id: UUID) Type36
-        +get_all_entity_file_links(user_id: UUID) Type36
-        +get_memory_entities(user_id: UUID, memory_id: int) Type38
-        +get_entity_memories(user_id: UUID, entity_id: int) Type37
+        +get_all_entity_memory_links(user_id: UUID) Type37
+        +get_all_entity_project_links(user_id: UUID) Type37
+        +get_all_entity_file_links(user_id: UUID) Type37
+        +get_memory_entities(user_id: UUID, memory_id: int) Type39
+        +get_entity_memories(user_id: UUID, entity_id: int) Type38
     }
-    class c0169["SqliteFileRepository"] {
+    class c0170["SqliteFileRepository"] {
         <<class>>
         -__init__(db_adapter: SqliteDatabaseAdapter) unknown
         +db_adapter: unknown
         +create_file(user_id: UUID, file_data: FileCreate) File
-        +get_file_by_id(user_id: UUID, file_id: int) Type39
+        +get_file_by_id(user_id: UUID, file_id: int) Type40
         +list_files(Signature12)
         +update_file(user_id: UUID, file_id: int, file_data: FileUpdate) File
         +delete_file(user_id: UUID, file_id: int) bool
         -_to_file_model(file_table: FilesTable) File
     }
-    class c0170["SqliteMemoryRepository"] {
+    class c0171["SqliteMemoryRepository"] {
         <<class>>
-        -__init__(Signature43)
+        -__init__(Signature44)
         +db_adapter: unknown
         +embedding_adapter: unknown
         +rerank_adapter: unknown
         +search(Signature13)
         +search_scored(Signature14)
-        +semantic_search(Signature33)
-        +semantic_search_scored(Signature34)
+        +semantic_search(Signature34)
+        +semantic_search_scored(Signature35)
         +create_memory(user_id: UUID, memory: MemoryCreate) Memory
-        +update_memory(Signature35)
+        +update_memory(Signature36)
         +get_memory_by_id(user_id: UUID, memory_id: int) Memory
         +get_memory_table_by_id(user_id: UUID, memory_id: int) MemoryTable
         +mark_obsolete(user_id: UUID, memory_id: int, reason: str, superseded_by: Type4) bool
         +find_similar_memories(user_id: UUID, memory_id: int, max_links: int) list[Memory]
-        +find_similar_memories_scored(user_id: UUID, memory_id: int, max_links: int) Type42
+        +find_similar_memories_scored(user_id: UUID, memory_id: int, max_links: int) Type43
         +find_obsolete_matches(Signature17)
         +get_linked_memories(Signature16)
         +create_link(user_id: UUID, source_id: int, target_id: int) MemoryLinkTable
         +create_links_batch(user_id: UUID, source_id: int, target_ids: list[int]) list[int]
         +unlink_memories(user_id: UUID, source_id: int, target_id: int) bool
         +list_memories(Signature18)
-        -_link_projects(Signature36)
-        -_link_code_artifacts(Signature37)
-        -_link_documents(Signature38)
-        -_link_files(Signature39)
-        -_link_skills(Signature40)
+        -_link_projects(Signature37)
+        -_link_code_artifacts(Signature38)
+        -_link_documents(Signature39)
+        -_link_files(Signature40)
+        -_link_skills(Signature41)
         +count_all_memories() int
         +get_memories_for_reembedding(limit: int, offset: int) list[Memory]
         +reset_embedding_storage() None
-        +bulk_update_embeddings(updates: Type45) None
-        -_build_targeted_rebuild_filter(Signature41)
+        +bulk_update_embeddings(updates: Type46) None
+        -_build_targeted_rebuild_filter(Signature42)
         +count_memories_for_targeted_rebuild(Signature20)
         +get_memories_for_targeted_rebuild(Signature21)
-        +upsert_targeted_embeddings(user_id: UUID, updates: Type45) list[int]
+        +upsert_targeted_embeddings(user_id: UUID, updates: Type46) list[int]
         +validate_embedding_count() bool
         +validate_embedding_dimensions() bool
         +validate_search_works() bool
         -_generate_embeddings(text: str) list[float]
-        +get_subgraph_nodes(Signature42)
+        +get_subgraph_nodes(Signature43)
         +record_memory_access(user_id: UUID, memory_ids: list[int], accessed_at: Type19) int
     }
-    class c0171["SqlitePlanRepository"] {
+    class c0172["SqlitePlanRepository"] {
         <<class>>
         -__init__(db_adapter: SqliteDatabaseAdapter) unknown
         +db_adapter: unknown
         +create_plan(user_id: UUID, plan_data: PlanCreate) Plan
-        +get_plan_by_id(user_id: UUID, plan_id: int) Type46
-        +list_plans(user_id: UUID, project_id: Type4, status: Type22) list[PlanSummary]
+        +get_plan_by_id(user_id: UUID, plan_id: int) Type47
+        +list_plans(Signature22)
         +update_plan(user_id: UUID, plan_id: int, plan_data: PlanUpdate) Plan
         +delete_plan(user_id: UUID, plan_id: int) bool
     }
-    class c0172["SqliteProjectRepository"] {
+    class c0173["SqliteProjectRepository"] {
         <<class>>
         -__init__(db_adapter: SqliteDatabaseAdapter) unknown
         +db_adapter: unknown
-        +list_projects(Signature22)
-        +get_project_by_id(user_id: UUID, project_id: int) Type47
+        +list_projects(Signature23)
+        +get_project_by_id(user_id: UUID, project_id: int) Type48
         +create_project(user_id: UUID, project_data: ProjectCreate) Project
         +update_project(user_id: UUID, project_id: int, project_data: ProjectUpdate) Project
         +delete_project(user_id: UUID, project_id: int) bool
     }
-    class c0173["SqliteSkillRepository"] {
+    class c0174["SqliteSkillRepository"] {
         <<class>>
-        -__init__(Signature44)
+        -__init__(Signature45)
         +db_adapter: unknown
         +embedding_adapter: unknown
         +rerank_adapter: unknown
         +create_skill(user_id: UUID, skill_data: SkillCreate) Skill
         +skill_name_exists(user_id: UUID, name: str) bool
-        +get_skill_by_id(user_id: UUID, skill_id: int) Type48
-        +list_skills(Signature23)
+        +get_skill_by_id(user_id: UUID, skill_id: int) Type49
+        +list_skills(Signature24)
         +update_skill(user_id: UUID, skill_id: int, skill_data: SkillUpdate) Skill
         +delete_skill(user_id: UUID, skill_id: int) bool
         +search_skills(user_id: UUID, query: str, k: int, project_id: Type4) list[SkillSummary]
@@ -2535,16 +2548,16 @@ classDiagram
         +link_skill_to_file(user_id: UUID, skill_id: int, file_id: int) dict
         +unlink_skill_from_file(user_id: UUID, skill_id: int, file_id: int) dict
         +link_skill_to_code_artifact(user_id: UUID, skill_id: int, code_artifact_id: int) dict
-        +unlink_skill_from_code_artifact(Signature24)
+        +unlink_skill_from_code_artifact(Signature25)
         +link_skill_to_document(user_id: UUID, skill_id: int, document_id: int) dict
         +unlink_skill_from_document(user_id: UUID, skill_id: int, document_id: int) dict
         +get_skill_links(user_id: UUID, skill_id: int) SkillLinks
-        +get_all_skill_file_links(user_id: UUID) Type36
-        +get_all_skill_code_artifact_links(user_id: UUID) Type36
-        +get_all_skill_document_links(user_id: UUID) Type36
+        +get_all_skill_file_links(user_id: UUID) Type37
+        +get_all_skill_code_artifact_links(user_id: UUID) Type37
+        +get_all_skill_document_links(user_id: UUID) Type37
         -_to_skill(skill_table: SkillsTable) Skill
     }
-    class c0174["SqliteDatabaseAdapter"] {
+    class c0175["SqliteDatabaseAdapter"] {
         <<class>>
         -__init__() unknown
         -_engine: AsyncEngine
@@ -2556,11 +2569,11 @@ classDiagram
         +dispose() None
         -_construct_connection_string() str
     }
-    class c0175["app/repositories/sqlite/sqlite_adapter.py"] {
+    class c0176["app/repositories/sqlite/sqlite_adapter.py"] {
         <<module>>
         -_sqlite_connection_creator() unknown
     }
-    class c0176["ActivityLogTable"] {
+    class c0177["ActivityLogTable"] {
         <<class>>
         -__tablename__: unknown
         +id: Mapped[int]
@@ -2576,10 +2589,10 @@ classDiagram
         +created_at: Mapped[datetime]
         -__table_args__: unknown
     }
-    class c0177["Base"] {
+    class c0178["Base"] {
         <<class>>
     }
-    class c0178["CodeArtifactsTable"] {
+    class c0179["CodeArtifactsTable"] {
         <<class>>
         -__tablename__: unknown
         +id: Mapped[int]
@@ -2601,13 +2614,13 @@ classDiagram
         +agent_model: Mapped[str]
         +created_at: Mapped[datetime]
         +updated_at: Mapped[datetime]
-        +user: Type56
-        +project: Type57
-        +memories: Type58
-        +skills: Type59
+        +user: Type57
+        +project: Type58
+        +memories: Type59
+        +skills: Type60
         -__table_args__: unknown
     }
-    class c0179["CriteriaTable"] {
+    class c0180["CriteriaTable"] {
         <<class>>
         -__tablename__: unknown
         +id: Mapped[int]
@@ -2618,10 +2631,10 @@ classDiagram
         +met_at: Mapped[datetime]
         +created_at: Mapped[datetime]
         +updated_at: Mapped[datetime]
-        +task: Type60
+        +task: Type61
         -__table_args__: unknown
     }
-    class c0180["DocumentsTable"] {
+    class c0181["DocumentsTable"] {
         <<class>>
         -__tablename__: unknown
         +id: Mapped[int]
@@ -2645,13 +2658,13 @@ classDiagram
         +agent_model: Mapped[str]
         +created_at: Mapped[datetime]
         +updated_at: Mapped[datetime]
-        +user: Type56
-        +project: Type57
-        +memories: Type58
-        +skills: Type59
+        +user: Type57
+        +project: Type58
+        +memories: Type59
+        +skills: Type60
         -__table_args__: unknown
     }
-    class c0181["EntitiesTable"] {
+    class c0182["EntitiesTable"] {
         <<class>>
         -__tablename__: unknown
         +id: Mapped[int]
@@ -2673,16 +2686,16 @@ classDiagram
         +agent_model: Mapped[str]
         +created_at: Mapped[datetime]
         +updated_at: Mapped[datetime]
-        +user: Type56
-        +projects: Type61
-        +memories: Type58
-        +files: Type62
-        +outgoing_relationships: Type63
-        +incoming_relationships: Type63
+        +user: Type57
+        +projects: Type62
+        +memories: Type59
+        +files: Type63
+        +outgoing_relationships: Type64
+        +incoming_relationships: Type64
         +project_ids: list[int]
         -__table_args__: unknown
     }
-    class c0182["EntityRelationshipsTable"] {
+    class c0183["EntityRelationshipsTable"] {
         <<class>>
         -__tablename__: unknown
         +id: Mapped[int]
@@ -2703,11 +2716,11 @@ classDiagram
         +agent_model: Mapped[str]
         +created_at: Mapped[datetime]
         +updated_at: Mapped[datetime]
-        +source_entity: Type64
-        +target_entity: Type64
+        +source_entity: Type65
+        +target_entity: Type65
         -__table_args__: unknown
     }
-    class c0183["FilesTable"] {
+    class c0184["FilesTable"] {
         <<class>>
         -__tablename__: unknown
         +id: Mapped[int]
@@ -2730,14 +2743,14 @@ classDiagram
         +agent_model: Mapped[str]
         +created_at: Mapped[datetime]
         +updated_at: Mapped[datetime]
-        +user: Type56
-        +project: Type57
-        +memories: Type58
-        +entities: Type65
-        +skills: Type59
+        +user: Type57
+        +project: Type58
+        +memories: Type59
+        +entities: Type66
+        +skills: Type60
         -__table_args__: unknown
     }
-    class c0184["MemoryLinkTable"] {
+    class c0185["MemoryLinkTable"] {
         <<class>>
         -__tablename__: unknown
         +id: Mapped[int]
@@ -2747,7 +2760,7 @@ classDiagram
         +created_at: Mapped[datetime]
         -__table_args__: unknown
     }
-    class c0185["MemoryTable"] {
+    class c0186["MemoryTable"] {
         <<class>>
         -__tablename__: unknown
         +id: Mapped[int]
@@ -2775,15 +2788,15 @@ classDiagram
         +last_accessed_at: Mapped[datetime]
         +created_at: Mapped[datetime]
         +updated_at: Mapped[datetime]
-        +user: Type56
-        +projects: Type61
-        +code_artifacts: Type66
-        +documents: Type67
-        +files: Type62
-        +skills: Type59
-        +entities: Type65
-        +linked_memories: Type58
-        +linking_memories: Type58
+        +user: Type57
+        +projects: Type62
+        +code_artifacts: Type67
+        +documents: Type68
+        +files: Type63
+        +skills: Type60
+        +entities: Type66
+        +linked_memories: Type59
+        +linking_memories: Type59
         +linked_memory_ids: list[int]
         +project_ids: list[int]
         +code_artifact_ids: list[int]
@@ -2793,7 +2806,7 @@ classDiagram
         +entity_ids: list[int]
         -__table_args__: unknown
     }
-    class c0186["PlansTable"] {
+    class c0187["PlansTable"] {
         <<class>>
         -__tablename__: unknown
         +id: Mapped[int]
@@ -2803,6 +2816,7 @@ classDiagram
         +goal: Mapped[str]
         +context: Mapped[str]
         +status: Mapped[str]
+        +external_ref: Type69
         +source_repo: Mapped[str]
         +source_files: Mapped[list[str]]
         +source_url: Mapped[str]
@@ -2814,13 +2828,13 @@ classDiagram
         +agent_model: Mapped[str]
         +created_at: Mapped[datetime]
         +updated_at: Mapped[datetime]
-        +user: Type56
-        +project: Type57
-        +tasks: Type68
+        +user: Type57
+        +project: Type58
+        +tasks: Type70
         +task_count() int
         -__table_args__: unknown
     }
-    class c0187["ProjectsTable"] {
+    class c0188["ProjectsTable"] {
         <<class>>
         -__tablename__: unknown
         +id: Mapped[int]
@@ -2843,18 +2857,18 @@ classDiagram
         +agent_model: Mapped[str]
         +created_at: Mapped[datetime]
         +updated_at: Mapped[datetime]
-        +user: Type56
-        +memories: Type58
-        +code_artifacts: Type66
-        +documents: Type67
-        +entities: Type65
-        +files: Type62
-        +skills: Type59
-        +plans: Type69
+        +user: Type57
+        +memories: Type59
+        +code_artifacts: Type67
+        +documents: Type68
+        +entities: Type66
+        +files: Type63
+        +skills: Type60
+        +plans: Type71
         +memory_count() int
         -__table_args__: unknown
     }
-    class c0188["SkillsTable"] {
+    class c0189["SkillsTable"] {
         <<class>>
         -__tablename__: unknown
         +id: Mapped[int]
@@ -2880,15 +2894,15 @@ classDiagram
         +agent_model: Mapped[str]
         +created_at: Mapped[datetime]
         +updated_at: Mapped[datetime]
-        +user: Type56
-        +project: Type57
-        +memories: Type58
-        +files: Type62
-        +code_artifacts: Type66
-        +documents: Type67
+        +user: Type57
+        +project: Type58
+        +memories: Type59
+        +files: Type63
+        +code_artifacts: Type67
+        +documents: Type68
         -__table_args__: unknown
     }
-    class c0189["TaskDependenciesTable"] {
+    class c0190["TaskDependenciesTable"] {
         <<class>>
         -__tablename__: unknown
         +id: Mapped[int]
@@ -2896,10 +2910,10 @@ classDiagram
         +task_id: Mapped[int]
         +depends_on_task_id: Mapped[int]
         +created_at: Mapped[datetime]
-        +task: Type60
+        +task: Type61
         -__table_args__: unknown
     }
-    class c0190["TasksTable"] {
+    class c0191["TasksTable"] {
         <<class>>
         -__tablename__: unknown
         +id: Mapped[int]
@@ -2922,13 +2936,13 @@ classDiagram
         +agent_model: Mapped[str]
         +created_at: Mapped[datetime]
         +updated_at: Mapped[datetime]
-        +plan: Type70
-        +criteria: Type71
+        +plan: Type72
+        +criteria: Type73
         +dependency_ids: list[int]
-        +depends_on: Type72
+        +depends_on: Type74
         -__table_args__: unknown
     }
-    class c0191["UsersTable"] {
+    class c0192["UsersTable"] {
         <<class>>
         -__tablename__: unknown
         +id: Mapped[str]
@@ -2939,28 +2953,28 @@ classDiagram
         +notes: Mapped[str]
         +updated_at: Mapped[datetime]
         +created_at: Mapped[datetime]
-        +memories: Type58
-        +projects: Type61
-        +code_artifacts: Type66
-        +documents: Type67
-        +entities: Type65
-        +files: Type62
-        +skills: Type59
-        +plans: Type69
+        +memories: Type59
+        +projects: Type62
+        +code_artifacts: Type67
+        +documents: Type68
+        +entities: Type66
+        +files: Type63
+        +skills: Type60
+        +plans: Type71
     }
-    class c0192["SqliteTaskRepository"] {
+    class c0193["SqliteTaskRepository"] {
         <<class>>
         -__init__(db_adapter: SqliteDatabaseAdapter) unknown
         +db_adapter: unknown
         +create_task(user_id: UUID, task_data: TaskCreate) Task
-        +get_task_by_id(user_id: UUID, task_id: int) Type49
-        +list_tasks(Signature25)
+        +get_task_by_id(user_id: UUID, task_id: int) Type50
+        +list_tasks(Signature26)
         +list_tasks_for_user(user_id: UUID, plan_ids: Type15) list[TaskSummary]
         +update_task(user_id: UUID, task_id: int, task_data: TaskUpdate) Task
         +delete_task(user_id: UUID, task_id: int) bool
-        +transition_task_state(Signature26)
-        +create_criterion(Signature27)
-        +update_criterion(Signature28)
+        +transition_task_state(Signature27)
+        +create_criterion(Signature28)
+        +update_criterion(Signature29)
         +delete_criterion(user_id: UUID, criterion_id: int) bool
         +get_criteria_for_task(user_id: UUID, task_id: int) list[Criterion]
         +add_dependency(user_id: UUID, task_id: int, depends_on_task_id: int) TaskDependency
@@ -2968,7 +2982,7 @@ classDiagram
         +get_dependencies(user_id: UUID, task_id: int) list[int]
         +get_dependents(user_id: UUID, task_id: int) list[int]
     }
-    class c0193["SqliteUserRepository"] {
+    class c0194["SqliteUserRepository"] {
         <<class>>
         -__init__(db_adapter: SqliteDatabaseAdapter) unknown
         +db_adapter: unknown
@@ -2977,95 +2991,95 @@ classDiagram
         +create_user(user: UserCreate) User
         +update_user(user_id: UUID, updated_user: UserUpdate) User
     }
-    class c0194["app/routes/api/activity.py"] {
+    class c0195["app/routes/api/activity.py"] {
         <<module>>
         +parse_int_param(params: unknown, key: str, default: int) int
         +parse_datetime_param(params: unknown, key: str) Type19
         +register(mcp: FastMCP) unknown
     }
-    class c0195["app/routes/api/auth.py"] {
+    class c0196["app/routes/api/auth.py"] {
         <<module>>
         +register(mcp: FastMCP) unknown
     }
-    class c0196["app/routes/api/code_artifacts.py"] {
+    class c0197["app/routes/api/code_artifacts.py"] {
         <<module>>
         +register(mcp: FastMCP) unknown
     }
-    class c0197["app/routes/api/documents.py"] {
+    class c0198["app/routes/api/documents.py"] {
         <<module>>
         +register(mcp: FastMCP) unknown
     }
-    class c0198["app/routes/api/entities.py"] {
-        <<module>>
-        +parse_int_param(params: Any, name: str, default: Type4) Type4
-        +register(mcp: FastMCP) unknown
-    }
-    class c0199["app/routes/api/files.py"] {
-        <<module>>
-        +register(mcp: FastMCP) unknown
-    }
-    class c0200["app/routes/api/graph.py"] {
-        <<module>>
-        +register(mcp: FastMCP) unknown
-    }
-    class c0201["app/routes/api/health.py"] {
-        <<module>>
-        +register(mcp: FastMCP) unknown
-    }
-    class c0202["app/routes/api/memories.py"] {
+    class c0199["app/routes/api/entities.py"] {
         <<module>>
         +parse_int_param(params: Any, name: str, default: Type4) Type4
         +register(mcp: FastMCP) unknown
     }
-    class c0203["app/routes/api/plans.py"] {
+    class c0200["app/routes/api/files.py"] {
         <<module>>
         +register(mcp: FastMCP) unknown
     }
-    class c0204["app/routes/api/projects.py"] {
+    class c0201["app/routes/api/graph.py"] {
         <<module>>
         +register(mcp: FastMCP) unknown
     }
-    class c0205["app/routes/api/skills.py"] {
+    class c0202["app/routes/api/health.py"] {
         <<module>>
         +register(mcp: FastMCP) unknown
     }
-    class c0206["app/routes/api/tasks.py"] {
+    class c0203["app/routes/api/memories.py"] {
+        <<module>>
+        +parse_int_param(params: Any, name: str, default: Type4) Type4
+        +register(mcp: FastMCP) unknown
+    }
+    class c0204["app/routes/api/plans.py"] {
         <<module>>
         +register(mcp: FastMCP) unknown
     }
-    class c0207["app/routes/cli/auth_commands.py"] {
+    class c0205["app/routes/api/projects.py"] {
+        <<module>>
+        +register(mcp: FastMCP) unknown
+    }
+    class c0206["app/routes/api/skills.py"] {
+        <<module>>
+        +register(mcp: FastMCP) unknown
+    }
+    class c0207["app/routes/api/tasks.py"] {
+        <<module>>
+        +register(mcp: FastMCP) unknown
+    }
+    class c0208["app/routes/cli/auth_commands.py"] {
         <<module>>
         +upsert_env_var(env_file: Path, key: str, value: str) None
         -_oauth_client_factory(url: str, token_dir: Path) unknown
         -_plain_client_factory(url: str, _token: Type5) unknown
         -_has_cached_credentials(url: str, token_dir: Path) bool
-        +login(server: str, env_file: Type73, token_dir: Type73, client_factory: unknown) int
+        +login(server: str, env_file: Type75, token_dir: Type75, client_factory: unknown) int
         +status(server: Type5) int
-        +logout(token_dir: Type73) int
+        +logout(token_dir: Type75) int
     }
-    class c0208["CliContext"] {
+    class c0209["CliContext"] {
         <<class>>
         -__init__(runtime: Runtime) unknown
         +fastmcp: unknown
     }
-    class c0209["_CliRuntime"] {
+    class c0210["_CliRuntime"] {
         <<class>>
         -__init__(runtime: Runtime) unknown
         +user_service: unknown
         +auth: unknown
     }
-    class c0210["LocalExecutor"] {
+    class c0211["LocalExecutor"] {
         <<class>>
         -__init__(runtime: Runtime) unknown
         -_runtime: unknown
         -_ctx: unknown
-        +create() Type74
+        +create() Type76
         +execute(tool_name: str, arguments: Type1) Any
         +list_tools(category: Type5) Type1
         +tool_info(tool_name: str) Type1
         +close() None
     }
-    class c0211["app/routes/cli/parser.py"] {
+    class c0212["app/routes/cli/parser.py"] {
         <<module>>
         -_json_object(value: str) dict
         +build_parser() argparse.ArgumentParser
@@ -3074,13 +3088,13 @@ classDiagram
         +dispatch(argv: unknown, serve_runner: unknown, reembed_runner: unknown) unknown
         -_run_auth_command(args: unknown) int
     }
-    class c0212["app/routes/cli/paths.py"] {
+    class c0213["app/routes/cli/paths.py"] {
         <<module>>
         +config_dir() Path
         +user_env_file() Path
         +token_cache_dir() Path
     }
-    class c0213["RemoteExecutor"] {
+    class c0214["RemoteExecutor"] {
         <<class>>
         -__init__(server_url: str, token: Type5, client_factory: unknown) unknown
         +server_url: unknown
@@ -3092,12 +3106,12 @@ classDiagram
         +tool_info(tool_name: str) Type1
         +close() None
     }
-    class c0214["app/routes/cli/remote_executor.py"] {
+    class c0215["app/routes/cli/remote_executor.py"] {
         <<module>>
         +normalize_server_url(url: str) str
         -_default_client_factory(url: str, token: Type5) unknown
     }
-    class c0215["app/routes/cli/render.py"] {
+    class c0216["app/routes/cli/render.py"] {
         <<module>>
         +to_jsonable(value: Any) Any
         +render_result(value: Any, as_json: bool) str
@@ -3106,36 +3120,36 @@ classDiagram
         +render_memory_detail(memory: dict) str
         +render_project_lines(projects: list[dict]) str
     }
-    class c0216["CliError"] {
+    class c0217["CliError"] {
         <<class>>
     }
-    class c0217["app/routes/cli/verbs.py"] {
+    class c0218["app/routes/cli/verbs.py"] {
         <<module>>
         +resolve_project(executor: unknown, value: str) int
-        +run(executor: unknown, args: unknown) Type75
-        -_memory_search(executor: unknown, args: unknown) Type75
-        -_memory_save(executor: unknown, args: unknown) Type75
-        -_memory_get(executor: unknown, args: unknown) Type75
-        -_memory_recent(executor: unknown, args: unknown) Type75
-        -_project_list(executor: unknown) Type75
+        +run(executor: unknown, args: unknown) Type77
+        -_memory_search(executor: unknown, args: unknown) Type77
+        -_memory_save(executor: unknown, args: unknown) Type77
+        -_memory_get(executor: unknown, args: unknown) Type77
+        -_memory_recent(executor: unknown, args: unknown) Type77
+        -_project_list(executor: unknown) Type77
     }
-    class c0218["app/routes/mcp/code_artifact_tools.py"] {
+    class c0219["app/routes/mcp/code_artifact_tools.py"] {
         <<module>>
         +register(mcp: FastMCP) unknown
     }
-    class c0219["app/routes/mcp/document_tools.py"] {
+    class c0220["app/routes/mcp/document_tools.py"] {
         <<module>>
         +register(mcp: FastMCP) unknown
     }
-    class c0220["app/routes/mcp/entity_tools.py"] {
+    class c0221["app/routes/mcp/entity_tools.py"] {
         <<module>>
         +register(mcp: FastMCP) unknown
     }
-    class c0221["app/routes/mcp/memory_tools.py"] {
+    class c0222["app/routes/mcp/memory_tools.py"] {
         <<module>>
         +register(mcp: FastMCP) unknown
     }
-    class c0222["app/routes/mcp/meta_tools.py"] {
+    class c0223["app/routes/mcp/meta_tools.py"] {
         <<module>>
         -_build_category_list() str
         -_build_tool_categories_line() str
@@ -3149,151 +3163,151 @@ classDiagram
         +ensure_tool_executable(registry: unknown, permitted: set, tool_name: str) None
         +register(mcp: FastMCP) unknown
     }
-    class c0223["app/routes/mcp/pagination.py"] {
+    class c0224["app/routes/mcp/pagination.py"] {
         <<module>>
-        +clamp_list_pagination(limit: int, offset: int) Type76
+        +clamp_list_pagination(limit: int, offset: int) Type78
     }
-    class c0224["app/routes/mcp/project_tools.py"] {
+    class c0225["app/routes/mcp/project_tools.py"] {
         <<module>>
         +register(mcp: FastMCP) unknown
     }
-    class c0225["app/routes/mcp/scope_resolver.py"] {
+    class c0226["app/routes/mcp/scope_resolver.py"] {
         <<module>>
         +parse_scopes(scope_string: str) frozenset[str]
         +resolve_permitted_tools(scopes: frozenset[str], registry: ToolRegistry) set[str]
         +get_required_scope(tool_name: str, registry: ToolRegistry) str
-        +get_effective_scopes(ctx: Context) Type77
-        -_extract_token_scopes(ctx: Context) Type78
+        +get_effective_scopes(ctx: Context) Type79
+        -_extract_token_scopes(ctx: Context) Type80
     }
-    class c0226["app/routes/mcp/skill_tools.py"] {
+    class c0227["app/routes/mcp/skill_tools.py"] {
         <<module>>
         +register(mcp: FastMCP) unknown
     }
-    class c0227["CodeArtifactToolAdapters"] {
+    class c0228["CodeArtifactToolAdapters"] {
         <<class>>
         -__init__(code_artifact_service: CodeArtifactService, user_service: UserService) unknown
         +code_artifact_service: unknown
         +user_service: unknown
-        +create_code_artifact(Signature45)
+        +create_code_artifact(Signature46)
         +get_code_artifact(artifact_id: int, ctx: Context) CodeArtifact
         +list_code_artifacts(ctx: Context, project_id: Type4, language: Type5, tags: Type3) dict
-        +update_code_artifact(Signature46)
+        +update_code_artifact(Signature47)
         +delete_code_artifact(artifact_id: int, ctx: Context) dict
     }
-    class c0228["DocumentToolAdapters"] {
+    class c0229["DocumentToolAdapters"] {
         <<class>>
         -__init__(document_service: DocumentService, user_service: UserService) unknown
         +document_service: unknown
         +user_service: unknown
-        +create_document(Signature47)
+        +create_document(Signature48)
         +get_document(document_id: int, ctx: Context) Document
         +list_documents(ctx: Context, project_id: Type4, document_type: Type5, tags: Type3) dict
-        +update_document(Signature48)
+        +update_document(Signature49)
         +delete_document(document_id: int, ctx: Context) dict
     }
-    class c0229["EntityToolAdapters"] {
+    class c0230["EntityToolAdapters"] {
         <<class>>
         -__init__(entity_service: EntityService, user_service: UserService) unknown
         +entity_service: unknown
         +user_service: unknown
-        +create_entity(Signature49)
+        +create_entity(Signature50)
         +get_entity(entity_id: int, ctx: Context) Entity
         +list_entities(ctx: Context, project_ids: Type15, entity_type: Type5, tags: Type3) dict
-        +search_entities(Signature50)
-        +update_entity(Signature51)
+        +search_entities(Signature51)
+        +update_entity(Signature52)
         +delete_entity(entity_id: int, ctx: Context) dict
         +link_entity_to_memory(entity_id: int, memory_id: int, ctx: Context) dict
         +unlink_entity_from_memory(entity_id: int, memory_id: int, ctx: Context) dict
         +link_entity_to_project(entity_id: int, project_id: int, ctx: Context) dict
         +unlink_entity_from_project(entity_id: int, project_id: int, ctx: Context) dict
-        +create_entity_relationship(Signature52)
-        +get_entity_relationships(Signature53)
-        +update_entity_relationship(Signature54)
+        +create_entity_relationship(Signature53)
+        +get_entity_relationships(Signature54)
+        +update_entity_relationship(Signature55)
         +delete_entity_relationship(relationship_id: int, ctx: Context) dict
         +get_entity_memories(entity_id: int, ctx: Context) dict
         +get_memory_entities(memory_id: int, ctx: Context) dict
     }
-    class c0230["FileToolAdapters"] {
+    class c0231["FileToolAdapters"] {
         <<class>>
         -__init__(file_service: unknown, user_service: UserService) unknown
         +file_service: unknown
         +user_service: unknown
-        +create_file(Signature55)
+        +create_file(Signature56)
         +get_file(file_id: int, ctx: Context) unknown
         +list_files(ctx: Context, project_id: Type4, mime_type: Type5, tags: Type3) dict
-        +update_file(Signature56)
+        +update_file(Signature57)
         +delete_file(file_id: int, ctx: Context) dict
     }
-    class c0231["MemoryToolAdapters"] {
+    class c0232["MemoryToolAdapters"] {
         <<class>>
         -__init__(memory_service: MemoryService, user_service: UserService) unknown
         +memory_service: unknown
         +user_service: unknown
         -_build_re_embedding_service() ReEmbeddingService
         -_validate_rebuild_scope(user_id: unknown, memory_ids: Type15, project_id: Type4) None
-        +create_memory(Signature57)
-        +query_memory(Signature58)
-        +update_memory(Signature59)
-        +link_memories(Signature60)
-        +unlink_memories(Signature61)
+        +create_memory(Signature58)
+        +query_memory(Signature59)
+        +update_memory(Signature60)
+        +link_memories(Signature61)
+        +unlink_memories(Signature62)
         +get_memory(ctx: Context, memory_id: Type4, id: Type4, kwargs: unknown) Memory
-        +mark_memory_obsolete(Signature62)
-        +get_recent_memories(Signature63)
+        +mark_memory_obsolete(Signature63)
+        +get_recent_memories(Signature64)
         +rebuild_embeddings(ctx: Context, memory_ids: Type15, project_id: Type4) Type1
     }
-    class c0232["PlanToolAdapters"] {
+    class c0233["PlanToolAdapters"] {
         <<class>>
         -__init__(plan_service: unknown, user_service: unknown) unknown
         +plan_service: unknown
         +user_service: unknown
-        +create_plan(Signature64)
-        +update_plan(Signature65)
+        +create_plan(Signature65)
+        +update_plan(Signature66)
         +get_plan(plan_id: int, ctx: Context) unknown
-        +list_plans(ctx: Context, project_id: Type4, status: Type5) unknown
+        +list_plans(ctx: Context, project_id: Type4, status: Type5, external_ref: Type5) unknown
     }
-    class c0233["ProjectToolAdapters"] {
+    class c0234["ProjectToolAdapters"] {
         <<class>>
         -__init__(project_service: ProjectService, user_service: UserService) unknown
         +project_service: unknown
         +user_service: unknown
-        +create_project(Signature66)
-        +update_project(Signature67)
+        +create_project(Signature67)
+        +update_project(Signature68)
         +delete_project(project_id: int, ctx: Context) dict
         +list_projects(ctx: Context, status: Type5, repo_name: Type5, name: Type5) dict
         +get_project(project_id: int, ctx: Context) Project
     }
-    class c0234["SkillToolAdapters"] {
+    class c0235["SkillToolAdapters"] {
         <<class>>
         -__init__(skill_service: unknown, user_service: UserService) unknown
         +skill_service: unknown
         +user_service: unknown
-        +create_skill(Signature68)
+        +create_skill(Signature69)
         +get_skill(skill_id: int, ctx: Context) unknown
-        +list_skills(Signature69)
-        +update_skill(Signature70)
+        +list_skills(Signature70)
+        +update_skill(Signature71)
         +delete_skill(skill_id: int, ctx: Context) dict
         +search_skills(query: str, ctx: Context, k: int, project_id: Type4) dict
-        +import_skill(Signature71)
+        +import_skill(Signature72)
         +export_skill(skill_id: int, ctx: Context) str
         +link_skill_to_memory(skill_id: int, memory_id: int, ctx: Context) dict
         +unlink_skill_from_memory(skill_id: int, memory_id: int, ctx: Context) dict
         +link_skill_to_file(skill_id: int, file_id: int, ctx: Context) dict
         +unlink_skill_from_file(skill_id: int, file_id: int, ctx: Context) dict
         +link_skill_to_code_artifact(skill_id: int, code_artifact_id: int, ctx: Context) dict
-        +unlink_skill_from_code_artifact(Signature72)
+        +unlink_skill_from_code_artifact(Signature73)
         +link_skill_to_document(skill_id: int, document_id: int, ctx: Context) dict
         +unlink_skill_from_document(skill_id: int, document_id: int, ctx: Context) dict
         +get_skill_links(skill_id: int, ctx: Context) dict
     }
-    class c0235["TaskToolAdapters"] {
+    class c0236["TaskToolAdapters"] {
         <<class>>
         -__init__(task_service: unknown, user_service: unknown) unknown
         +task_service: unknown
         +user_service: unknown
-        +create_task(Signature73)
-        +update_task(Signature74)
+        +create_task(Signature74)
+        +update_task(Signature75)
         +get_task(task_id: int, ctx: Context) unknown
-        +query_tasks(Signature75)
+        +query_tasks(Signature76)
         +claim_task(task_id: int, agent_id: str, version: int, ctx: Context) unknown
         +transition_task(task_id: int, state: str, version: int, ctx: Context) unknown
         +add_criterion(task_id: int, description: str, ctx: Context) unknown
@@ -3302,34 +3316,34 @@ classDiagram
         +add_dependency(task_id: int, depends_on_task_id: int, ctx: Context) unknown
         +remove_dependency(task_id: int, depends_on_task_id: int, ctx: Context) unknown
     }
-    class c0236["UserToolAdapters"] {
+    class c0237["UserToolAdapters"] {
         <<class>>
         -__init__(user_service: UserService) unknown
         +user_service: unknown
         +get_current_user(ctx: Context) UserResponse
         +update_user_notes(user_notes: str, ctx: Context) UserResponse
     }
-    class c0237["app/routes/mcp/tool_adapters.py"] {
+    class c0238["app/routes/mcp/tool_adapters.py"] {
         <<module>>
         -_coerce_int_id(val: Any, param_name: str) int
         -_coerce_int_ids(vals: Any, param_name: str) list[int]
         +create_user_adapters(user_service: UserService) Type1
         +create_memory_adapters(memory_service: MemoryService, user_service: UserService) Type1
-        +create_project_adapters(Signature76)
-        +create_code_artifact_adapters(Signature77)
-        +create_document_adapters(Signature78)
+        +create_project_adapters(Signature77)
+        +create_code_artifact_adapters(Signature78)
+        +create_document_adapters(Signature79)
         +create_entity_adapters(entity_service: EntityService, user_service: UserService) Type1
         +create_plan_adapters(plan_service: unknown, user_service: unknown) Type1
         +create_task_adapters(task_service: unknown, user_service: unknown) Type1
         +create_file_adapters(file_service: unknown, user_service: UserService) Type1
         +create_skill_adapters(skill_service: unknown, user_service: UserService) Type1
     }
-    class c0238["app/routes/mcp/tool_metadata_registry.py"] {
+    class c0239["app/routes/mcp/tool_metadata_registry.py"] {
         <<module>>
-        +register_simplified_tool(Signature79)
+        +register_simplified_tool(Signature80)
         +register_user_tools_metadata(registry: ToolRegistry, adapters: Type1) unknown
         +register_memory_tools_metadata(registry: ToolRegistry, adapters: Type1) unknown
-        +register_all_tools_metadata(Signature80)
+        +register_all_tools_metadata(Signature81)
         +register_project_tools_metadata(registry: ToolRegistry, adapters: Type1) unknown
         +register_code_artifact_tools_metadata(registry: ToolRegistry, adapters: Type1) unknown
         +register_document_tools_metadata(registry: ToolRegistry, adapters: Type1) unknown
@@ -3339,13 +3353,13 @@ classDiagram
         +register_file_tools_metadata(registry: ToolRegistry, adapters: Type1) unknown
         +register_skill_tools_metadata(registry: ToolRegistry, adapters: Type1) unknown
     }
-    class c0239["ToolRegistry"] {
+    class c0240["ToolRegistry"] {
         <<class>>
         -__init__() unknown
-        -_tools: Type81
-        +register(Signature81)
+        -_tools: Type83
+        +register(Signature82)
         -_tools#91;name#93;: unknown
-        +get_tool(name: str) Type82
+        +get_tool(name: str) Type84
         +list_all_tools() list[ToolMetadata]
         +list_by_category(category: ToolCategory) list[ToolMetadata]
         +list_categories() Type8
@@ -3356,21 +3370,21 @@ classDiagram
         +is_permitted(name: str, permitted: set) bool
         +execute(name: str, arguments: Type1, context: unknown) Any
     }
-    class c0240["app/routes/mcp/user_tools.py"] {
+    class c0241["app/routes/mcp/user_tools.py"] {
         <<module>>
         +register(mcp: FastMCP) unknown
     }
-    class c0241["ActivityService"] {
+    class c0242["ActivityService"] {
         <<class>>
         -__init__(activity_repo: ActivityRepository) unknown
         +activity_repo: unknown
         +handle_event(event: ActivityEvent) None
-        +get_activity(Signature82)
-        +get_entity_history(Signature83)
-        +count_activity(user_id: UUID, entity_type: Type16, action: Type30) int
+        +get_activity(Signature83)
+        +get_entity_history(Signature84)
+        +count_activity(user_id: UUID, entity_type: Type16, action: Type31) int
         -_cleanup_if_configured(user_id: UUID) None
     }
-    class c0242["BackupService"] {
+    class c0243["BackupService"] {
         <<class>>
         -__init__(database_type: Type5) unknown
         +database_type: unknown
@@ -3381,36 +3395,36 @@ classDiagram
         -_backup_postgres(timestamp: str) Path
         -_restore_postgres(backup_path: Path) None
     }
-    class c0243["CodeArtifactService"] {
+    class c0244["CodeArtifactService"] {
         <<class>>
-        -__init__(artifact_repo: CodeArtifactRepository, event_bus: Type83) unknown
+        -__init__(artifact_repo: CodeArtifactRepository, event_bus: Type85) unknown
         +artifact_repo: unknown
         -_event_bus: unknown
-        -_emit_event(Signature84)
+        -_emit_event(Signature85)
         +create_code_artifact(user_id: UUID, artifact_data: CodeArtifactCreate) CodeArtifact
         +get_code_artifact(user_id: UUID, artifact_id: int) CodeArtifact
         +list_code_artifacts(Signature3)
         +update_code_artifact(Signature4)
         +delete_code_artifact(user_id: UUID, artifact_id: int) bool
     }
-    class c0244["DocumentService"] {
+    class c0245["DocumentService"] {
         <<class>>
-        -__init__(document_repo: DocumentRepository, event_bus: Type83) unknown
+        -__init__(document_repo: DocumentRepository, event_bus: Type85) unknown
         +document_repo: unknown
         -_event_bus: unknown
-        -_emit_event(Signature84)
+        -_emit_event(Signature85)
         +create_document(user_id: UUID, document_data: DocumentCreate) Document
         +get_document(user_id: UUID, document_id: int) Document
         +list_documents(Signature5)
         +update_document(Signature6)
         +delete_document(user_id: UUID, document_id: int) bool
     }
-    class c0245["EntityService"] {
+    class c0246["EntityService"] {
         <<class>>
-        -__init__(entity_repo: EntityRepository, event_bus: Type83) unknown
+        -__init__(entity_repo: EntityRepository, event_bus: Type85) unknown
         +entity_repo: unknown
         -_event_bus: unknown
-        -_emit_event(Signature85)
+        -_emit_event(Signature86)
         +create_entity(user_id: UUID, entity_data: EntityCreate) Entity
         +get_entity(user_id: UUID, entity_id: int) Entity
         +list_entities(Signature7)
@@ -3426,18 +3440,18 @@ classDiagram
         +update_entity_relationship(Signature11)
         +delete_entity_relationship(user_id: UUID, relationship_id: int) bool
         +get_all_entity_relationships(user_id: UUID) list[EntityRelationship]
-        +get_all_entity_memory_links(user_id: UUID) Type36
-        +get_all_entity_project_links(user_id: UUID) Type36
-        +get_all_entity_file_links(user_id: UUID) Type36
-        +get_entity_memories(user_id: UUID, entity_id: int) Type84
-        +get_memory_entities(user_id: UUID, memory_id: int) Type85
+        +get_all_entity_memory_links(user_id: UUID) Type37
+        +get_all_entity_project_links(user_id: UUID) Type37
+        +get_all_entity_file_links(user_id: UUID) Type37
+        +get_entity_memories(user_id: UUID, entity_id: int) Type86
+        +get_memory_entities(user_id: UUID, memory_id: int) Type87
     }
-    class c0246["FileService"] {
+    class c0247["FileService"] {
         <<class>>
-        -__init__(file_repo: FileRepository, event_bus: Type83) unknown
+        -__init__(file_repo: FileRepository, event_bus: Type85) unknown
         +file_repo: unknown
         -_event_bus: unknown
-        -_emit_event(Signature84)
+        -_emit_event(Signature85)
         -_snapshot_without_data(file: File) dict
         +create_file(user_id: UUID, file_data: FileCreate) File
         +get_file(user_id: UUID, file_id: int) File
@@ -3445,22 +3459,22 @@ classDiagram
         +update_file(user_id: UUID, file_id: int, file_data: FileUpdate) File
         +delete_file(user_id: UUID, file_id: int) bool
     }
-    class c0247["CodeArtifactServiceProtocol"] {
+    class c0248["CodeArtifactServiceProtocol"] {
         <<class>>
         +get_code_artifact(user_id: UUID, artifact_id: int) Any
     }
-    class c0248["DocumentServiceProtocol"] {
+    class c0249["DocumentServiceProtocol"] {
         <<class>>
         +get_document(user_id: UUID, document_id: int) Any
     }
-    class c0249["FileServiceProtocol"] {
+    class c0250["FileServiceProtocol"] {
         <<class>>
         +get_file(user_id: UUID, file_id: int) Any
         +list_files(user_id: UUID, kwargs: unknown) Any
     }
-    class c0250["GraphService"] {
+    class c0251["GraphService"] {
         <<class>>
-        -__init__(Signature86)
+        -__init__(Signature87)
         +memory_repo: unknown
         +entity_repo: unknown
         +project_service: unknown
@@ -3470,162 +3484,162 @@ classDiagram
         +skill_service: unknown
         +plan_service: unknown
         +task_service: unknown
-        +parse_node_id(node_id: str) Type93
-        +get_subgraph(Signature87)
+        +parse_node_id(node_id: str) Type95
+        +get_subgraph(Signature88)
         -_validate_center_node(user_id: UUID, center_type: str, center_id: int) None
-        -_fetch_node_data(Signature88)
-        -_fetch_edges(Signature89)
+        -_fetch_node_data(Signature89)
+        -_fetch_edges(Signature90)
     }
-    class c0251["PlanServiceProtocol"] {
+    class c0252["PlanServiceProtocol"] {
         <<class>>
         +get_plan(user_id: UUID, plan_id: int) Any
         +list_plans(user_id: UUID, kwargs: unknown) Any
     }
-    class c0252["ProjectServiceProtocol"] {
+    class c0253["ProjectServiceProtocol"] {
         <<class>>
         +get_project(user_id: UUID, project_id: int) Any
     }
-    class c0253["SkillServiceProtocol"] {
+    class c0254["SkillServiceProtocol"] {
         <<class>>
         +get_skill(user_id: UUID, skill_id: int) Any
-        +get_all_skill_file_links(user_id: UUID) Type36
-        +get_all_skill_code_artifact_links(user_id: UUID) Type36
-        +get_all_skill_document_links(user_id: UUID) Type36
+        +get_all_skill_file_links(user_id: UUID) Type37
+        +get_all_skill_code_artifact_links(user_id: UUID) Type37
+        +get_all_skill_document_links(user_id: UUID) Type37
     }
-    class c0254["TaskServiceProtocol"] {
+    class c0255["TaskServiceProtocol"] {
         <<class>>
         +get_task(user_id: UUID, task_id: int) Any
         +list_tasks_for_user(user_id: UUID, plan_ids: Type15) Any
     }
-    class c0255["MemoryService"] {
+    class c0256["MemoryService"] {
         <<class>>
-        -__init__(memory_repo: MemoryRepository, event_bus: Type83) unknown
+        -__init__(memory_repo: MemoryRepository, event_bus: Type85) unknown
         +memory_repo: unknown
         -_event_bus: unknown
-        +register_access_tracking_handlers(event_bus: Type95) None
+        +register_access_tracking_handlers(event_bus: Type97) None
         +query_memory(user_id: UUID, memory_query: MemoryQueryRequest) MemoryQueryResult
-        +create_memory(user_id: UUID, memory_data: MemoryCreate) Type96
-        +update_memory(user_id: UUID, memory_id: int, updated_memory: MemoryUpdate) Type41
-        +mark_memory_obsolete(Signature90)
-        +get_memory(user_id: UUID, memory_id: int) Type41
+        +create_memory(user_id: UUID, memory_data: MemoryCreate) Type98
+        +update_memory(user_id: UUID, memory_id: int, updated_memory: MemoryUpdate) Type42
+        +mark_memory_obsolete(Signature91)
+        +get_memory(user_id: UUID, memory_id: int) Type42
         +find_obsolete_matches(user_id: UUID, memory_id: int) list[ObsoleteMatch]
         +list_memories(Signature18)
         +link_memories(user_id: UUID, memory_id: int, related_ids: list[int]) list[int]
         +unlink_memories(user_id: UUID, memory_id: int, target_id: int) bool
-        -_fetch_linked_memories(Signature91)
-        -_apply_token_budget(Signature92)
+        -_fetch_linked_memories(Signature92)
+        -_apply_token_budget(Signature93)
         -_count_memory_tokens(memory: Memory) int
-        +truncate_memories_by_budget(Signature93)
+        +truncate_memories_by_budget(Signature94)
         +handle_memory_access_event(event: ActivityEvent) None
-        -_emit_event(Signature84)
+        -_emit_event(Signature85)
     }
-    class c0256["PlanService"] {
+    class c0257["PlanService"] {
         <<class>>
-        -__init__(plan_repo: PlanRepository, event_bus: Type83) unknown
+        -__init__(plan_repo: PlanRepository, event_bus: Type85) unknown
         +plan_repo: unknown
         -_event_bus: unknown
-        -_emit_event(Signature84)
+        -_emit_event(Signature85)
         +create_plan(user_id: UUID, plan_data: PlanCreate) Plan
         +get_plan(user_id: UUID, plan_id: int) Plan
-        +list_plans(user_id: UUID, project_id: Type4, status: Type22) list[PlanSummary]
-        +update_plan(user_id: UUID, plan_id: int, plan_data: PlanUpdate) Type46
+        +list_plans(Signature22)
+        +update_plan(user_id: UUID, plan_id: int, plan_data: PlanUpdate) Type47
         +delete_plan(user_id: UUID, plan_id: int) bool
         +check_plan_completion(user_id: UUID, plan_id: int) bool
     }
-    class c0257["ProjectService"] {
+    class c0258["ProjectService"] {
         <<class>>
-        -__init__(project_repo: ProjectRepository, event_bus: Type83) unknown
+        -__init__(project_repo: ProjectRepository, event_bus: Type85) unknown
         +project_repo: unknown
         -_event_bus: unknown
-        -_emit_event(Signature84)
-        +list_projects(Signature22)
+        -_emit_event(Signature85)
+        +list_projects(Signature23)
         +get_project(user_id: UUID, project_id: int) Project
         +create_project(user_id: UUID, project_data: ProjectCreate) Project
-        +update_project(user_id: UUID, project_id: int, project_data: ProjectUpdate) Type47
+        +update_project(user_id: UUID, project_id: int, project_data: ProjectUpdate) Type48
         +delete_project(user_id: UUID, project_id: int) bool
     }
-    class c0258["ReEmbedResult"] {
+    class c0259["ReEmbedResult"] {
         <<class>>
         +total_processed: int
         +total_memories: int
-        +validation: Type99
+        +validation: Type101
     }
-    class c0259["ReEmbeddingService"] {
+    class c0260["ReEmbeddingService"] {
         <<class>>
-        -__init__(Signature94)
+        -__init__(Signature95)
         +memory_repository: unknown
         +embedding_adapter: unknown
         +batch_size: unknown
-        +re_embed_all(progress_callback: Type100) ReEmbedResult
-        +rebuild_targeted(Signature95)
-        -_record_unresolved_memory_ids(Signature96)
-        -_recompute_auto_links(Signature97)
+        +re_embed_all(progress_callback: Type102) ReEmbedResult
+        +rebuild_targeted(Signature96)
+        -_record_unresolved_memory_ids(Signature97)
+        -_recompute_auto_links(Signature98)
         +validate() ValidationResult
     }
-    class c0260["TargetedRebuildResult"] {
+    class c0261["TargetedRebuildResult"] {
         <<class>>
         +rebuilt_ids: list[int]
         +skipped_ids: list[int]
         +failed: list[dict]
     }
-    class c0261["SkillService"] {
+    class c0262["SkillService"] {
         <<class>>
-        -__init__(skill_repo: SkillRepository, event_bus: Type83) unknown
+        -__init__(skill_repo: SkillRepository, event_bus: Type85) unknown
         +skill_repo: unknown
         -_event_bus: unknown
-        -_emit_event(Signature84)
+        -_emit_event(Signature85)
         +create_skill(user_id: UUID, skill_data: SkillCreate) Skill
         +get_skill(user_id: UUID, skill_id: int) Skill
-        +list_skills(Signature23)
+        +list_skills(Signature24)
         +update_skill(user_id: UUID, skill_id: int, skill_data: SkillUpdate) Skill
         +delete_skill(user_id: UUID, skill_id: int) bool
         +search_skills(user_id: UUID, query: str, k: int, project_id: Type4) list[SkillSummary]
-        +import_skill(Signature98)
+        +import_skill(Signature99)
         +export_skill(user_id: UUID, skill_id: int) str
         +link_skill_to_memory(user_id: UUID, skill_id: int, memory_id: int) dict
         +unlink_skill_from_memory(user_id: UUID, skill_id: int, memory_id: int) dict
         +link_skill_to_file(user_id: UUID, skill_id: int, file_id: int) dict
         +unlink_skill_from_file(user_id: UUID, skill_id: int, file_id: int) dict
         +link_skill_to_code_artifact(user_id: UUID, skill_id: int, code_artifact_id: int) dict
-        +unlink_skill_from_code_artifact(Signature24)
+        +unlink_skill_from_code_artifact(Signature25)
         +link_skill_to_document(user_id: UUID, skill_id: int, document_id: int) dict
         +unlink_skill_from_document(user_id: UUID, skill_id: int, document_id: int) dict
         +get_skill_links(user_id: UUID, skill_id: int) SkillLinks
-        +get_all_skill_file_links(user_id: UUID) Type36
-        +get_all_skill_code_artifact_links(user_id: UUID) Type36
-        +get_all_skill_document_links(user_id: UUID) Type36
+        +get_all_skill_file_links(user_id: UUID) Type37
+        +get_all_skill_code_artifact_links(user_id: UUID) Type37
+        +get_all_skill_document_links(user_id: UUID) Type37
     }
-    class c0262["app/services/skill_service.py"] {
+    class c0263["app/services/skill_service.py"] {
         <<module>>
         -_quote_unquoted_frontmatter_scalars(raw: str) str
     }
-    class c0263["TaskService"] {
+    class c0264["TaskService"] {
         <<class>>
-        -__init__(Signature99)
+        -__init__(Signature100)
         +task_repo: unknown
         +plan_service: unknown
         -_event_bus: unknown
-        -_emit_event(Signature84)
+        -_emit_event(Signature85)
         +create_task(user_id: UUID, task_data: TaskCreate) Task
         +get_task(user_id: UUID, task_id: int) Task
-        +list_tasks(Signature25)
+        +list_tasks(Signature26)
         +list_tasks_for_user(user_id: UUID, plan_ids: Type15) list[TaskSummary]
-        +update_task(user_id: UUID, task_id: int, task_data: TaskUpdate) Type49
+        +update_task(user_id: UUID, task_id: int, task_data: TaskUpdate) Type50
         +delete_task(user_id: UUID, task_id: int) bool
-        +transition_task(Signature100)
+        +transition_task(Signature101)
         +claim_task(user_id: UUID, task_id: int, agent_id: str, expected_version: int) Task
         +add_criterion(user_id: UUID, task_id: int, criterion_data: CriterionCreate) Criterion
-        +update_criterion(Signature28)
+        +update_criterion(Signature29)
         +delete_criterion(user_id: UUID, criterion_id: int) bool
         +add_dependency(user_id: UUID, task_id: int, depends_on_task_id: int) unknown
         +remove_dependency(user_id: UUID, task_id: int, depends_on_task_id: int) bool
         -_validate_dependencies_met(user_id: UUID, task: Task) None
         -_validate_all_criteria_met(user_id: UUID, task: Task) None
         -_validate_no_cycle(user_id: UUID, task_id: int, new_dep_id: int) None
-        -_validate_same_plan(Signature101)
+        -_validate_same_plan(Signature102)
         -_check_plan_auto_completion(user_id: UUID, plan_id: int) None
     }
-    class c0264["UserService"] {
+    class c0265["UserService"] {
         <<class>>
         -__init__(user_repo: UserRepository) unknown
         +user_repo: unknown
@@ -3633,55 +3647,55 @@ classDiagram
         +get_or_create_user(user: UserCreate) Type12
         +update_user(user_update: UserUpdate) Type12
     }
-    class c0265["app/utils/provenance.py"] {
+    class c0266["app/utils/provenance.py"] {
         <<module>>
         +apply_provenance_defaults(data: unknown) unknown
         +apply_provenance_defaults_for_update(data: unknown) unknown
     }
-    class c0266["app/utils/pydantic_helper.py"] {
+    class c0267["app/utils/pydantic_helper.py"] {
         <<module>>
-        +get_changed_fields(input_model: BaseModel, existing_model: BaseModel) Type101
+        +get_changed_fields(input_model: BaseModel, existing_model: BaseModel) Type103
         +filter_none_values(kwargs: unknown) unknown
     }
-    class c0267["app/utils/repository_identity.py"] {
+    class c0268["app/utils/repository_identity.py"] {
         <<module>>
-        +repository_identity(value: str) Type102
+        +repository_identity(value: str) Type104
     }
-    class c0268["TokenCounter"] {
+    class c0269["TokenCounter"] {
         <<class>>
         -__init__(model: str) unknown
         +encoding: unknown
         +count_tokens(text: str) int
     }
-    class c0269["app/version.py"] {
+    class c0270["app/version.py"] {
         <<module>>
         +get_version() str
     }
-    class c0270["debug/reranker-test.py"] {
+    class c0271["debug/reranker-test.py"] {
         <<module>>
         +main() unknown
         +jina() unknown
         +fast_embed_rank() unknown
         +http_rank() unknown
     }
-    class c0271["debug/sqlite_vec_poc.py"] {
+    class c0272["debug/sqlite_vec_poc.py"] {
         <<module>>
         +test_sqlite_vec_sync() unknown
         +test_sqlite_vec_async() unknown
     }
-    class c0272["debug/test_google_embeddings.py"] {
+    class c0273["debug/test_google_embeddings.py"] {
         <<module>>
         +test_embeddings() unknown
     }
-    class c0273["debug/test_mcp_connection.py"] {
+    class c0274["debug/test_mcp_connection.py"] {
         <<module>>
         +main() unknown
     }
-    class c0274["debug/test_sqlite_init.py"] {
+    class c0275["debug/test_sqlite_init.py"] {
         <<module>>
         +test_sqlite_init() unknown
     }
-    class c0275["main.py"] {
+    class c0276["main.py"] {
         <<module>>
         +lifespan(app: unknown) unknown
         +root(request: Request) JSONResponse
@@ -3690,23 +3704,23 @@ classDiagram
         -_legacy_launcher(argv: unknown) unknown
         +cli() unknown
     }
-    class c0276["test_harness/__main__.py"] {
+    class c0277["test_harness/__main__.py"] {
         <<module>>
         +config_from_argv(argv: list[str]) HarnessConfig
         -_print_summary(results: list[SkillRunResult], run_dir: Path) None
         -_run(config: HarnessConfig) int
         +main(argv: Type3) int
     }
-    class c0277["HarnessConfig"] {
+    class c0278["HarnessConfig"] {
         <<class>>
         +model_config: unknown
         +agent_type: str
         +model: str
         +effort: Type5
-        +surface: Type103
+        +surface: Type105
         +skills: list[str]
         +skill_timeout: float
-        +skill_timeouts: Type104
+        +skill_timeouts: Type106
         +skills_dir: Path
         +output_dir: Path
         +rebuild_image: bool
@@ -3714,7 +3728,7 @@ classDiagram
         -_subset_of_walkthrough_order(value: list[str]) list[str]
         +timeout_for(skill: str) float
     }
-    class c0278["AgentContainer"] {
+    class c0279["AgentContainer"] {
         <<class>>
         -__init__(config: HarnessConfig, run_dir: Path, server_url: str) unknown
         +config: unknown
@@ -3725,23 +3739,23 @@ classDiagram
         -_container: unknown
         +start() None
         +health_check() None
-        +run_session(Signature102)
-        -_exec(cmd: list[str], log_path: Type73) Type105
+        +run_session(Signature103)
+        -_exec(cmd: list[str], log_path: Type75) Type107
         +stop() None
     }
-    class c0279["test_harness/container.py"] {
+    class c0280["test_harness/container.py"] {
         <<module>>
-        +build_container_env(server_url: str) Type106
+        +build_container_env(server_url: str) Type108
         +exec_command(timeout: float, skill: str) list[str]
-        +staged_mount(files: list[Path], container_dir: str, staged: list[Path]) Type107
-        +provision_agent(agent_type: str, staged: list[Path], auth_path: Path) Type107
+        +staged_mount(files: list[Path], container_dir: str, staged: list[Path]) Type109
+        +provision_agent(agent_type: str, staged: list[Path], auth_path: Path) Type109
         +export_requirements() str
         +requirements_hash(requirements: str) str
         -_docker_client() unknown
         +ensure_image(rebuild: bool, log: unknown) None
         -_prepare_harness_mount(run_dir: Path) Path
     }
-    class c0280["test_harness/docker/runner.py"] {
+    class c0281["test_harness/docker/runner.py"] {
         <<module>>
         -_shell() unknown
         +health() None
@@ -3749,44 +3763,44 @@ classDiagram
         +run_session(skill_dir: Path) None
         +main() int
     }
-    class c0281["test_harness/prompts.py"] {
+    class c0282["test_harness/prompts.py"] {
         <<module>>
         +build_prompt(skill: str) str
     }
-    class c0282["ReportIssue"] {
+    class c0283["ReportIssue"] {
         <<class>>
         +model_config: unknown
-        +severity: Type108
+        +severity: Type110
         +where: str
         +what: str
         +evidence: str
         -_normalize_severity: unknown
     }
-    class c0283["ReportLoad"] {
+    class c0284["ReportLoad"] {
         <<class>>
-        +status: Type109
-        +report: Type110
+        +status: Type111
+        +report: Type112
         +detail: str
     }
-    class c0284["ReportStep"] {
+    class c0285["ReportStep"] {
         <<class>>
         +model_config: unknown
         +step: str
         +commands: list[str]
         +observed: str
-        +verdict: Type111
+        +verdict: Type113
         -_normalize_verdict: unknown
     }
-    class c0285["WalkthroughReport"] {
+    class c0286["WalkthroughReport"] {
         <<class>>
         +model_config: unknown
         +skill: str
-        +verdict: Type112
+        +verdict: Type114
         +steps: list[ReportStep]
         +issues: list[ReportIssue]
         -_normalize_verdict: unknown
     }
-    class c0286["test_harness/report.py"] {
+    class c0287["test_harness/report.py"] {
         <<module>>
         -_lowercase(value: Any) Any
         -_normalize_step_verdict(value: Any) Any
@@ -3795,41 +3809,41 @@ classDiagram
         +report_contract_example() str
         +load_report(path: Path) ReportLoad
     }
-    class c0291["HarnessInfraError"] {
+    class c0292["HarnessInfraError"] {
         <<class>>
     }
-    class c0292["ThrowawayForgetful"] {
+    class c0293["ThrowawayForgetful"] {
         <<class>>
         -__init__(run_dir: Path, boot_timeout: float) unknown
         +run_dir: unknown
         +boot_timeout: unknown
         +port: Type4
-        +process: Type113
+        +process: Type115
         -_log_file: unknown
         +url: str
         +mcp_url: str
-        -_child_env() Type106
+        -_child_env() Type108
         +start() None
         -_wait_until_healthy() None
         +stop() None
         +execute(tool_name: str, arguments: Type1) Any
         +seed_skills(skills_dir: Path, names: Iterable[str]) list[dict]
     }
-    class c0293["test_harness/server.py"] {
+    class c0294["test_harness/server.py"] {
         <<module>>
         -_plain_client_factory(url: str, token: Type5) unknown
         -_ephemeral_port() int
     }
-    class c0294["SessionOutcome"] {
+    class c0295["SessionOutcome"] {
         <<class>>
-        +kind: Type114
+        +kind: Type116
         +detail: str
     }
-    class c0295["SessionRunner"] {
+    class c0296["SessionRunner"] {
         <<class>>
-        +run_session(Signature102)
+        +run_session(Signature103)
     }
-    class c0296["SkillRunResult"] {
+    class c0297["SkillRunResult"] {
         <<class>>
         +skill: str
         +status: str
@@ -3841,9 +3855,9 @@ classDiagram
         +session_id: Type5
         +error: str
     }
-    class c0297["Walkthrough"] {
+    class c0298["Walkthrough"] {
         <<class>>
-        -__init__(Signature103)
+        -__init__(Signature104)
         +config: unknown
         +runner: unknown
         +server_url: unknown
@@ -3853,17 +3867,17 @@ classDiagram
         -_meta(result: SkillRunResult, started: float) Type1
         +write_summary(results: list[SkillRunResult]) None
     }
-    class c0298["test_harness/walkthrough.py"] {
+    class c0299["test_harness/walkthrough.py"] {
         <<module>>
         +prepare_workspace(skill_dir: Path, skill: str, skills_dir: Path) Path
         -_build_fixture_repo(root: Path) None
-        +load_events(path: Path) Type115
-        +scan_for_breaches(events: Type115) list[str]
+        +load_events(path: Path) Type117
+        +scan_for_breaches(events: Type117) list[str]
     }
     c0002 ..> c0002 : 2 relationships (see list)
-    c0002 ..> c0030 : run_migrations_online() calls get()
-    c0002 ..> c0144 : run_async_migrations() calls dispose()
-    c0002 ..> c0217 : run_migrations_online() calls run()
+    c0002 ..> c0031 : run_migrations_online() calls get()
+    c0002 ..> c0145 : run_async_migrations() calls dispose()
+    c0002 ..> c0218 : run_migrations_online() calls run()
     c0003 ..> c0000 : 2 relationships (see list)
     c0003 ..> c0001 : 2 relationships (see list)
     c0003 ..> c0003 : 2 relationships (see list)
@@ -3872,1033 +3886,1036 @@ classDiagram
     c0008 ..> c0008 : 2 relationships (see list)
     c0009 ..> c0009 : 4 relationships (see list)
     c0010 ..> c0010 : 4 relationships (see list)
-    c0013 --> c0014 : field services
-    c0013 --> c0239 : field registry
-    c0015 ..> c0013 : 3 relationships (see list)
-    c0015 ..> c0014 : build_runtime() constructs Services
-    c0015 ..> c0015 : 5 relationships (see list)
-    c0015 ..> c0023 : 3 relationships (see list)
-    c0015 ..> c0126 : get_embedding_adapter() constructs AzureOpenAIAdapter
-    c0015 ..> c0128 : get_embedding_adapter() constructs FastEmbeddingAdapter
-    c0015 ..> c0129 : get_embedding_adapter() constructs GoogleEmbeddingsAdapter
-    c0015 ..> c0130 : get_embedding_adapter() constructs OllamaEmbeddingsAdapter
-    c0015 ..> c0131 : get_embedding_adapter() constructs OpenAIEmbeddingsAdapter
-    c0015 ..> c0133 : get_reranker_adapter() constructs FastEmbedCrossEncoderAdapter
-    c0015 ..> c0134 : get_reranker_adapter() constructs HttpRerankAdapter
-    c0015 ..> c0137 : create_repositories() constructs PostgresActivityRepository
-    c0015 ..> c0138 : create_repositories() constructs PostgresCodeArtifactRepository
-    c0015 ..> c0139 : create_repositories() constructs PostgresDocumentRepository
-    c0015 ..> c0140 : create_repositories() constructs PostgresEntityRepository
-    c0015 ..> c0141 : create_repositories() constructs PostgresFileRepository
-    c0015 ..> c0142 : create_repositories() constructs PostgresMemoryRepository
-    c0015 ..> c0143 : create_repositories() constructs PostgresPlanRepository
-    c0015 ..> c0144 : 3 relationships (see list)
-    c0015 ..> c0161 : create_repositories() constructs PostgresProjectRepository
-    c0015 ..> c0162 : create_repositories() constructs PostgresSkillRepository
-    c0015 ..> c0163 : create_repositories() constructs PostgresTaskRepository
-    c0015 ..> c0164 : create_repositories() constructs PostgresUserRepository
-    c0015 ..> c0165 : create_repositories() constructs SqliteActivityRepository
-    c0015 ..> c0166 : create_repositories() constructs SqliteCodeArtifactRepository
-    c0015 ..> c0167 : create_repositories() constructs SqliteDocumentRepository
-    c0015 ..> c0168 : create_repositories() constructs SqliteEntityRepository
-    c0015 ..> c0169 : create_repositories() constructs SqliteFileRepository
-    c0015 ..> c0170 : create_repositories() constructs SqliteMemoryRepository
-    c0015 ..> c0171 : create_repositories() constructs SqlitePlanRepository
-    c0015 ..> c0172 : create_repositories() constructs SqliteProjectRepository
-    c0015 ..> c0173 : create_repositories() constructs SqliteSkillRepository
-    c0015 ..> c0174 : create_db_adapter() constructs SqliteDatabaseAdapter
-    c0015 ..> c0192 : create_repositories() constructs SqliteTaskRepository
-    c0015 ..> c0193 : create_repositories() constructs SqliteUserRepository
-    c0015 ..> c0225 : 2 relationships (see list)
-    c0015 ..> c0238 : build_runtime() calls register_all_tools_metadata()
-    c0015 ..> c0239 : 2 relationships (see list)
-    c0015 ..> c0241 : build_runtime() constructs ActivityService
-    c0015 ..> c0243 : build_runtime() constructs CodeArtifactService
-    c0015 ..> c0244 : build_runtime() constructs DocumentService
-    c0015 ..> c0245 : build_runtime() constructs EntityService
-    c0015 ..> c0246 : build_runtime() constructs FileService
-    c0015 ..> c0250 : build_runtime() constructs GraphService
-    c0015 ..> c0255 : 2 relationships (see list)
-    c0015 ..> c0256 : build_runtime() constructs PlanService
-    c0015 ..> c0257 : build_runtime() constructs ProjectService
-    c0015 ..> c0261 : build_runtime() constructs SkillService
-    c0015 ..> c0263 : build_runtime() constructs TaskService
-    c0015 ..> c0264 : build_runtime() constructs UserService
-    c0016 ..> c0016 : 7 relationships (see list)
-    c0016 ..> c0030 : build_auth_provider() calls get()
-    c0018 ..> c0030 : format() calls get()
-    c0018 ..> c0032 : 2 relationships (see list)
-    c0019 ..> c0019 : filter() calls _mask_value()
-    c0020 ..> c0017 : configure_logging() constructs ConsoleFormatter
-    c0020 ..> c0018 : configure_logging() constructs JSONFormatter
-    c0020 ..> c0019 : configure_logging() constructs SensitiveDataFilter
-    c0020 ..> c0023 : configure_logging() calls clear()
-    c0020 ..> c0278 : 2 relationships (see list)
-    c0021 ..> c0022 : 3 relationships (see list)
-    c0023 ..> c0023 : 3 relationships (see list)
-    c0023 ..> c0030 : 6 relationships (see list)
-    c0023 ..> c0034 : 3 relationships (see list)
-    c0023 ..> c0124 : emit() calls create_task()
-    c0029 --> c0109 : field user
-    c0030 ..> c0023 : clear() calls clear()
-    c0030 --> c0029 : field _cache
-    c0030 ..> c0029 : set() constructs CacheEntry
-    c0030 ..> c0030 : 3 relationships (see list)
-    c0030 ..> c0109 : 2 relationships (see list)
-    c0031 ..> c0030 : 2 relationships (see list)
-    c0031 ..> c0109 : 2 relationships (see list)
+    c0014 --> c0015 : field services
+    c0014 --> c0240 : field registry
+    c0016 ..> c0014 : 3 relationships (see list)
+    c0016 ..> c0015 : build_runtime() constructs Services
+    c0016 ..> c0016 : 5 relationships (see list)
+    c0016 ..> c0024 : 3 relationships (see list)
+    c0016 ..> c0127 : get_embedding_adapter() constructs AzureOpenAIAdapter
+    c0016 ..> c0129 : get_embedding_adapter() constructs FastEmbeddingAdapter
+    c0016 ..> c0130 : get_embedding_adapter() constructs GoogleEmbeddingsAdapter
+    c0016 ..> c0131 : get_embedding_adapter() constructs OllamaEmbeddingsAdapter
+    c0016 ..> c0132 : get_embedding_adapter() constructs OpenAIEmbeddingsAdapter
+    c0016 ..> c0134 : get_reranker_adapter() constructs FastEmbedCrossEncoderAdapter
+    c0016 ..> c0135 : get_reranker_adapter() constructs HttpRerankAdapter
+    c0016 ..> c0138 : create_repositories() constructs PostgresActivityRepository
+    c0016 ..> c0139 : create_repositories() constructs PostgresCodeArtifactRepository
+    c0016 ..> c0140 : create_repositories() constructs PostgresDocumentRepository
+    c0016 ..> c0141 : create_repositories() constructs PostgresEntityRepository
+    c0016 ..> c0142 : create_repositories() constructs PostgresFileRepository
+    c0016 ..> c0143 : create_repositories() constructs PostgresMemoryRepository
+    c0016 ..> c0144 : create_repositories() constructs PostgresPlanRepository
+    c0016 ..> c0145 : 3 relationships (see list)
+    c0016 ..> c0162 : create_repositories() constructs PostgresProjectRepository
+    c0016 ..> c0163 : create_repositories() constructs PostgresSkillRepository
+    c0016 ..> c0164 : create_repositories() constructs PostgresTaskRepository
+    c0016 ..> c0165 : create_repositories() constructs PostgresUserRepository
+    c0016 ..> c0166 : create_repositories() constructs SqliteActivityRepository
+    c0016 ..> c0167 : create_repositories() constructs SqliteCodeArtifactRepository
+    c0016 ..> c0168 : create_repositories() constructs SqliteDocumentRepository
+    c0016 ..> c0169 : create_repositories() constructs SqliteEntityRepository
+    c0016 ..> c0170 : create_repositories() constructs SqliteFileRepository
+    c0016 ..> c0171 : create_repositories() constructs SqliteMemoryRepository
+    c0016 ..> c0172 : create_repositories() constructs SqlitePlanRepository
+    c0016 ..> c0173 : create_repositories() constructs SqliteProjectRepository
+    c0016 ..> c0174 : create_repositories() constructs SqliteSkillRepository
+    c0016 ..> c0175 : create_db_adapter() constructs SqliteDatabaseAdapter
+    c0016 ..> c0193 : create_repositories() constructs SqliteTaskRepository
+    c0016 ..> c0194 : create_repositories() constructs SqliteUserRepository
+    c0016 ..> c0226 : 2 relationships (see list)
+    c0016 ..> c0239 : build_runtime() calls register_all_tools_metadata()
+    c0016 ..> c0240 : 2 relationships (see list)
+    c0016 ..> c0242 : build_runtime() constructs ActivityService
+    c0016 ..> c0244 : build_runtime() constructs CodeArtifactService
+    c0016 ..> c0245 : build_runtime() constructs DocumentService
+    c0016 ..> c0246 : build_runtime() constructs EntityService
+    c0016 ..> c0247 : build_runtime() constructs FileService
+    c0016 ..> c0251 : build_runtime() constructs GraphService
+    c0016 ..> c0256 : 2 relationships (see list)
+    c0016 ..> c0257 : build_runtime() constructs PlanService
+    c0016 ..> c0258 : build_runtime() constructs ProjectService
+    c0016 ..> c0262 : build_runtime() constructs SkillService
+    c0016 ..> c0264 : build_runtime() constructs TaskService
+    c0016 ..> c0265 : build_runtime() constructs UserService
+    c0017 ..> c0017 : 7 relationships (see list)
+    c0017 ..> c0031 : build_auth_provider() calls get()
+    c0019 ..> c0031 : format() calls get()
+    c0019 ..> c0033 : 2 relationships (see list)
+    c0020 ..> c0020 : filter() calls _mask_value()
+    c0021 ..> c0018 : configure_logging() constructs ConsoleFormatter
+    c0021 ..> c0019 : configure_logging() constructs JSONFormatter
+    c0021 ..> c0020 : configure_logging() constructs SensitiveDataFilter
+    c0021 ..> c0024 : configure_logging() calls clear()
+    c0021 ..> c0279 : 2 relationships (see list)
+    c0022 ..> c0023 : 3 relationships (see list)
+    c0024 ..> c0024 : 3 relationships (see list)
+    c0024 ..> c0031 : 6 relationships (see list)
+    c0024 ..> c0035 : 3 relationships (see list)
+    c0024 ..> c0125 : emit() calls create_task()
+    c0030 --> c0110 : field user
+    c0031 ..> c0024 : clear() calls clear()
+    c0031 --> c0030 : field _cache
+    c0031 ..> c0030 : set() constructs CacheEntry
+    c0031 ..> c0031 : 3 relationships (see list)
     c0031 ..> c0110 : 2 relationships (see list)
-    c0031 ..> c0264 : 2 relationships (see list)
-    c0032 ..> c0030 : 2 relationships (see list)
-    c0034 --> c0033 : field action
-    c0034 --> c0037 : field actor
-    c0034 --> c0038 : field entity_type
-    c0035 --> c0036 : field events
-    c0036 --> c0033 : field action
-    c0036 --> c0037 : field actor
-    c0036 --> c0038 : field entity_type
-    c0039 --|> c0040 : inherits
-    c0043 --|> c0044 : inherits
-    c0044 ..> c0030 : calculate_size_bytes() calls get()
-    c0047 --|> c0048 : inherits
-    c0048 --> c0054 : field entity_type
-    c0049 --> c0053 : field entities
-    c0050 --|> c0051 : inherits
-    c0053 --> c0054 : field entity_type
-    c0055 --> c0054 : field entity_type
-    c0056 --|> c0057 : inherits
-    c0063 --> c0060 : field edges
-    c0063 --> c0061 : field meta
-    c0063 --> c0062 : field nodes
-    c0064 --> c0065 : field memory
-    c0065 --|> c0066 : inherits
-    c0067 --> c0073 : field similar_memories
-    c0067 --> c0075 : field obsolete_matches
-    c0069 --> c0065 : field memories
-    c0071 --> c0064 : field linked_memories
-    c0071 --> c0065 : field primary_memories
-    c0071 --> c0072 : field scores
-    c0080 --|> c0081 : inherits
-    c0081 --> c0082 : field status
-    c0083 --> c0082 : field status
-    c0084 --> c0082 : field status
-    c0085 --> c0077 : field criteria
-    c0085 --> c0089 : field priority
-    c0085 --> c0090 : field state
+    c0032 ..> c0031 : 2 relationships (see list)
+    c0032 ..> c0110 : 2 relationships (see list)
+    c0032 ..> c0111 : 2 relationships (see list)
+    c0032 ..> c0265 : 2 relationships (see list)
+    c0033 ..> c0031 : 2 relationships (see list)
+    c0035 --> c0034 : field action
+    c0035 --> c0038 : field actor
+    c0035 --> c0039 : field entity_type
+    c0036 --> c0037 : field events
+    c0037 --> c0034 : field action
+    c0037 --> c0038 : field actor
+    c0037 --> c0039 : field entity_type
+    c0040 --|> c0041 : inherits
+    c0044 --|> c0045 : inherits
+    c0045 ..> c0031 : calculate_size_bytes() calls get()
+    c0048 --|> c0049 : inherits
+    c0049 --> c0055 : field entity_type
+    c0050 --> c0054 : field entities
+    c0051 --|> c0052 : inherits
+    c0054 --> c0055 : field entity_type
+    c0056 --> c0055 : field entity_type
+    c0057 --|> c0058 : inherits
+    c0064 --> c0061 : field edges
+    c0064 --> c0062 : field meta
+    c0064 --> c0063 : field nodes
+    c0065 --> c0066 : field memory
+    c0066 --|> c0067 : inherits
+    c0068 --> c0074 : field similar_memories
+    c0068 --> c0076 : field obsolete_matches
+    c0070 --> c0066 : field memories
+    c0072 --> c0065 : field linked_memories
+    c0072 --> c0066 : field primary_memories
+    c0072 --> c0073 : field scores
+    c0081 --|> c0082 : inherits
+    c0082 --> c0083 : field status
+    c0084 --> c0083 : field status
+    c0085 ..> c0031 : ignore_null_external_ref() calls get()
+    c0085 --> c0083 : field status
     c0086 --> c0078 : field criteria
-    c0086 --> c0089 : field priority
-    c0088 ..> c0030 : cannot_depend_on_self() calls get()
-    c0091 --> c0089 : field priority
-    c0091 --> c0090 : field state
-    c0092 --> c0089 : field priority
-    c0093 --|> c0094 : inherits
-    c0094 --> c0095 : field status
-    c0094 --> c0097 : field project_type
-    c0096 --> c0095 : field status
-    c0096 --> c0097 : field project_type
-    c0098 --> c0095 : field status
-    c0098 --> c0097 : field project_type
-    c0099 --|> c0100 : inherits
-    c0105 --|> c0107 : inherits
-    c0106 --> c0107 : field metadata
-    c0107 ..> c0030 : _map_python_type_to_json_type() calls get()
-    c0107 --> c0104 : field category
-    c0107 ..> c0107 : 2 relationships (see list)
-    c0107 --> c0108 : field parameters
-    c0109 --|> c0110 : inherits
-    c0113 ..> c0033 : 2 relationships (see list)
-    c0113 ..> c0034 : type in save_event
-    c0113 ..> c0036 : 2 relationships (see list)
-    c0113 ..> c0037 : type in query_events
-    c0113 ..> c0038 : 2 relationships (see list)
-    c0114 ..> c0039 : 3 relationships (see list)
-    c0114 ..> c0040 : type in create_code_artifact
-    c0114 ..> c0041 : type in list_code_artifacts
-    c0114 ..> c0042 : type in update_code_artifact
-    c0115 ..> c0043 : 3 relationships (see list)
-    c0115 ..> c0044 : type in create_document
-    c0115 ..> c0045 : type in list_documents
-    c0115 ..> c0046 : type in update_document
-    c0116 ..> c0047 : 3 relationships (see list)
-    c0116 ..> c0048 : type in create_entity
-    c0116 ..> c0050 : 4 relationships (see list)
-    c0116 ..> c0051 : type in create_entity_relationship
-    c0116 ..> c0052 : type in update_entity_relationship
-    c0116 ..> c0053 : 2 relationships (see list)
-    c0116 ..> c0054 : 2 relationships (see list)
-    c0116 ..> c0055 : type in update_entity
-    c0118 ..> c0056 : 3 relationships (see list)
-    c0118 ..> c0057 : type in create_file
-    c0118 ..> c0058 : type in list_files
-    c0118 ..> c0059 : type in update_file
-    c0119 ..> c0065 : 12 relationships (see list)
-    c0119 ..> c0066 : type in create_memory
-    c0119 ..> c0072 : type in search_scored
-    c0119 ..> c0074 : type in update_memory
-    c0121 ..> c0080 : 3 relationships (see list)
-    c0121 ..> c0081 : type in create_plan
-    c0121 ..> c0082 : type in list_plans
-    c0121 ..> c0083 : type in list_plans
-    c0121 ..> c0084 : type in update_plan
-    c0122 ..> c0093 : 3 relationships (see list)
-    c0122 ..> c0094 : type in create_project
-    c0122 ..> c0095 : type in list_projects
-    c0122 ..> c0096 : type in list_projects
-    c0122 ..> c0098 : type in update_project
-    c0123 ..> c0099 : 3 relationships (see list)
-    c0123 ..> c0100 : type in create_skill
-    c0123 ..> c0101 : type in get_skill_links
-    c0123 ..> c0102 : 2 relationships (see list)
-    c0123 ..> c0103 : type in update_skill
-    c0124 ..> c0077 : 3 relationships (see list)
-    c0124 ..> c0078 : type in create_criterion
-    c0124 ..> c0079 : type in update_criterion
-    c0124 ..> c0085 : 4 relationships (see list)
-    c0124 ..> c0086 : type in create_task
-    c0124 ..> c0087 : type in add_dependency
-    c0124 ..> c0089 : type in list_tasks
-    c0124 ..> c0090 : 2 relationships (see list)
-    c0124 ..> c0091 : 2 relationships (see list)
-    c0124 ..> c0092 : type in update_task
-    c0125 ..> c0109 : 4 relationships (see list)
-    c0125 ..> c0110 : type in create_user
-    c0125 ..> c0112 : type in update_user
-    c0126 --|> c0127 : inherits
-    c0128 --|> c0127 : inherits
-    c0129 --|> c0127 : inherits
-    c0130 --|> c0127 : inherits
-    c0130 ..> c0128 : __init__() calls _create_text_embedding()
-    c0130 ..> c0132 : __init__() calls load_fastembed_model()
-    c0130 ..> c0210 : generate_embedding() calls create()
-    c0131 --|> c0127 : inherits
-    c0132 ..> c0132 : load_fastembed_model() calls get_fastembed_kwargs()
-    c0133 ..> c0134 : _rerank_sync() calls rerank()
-    c0134 ..> c0132 : __init__() calls load_fastembed_model()
-    c0134 ..> c0133 : __init__() calls _create_text_cross_encoder()
-    c0136 ..> c0065 : type in build_memory_text
-    c0136 ..> c0066 : type in build_embedding_text
-    c0137 ..> c0033 : 2 relationships (see list)
-    c0137 ..> c0034 : type in save_event
-    c0137 ..> c0036 : 4 relationships (see list)
-    c0137 ..> c0037 : type in query_events
-    c0137 ..> c0038 : 2 relationships (see list)
-    c0137 ..> c0117 : 3 relationships (see list)
-    c0137 ..> c0144 : 5 relationships (see list)
-    c0137 ..> c0145 : save_event() constructs ActivityLogTable
-    c0138 ..> c0028 : update_code_artifact() constructs NotFoundError
-    c0138 ..> c0030 : update_code_artifact() calls get()
-    c0138 ..> c0039 : 3 relationships (see list)
-    c0138 ..> c0040 : type in create_code_artifact
-    c0138 ..> c0041 : type in list_code_artifacts
-    c0138 ..> c0042 : type in update_code_artifact
-    c0138 ..> c0117 : 4 relationships (see list)
-    c0138 ..> c0144 : 6 relationships (see list)
-    c0138 ..> c0147 : create_code_artifact() constructs CodeArtifactsTable
-    c0139 ..> c0028 : update_document() constructs NotFoundError
-    c0139 ..> c0030 : update_document() calls get()
-    c0139 ..> c0043 : 3 relationships (see list)
-    c0139 ..> c0044 : type in create_document
-    c0139 ..> c0045 : type in list_documents
-    c0139 ..> c0046 : type in update_document
-    c0139 ..> c0117 : 4 relationships (see list)
-    c0139 ..> c0144 : 6 relationships (see list)
-    c0139 ..> c0149 : create_document() constructs DocumentsTable
-    c0140 ..> c0028 : 8 relationships (see list)
-    c0140 ..> c0030 : update_entity() calls get()
-    c0140 ..> c0047 : 3 relationships (see list)
-    c0140 ..> c0048 : type in create_entity
-    c0140 ..> c0050 : 8 relationships (see list)
-    c0140 ..> c0051 : type in create_entity_relationship
-    c0140 ..> c0052 : type in update_entity_relationship
-    c0140 ..> c0053 : 2 relationships (see list)
-    c0140 ..> c0054 : 2 relationships (see list)
-    c0140 ..> c0055 : type in update_entity
-    c0140 ..> c0117 : 20 relationships (see list)
-    c0140 ..> c0144 : 21 relationships (see list)
-    c0140 ..> c0150 : create_entity() constructs EntitiesTable
-    c0140 ..> c0151 : create_entity_relationship() constructs EntityRelationshipsTable
-    c0141 ..> c0028 : update_file() constructs NotFoundError
-    c0141 ..> c0056 : 5 relationships (see list)
-    c0141 ..> c0057 : type in create_file
-    c0141 ..> c0058 : type in list_files
-    c0141 ..> c0059 : type in update_file
-    c0141 ..> c0117 : 4 relationships (see list)
-    c0141 ..> c0141 : 3 relationships (see list)
-    c0141 ..> c0144 : 6 relationships (see list)
-    c0141 ..> c0152 : 2 relationships (see list)
-    c0142 ..> c0023 : update_memory() calls clear()
-    c0142 ..> c0028 : 11 relationships (see list)
-    c0142 ..> c0030 : 2 relationships (see list)
-    c0142 ..> c0065 : 14 relationships (see list)
-    c0142 ..> c0066 : type in create_memory
-    c0142 ..> c0072 : 2 relationships (see list)
-    c0142 ..> c0074 : type in update_memory
-    c0142 ..> c0117 : 25 relationships (see list)
-    c0142 ..> c0127 : type in __init__
-    c0142 ..> c0130 : _generate_embeddings() calls generate_embedding()
-    c0142 ..> c0134 : search_scored() calls rerank()
-    c0142 ..> c0135 : type in __init__
-    c0142 ..> c0136 : 4 relationships (see list)
-    c0142 ..> c0142 : 23 relationships (see list)
-    c0142 ..> c0144 : 24 relationships (see list)
+    c0086 --> c0090 : field priority
+    c0086 --> c0091 : field state
+    c0087 --> c0079 : field criteria
+    c0087 --> c0090 : field priority
+    c0089 ..> c0031 : cannot_depend_on_self() calls get()
+    c0092 --> c0090 : field priority
+    c0092 --> c0091 : field state
+    c0093 --> c0090 : field priority
+    c0094 --|> c0095 : inherits
+    c0095 --> c0096 : field status
+    c0095 --> c0098 : field project_type
+    c0097 --> c0096 : field status
+    c0097 --> c0098 : field project_type
+    c0099 --> c0096 : field status
+    c0099 --> c0098 : field project_type
+    c0100 --|> c0101 : inherits
+    c0106 --|> c0108 : inherits
+    c0107 --> c0108 : field metadata
+    c0108 ..> c0031 : _map_python_type_to_json_type() calls get()
+    c0108 --> c0105 : field category
+    c0108 ..> c0108 : 2 relationships (see list)
+    c0108 --> c0109 : field parameters
+    c0110 --|> c0111 : inherits
+    c0114 ..> c0034 : 2 relationships (see list)
+    c0114 ..> c0035 : type in save_event
+    c0114 ..> c0037 : 2 relationships (see list)
+    c0114 ..> c0038 : type in query_events
+    c0114 ..> c0039 : 2 relationships (see list)
+    c0115 ..> c0040 : 3 relationships (see list)
+    c0115 ..> c0041 : type in create_code_artifact
+    c0115 ..> c0042 : type in list_code_artifacts
+    c0115 ..> c0043 : type in update_code_artifact
+    c0116 ..> c0044 : 3 relationships (see list)
+    c0116 ..> c0045 : type in create_document
+    c0116 ..> c0046 : type in list_documents
+    c0116 ..> c0047 : type in update_document
+    c0117 ..> c0048 : 3 relationships (see list)
+    c0117 ..> c0049 : type in create_entity
+    c0117 ..> c0051 : 4 relationships (see list)
+    c0117 ..> c0052 : type in create_entity_relationship
+    c0117 ..> c0053 : type in update_entity_relationship
+    c0117 ..> c0054 : 2 relationships (see list)
+    c0117 ..> c0055 : 2 relationships (see list)
+    c0117 ..> c0056 : type in update_entity
+    c0119 ..> c0057 : 3 relationships (see list)
+    c0119 ..> c0058 : type in create_file
+    c0119 ..> c0059 : type in list_files
+    c0119 ..> c0060 : type in update_file
+    c0120 ..> c0066 : 12 relationships (see list)
+    c0120 ..> c0067 : type in create_memory
+    c0120 ..> c0073 : type in search_scored
+    c0120 ..> c0075 : type in update_memory
+    c0122 ..> c0081 : 3 relationships (see list)
+    c0122 ..> c0082 : type in create_plan
+    c0122 ..> c0083 : type in list_plans
+    c0122 ..> c0084 : type in list_plans
+    c0122 ..> c0085 : type in update_plan
+    c0123 ..> c0094 : 3 relationships (see list)
+    c0123 ..> c0095 : type in create_project
+    c0123 ..> c0096 : type in list_projects
+    c0123 ..> c0097 : type in list_projects
+    c0123 ..> c0099 : type in update_project
+    c0124 ..> c0100 : 3 relationships (see list)
+    c0124 ..> c0101 : type in create_skill
+    c0124 ..> c0102 : type in get_skill_links
+    c0124 ..> c0103 : 2 relationships (see list)
+    c0124 ..> c0104 : type in update_skill
+    c0125 ..> c0078 : 3 relationships (see list)
+    c0125 ..> c0079 : type in create_criterion
+    c0125 ..> c0080 : type in update_criterion
+    c0125 ..> c0086 : 4 relationships (see list)
+    c0125 ..> c0087 : type in create_task
+    c0125 ..> c0088 : type in add_dependency
+    c0125 ..> c0090 : type in list_tasks
+    c0125 ..> c0091 : 2 relationships (see list)
+    c0125 ..> c0092 : 2 relationships (see list)
+    c0125 ..> c0093 : type in update_task
+    c0126 ..> c0110 : 4 relationships (see list)
+    c0126 ..> c0111 : type in create_user
+    c0126 ..> c0113 : type in update_user
+    c0127 --|> c0128 : inherits
+    c0129 --|> c0128 : inherits
+    c0130 --|> c0128 : inherits
+    c0131 --|> c0128 : inherits
+    c0131 ..> c0129 : __init__() calls _create_text_embedding()
+    c0131 ..> c0133 : __init__() calls load_fastembed_model()
+    c0131 ..> c0211 : generate_embedding() calls create()
+    c0132 --|> c0128 : inherits
+    c0133 ..> c0133 : load_fastembed_model() calls get_fastembed_kwargs()
+    c0134 ..> c0135 : _rerank_sync() calls rerank()
+    c0135 ..> c0133 : __init__() calls load_fastembed_model()
+    c0135 ..> c0134 : __init__() calls _create_text_cross_encoder()
+    c0137 ..> c0066 : type in build_memory_text
+    c0137 ..> c0067 : type in build_embedding_text
+    c0138 ..> c0034 : 2 relationships (see list)
+    c0138 ..> c0035 : type in save_event
+    c0138 ..> c0037 : 4 relationships (see list)
+    c0138 ..> c0038 : type in query_events
+    c0138 ..> c0039 : 2 relationships (see list)
+    c0138 ..> c0118 : 3 relationships (see list)
+    c0138 ..> c0145 : 5 relationships (see list)
+    c0138 ..> c0146 : save_event() constructs ActivityLogTable
+    c0139 ..> c0029 : update_code_artifact() constructs NotFoundError
+    c0139 ..> c0031 : update_code_artifact() calls get()
+    c0139 ..> c0040 : 3 relationships (see list)
+    c0139 ..> c0041 : type in create_code_artifact
+    c0139 ..> c0042 : type in list_code_artifacts
+    c0139 ..> c0043 : type in update_code_artifact
+    c0139 ..> c0118 : 4 relationships (see list)
+    c0139 ..> c0145 : 6 relationships (see list)
+    c0139 ..> c0148 : create_code_artifact() constructs CodeArtifactsTable
+    c0140 ..> c0029 : update_document() constructs NotFoundError
+    c0140 ..> c0031 : update_document() calls get()
+    c0140 ..> c0044 : 3 relationships (see list)
+    c0140 ..> c0045 : type in create_document
+    c0140 ..> c0046 : type in list_documents
+    c0140 ..> c0047 : type in update_document
+    c0140 ..> c0118 : 4 relationships (see list)
+    c0140 ..> c0145 : 6 relationships (see list)
+    c0140 ..> c0150 : create_document() constructs DocumentsTable
+    c0141 ..> c0029 : 8 relationships (see list)
+    c0141 ..> c0031 : update_entity() calls get()
+    c0141 ..> c0048 : 3 relationships (see list)
+    c0141 ..> c0049 : type in create_entity
+    c0141 ..> c0051 : 8 relationships (see list)
+    c0141 ..> c0052 : type in create_entity_relationship
+    c0141 ..> c0053 : type in update_entity_relationship
+    c0141 ..> c0054 : 2 relationships (see list)
+    c0141 ..> c0055 : 2 relationships (see list)
+    c0141 ..> c0056 : type in update_entity
+    c0141 ..> c0118 : 20 relationships (see list)
+    c0141 ..> c0145 : 21 relationships (see list)
+    c0141 ..> c0151 : create_entity() constructs EntitiesTable
+    c0141 ..> c0152 : create_entity_relationship() constructs EntityRelationshipsTable
+    c0142 ..> c0029 : update_file() constructs NotFoundError
+    c0142 ..> c0057 : 5 relationships (see list)
+    c0142 ..> c0058 : type in create_file
+    c0142 ..> c0059 : type in list_files
+    c0142 ..> c0060 : type in update_file
+    c0142 ..> c0118 : 4 relationships (see list)
+    c0142 ..> c0142 : 3 relationships (see list)
+    c0142 ..> c0145 : 6 relationships (see list)
     c0142 ..> c0153 : 2 relationships (see list)
-    c0142 ..> c0154 : 7 relationships (see list)
-    c0143 ..> c0028 : update_plan() constructs NotFoundError
-    c0143 ..> c0080 : 3 relationships (see list)
-    c0143 ..> c0081 : type in create_plan
-    c0143 ..> c0082 : type in list_plans
-    c0143 ..> c0083 : type in list_plans
-    c0143 ..> c0084 : type in update_plan
-    c0143 ..> c0117 : 4 relationships (see list)
-    c0143 ..> c0144 : 6 relationships (see list)
-    c0143 ..> c0155 : create_plan() constructs PlansTable
-    c0144 ..> c0003 : _run_migrations() calls upgrade()
-    c0144 ..> c0117 : 4 relationships (see list)
-    c0144 ..> c0144 : 2 relationships (see list)
-    c0144 ..> c0174 : dispose() calls dispose()
-    c0145 --|> c0146 : inherits
-    c0147 --|> c0146 : inherits
-    c0147 --> c0154 : field memories
-    c0147 --> c0156 : field project
-    c0147 --> c0157 : field skills
-    c0147 --> c0160 : field user
-    c0148 --|> c0146 : inherits
-    c0148 --> c0159 : field task
-    c0149 --|> c0146 : inherits
-    c0149 --> c0154 : field memories
-    c0149 --> c0156 : field project
-    c0149 --> c0157 : field skills
-    c0149 --> c0160 : field user
-    c0150 --|> c0146 : inherits
-    c0150 --> c0151 : 2 relationships (see list)
-    c0150 --> c0152 : field files
-    c0150 --> c0154 : field memories
-    c0150 --> c0156 : field projects
-    c0150 --> c0160 : field user
-    c0151 --|> c0146 : inherits
-    c0151 --> c0150 : 2 relationships (see list)
-    c0152 --|> c0146 : inherits
-    c0152 --> c0150 : field entities
-    c0152 --> c0154 : field memories
-    c0152 --> c0156 : field project
-    c0152 --> c0157 : field skills
-    c0152 --> c0160 : field user
-    c0153 --|> c0146 : inherits
-    c0154 --|> c0146 : inherits
-    c0154 --> c0147 : field code_artifacts
-    c0154 --> c0149 : field documents
-    c0154 --> c0150 : field entities
-    c0154 --> c0152 : field files
-    c0154 --> c0156 : field projects
-    c0154 --> c0157 : field skills
-    c0154 --> c0160 : field user
-    c0155 --|> c0146 : inherits
-    c0155 --> c0156 : field project
-    c0155 --> c0159 : field tasks
-    c0155 --> c0160 : field user
-    c0156 --|> c0146 : inherits
-    c0156 --> c0147 : field code_artifacts
-    c0156 --> c0149 : field documents
-    c0156 --> c0150 : field entities
-    c0156 --> c0152 : field files
-    c0156 --> c0154 : field memories
-    c0156 --> c0155 : field plans
-    c0156 --> c0157 : field skills
-    c0156 --> c0160 : field user
-    c0157 --|> c0146 : inherits
-    c0157 --> c0147 : field code_artifacts
-    c0157 --> c0149 : field documents
-    c0157 --> c0152 : field files
-    c0157 --> c0154 : field memories
-    c0157 --> c0156 : field project
-    c0157 --> c0160 : field user
-    c0158 --|> c0146 : inherits
-    c0158 --> c0159 : field task
-    c0159 --|> c0146 : inherits
-    c0159 --> c0148 : field criteria
-    c0159 --> c0155 : field plan
-    c0159 --> c0158 : field depends_on
-    c0160 --|> c0146 : inherits
-    c0160 --> c0147 : field code_artifacts
-    c0160 --> c0149 : field documents
-    c0160 --> c0150 : field entities
-    c0160 --> c0152 : field files
-    c0160 --> c0154 : field memories
-    c0160 --> c0155 : field plans
-    c0160 --> c0156 : field projects
-    c0160 --> c0157 : field skills
-    c0161 ..> c0028 : update_project() constructs NotFoundError
-    c0161 ..> c0093 : 3 relationships (see list)
-    c0161 ..> c0094 : type in create_project
-    c0161 ..> c0095 : type in list_projects
-    c0161 ..> c0096 : type in list_projects
-    c0161 ..> c0098 : type in update_project
-    c0161 ..> c0117 : 4 relationships (see list)
-    c0161 ..> c0144 : 6 relationships (see list)
-    c0161 ..> c0156 : create_project() constructs ProjectsTable
-    c0161 ..> c0267 : list_projects() calls repository_identity()
-    c0162 ..> c0028 : 6 relationships (see list)
-    c0162 ..> c0099 : 5 relationships (see list)
-    c0162 ..> c0100 : type in create_skill
-    c0162 ..> c0101 : 2 relationships (see list)
-    c0162 ..> c0102 : 2 relationships (see list)
-    c0162 ..> c0103 : type in update_skill
-    c0162 ..> c0117 : 18 relationships (see list)
-    c0162 ..> c0127 : type in __init__
-    c0162 ..> c0130 : 3 relationships (see list)
-    c0162 ..> c0134 : search_skills() calls rerank()
-    c0162 ..> c0135 : type in __init__
-    c0162 ..> c0136 : 2 relationships (see list)
-    c0162 ..> c0144 : 20 relationships (see list)
-    c0162 ..> c0157 : 2 relationships (see list)
-    c0162 ..> c0162 : 3 relationships (see list)
-    c0163 ..> c0024 : transition_task_state() constructs ConflictError
-    c0163 ..> c0028 : 3 relationships (see list)
-    c0163 ..> c0030 : update_criterion() calls get()
-    c0163 ..> c0077 : 3 relationships (see list)
-    c0163 ..> c0078 : type in create_criterion
-    c0163 ..> c0079 : type in update_criterion
-    c0163 ..> c0085 : 4 relationships (see list)
-    c0163 ..> c0086 : type in create_task
-    c0163 ..> c0087 : type in add_dependency
-    c0163 ..> c0089 : 3 relationships (see list)
-    c0163 ..> c0090 : 4 relationships (see list)
-    c0163 ..> c0091 : 4 relationships (see list)
-    c0163 ..> c0092 : type in update_task
-    c0163 ..> c0117 : 12 relationships (see list)
-    c0163 ..> c0144 : 16 relationships (see list)
-    c0163 ..> c0148 : create_criterion() constructs CriteriaTable
-    c0163 ..> c0158 : add_dependency() constructs TaskDependenciesTable
-    c0163 ..> c0159 : create_task() constructs TasksTable
-    c0163 ..> c0163 : update_task() calls get_task_by_id()
-    c0164 ..> c0028 : update_user() constructs NotFoundError
-    c0164 ..> c0109 : 4 relationships (see list)
-    c0164 ..> c0110 : type in create_user
-    c0164 ..> c0112 : type in update_user
-    c0164 ..> c0117 : 3 relationships (see list)
-    c0164 ..> c0144 : 5 relationships (see list)
-    c0164 ..> c0160 : create_user() constructs UsersTable
-    c0165 ..> c0033 : 2 relationships (see list)
-    c0165 ..> c0034 : type in save_event
-    c0165 ..> c0036 : 4 relationships (see list)
-    c0165 ..> c0037 : type in query_events
-    c0165 ..> c0038 : 2 relationships (see list)
-    c0165 ..> c0117 : 3 relationships (see list)
-    c0165 ..> c0174 : 5 relationships (see list)
-    c0165 ..> c0176 : save_event() constructs ActivityLogTable
-    c0166 ..> c0028 : update_code_artifact() constructs NotFoundError
-    c0166 ..> c0030 : update_code_artifact() calls get()
-    c0166 ..> c0039 : 3 relationships (see list)
-    c0166 ..> c0040 : type in create_code_artifact
-    c0166 ..> c0041 : type in list_code_artifacts
-    c0166 ..> c0042 : type in update_code_artifact
-    c0166 ..> c0117 : 4 relationships (see list)
-    c0166 ..> c0174 : 6 relationships (see list)
-    c0166 ..> c0178 : create_code_artifact() constructs CodeArtifactsTable
-    c0167 ..> c0028 : update_document() constructs NotFoundError
-    c0167 ..> c0030 : update_document() calls get()
-    c0167 ..> c0043 : 3 relationships (see list)
-    c0167 ..> c0044 : type in create_document
-    c0167 ..> c0045 : type in list_documents
-    c0167 ..> c0046 : type in update_document
-    c0167 ..> c0117 : 4 relationships (see list)
-    c0167 ..> c0174 : 6 relationships (see list)
-    c0167 ..> c0180 : create_document() constructs DocumentsTable
-    c0168 ..> c0028 : 8 relationships (see list)
-    c0168 ..> c0030 : update_entity() calls get()
-    c0168 ..> c0047 : 3 relationships (see list)
-    c0168 ..> c0048 : type in create_entity
-    c0168 ..> c0050 : 8 relationships (see list)
-    c0168 ..> c0051 : type in create_entity_relationship
-    c0168 ..> c0052 : type in update_entity_relationship
-    c0168 ..> c0053 : 2 relationships (see list)
-    c0168 ..> c0054 : 2 relationships (see list)
-    c0168 ..> c0055 : type in update_entity
-    c0168 ..> c0117 : 20 relationships (see list)
-    c0168 ..> c0174 : 21 relationships (see list)
-    c0168 ..> c0181 : create_entity() constructs EntitiesTable
-    c0168 ..> c0182 : create_entity_relationship() constructs EntityRelationshipsTable
-    c0169 ..> c0028 : update_file() constructs NotFoundError
-    c0169 ..> c0056 : 5 relationships (see list)
-    c0169 ..> c0057 : type in create_file
-    c0169 ..> c0058 : type in list_files
-    c0169 ..> c0059 : type in update_file
-    c0169 ..> c0117 : 4 relationships (see list)
-    c0169 ..> c0169 : 3 relationships (see list)
-    c0169 ..> c0174 : 6 relationships (see list)
-    c0169 ..> c0183 : 2 relationships (see list)
-    c0170 ..> c0023 : update_memory() calls clear()
-    c0170 ..> c0028 : 12 relationships (see list)
-    c0170 ..> c0030 : 2 relationships (see list)
-    c0170 ..> c0065 : 14 relationships (see list)
-    c0170 ..> c0066 : type in create_memory
-    c0170 ..> c0072 : 2 relationships (see list)
-    c0170 ..> c0074 : type in update_memory
-    c0170 ..> c0117 : 27 relationships (see list)
-    c0170 ..> c0127 : type in __init__
-    c0170 ..> c0130 : _generate_embeddings() calls generate_embedding()
-    c0170 ..> c0134 : search_scored() calls rerank()
-    c0170 ..> c0135 : type in __init__
-    c0170 ..> c0136 : 4 relationships (see list)
-    c0170 ..> c0170 : 21 relationships (see list)
-    c0170 ..> c0174 : 24 relationships (see list)
+    c0143 ..> c0024 : update_memory() calls clear()
+    c0143 ..> c0029 : 11 relationships (see list)
+    c0143 ..> c0031 : 2 relationships (see list)
+    c0143 ..> c0066 : 14 relationships (see list)
+    c0143 ..> c0067 : type in create_memory
+    c0143 ..> c0073 : 2 relationships (see list)
+    c0143 ..> c0075 : type in update_memory
+    c0143 ..> c0118 : 25 relationships (see list)
+    c0143 ..> c0128 : type in __init__
+    c0143 ..> c0131 : _generate_embeddings() calls generate_embedding()
+    c0143 ..> c0135 : search_scored() calls rerank()
+    c0143 ..> c0136 : type in __init__
+    c0143 ..> c0137 : 4 relationships (see list)
+    c0143 ..> c0143 : 23 relationships (see list)
+    c0143 ..> c0145 : 24 relationships (see list)
+    c0143 ..> c0154 : 2 relationships (see list)
+    c0143 ..> c0155 : 7 relationships (see list)
+    c0144 ..> c0025 : 2 relationships (see list)
+    c0144 ..> c0029 : update_plan() constructs NotFoundError
+    c0144 ..> c0081 : 3 relationships (see list)
+    c0144 ..> c0082 : type in create_plan
+    c0144 ..> c0083 : type in list_plans
+    c0144 ..> c0084 : type in list_plans
+    c0144 ..> c0085 : type in update_plan
+    c0144 ..> c0118 : 4 relationships (see list)
+    c0144 ..> c0145 : 6 relationships (see list)
+    c0144 ..> c0156 : create_plan() constructs PlansTable
+    c0145 ..> c0003 : _run_migrations() calls upgrade()
+    c0145 ..> c0118 : 4 relationships (see list)
+    c0145 ..> c0145 : 2 relationships (see list)
+    c0145 ..> c0175 : dispose() calls dispose()
+    c0146 --|> c0147 : inherits
+    c0148 --|> c0147 : inherits
+    c0148 --> c0155 : field memories
+    c0148 --> c0157 : field project
+    c0148 --> c0158 : field skills
+    c0148 --> c0161 : field user
+    c0149 --|> c0147 : inherits
+    c0149 --> c0160 : field task
+    c0150 --|> c0147 : inherits
+    c0150 --> c0155 : field memories
+    c0150 --> c0157 : field project
+    c0150 --> c0158 : field skills
+    c0150 --> c0161 : field user
+    c0151 --|> c0147 : inherits
+    c0151 --> c0152 : 2 relationships (see list)
+    c0151 --> c0153 : field files
+    c0151 --> c0155 : field memories
+    c0151 --> c0157 : field projects
+    c0151 --> c0161 : field user
+    c0152 --|> c0147 : inherits
+    c0152 --> c0151 : 2 relationships (see list)
+    c0153 --|> c0147 : inherits
+    c0153 --> c0151 : field entities
+    c0153 --> c0155 : field memories
+    c0153 --> c0157 : field project
+    c0153 --> c0158 : field skills
+    c0153 --> c0161 : field user
+    c0154 --|> c0147 : inherits
+    c0155 --|> c0147 : inherits
+    c0155 --> c0148 : field code_artifacts
+    c0155 --> c0150 : field documents
+    c0155 --> c0151 : field entities
+    c0155 --> c0153 : field files
+    c0155 --> c0157 : field projects
+    c0155 --> c0158 : field skills
+    c0155 --> c0161 : field user
+    c0156 --|> c0147 : inherits
+    c0156 --> c0157 : field project
+    c0156 --> c0160 : field tasks
+    c0156 --> c0161 : field user
+    c0157 --|> c0147 : inherits
+    c0157 --> c0148 : field code_artifacts
+    c0157 --> c0150 : field documents
+    c0157 --> c0151 : field entities
+    c0157 --> c0153 : field files
+    c0157 --> c0155 : field memories
+    c0157 --> c0156 : field plans
+    c0157 --> c0158 : field skills
+    c0157 --> c0161 : field user
+    c0158 --|> c0147 : inherits
+    c0158 --> c0148 : field code_artifacts
+    c0158 --> c0150 : field documents
+    c0158 --> c0153 : field files
+    c0158 --> c0155 : field memories
+    c0158 --> c0157 : field project
+    c0158 --> c0161 : field user
+    c0159 --|> c0147 : inherits
+    c0159 --> c0160 : field task
+    c0160 --|> c0147 : inherits
+    c0160 --> c0149 : field criteria
+    c0160 --> c0156 : field plan
+    c0160 --> c0159 : field depends_on
+    c0161 --|> c0147 : inherits
+    c0161 --> c0148 : field code_artifacts
+    c0161 --> c0150 : field documents
+    c0161 --> c0151 : field entities
+    c0161 --> c0153 : field files
+    c0161 --> c0155 : field memories
+    c0161 --> c0156 : field plans
+    c0161 --> c0157 : field projects
+    c0161 --> c0158 : field skills
+    c0162 ..> c0029 : update_project() constructs NotFoundError
+    c0162 ..> c0094 : 3 relationships (see list)
+    c0162 ..> c0095 : type in create_project
+    c0162 ..> c0096 : type in list_projects
+    c0162 ..> c0097 : type in list_projects
+    c0162 ..> c0099 : type in update_project
+    c0162 ..> c0118 : 4 relationships (see list)
+    c0162 ..> c0145 : 6 relationships (see list)
+    c0162 ..> c0157 : create_project() constructs ProjectsTable
+    c0162 ..> c0268 : list_projects() calls repository_identity()
+    c0163 ..> c0029 : 6 relationships (see list)
+    c0163 ..> c0100 : 5 relationships (see list)
+    c0163 ..> c0101 : type in create_skill
+    c0163 ..> c0102 : 2 relationships (see list)
+    c0163 ..> c0103 : 2 relationships (see list)
+    c0163 ..> c0104 : type in update_skill
+    c0163 ..> c0118 : 18 relationships (see list)
+    c0163 ..> c0128 : type in __init__
+    c0163 ..> c0131 : 3 relationships (see list)
+    c0163 ..> c0135 : search_skills() calls rerank()
+    c0163 ..> c0136 : type in __init__
+    c0163 ..> c0137 : 2 relationships (see list)
+    c0163 ..> c0145 : 20 relationships (see list)
+    c0163 ..> c0158 : 2 relationships (see list)
+    c0163 ..> c0163 : 3 relationships (see list)
+    c0164 ..> c0025 : transition_task_state() constructs ConflictError
+    c0164 ..> c0029 : 3 relationships (see list)
+    c0164 ..> c0031 : update_criterion() calls get()
+    c0164 ..> c0078 : 3 relationships (see list)
+    c0164 ..> c0079 : type in create_criterion
+    c0164 ..> c0080 : type in update_criterion
+    c0164 ..> c0086 : 4 relationships (see list)
+    c0164 ..> c0087 : type in create_task
+    c0164 ..> c0088 : type in add_dependency
+    c0164 ..> c0090 : 3 relationships (see list)
+    c0164 ..> c0091 : 4 relationships (see list)
+    c0164 ..> c0092 : 4 relationships (see list)
+    c0164 ..> c0093 : type in update_task
+    c0164 ..> c0118 : 12 relationships (see list)
+    c0164 ..> c0145 : 16 relationships (see list)
+    c0164 ..> c0149 : create_criterion() constructs CriteriaTable
+    c0164 ..> c0159 : add_dependency() constructs TaskDependenciesTable
+    c0164 ..> c0160 : create_task() constructs TasksTable
+    c0164 ..> c0164 : update_task() calls get_task_by_id()
+    c0165 ..> c0029 : update_user() constructs NotFoundError
+    c0165 ..> c0110 : 4 relationships (see list)
+    c0165 ..> c0111 : type in create_user
+    c0165 ..> c0113 : type in update_user
+    c0165 ..> c0118 : 3 relationships (see list)
+    c0165 ..> c0145 : 5 relationships (see list)
+    c0165 ..> c0161 : create_user() constructs UsersTable
+    c0166 ..> c0034 : 2 relationships (see list)
+    c0166 ..> c0035 : type in save_event
+    c0166 ..> c0037 : 4 relationships (see list)
+    c0166 ..> c0038 : type in query_events
+    c0166 ..> c0039 : 2 relationships (see list)
+    c0166 ..> c0118 : 3 relationships (see list)
+    c0166 ..> c0175 : 5 relationships (see list)
+    c0166 ..> c0177 : save_event() constructs ActivityLogTable
+    c0167 ..> c0029 : update_code_artifact() constructs NotFoundError
+    c0167 ..> c0031 : update_code_artifact() calls get()
+    c0167 ..> c0040 : 3 relationships (see list)
+    c0167 ..> c0041 : type in create_code_artifact
+    c0167 ..> c0042 : type in list_code_artifacts
+    c0167 ..> c0043 : type in update_code_artifact
+    c0167 ..> c0118 : 4 relationships (see list)
+    c0167 ..> c0175 : 6 relationships (see list)
+    c0167 ..> c0179 : create_code_artifact() constructs CodeArtifactsTable
+    c0168 ..> c0029 : update_document() constructs NotFoundError
+    c0168 ..> c0031 : update_document() calls get()
+    c0168 ..> c0044 : 3 relationships (see list)
+    c0168 ..> c0045 : type in create_document
+    c0168 ..> c0046 : type in list_documents
+    c0168 ..> c0047 : type in update_document
+    c0168 ..> c0118 : 4 relationships (see list)
+    c0168 ..> c0175 : 6 relationships (see list)
+    c0168 ..> c0181 : create_document() constructs DocumentsTable
+    c0169 ..> c0029 : 8 relationships (see list)
+    c0169 ..> c0031 : update_entity() calls get()
+    c0169 ..> c0048 : 3 relationships (see list)
+    c0169 ..> c0049 : type in create_entity
+    c0169 ..> c0051 : 8 relationships (see list)
+    c0169 ..> c0052 : type in create_entity_relationship
+    c0169 ..> c0053 : type in update_entity_relationship
+    c0169 ..> c0054 : 2 relationships (see list)
+    c0169 ..> c0055 : 2 relationships (see list)
+    c0169 ..> c0056 : type in update_entity
+    c0169 ..> c0118 : 20 relationships (see list)
+    c0169 ..> c0175 : 21 relationships (see list)
+    c0169 ..> c0182 : create_entity() constructs EntitiesTable
+    c0169 ..> c0183 : create_entity_relationship() constructs EntityRelationshipsTable
+    c0170 ..> c0029 : update_file() constructs NotFoundError
+    c0170 ..> c0057 : 5 relationships (see list)
+    c0170 ..> c0058 : type in create_file
+    c0170 ..> c0059 : type in list_files
+    c0170 ..> c0060 : type in update_file
+    c0170 ..> c0118 : 4 relationships (see list)
+    c0170 ..> c0170 : 3 relationships (see list)
+    c0170 ..> c0175 : 6 relationships (see list)
     c0170 ..> c0184 : 2 relationships (see list)
-    c0170 ..> c0185 : 7 relationships (see list)
-    c0171 ..> c0028 : update_plan() constructs NotFoundError
-    c0171 ..> c0080 : 3 relationships (see list)
-    c0171 ..> c0081 : type in create_plan
-    c0171 ..> c0082 : type in list_plans
-    c0171 ..> c0083 : type in list_plans
-    c0171 ..> c0084 : type in update_plan
-    c0171 ..> c0117 : 4 relationships (see list)
-    c0171 ..> c0174 : 6 relationships (see list)
-    c0171 ..> c0186 : create_plan() constructs PlansTable
-    c0172 ..> c0028 : update_project() constructs NotFoundError
-    c0172 ..> c0093 : 3 relationships (see list)
-    c0172 ..> c0094 : type in create_project
-    c0172 ..> c0095 : type in list_projects
-    c0172 ..> c0096 : type in list_projects
-    c0172 ..> c0098 : type in update_project
-    c0172 ..> c0117 : 4 relationships (see list)
-    c0172 ..> c0174 : 6 relationships (see list)
-    c0172 ..> c0187 : create_project() constructs ProjectsTable
-    c0172 ..> c0267 : list_projects() calls repository_identity()
-    c0173 ..> c0028 : 6 relationships (see list)
-    c0173 ..> c0099 : 5 relationships (see list)
-    c0173 ..> c0100 : type in create_skill
-    c0173 ..> c0101 : 2 relationships (see list)
-    c0173 ..> c0102 : 2 relationships (see list)
-    c0173 ..> c0103 : type in update_skill
-    c0173 ..> c0117 : 19 relationships (see list)
-    c0173 ..> c0127 : type in __init__
-    c0173 ..> c0130 : 3 relationships (see list)
-    c0173 ..> c0134 : search_skills() calls rerank()
-    c0173 ..> c0135 : type in __init__
-    c0173 ..> c0136 : 2 relationships (see list)
-    c0173 ..> c0173 : 3 relationships (see list)
-    c0173 ..> c0174 : 20 relationships (see list)
-    c0173 ..> c0188 : 2 relationships (see list)
-    c0174 ..> c0003 : _run_migrations() calls upgrade()
-    c0174 ..> c0117 : 3 relationships (see list)
-    c0174 ..> c0144 : dispose() calls dispose()
-    c0174 ..> c0174 : 2 relationships (see list)
-    c0175 ..> c0117 : _sqlite_connection_creator() calls execute()
-    c0176 --|> c0177 : inherits
-    c0178 --|> c0177 : inherits
-    c0178 --> c0185 : field memories
-    c0178 --> c0187 : field project
-    c0178 --> c0188 : field skills
-    c0178 --> c0191 : field user
-    c0179 --|> c0177 : inherits
-    c0179 --> c0190 : field task
-    c0180 --|> c0177 : inherits
-    c0180 --> c0185 : field memories
-    c0180 --> c0187 : field project
-    c0180 --> c0188 : field skills
-    c0180 --> c0191 : field user
-    c0181 --|> c0177 : inherits
-    c0181 --> c0182 : 2 relationships (see list)
-    c0181 --> c0183 : field files
-    c0181 --> c0185 : field memories
-    c0181 --> c0187 : field projects
-    c0181 --> c0191 : field user
-    c0182 --|> c0177 : inherits
-    c0182 --> c0181 : 2 relationships (see list)
-    c0183 --|> c0177 : inherits
-    c0183 --> c0181 : field entities
-    c0183 --> c0185 : field memories
-    c0183 --> c0187 : field project
-    c0183 --> c0188 : field skills
-    c0183 --> c0191 : field user
-    c0184 --|> c0177 : inherits
-    c0185 --|> c0177 : inherits
-    c0185 --> c0178 : field code_artifacts
-    c0185 --> c0180 : field documents
-    c0185 --> c0181 : field entities
-    c0185 --> c0183 : field files
-    c0185 --> c0187 : field projects
-    c0185 --> c0188 : field skills
-    c0185 --> c0191 : field user
-    c0186 --|> c0177 : inherits
-    c0186 --> c0187 : field project
-    c0186 --> c0190 : field tasks
-    c0186 --> c0191 : field user
-    c0187 --|> c0177 : inherits
-    c0187 --> c0178 : field code_artifacts
-    c0187 --> c0180 : field documents
-    c0187 --> c0181 : field entities
-    c0187 --> c0183 : field files
-    c0187 --> c0185 : field memories
-    c0187 --> c0186 : field plans
-    c0187 --> c0188 : field skills
-    c0187 --> c0191 : field user
-    c0188 --|> c0177 : inherits
-    c0188 --> c0178 : field code_artifacts
-    c0188 --> c0180 : field documents
-    c0188 --> c0183 : field files
-    c0188 --> c0185 : field memories
-    c0188 --> c0187 : field project
-    c0188 --> c0191 : field user
-    c0189 --|> c0177 : inherits
-    c0189 --> c0190 : field task
-    c0190 --|> c0177 : inherits
-    c0190 --> c0179 : field criteria
-    c0190 --> c0186 : field plan
-    c0190 --> c0189 : field depends_on
-    c0191 --|> c0177 : inherits
-    c0191 --> c0178 : field code_artifacts
-    c0191 --> c0180 : field documents
-    c0191 --> c0181 : field entities
-    c0191 --> c0183 : field files
-    c0191 --> c0185 : field memories
-    c0191 --> c0186 : field plans
-    c0191 --> c0187 : field projects
-    c0191 --> c0188 : field skills
-    c0192 ..> c0024 : transition_task_state() constructs ConflictError
-    c0192 ..> c0028 : 3 relationships (see list)
-    c0192 ..> c0030 : update_criterion() calls get()
-    c0192 ..> c0077 : 3 relationships (see list)
-    c0192 ..> c0078 : type in create_criterion
-    c0192 ..> c0079 : type in update_criterion
-    c0192 ..> c0085 : 4 relationships (see list)
-    c0192 ..> c0086 : type in create_task
-    c0192 ..> c0087 : type in add_dependency
-    c0192 ..> c0089 : 3 relationships (see list)
-    c0192 ..> c0090 : 4 relationships (see list)
-    c0192 ..> c0091 : 4 relationships (see list)
-    c0192 ..> c0092 : type in update_task
-    c0192 ..> c0117 : 12 relationships (see list)
-    c0192 ..> c0174 : 16 relationships (see list)
-    c0192 ..> c0179 : create_criterion() constructs CriteriaTable
-    c0192 ..> c0189 : add_dependency() constructs TaskDependenciesTable
-    c0192 ..> c0190 : create_task() constructs TasksTable
-    c0192 ..> c0192 : update_task() calls get_task_by_id()
-    c0193 ..> c0028 : update_user() constructs NotFoundError
-    c0193 ..> c0109 : 4 relationships (see list)
-    c0193 ..> c0110 : type in create_user
-    c0193 ..> c0112 : type in update_user
-    c0193 ..> c0117 : 3 relationships (see list)
-    c0193 ..> c0174 : 5 relationships (see list)
-    c0193 ..> c0191 : create_user() constructs UsersTable
-    c0194 ..> c0030 : 2 relationships (see list)
-    c0198 ..> c0030 : parse_int_param() calls get()
-    c0202 ..> c0030 : parse_int_param() calls get()
-    c0207 ..> c0030 : status() calls get()
-    c0207 ..> c0207 : 2 relationships (see list)
-    c0207 ..> c0212 : 4 relationships (see list)
-    c0207 ..> c0213 : 3 relationships (see list)
-    c0207 ..> c0214 : 2 relationships (see list)
-    c0208 ..> c0013 : type in __init__
-    c0208 ..> c0209 : __init__() constructs _CliRuntime
-    c0209 ..> c0013 : type in __init__
-    c0210 ..> c0013 : type in __init__
-    c0210 ..> c0015 : 2 relationships (see list)
-    c0210 ..> c0117 : execute() calls execute()
-    c0210 ..> c0208 : __init__() constructs CliContext
-    c0210 ..> c0222 : 3 relationships (see list)
-    c0211 ..> c0030 : _build_executor() calls get()
-    c0211 ..> c0117 : 4 relationships (see list)
-    c0211 ..> c0207 : 3 relationships (see list)
-    c0211 ..> c0210 : _build_executor() calls create()
-    c0211 ..> c0211 : 4 relationships (see list)
-    c0211 ..> c0213 : _build_executor() constructs RemoteExecutor
-    c0211 ..> c0215 : 3 relationships (see list)
-    c0211 ..> c0217 : 2 relationships (see list)
-    c0211 ..> c0269 : build_parser() calls get_version()
-    c0212 ..> c0212 : 2 relationships (see list)
-    c0213 ..> c0117 : close() calls close()
-    c0213 ..> c0213 : 3 relationships (see list)
-    c0213 ..> c0214 : __init__() calls normalize_server_url()
-    c0214 ..> c0212 : _default_client_factory() calls token_cache_dir()
-    c0215 ..> c0030 : 3 relationships (see list)
-    c0215 ..> c0215 : render_result() calls to_jsonable()
-    c0217 ..> c0030 : 4 relationships (see list)
-    c0217 ..> c0117 : 6 relationships (see list)
-    c0217 ..> c0215 : 10 relationships (see list)
-    c0217 ..> c0216 : resolve_project() constructs CliError
-    c0217 ..> c0217 : 4 relationships (see list)
-    c0222 ..> c0104 : build_discovery_payload() constructs ToolCategory
-    c0222 ..> c0107 : 2 relationships (see list)
-    c0222 ..> c0222 : 8 relationships (see list)
-    c0222 ..> c0225 : 2 relationships (see list)
-    c0222 ..> c0239 : 8 relationships (see list)
-    c0225 ..> c0030 : 3 relationships (see list)
-    c0225 ..> c0225 : 3 relationships (see list)
-    c0225 ..> c0239 : 5 relationships (see list)
-    c0227 ..> c0031 : 5 relationships (see list)
-    c0227 ..> c0039 : 3 relationships (see list)
-    c0227 ..> c0040 : create_code_artifact() constructs CodeArtifactCreate
-    c0227 ..> c0042 : update_code_artifact() constructs CodeArtifactUpdate
-    c0227 ..> c0243 : 6 relationships (see list)
-    c0227 ..> c0264 : type in __init__
-    c0227 ..> c0266 : update_code_artifact() calls filter_none_values()
-    c0228 ..> c0031 : 5 relationships (see list)
-    c0228 ..> c0043 : 3 relationships (see list)
-    c0228 ..> c0044 : create_document() constructs DocumentCreate
-    c0228 ..> c0046 : update_document() constructs DocumentUpdate
+    c0171 ..> c0024 : update_memory() calls clear()
+    c0171 ..> c0029 : 12 relationships (see list)
+    c0171 ..> c0031 : 2 relationships (see list)
+    c0171 ..> c0066 : 14 relationships (see list)
+    c0171 ..> c0067 : type in create_memory
+    c0171 ..> c0073 : 2 relationships (see list)
+    c0171 ..> c0075 : type in update_memory
+    c0171 ..> c0118 : 27 relationships (see list)
+    c0171 ..> c0128 : type in __init__
+    c0171 ..> c0131 : _generate_embeddings() calls generate_embedding()
+    c0171 ..> c0135 : search_scored() calls rerank()
+    c0171 ..> c0136 : type in __init__
+    c0171 ..> c0137 : 4 relationships (see list)
+    c0171 ..> c0171 : 21 relationships (see list)
+    c0171 ..> c0175 : 24 relationships (see list)
+    c0171 ..> c0185 : 2 relationships (see list)
+    c0171 ..> c0186 : 7 relationships (see list)
+    c0172 ..> c0025 : 2 relationships (see list)
+    c0172 ..> c0029 : update_plan() constructs NotFoundError
+    c0172 ..> c0081 : 3 relationships (see list)
+    c0172 ..> c0082 : type in create_plan
+    c0172 ..> c0083 : type in list_plans
+    c0172 ..> c0084 : type in list_plans
+    c0172 ..> c0085 : type in update_plan
+    c0172 ..> c0118 : 4 relationships (see list)
+    c0172 ..> c0175 : 6 relationships (see list)
+    c0172 ..> c0187 : create_plan() constructs PlansTable
+    c0173 ..> c0029 : update_project() constructs NotFoundError
+    c0173 ..> c0094 : 3 relationships (see list)
+    c0173 ..> c0095 : type in create_project
+    c0173 ..> c0096 : type in list_projects
+    c0173 ..> c0097 : type in list_projects
+    c0173 ..> c0099 : type in update_project
+    c0173 ..> c0118 : 4 relationships (see list)
+    c0173 ..> c0175 : 6 relationships (see list)
+    c0173 ..> c0188 : create_project() constructs ProjectsTable
+    c0173 ..> c0268 : list_projects() calls repository_identity()
+    c0174 ..> c0029 : 6 relationships (see list)
+    c0174 ..> c0100 : 5 relationships (see list)
+    c0174 ..> c0101 : type in create_skill
+    c0174 ..> c0102 : 2 relationships (see list)
+    c0174 ..> c0103 : 2 relationships (see list)
+    c0174 ..> c0104 : type in update_skill
+    c0174 ..> c0118 : 19 relationships (see list)
+    c0174 ..> c0128 : type in __init__
+    c0174 ..> c0131 : 3 relationships (see list)
+    c0174 ..> c0135 : search_skills() calls rerank()
+    c0174 ..> c0136 : type in __init__
+    c0174 ..> c0137 : 2 relationships (see list)
+    c0174 ..> c0174 : 3 relationships (see list)
+    c0174 ..> c0175 : 20 relationships (see list)
+    c0174 ..> c0189 : 2 relationships (see list)
+    c0175 ..> c0003 : _run_migrations() calls upgrade()
+    c0175 ..> c0118 : 3 relationships (see list)
+    c0175 ..> c0145 : dispose() calls dispose()
+    c0175 ..> c0175 : 2 relationships (see list)
+    c0176 ..> c0118 : _sqlite_connection_creator() calls execute()
+    c0177 --|> c0178 : inherits
+    c0179 --|> c0178 : inherits
+    c0179 --> c0186 : field memories
+    c0179 --> c0188 : field project
+    c0179 --> c0189 : field skills
+    c0179 --> c0192 : field user
+    c0180 --|> c0178 : inherits
+    c0180 --> c0191 : field task
+    c0181 --|> c0178 : inherits
+    c0181 --> c0186 : field memories
+    c0181 --> c0188 : field project
+    c0181 --> c0189 : field skills
+    c0181 --> c0192 : field user
+    c0182 --|> c0178 : inherits
+    c0182 --> c0183 : 2 relationships (see list)
+    c0182 --> c0184 : field files
+    c0182 --> c0186 : field memories
+    c0182 --> c0188 : field projects
+    c0182 --> c0192 : field user
+    c0183 --|> c0178 : inherits
+    c0183 --> c0182 : 2 relationships (see list)
+    c0184 --|> c0178 : inherits
+    c0184 --> c0182 : field entities
+    c0184 --> c0186 : field memories
+    c0184 --> c0188 : field project
+    c0184 --> c0189 : field skills
+    c0184 --> c0192 : field user
+    c0185 --|> c0178 : inherits
+    c0186 --|> c0178 : inherits
+    c0186 --> c0179 : field code_artifacts
+    c0186 --> c0181 : field documents
+    c0186 --> c0182 : field entities
+    c0186 --> c0184 : field files
+    c0186 --> c0188 : field projects
+    c0186 --> c0189 : field skills
+    c0186 --> c0192 : field user
+    c0187 --|> c0178 : inherits
+    c0187 --> c0188 : field project
+    c0187 --> c0191 : field tasks
+    c0187 --> c0192 : field user
+    c0188 --|> c0178 : inherits
+    c0188 --> c0179 : field code_artifacts
+    c0188 --> c0181 : field documents
+    c0188 --> c0182 : field entities
+    c0188 --> c0184 : field files
+    c0188 --> c0186 : field memories
+    c0188 --> c0187 : field plans
+    c0188 --> c0189 : field skills
+    c0188 --> c0192 : field user
+    c0189 --|> c0178 : inherits
+    c0189 --> c0179 : field code_artifacts
+    c0189 --> c0181 : field documents
+    c0189 --> c0184 : field files
+    c0189 --> c0186 : field memories
+    c0189 --> c0188 : field project
+    c0189 --> c0192 : field user
+    c0190 --|> c0178 : inherits
+    c0190 --> c0191 : field task
+    c0191 --|> c0178 : inherits
+    c0191 --> c0180 : field criteria
+    c0191 --> c0187 : field plan
+    c0191 --> c0190 : field depends_on
+    c0192 --|> c0178 : inherits
+    c0192 --> c0179 : field code_artifacts
+    c0192 --> c0181 : field documents
+    c0192 --> c0182 : field entities
+    c0192 --> c0184 : field files
+    c0192 --> c0186 : field memories
+    c0192 --> c0187 : field plans
+    c0192 --> c0188 : field projects
+    c0192 --> c0189 : field skills
+    c0193 ..> c0025 : transition_task_state() constructs ConflictError
+    c0193 ..> c0029 : 3 relationships (see list)
+    c0193 ..> c0031 : update_criterion() calls get()
+    c0193 ..> c0078 : 3 relationships (see list)
+    c0193 ..> c0079 : type in create_criterion
+    c0193 ..> c0080 : type in update_criterion
+    c0193 ..> c0086 : 4 relationships (see list)
+    c0193 ..> c0087 : type in create_task
+    c0193 ..> c0088 : type in add_dependency
+    c0193 ..> c0090 : 3 relationships (see list)
+    c0193 ..> c0091 : 4 relationships (see list)
+    c0193 ..> c0092 : 4 relationships (see list)
+    c0193 ..> c0093 : type in update_task
+    c0193 ..> c0118 : 12 relationships (see list)
+    c0193 ..> c0175 : 16 relationships (see list)
+    c0193 ..> c0180 : create_criterion() constructs CriteriaTable
+    c0193 ..> c0190 : add_dependency() constructs TaskDependenciesTable
+    c0193 ..> c0191 : create_task() constructs TasksTable
+    c0193 ..> c0193 : update_task() calls get_task_by_id()
+    c0194 ..> c0029 : update_user() constructs NotFoundError
+    c0194 ..> c0110 : 4 relationships (see list)
+    c0194 ..> c0111 : type in create_user
+    c0194 ..> c0113 : type in update_user
+    c0194 ..> c0118 : 3 relationships (see list)
+    c0194 ..> c0175 : 5 relationships (see list)
+    c0194 ..> c0192 : create_user() constructs UsersTable
+    c0195 ..> c0031 : 2 relationships (see list)
+    c0199 ..> c0031 : parse_int_param() calls get()
+    c0203 ..> c0031 : parse_int_param() calls get()
+    c0208 ..> c0031 : status() calls get()
+    c0208 ..> c0208 : 2 relationships (see list)
+    c0208 ..> c0213 : 4 relationships (see list)
+    c0208 ..> c0214 : 3 relationships (see list)
+    c0208 ..> c0215 : 2 relationships (see list)
+    c0209 ..> c0014 : type in __init__
+    c0209 ..> c0210 : __init__() constructs _CliRuntime
+    c0210 ..> c0014 : type in __init__
+    c0211 ..> c0014 : type in __init__
+    c0211 ..> c0016 : 2 relationships (see list)
+    c0211 ..> c0118 : execute() calls execute()
+    c0211 ..> c0209 : __init__() constructs CliContext
+    c0211 ..> c0223 : 3 relationships (see list)
+    c0212 ..> c0031 : _build_executor() calls get()
+    c0212 ..> c0118 : 4 relationships (see list)
+    c0212 ..> c0208 : 3 relationships (see list)
+    c0212 ..> c0211 : _build_executor() calls create()
+    c0212 ..> c0212 : 4 relationships (see list)
+    c0212 ..> c0214 : _build_executor() constructs RemoteExecutor
+    c0212 ..> c0216 : 3 relationships (see list)
+    c0212 ..> c0218 : 2 relationships (see list)
+    c0212 ..> c0270 : build_parser() calls get_version()
+    c0213 ..> c0213 : 2 relationships (see list)
+    c0214 ..> c0118 : close() calls close()
+    c0214 ..> c0214 : 3 relationships (see list)
+    c0214 ..> c0215 : __init__() calls normalize_server_url()
+    c0215 ..> c0213 : _default_client_factory() calls token_cache_dir()
+    c0216 ..> c0031 : 3 relationships (see list)
+    c0216 ..> c0216 : render_result() calls to_jsonable()
+    c0218 ..> c0031 : 4 relationships (see list)
+    c0218 ..> c0118 : 6 relationships (see list)
+    c0218 ..> c0216 : 10 relationships (see list)
+    c0218 ..> c0217 : resolve_project() constructs CliError
+    c0218 ..> c0218 : 4 relationships (see list)
+    c0223 ..> c0105 : build_discovery_payload() constructs ToolCategory
+    c0223 ..> c0108 : 2 relationships (see list)
+    c0223 ..> c0223 : 8 relationships (see list)
+    c0223 ..> c0226 : 2 relationships (see list)
+    c0223 ..> c0240 : 8 relationships (see list)
+    c0226 ..> c0031 : 3 relationships (see list)
+    c0226 ..> c0226 : 3 relationships (see list)
+    c0226 ..> c0240 : 5 relationships (see list)
+    c0228 ..> c0032 : 5 relationships (see list)
+    c0228 ..> c0040 : 3 relationships (see list)
+    c0228 ..> c0041 : create_code_artifact() constructs CodeArtifactCreate
+    c0228 ..> c0043 : update_code_artifact() constructs CodeArtifactUpdate
     c0228 ..> c0244 : 6 relationships (see list)
-    c0228 ..> c0264 : type in __init__
-    c0228 ..> c0266 : update_document() calls filter_none_values()
-    c0229 ..> c0031 : 16 relationships (see list)
-    c0229 ..> c0047 : 3 relationships (see list)
-    c0229 ..> c0048 : create_entity() constructs EntityCreate
-    c0229 ..> c0050 : 2 relationships (see list)
-    c0229 ..> c0051 : create_entity_relationship() constructs EntityRelationshipCreate
-    c0229 ..> c0052 : update_entity_relationship() constructs EntityRelationshipUpdate
-    c0229 ..> c0054 : 2 relationships (see list)
-    c0229 ..> c0055 : update_entity() constructs EntityUpdate
-    c0229 ..> c0245 : 17 relationships (see list)
-    c0229 ..> c0264 : type in __init__
-    c0229 ..> c0266 : 3 relationships (see list)
-    c0230 ..> c0031 : 5 relationships (see list)
-    c0230 ..> c0057 : create_file() constructs FileCreate
-    c0230 ..> c0059 : update_file() constructs FileUpdate
-    c0230 ..> c0118 : 4 relationships (see list)
-    c0230 ..> c0246 : get_file() calls get_file()
-    c0230 ..> c0264 : type in __init__
-    c0230 ..> c0266 : update_file() calls filter_none_values()
-    c0231 ..> c0031 : 9 relationships (see list)
-    c0231 ..> c0065 : 2 relationships (see list)
-    c0231 ..> c0066 : create_memory() constructs MemoryCreate
-    c0231 ..> c0067 : 2 relationships (see list)
-    c0231 ..> c0070 : query_memory() constructs MemoryQueryRequest
-    c0231 ..> c0071 : type in query_memory
-    c0231 ..> c0074 : update_memory() constructs MemoryUpdate
-    c0231 ..> c0119 : Relation116
-    c0231 ..> c0223 : get_recent_memories() calls clamp_list_pagination()
-    c0231 ..> c0231 : 2 relationships (see list)
-    c0231 ..> c0237 : 13 relationships (see list)
-    c0231 ..> c0255 : 10 relationships (see list)
-    c0231 ..> c0259 : 3 relationships (see list)
-    c0231 ..> c0264 : type in __init__
-    c0231 ..> c0266 : update_memory() calls filter_none_values()
-    c0232 ..> c0031 : 4 relationships (see list)
-    c0232 ..> c0081 : create_plan() constructs PlanCreate
-    c0232 ..> c0082 : 3 relationships (see list)
-    c0232 ..> c0084 : update_plan() constructs PlanUpdate
-    c0232 ..> c0121 : 3 relationships (see list)
-    c0232 ..> c0251 : get_plan() calls get_plan()
-    c0232 ..> c0266 : update_plan() calls filter_none_values()
-    c0233 ..> c0031 : 5 relationships (see list)
-    c0233 ..> c0093 : 3 relationships (see list)
-    c0233 ..> c0094 : create_project() constructs ProjectCreate
-    c0233 ..> c0095 : 3 relationships (see list)
-    c0233 ..> c0097 : 2 relationships (see list)
-    c0233 ..> c0098 : update_project() constructs ProjectUpdate
-    c0233 ..> c0257 : 6 relationships (see list)
-    c0233 ..> c0264 : type in __init__
-    c0233 ..> c0266 : update_project() calls filter_none_values()
-    c0234 ..> c0031 : 17 relationships (see list)
-    c0234 ..> c0100 : create_skill() constructs SkillCreate
-    c0234 ..> c0103 : update_skill() constructs SkillUpdate
-    c0234 ..> c0123 : 14 relationships (see list)
-    c0234 ..> c0253 : get_skill() calls get_skill()
-    c0234 ..> c0261 : 2 relationships (see list)
-    c0234 ..> c0264 : type in __init__
-    c0234 ..> c0266 : update_skill() calls filter_none_values()
-    c0235 ..> c0031 : 11 relationships (see list)
-    c0235 ..> c0078 : 2 relationships (see list)
-    c0235 ..> c0079 : verify_criterion() constructs CriterionUpdate
-    c0235 ..> c0086 : create_task() constructs TaskCreate
-    c0235 ..> c0089 : 3 relationships (see list)
-    c0235 ..> c0090 : 2 relationships (see list)
-    c0235 ..> c0092 : update_task() constructs TaskUpdate
-    c0235 ..> c0124 : 7 relationships (see list)
-    c0235 ..> c0254 : get_task() calls get_task()
-    c0235 ..> c0263 : 3 relationships (see list)
-    c0235 ..> c0266 : update_task() calls filter_none_values()
-    c0236 ..> c0031 : 2 relationships (see list)
-    c0236 ..> c0111 : 4 relationships (see list)
-    c0236 ..> c0112 : update_user_notes() constructs UserUpdate
-    c0236 ..> c0264 : 2 relationships (see list)
-    c0237 ..> c0227 : Relation117
-    c0237 ..> c0228 : create_document_adapters() constructs DocumentToolAdapters
-    c0237 ..> c0229 : create_entity_adapters() constructs EntityToolAdapters
-    c0237 ..> c0230 : create_file_adapters() constructs FileToolAdapters
-    c0237 ..> c0231 : create_memory_adapters() constructs MemoryToolAdapters
-    c0237 ..> c0232 : create_plan_adapters() constructs PlanToolAdapters
-    c0237 ..> c0233 : create_project_adapters() constructs ProjectToolAdapters
-    c0237 ..> c0234 : create_skill_adapters() constructs SkillToolAdapters
-    c0237 ..> c0235 : create_task_adapters() constructs TaskToolAdapters
-    c0237 ..> c0236 : create_user_adapters() constructs UserToolAdapters
-    c0237 ..> c0237 : _coerce_int_ids() calls _coerce_int_id()
-    c0237 ..> c0243 : type in create_code_artifact_adapters
-    c0237 ..> c0244 : type in create_document_adapters
-    c0237 ..> c0245 : type in create_entity_adapters
-    c0237 ..> c0255 : type in create_memory_adapters
-    c0237 ..> c0257 : type in create_project_adapters
-    c0237 ..> c0264 : 8 relationships (see list)
-    c0238 ..> c0030 : 11 relationships (see list)
-    c0238 ..> c0104 : type in register_simplified_tool
-    c0238 ..> c0108 : register_simplified_tool() constructs ToolParameter
-    c0238 ..> c0237 : 10 relationships (see list)
-    c0238 ..> c0238 : 20 relationships (see list)
-    c0238 ..> c0239 : 14 relationships (see list)
-    c0238 ..> c0255 : type in register_all_tools_metadata
-    c0238 ..> c0264 : type in register_all_tools_metadata
-    c0239 ..> c0030 : 3 relationships (see list)
-    c0239 ..> c0104 : 3 relationships (see list)
-    c0239 --> c0106 : field _tools
-    c0239 ..> c0106 : 2 relationships (see list)
-    c0239 ..> c0107 : 5 relationships (see list)
-    c0239 ..> c0108 : type in register
-    c0239 ..> c0239 : execute() calls get_tool()
-    c0241 ..> c0033 : 2 relationships (see list)
-    c0241 ..> c0034 : type in handle_event
-    c0241 ..> c0035 : 3 relationships (see list)
-    c0241 ..> c0037 : type in get_activity
-    c0241 ..> c0038 : 3 relationships (see list)
-    c0241 ..> c0113 : 5 relationships (see list)
-    c0241 ..> c0241 : 2 relationships (see list)
-    c0242 ..> c0217 : 2 relationships (see list)
-    c0242 ..> c0242 : 4 relationships (see list)
-    c0243 ..> c0023 : 2 relationships (see list)
-    c0243 ..> c0028 : 2 relationships (see list)
-    c0243 ..> c0033 : type in _emit_event
-    c0243 ..> c0034 : _emit_event() constructs ActivityEvent
-    c0243 ..> c0038 : type in _emit_event
-    c0243 ..> c0039 : 3 relationships (see list)
-    c0243 ..> c0040 : type in create_code_artifact
-    c0243 ..> c0041 : type in list_code_artifacts
-    c0243 ..> c0042 : type in update_code_artifact
-    c0243 ..> c0114 : 8 relationships (see list)
-    c0243 ..> c0243 : 5 relationships (see list)
-    c0243 ..> c0265 : 2 relationships (see list)
-    c0243 ..> c0266 : update_code_artifact() calls get_changed_fields()
-    c0244 ..> c0023 : 2 relationships (see list)
-    c0244 ..> c0028 : 2 relationships (see list)
-    c0244 ..> c0033 : type in _emit_event
-    c0244 ..> c0034 : _emit_event() constructs ActivityEvent
-    c0244 ..> c0038 : type in _emit_event
-    c0244 ..> c0043 : 3 relationships (see list)
-    c0244 ..> c0044 : type in create_document
-    c0244 ..> c0045 : type in list_documents
-    c0244 ..> c0046 : type in update_document
+    c0228 ..> c0265 : type in __init__
+    c0228 ..> c0267 : update_code_artifact() calls filter_none_values()
+    c0229 ..> c0032 : 5 relationships (see list)
+    c0229 ..> c0044 : 3 relationships (see list)
+    c0229 ..> c0045 : create_document() constructs DocumentCreate
+    c0229 ..> c0047 : update_document() constructs DocumentUpdate
+    c0229 ..> c0245 : 6 relationships (see list)
+    c0229 ..> c0265 : type in __init__
+    c0229 ..> c0267 : update_document() calls filter_none_values()
+    c0230 ..> c0032 : 16 relationships (see list)
+    c0230 ..> c0048 : 3 relationships (see list)
+    c0230 ..> c0049 : create_entity() constructs EntityCreate
+    c0230 ..> c0051 : 2 relationships (see list)
+    c0230 ..> c0052 : create_entity_relationship() constructs EntityRelationshipCreate
+    c0230 ..> c0053 : update_entity_relationship() constructs EntityRelationshipUpdate
+    c0230 ..> c0055 : 2 relationships (see list)
+    c0230 ..> c0056 : update_entity() constructs EntityUpdate
+    c0230 ..> c0246 : 17 relationships (see list)
+    c0230 ..> c0265 : type in __init__
+    c0230 ..> c0267 : 3 relationships (see list)
+    c0231 ..> c0032 : 5 relationships (see list)
+    c0231 ..> c0058 : create_file() constructs FileCreate
+    c0231 ..> c0060 : update_file() constructs FileUpdate
+    c0231 ..> c0119 : 4 relationships (see list)
+    c0231 ..> c0247 : get_file() calls get_file()
+    c0231 ..> c0265 : type in __init__
+    c0231 ..> c0267 : update_file() calls filter_none_values()
+    c0232 ..> c0032 : 9 relationships (see list)
+    c0232 ..> c0066 : 2 relationships (see list)
+    c0232 ..> c0067 : create_memory() constructs MemoryCreate
+    c0232 ..> c0068 : 2 relationships (see list)
+    c0232 ..> c0071 : query_memory() constructs MemoryQueryRequest
+    c0232 ..> c0072 : type in query_memory
+    c0232 ..> c0075 : update_memory() constructs MemoryUpdate
+    c0232 ..> c0120 : Relation118
+    c0232 ..> c0224 : get_recent_memories() calls clamp_list_pagination()
+    c0232 ..> c0232 : 2 relationships (see list)
+    c0232 ..> c0238 : 13 relationships (see list)
+    c0232 ..> c0256 : 10 relationships (see list)
+    c0232 ..> c0260 : 3 relationships (see list)
+    c0232 ..> c0265 : type in __init__
+    c0232 ..> c0267 : update_memory() calls filter_none_values()
+    c0233 ..> c0032 : 4 relationships (see list)
+    c0233 ..> c0082 : create_plan() constructs PlanCreate
+    c0233 ..> c0083 : 3 relationships (see list)
+    c0233 ..> c0085 : update_plan() constructs PlanUpdate
+    c0233 ..> c0122 : 3 relationships (see list)
+    c0233 ..> c0252 : get_plan() calls get_plan()
+    c0233 ..> c0267 : update_plan() calls filter_none_values()
+    c0234 ..> c0032 : 5 relationships (see list)
+    c0234 ..> c0094 : 3 relationships (see list)
+    c0234 ..> c0095 : create_project() constructs ProjectCreate
+    c0234 ..> c0096 : 3 relationships (see list)
+    c0234 ..> c0098 : 2 relationships (see list)
+    c0234 ..> c0099 : update_project() constructs ProjectUpdate
+    c0234 ..> c0258 : 6 relationships (see list)
+    c0234 ..> c0265 : type in __init__
+    c0234 ..> c0267 : update_project() calls filter_none_values()
+    c0235 ..> c0032 : 17 relationships (see list)
+    c0235 ..> c0101 : create_skill() constructs SkillCreate
+    c0235 ..> c0104 : update_skill() constructs SkillUpdate
+    c0235 ..> c0124 : 14 relationships (see list)
+    c0235 ..> c0254 : get_skill() calls get_skill()
+    c0235 ..> c0262 : 2 relationships (see list)
+    c0235 ..> c0265 : type in __init__
+    c0235 ..> c0267 : update_skill() calls filter_none_values()
+    c0236 ..> c0032 : 11 relationships (see list)
+    c0236 ..> c0079 : 2 relationships (see list)
+    c0236 ..> c0080 : verify_criterion() constructs CriterionUpdate
+    c0236 ..> c0087 : create_task() constructs TaskCreate
+    c0236 ..> c0090 : 3 relationships (see list)
+    c0236 ..> c0091 : 2 relationships (see list)
+    c0236 ..> c0093 : update_task() constructs TaskUpdate
+    c0236 ..> c0125 : 7 relationships (see list)
+    c0236 ..> c0255 : get_task() calls get_task()
+    c0236 ..> c0264 : 3 relationships (see list)
+    c0236 ..> c0267 : update_task() calls filter_none_values()
+    c0237 ..> c0032 : 2 relationships (see list)
+    c0237 ..> c0112 : 4 relationships (see list)
+    c0237 ..> c0113 : update_user_notes() constructs UserUpdate
+    c0237 ..> c0265 : 2 relationships (see list)
+    c0238 ..> c0228 : Relation119
+    c0238 ..> c0229 : create_document_adapters() constructs DocumentToolAdapters
+    c0238 ..> c0230 : create_entity_adapters() constructs EntityToolAdapters
+    c0238 ..> c0231 : create_file_adapters() constructs FileToolAdapters
+    c0238 ..> c0232 : create_memory_adapters() constructs MemoryToolAdapters
+    c0238 ..> c0233 : create_plan_adapters() constructs PlanToolAdapters
+    c0238 ..> c0234 : create_project_adapters() constructs ProjectToolAdapters
+    c0238 ..> c0235 : create_skill_adapters() constructs SkillToolAdapters
+    c0238 ..> c0236 : create_task_adapters() constructs TaskToolAdapters
+    c0238 ..> c0237 : create_user_adapters() constructs UserToolAdapters
+    c0238 ..> c0238 : _coerce_int_ids() calls _coerce_int_id()
+    c0238 ..> c0244 : type in create_code_artifact_adapters
+    c0238 ..> c0245 : type in create_document_adapters
+    c0238 ..> c0246 : type in create_entity_adapters
+    c0238 ..> c0256 : type in create_memory_adapters
+    c0238 ..> c0258 : type in create_project_adapters
+    c0238 ..> c0265 : 8 relationships (see list)
+    c0239 ..> c0031 : 11 relationships (see list)
+    c0239 ..> c0105 : type in register_simplified_tool
+    c0239 ..> c0109 : register_simplified_tool() constructs ToolParameter
+    c0239 ..> c0238 : 10 relationships (see list)
+    c0239 ..> c0239 : 20 relationships (see list)
+    c0239 ..> c0240 : 14 relationships (see list)
+    c0239 ..> c0256 : type in register_all_tools_metadata
+    c0239 ..> c0265 : type in register_all_tools_metadata
+    c0240 ..> c0031 : 3 relationships (see list)
+    c0240 ..> c0105 : 3 relationships (see list)
+    c0240 --> c0107 : field _tools
+    c0240 ..> c0107 : 2 relationships (see list)
+    c0240 ..> c0108 : 5 relationships (see list)
+    c0240 ..> c0109 : type in register
+    c0240 ..> c0240 : execute() calls get_tool()
+    c0242 ..> c0034 : 2 relationships (see list)
+    c0242 ..> c0035 : type in handle_event
+    c0242 ..> c0036 : 3 relationships (see list)
+    c0242 ..> c0038 : type in get_activity
+    c0242 ..> c0039 : 3 relationships (see list)
+    c0242 ..> c0114 : 5 relationships (see list)
+    c0242 ..> c0242 : 2 relationships (see list)
+    c0243 ..> c0218 : 2 relationships (see list)
+    c0243 ..> c0243 : 4 relationships (see list)
+    c0244 ..> c0024 : 2 relationships (see list)
+    c0244 ..> c0029 : 2 relationships (see list)
+    c0244 ..> c0034 : type in _emit_event
+    c0244 ..> c0035 : _emit_event() constructs ActivityEvent
+    c0244 ..> c0039 : type in _emit_event
+    c0244 ..> c0040 : 3 relationships (see list)
+    c0244 ..> c0041 : type in create_code_artifact
+    c0244 ..> c0042 : type in list_code_artifacts
+    c0244 ..> c0043 : type in update_code_artifact
     c0244 ..> c0115 : 8 relationships (see list)
     c0244 ..> c0244 : 5 relationships (see list)
-    c0244 ..> c0265 : 2 relationships (see list)
-    c0244 ..> c0266 : update_document() calls get_changed_fields()
-    c0245 ..> c0023 : 2 relationships (see list)
-    c0245 ..> c0028 : 2 relationships (see list)
-    c0245 ..> c0033 : type in _emit_event
-    c0245 ..> c0034 : _emit_event() constructs ActivityEvent
-    c0245 ..> c0038 : type in _emit_event
-    c0245 ..> c0047 : 3 relationships (see list)
-    c0245 ..> c0048 : type in create_entity
-    c0245 ..> c0050 : 4 relationships (see list)
-    c0245 ..> c0051 : type in create_entity_relationship
-    c0245 ..> c0052 : type in update_entity_relationship
-    c0245 ..> c0053 : 2 relationships (see list)
-    c0245 ..> c0054 : 2 relationships (see list)
-    c0245 ..> c0055 : type in update_entity
-    c0245 ..> c0116 : 23 relationships (see list)
-    c0245 ..> c0245 : 13 relationships (see list)
-    c0245 ..> c0265 : 4 relationships (see list)
-    c0245 ..> c0266 : update_entity() calls get_changed_fields()
-    c0246 ..> c0023 : 2 relationships (see list)
-    c0246 ..> c0028 : 2 relationships (see list)
-    c0246 ..> c0033 : type in _emit_event
-    c0246 ..> c0034 : _emit_event() constructs ActivityEvent
-    c0246 ..> c0038 : type in _emit_event
-    c0246 ..> c0056 : 4 relationships (see list)
-    c0246 ..> c0057 : type in create_file
-    c0246 ..> c0058 : type in list_files
-    c0246 ..> c0059 : type in update_file
-    c0246 ..> c0118 : 8 relationships (see list)
-    c0246 ..> c0246 : 9 relationships (see list)
-    c0246 ..> c0265 : 2 relationships (see list)
-    c0246 ..> c0266 : update_file() calls get_changed_fields()
-    c0250 ..> c0028 : _validate_center_node() constructs NotFoundError
-    c0250 ..> c0030 : _fetch_node_data() calls get()
-    c0250 ..> c0060 : 2 relationships (see list)
-    c0250 ..> c0061 : get_subgraph() constructs SubgraphMeta
-    c0250 ..> c0062 : 2 relationships (see list)
-    c0250 ..> c0063 : 2 relationships (see list)
-    c0250 ..> c0116 : 7 relationships (see list)
-    c0250 ..> c0119 : 5 relationships (see list)
-    c0250 ..> c0247 : 4 relationships (see list)
-    c0250 ..> c0248 : 4 relationships (see list)
-    c0250 ..> c0249 : 4 relationships (see list)
-    c0250 ..> c0250 : 4 relationships (see list)
-    c0250 ..> c0251 : 4 relationships (see list)
-    c0250 ..> c0252 : 3 relationships (see list)
-    c0250 ..> c0253 : 7 relationships (see list)
-    c0250 ..> c0254 : 3 relationships (see list)
-    c0255 ..> c0023 : 4 relationships (see list)
-    c0255 ..> c0030 : handle_memory_access_event() calls get()
-    c0255 ..> c0033 : type in _emit_event
-    c0255 ..> c0034 : 2 relationships (see list)
-    c0255 ..> c0038 : type in _emit_event
-    c0255 ..> c0064 : 3 relationships (see list)
-    c0255 ..> c0065 : 8 relationships (see list)
-    c0255 ..> c0066 : type in create_memory
-    c0255 ..> c0070 : type in query_memory
-    c0255 ..> c0071 : 2 relationships (see list)
-    c0255 ..> c0073 : 2 relationships (see list)
-    c0255 ..> c0074 : type in update_memory
-    c0255 ..> c0075 : 2 relationships (see list)
-    c0255 ..> c0119 : 17 relationships (see list)
-    c0255 ..> c0255 : 12 relationships (see list)
-    c0255 ..> c0265 : 2 relationships (see list)
-    c0255 ..> c0266 : update_memory() calls get_changed_fields()
-    c0255 ..> c0268 : 2 relationships (see list)
-    c0256 ..> c0023 : 2 relationships (see list)
-    c0256 ..> c0027 : update_plan() constructs InvalidStateTransitionError
-    c0256 ..> c0028 : get_plan() constructs NotFoundError
-    c0256 ..> c0030 : update_plan() calls get()
-    c0256 ..> c0033 : type in _emit_event
-    c0256 ..> c0034 : _emit_event() constructs ActivityEvent
-    c0256 ..> c0038 : type in _emit_event
-    c0256 ..> c0080 : 3 relationships (see list)
-    c0256 ..> c0081 : type in create_plan
-    c0256 ..> c0082 : 3 relationships (see list)
-    c0256 ..> c0083 : type in list_plans
-    c0256 ..> c0084 : type in update_plan
-    c0256 ..> c0121 : 9 relationships (see list)
-    c0256 ..> c0256 : 4 relationships (see list)
-    c0256 ..> c0265 : 2 relationships (see list)
-    c0256 ..> c0266 : update_plan() calls get_changed_fields()
-    c0257 ..> c0023 : 2 relationships (see list)
-    c0257 ..> c0028 : get_project() constructs NotFoundError
-    c0257 ..> c0033 : type in _emit_event
-    c0257 ..> c0034 : _emit_event() constructs ActivityEvent
-    c0257 ..> c0038 : type in _emit_event
-    c0257 ..> c0093 : 3 relationships (see list)
-    c0257 ..> c0094 : type in create_project
-    c0257 ..> c0095 : type in list_projects
-    c0257 ..> c0096 : type in list_projects
-    c0257 ..> c0098 : type in update_project
-    c0257 ..> c0122 : 8 relationships (see list)
-    c0257 ..> c0257 : 5 relationships (see list)
-    c0257 ..> c0265 : 2 relationships (see list)
-    c0257 ..> c0266 : update_project() calls get_changed_fields()
-    c0258 --> c0120 : field validation
-    c0259 ..> c0119 : 13 relationships (see list)
-    c0259 ..> c0120 : 3 relationships (see list)
-    c0259 ..> c0127 : type in __init__
-    c0259 ..> c0130 : 2 relationships (see list)
-    c0259 ..> c0136 : 2 relationships (see list)
-    c0259 ..> c0258 : 2 relationships (see list)
-    c0259 ..> c0259 : 3 relationships (see list)
-    c0259 ..> c0260 : 4 relationships (see list)
-    c0261 ..> c0023 : 2 relationships (see list)
-    c0261 ..> c0028 : 2 relationships (see list)
-    c0261 ..> c0030 : import_skill() calls get()
-    c0261 ..> c0033 : type in _emit_event
-    c0261 ..> c0034 : _emit_event() constructs ActivityEvent
-    c0261 ..> c0038 : type in _emit_event
-    c0261 ..> c0099 : 4 relationships (see list)
-    c0261 ..> c0100 : 2 relationships (see list)
-    c0261 ..> c0101 : type in get_skill_links
-    c0261 ..> c0102 : 2 relationships (see list)
-    c0261 ..> c0103 : type in update_skill
-    c0261 ..> c0123 : 23 relationships (see list)
-    c0261 ..> c0261 : 14 relationships (see list)
-    c0261 ..> c0262 : import_skill() calls _quote_unquoted_frontmatter_scalars()
-    c0261 ..> c0265 : 2 relationships (see list)
-    c0261 ..> c0266 : update_skill() calls get_changed_fields()
-    c0263 ..> c0023 : 2 relationships (see list)
-    c0263 ..> c0024 : 2 relationships (see list)
-    c0263 ..> c0025 : _validate_no_cycle() constructs CyclicDependencyError
-    c0263 ..> c0026 : _validate_dependencies_met() constructs DependencyNotMetError
-    c0263 ..> c0027 : 5 relationships (see list)
-    c0263 ..> c0028 : 6 relationships (see list)
-    c0263 ..> c0030 : transition_task() calls get()
-    c0263 ..> c0033 : type in _emit_event
-    c0263 ..> c0034 : _emit_event() constructs ActivityEvent
-    c0263 ..> c0038 : type in _emit_event
-    c0263 ..> c0077 : 2 relationships (see list)
-    c0263 ..> c0078 : type in add_criterion
-    c0263 ..> c0079 : type in update_criterion
-    c0263 ..> c0082 : 2 relationships (see list)
-    c0263 ..> c0084 : _check_plan_auto_completion() constructs PlanUpdate
-    c0263 ..> c0085 : 7 relationships (see list)
-    c0263 ..> c0086 : type in create_task
-    c0263 ..> c0089 : type in list_tasks
-    c0263 ..> c0090 : 7 relationships (see list)
-    c0263 ..> c0091 : 2 relationships (see list)
-    c0263 ..> c0092 : type in update_task
-    c0263 ..> c0124 : 28 relationships (see list)
-    c0263 ..> c0256 : 9 relationships (see list)
-    c0263 ..> c0263 : 9 relationships (see list)
-    c0263 ..> c0265 : 2 relationships (see list)
-    c0263 ..> c0266 : update_task() calls get_changed_fields()
-    c0264 ..> c0109 : 3 relationships (see list)
-    c0264 ..> c0110 : 2 relationships (see list)
-    c0264 ..> c0112 : 2 relationships (see list)
-    c0264 ..> c0125 : 8 relationships (see list)
+    c0244 ..> c0266 : 2 relationships (see list)
+    c0244 ..> c0267 : update_code_artifact() calls get_changed_fields()
+    c0245 ..> c0024 : 2 relationships (see list)
+    c0245 ..> c0029 : 2 relationships (see list)
+    c0245 ..> c0034 : type in _emit_event
+    c0245 ..> c0035 : _emit_event() constructs ActivityEvent
+    c0245 ..> c0039 : type in _emit_event
+    c0245 ..> c0044 : 3 relationships (see list)
+    c0245 ..> c0045 : type in create_document
+    c0245 ..> c0046 : type in list_documents
+    c0245 ..> c0047 : type in update_document
+    c0245 ..> c0116 : 8 relationships (see list)
+    c0245 ..> c0245 : 5 relationships (see list)
+    c0245 ..> c0266 : 2 relationships (see list)
+    c0245 ..> c0267 : update_document() calls get_changed_fields()
+    c0246 ..> c0024 : 2 relationships (see list)
+    c0246 ..> c0029 : 2 relationships (see list)
+    c0246 ..> c0034 : type in _emit_event
+    c0246 ..> c0035 : _emit_event() constructs ActivityEvent
+    c0246 ..> c0039 : type in _emit_event
+    c0246 ..> c0048 : 3 relationships (see list)
+    c0246 ..> c0049 : type in create_entity
+    c0246 ..> c0051 : 4 relationships (see list)
+    c0246 ..> c0052 : type in create_entity_relationship
+    c0246 ..> c0053 : type in update_entity_relationship
+    c0246 ..> c0054 : 2 relationships (see list)
+    c0246 ..> c0055 : 2 relationships (see list)
+    c0246 ..> c0056 : type in update_entity
+    c0246 ..> c0117 : 23 relationships (see list)
+    c0246 ..> c0246 : 13 relationships (see list)
+    c0246 ..> c0266 : 4 relationships (see list)
+    c0246 ..> c0267 : update_entity() calls get_changed_fields()
+    c0247 ..> c0024 : 2 relationships (see list)
+    c0247 ..> c0029 : 2 relationships (see list)
+    c0247 ..> c0034 : type in _emit_event
+    c0247 ..> c0035 : _emit_event() constructs ActivityEvent
+    c0247 ..> c0039 : type in _emit_event
+    c0247 ..> c0057 : 4 relationships (see list)
+    c0247 ..> c0058 : type in create_file
+    c0247 ..> c0059 : type in list_files
+    c0247 ..> c0060 : type in update_file
+    c0247 ..> c0119 : 8 relationships (see list)
+    c0247 ..> c0247 : 9 relationships (see list)
+    c0247 ..> c0266 : 2 relationships (see list)
+    c0247 ..> c0267 : update_file() calls get_changed_fields()
+    c0251 ..> c0029 : _validate_center_node() constructs NotFoundError
+    c0251 ..> c0031 : _fetch_node_data() calls get()
+    c0251 ..> c0061 : 2 relationships (see list)
+    c0251 ..> c0062 : get_subgraph() constructs SubgraphMeta
+    c0251 ..> c0063 : 2 relationships (see list)
+    c0251 ..> c0064 : 2 relationships (see list)
+    c0251 ..> c0117 : 7 relationships (see list)
+    c0251 ..> c0120 : 5 relationships (see list)
+    c0251 ..> c0248 : 4 relationships (see list)
+    c0251 ..> c0249 : 4 relationships (see list)
+    c0251 ..> c0250 : 4 relationships (see list)
+    c0251 ..> c0251 : 4 relationships (see list)
+    c0251 ..> c0252 : 4 relationships (see list)
+    c0251 ..> c0253 : 3 relationships (see list)
+    c0251 ..> c0254 : 7 relationships (see list)
+    c0251 ..> c0255 : 3 relationships (see list)
+    c0256 ..> c0024 : 4 relationships (see list)
+    c0256 ..> c0031 : handle_memory_access_event() calls get()
+    c0256 ..> c0034 : type in _emit_event
+    c0256 ..> c0035 : 2 relationships (see list)
+    c0256 ..> c0039 : type in _emit_event
+    c0256 ..> c0065 : 3 relationships (see list)
+    c0256 ..> c0066 : 8 relationships (see list)
+    c0256 ..> c0067 : type in create_memory
+    c0256 ..> c0071 : type in query_memory
+    c0256 ..> c0072 : 2 relationships (see list)
+    c0256 ..> c0074 : 2 relationships (see list)
+    c0256 ..> c0075 : type in update_memory
+    c0256 ..> c0076 : 2 relationships (see list)
+    c0256 ..> c0120 : 17 relationships (see list)
+    c0256 ..> c0256 : 12 relationships (see list)
+    c0256 ..> c0266 : 2 relationships (see list)
+    c0256 ..> c0267 : update_memory() calls get_changed_fields()
+    c0256 ..> c0269 : 2 relationships (see list)
+    c0257 ..> c0024 : 2 relationships (see list)
+    c0257 ..> c0028 : update_plan() constructs InvalidStateTransitionError
+    c0257 ..> c0029 : get_plan() constructs NotFoundError
+    c0257 ..> c0031 : update_plan() calls get()
+    c0257 ..> c0034 : type in _emit_event
+    c0257 ..> c0035 : _emit_event() constructs ActivityEvent
+    c0257 ..> c0039 : type in _emit_event
+    c0257 ..> c0081 : 3 relationships (see list)
+    c0257 ..> c0082 : type in create_plan
+    c0257 ..> c0083 : 3 relationships (see list)
+    c0257 ..> c0084 : type in list_plans
+    c0257 ..> c0085 : type in update_plan
+    c0257 ..> c0122 : 9 relationships (see list)
+    c0257 ..> c0257 : 4 relationships (see list)
+    c0257 ..> c0266 : 2 relationships (see list)
+    c0257 ..> c0267 : update_plan() calls get_changed_fields()
+    c0258 ..> c0024 : 2 relationships (see list)
+    c0258 ..> c0029 : get_project() constructs NotFoundError
+    c0258 ..> c0034 : type in _emit_event
+    c0258 ..> c0035 : _emit_event() constructs ActivityEvent
+    c0258 ..> c0039 : type in _emit_event
+    c0258 ..> c0094 : 3 relationships (see list)
+    c0258 ..> c0095 : type in create_project
+    c0258 ..> c0096 : type in list_projects
+    c0258 ..> c0097 : type in list_projects
+    c0258 ..> c0099 : type in update_project
+    c0258 ..> c0123 : 8 relationships (see list)
+    c0258 ..> c0258 : 5 relationships (see list)
+    c0258 ..> c0266 : 2 relationships (see list)
+    c0258 ..> c0267 : update_project() calls get_changed_fields()
+    c0259 --> c0121 : field validation
+    c0260 ..> c0120 : 13 relationships (see list)
+    c0260 ..> c0121 : 3 relationships (see list)
+    c0260 ..> c0128 : type in __init__
+    c0260 ..> c0131 : 2 relationships (see list)
+    c0260 ..> c0137 : 2 relationships (see list)
+    c0260 ..> c0259 : 2 relationships (see list)
+    c0260 ..> c0260 : 3 relationships (see list)
+    c0260 ..> c0261 : 4 relationships (see list)
+    c0262 ..> c0024 : 2 relationships (see list)
+    c0262 ..> c0029 : 2 relationships (see list)
+    c0262 ..> c0031 : import_skill() calls get()
+    c0262 ..> c0034 : type in _emit_event
+    c0262 ..> c0035 : _emit_event() constructs ActivityEvent
+    c0262 ..> c0039 : type in _emit_event
+    c0262 ..> c0100 : 4 relationships (see list)
+    c0262 ..> c0101 : 2 relationships (see list)
+    c0262 ..> c0102 : type in get_skill_links
+    c0262 ..> c0103 : 2 relationships (see list)
+    c0262 ..> c0104 : type in update_skill
+    c0262 ..> c0124 : 23 relationships (see list)
+    c0262 ..> c0262 : 14 relationships (see list)
+    c0262 ..> c0263 : import_skill() calls _quote_unquoted_frontmatter_scalars()
+    c0262 ..> c0266 : 2 relationships (see list)
+    c0262 ..> c0267 : update_skill() calls get_changed_fields()
+    c0264 ..> c0024 : 2 relationships (see list)
+    c0264 ..> c0025 : 2 relationships (see list)
+    c0264 ..> c0026 : _validate_no_cycle() constructs CyclicDependencyError
+    c0264 ..> c0027 : _validate_dependencies_met() constructs DependencyNotMetError
+    c0264 ..> c0028 : 5 relationships (see list)
+    c0264 ..> c0029 : 6 relationships (see list)
+    c0264 ..> c0031 : transition_task() calls get()
+    c0264 ..> c0034 : type in _emit_event
+    c0264 ..> c0035 : _emit_event() constructs ActivityEvent
+    c0264 ..> c0039 : type in _emit_event
+    c0264 ..> c0078 : 2 relationships (see list)
+    c0264 ..> c0079 : type in add_criterion
+    c0264 ..> c0080 : type in update_criterion
+    c0264 ..> c0083 : 2 relationships (see list)
+    c0264 ..> c0085 : _check_plan_auto_completion() constructs PlanUpdate
+    c0264 ..> c0086 : 7 relationships (see list)
+    c0264 ..> c0087 : type in create_task
+    c0264 ..> c0090 : type in list_tasks
+    c0264 ..> c0091 : 7 relationships (see list)
+    c0264 ..> c0092 : 2 relationships (see list)
+    c0264 ..> c0093 : type in update_task
+    c0264 ..> c0125 : 28 relationships (see list)
+    c0264 ..> c0257 : 9 relationships (see list)
+    c0264 ..> c0264 : 9 relationships (see list)
     c0264 ..> c0266 : 2 relationships (see list)
-    c0270 ..> c0133 : fast_embed_rank() constructs FastEmbedCrossEncoderAdapter
-    c0270 ..> c0134 : 3 relationships (see list)
-    c0271 ..> c0117 : 4 relationships (see list)
-    c0272 ..> c0129 : test_embeddings() constructs GoogleEmbeddingsAdapter
-    c0272 ..> c0130 : test_embeddings() calls generate_embedding()
-    c0273 ..> c0117 : main() calls list_tools()
-    c0274 ..> c0117 : test_sqlite_init() calls execute()
-    c0274 ..> c0174 : 5 relationships (see list)
-    c0275 ..> c0015 : 5 relationships (see list)
-    c0275 ..> c0020 : 2 relationships (see list)
-    c0275 ..> c0030 : lifespan() constructs TokenCache
-    c0275 ..> c0119 : 2 relationships (see list)
-    c0275 ..> c0144 : 2 relationships (see list)
-    c0275 ..> c0194 : 2 relationships (see list)
-    c0275 ..> c0211 : cli() calls dispatch()
-    c0275 ..> c0217 : 2 relationships (see list)
-    c0275 ..> c0242 : 3 relationships (see list)
-    c0275 ..> c0259 : 2 relationships (see list)
-    c0275 ..> c0269 : _legacy_launcher() calls get_version()
-    c0275 ..> c0275 : 3 relationships (see list)
+    c0264 ..> c0267 : update_task() calls get_changed_fields()
+    c0265 ..> c0110 : 3 relationships (see list)
+    c0265 ..> c0111 : 2 relationships (see list)
+    c0265 ..> c0113 : 2 relationships (see list)
+    c0265 ..> c0126 : 8 relationships (see list)
+    c0265 ..> c0267 : 2 relationships (see list)
+    c0271 ..> c0134 : fast_embed_rank() constructs FastEmbedCrossEncoderAdapter
+    c0271 ..> c0135 : 3 relationships (see list)
+    c0272 ..> c0118 : 4 relationships (see list)
+    c0273 ..> c0130 : test_embeddings() constructs GoogleEmbeddingsAdapter
+    c0273 ..> c0131 : test_embeddings() calls generate_embedding()
+    c0274 ..> c0118 : main() calls list_tools()
+    c0275 ..> c0118 : test_sqlite_init() calls execute()
+    c0275 ..> c0175 : 5 relationships (see list)
+    c0276 ..> c0016 : 5 relationships (see list)
+    c0276 ..> c0021 : 2 relationships (see list)
+    c0276 ..> c0031 : lifespan() constructs TokenCache
+    c0276 ..> c0120 : 2 relationships (see list)
+    c0276 ..> c0145 : 2 relationships (see list)
+    c0276 ..> c0195 : 2 relationships (see list)
+    c0276 ..> c0212 : cli() calls dispatch()
+    c0276 ..> c0218 : 2 relationships (see list)
+    c0276 ..> c0243 : 3 relationships (see list)
+    c0276 ..> c0260 : 2 relationships (see list)
+    c0276 ..> c0270 : _legacy_launcher() calls get_version()
     c0276 ..> c0276 : 3 relationships (see list)
-    c0276 ..> c0277 : 3 relationships (see list)
-    c0276 ..> c0278 : 3 relationships (see list)
-    c0276 ..> c0279 : _run() calls ensure_image()
-    c0276 ..> c0292 : 2 relationships (see list)
-    c0276 ..> c0296 : type in _print_summary
-    c0276 ..> c0297 : 4 relationships (see list)
-    c0277 ..> c0030 : timeout_for() calls get()
-    c0278 ..> c0023 : stop() calls clear()
-    c0278 ..> c0030 : start() calls get()
-    c0278 ..> c0117 : _exec() calls close()
-    c0278 ..> c0277 : type in __init__
-    c0278 ..> c0278 : 2 relationships (see list)
-    c0278 ..> c0279 : 5 relationships (see list)
-    c0278 ..> c0291 : 3 relationships (see list)
-    c0278 ..> c0292 : stop() calls stop()
-    c0278 ..> c0294 : 2 relationships (see list)
-    c0278 ..> c0297 : start() calls run()
-    c0279 ..> c0030 : ensure_image() calls get()
-    c0279 ..> c0279 : 4 relationships (see list)
-    c0279 ..> c0291 : 4 relationships (see list)
-    c0279 ..> c0297 : 3 relationships (see list)
-    c0280 ..> c0030 : 2 relationships (see list)
-    c0280 ..> c0217 : main() calls run()
-    c0280 ..> c0278 : health() calls health_check()
-    c0280 ..> c0280 : 5 relationships (see list)
-    c0281 ..> c0030 : build_prompt() calls get()
-    c0281 ..> c0286 : build_prompt() calls report_contract_example()
-    c0283 --> c0285 : field report
-    c0285 --> c0282 : field issues
-    c0285 --> c0284 : field steps
-    c0286 ..> c0030 : _normalize_severity() calls get()
-    c0286 ..> c0283 : 2 relationships (see list)
-    c0286 ..> c0286 : 3 relationships (see list)
-    c0292 ..> c0030 : _wait_until_healthy() calls get()
-    c0292 ..> c0213 : 5 relationships (see list)
-    c0292 ..> c0291 : 3 relationships (see list)
-    c0292 ..> c0292 : 3 relationships (see list)
-    c0292 ..> c0293 : start() calls _ephemeral_port()
-    c0295 ..> c0294 : type in run_session
-    c0296 --> c0283 : field report_load
-    c0297 ..> c0030 : run_skill() calls get()
-    c0297 ..> c0277 : 2 relationships (see list)
-    c0297 ..> c0281 : run_skill() calls build_prompt()
-    c0297 ..> c0286 : run_skill() calls load_report()
-    c0297 ..> c0295 : 2 relationships (see list)
-    c0297 ..> c0296 : 5 relationships (see list)
-    c0297 ..> c0297 : 3 relationships (see list)
-    c0297 ..> c0298 : 3 relationships (see list)
-    c0298 ..> c0030 : scan_for_breaches() calls get()
-    c0298 ..> c0298 : prepare_workspace() calls _build_fixture_repo()
+    c0277 ..> c0277 : 3 relationships (see list)
+    c0277 ..> c0278 : 3 relationships (see list)
+    c0277 ..> c0279 : 3 relationships (see list)
+    c0277 ..> c0280 : _run() calls ensure_image()
+    c0277 ..> c0293 : 2 relationships (see list)
+    c0277 ..> c0297 : type in _print_summary
+    c0277 ..> c0298 : 4 relationships (see list)
+    c0278 ..> c0031 : timeout_for() calls get()
+    c0279 ..> c0024 : stop() calls clear()
+    c0279 ..> c0031 : start() calls get()
+    c0279 ..> c0118 : _exec() calls close()
+    c0279 ..> c0278 : type in __init__
+    c0279 ..> c0279 : 2 relationships (see list)
+    c0279 ..> c0280 : 5 relationships (see list)
+    c0279 ..> c0292 : 3 relationships (see list)
+    c0279 ..> c0293 : stop() calls stop()
+    c0279 ..> c0295 : 2 relationships (see list)
+    c0279 ..> c0298 : start() calls run()
+    c0280 ..> c0031 : ensure_image() calls get()
+    c0280 ..> c0280 : 4 relationships (see list)
+    c0280 ..> c0292 : 4 relationships (see list)
+    c0280 ..> c0298 : 3 relationships (see list)
+    c0281 ..> c0031 : 2 relationships (see list)
+    c0281 ..> c0218 : main() calls run()
+    c0281 ..> c0279 : health() calls health_check()
+    c0281 ..> c0281 : 5 relationships (see list)
+    c0282 ..> c0031 : build_prompt() calls get()
+    c0282 ..> c0287 : build_prompt() calls report_contract_example()
+    c0284 --> c0286 : field report
+    c0286 --> c0283 : field issues
+    c0286 --> c0285 : field steps
+    c0287 ..> c0031 : _normalize_severity() calls get()
+    c0287 ..> c0284 : 2 relationships (see list)
+    c0287 ..> c0287 : 3 relationships (see list)
+    c0293 ..> c0031 : _wait_until_healthy() calls get()
+    c0293 ..> c0214 : 5 relationships (see list)
+    c0293 ..> c0292 : 3 relationships (see list)
+    c0293 ..> c0293 : 3 relationships (see list)
+    c0293 ..> c0294 : start() calls _ephemeral_port()
+    c0296 ..> c0295 : type in run_session
+    c0297 --> c0284 : field report_load
+    c0298 ..> c0031 : run_skill() calls get()
+    c0298 ..> c0278 : 2 relationships (see list)
+    c0298 ..> c0282 : run_skill() calls build_prompt()
+    c0298 ..> c0287 : run_skill() calls load_report()
+    c0298 ..> c0296 : 2 relationships (see list)
+    c0298 ..> c0297 : 5 relationships (see list)
+    c0298 ..> c0298 : 3 relationships (see list)
+    c0298 ..> c0299 : 3 relationships (see list)
+    c0299 ..> c0031 : scan_for_breaches() calls get()
+    c0299 ..> c0299 : prepare_workspace() calls _build_fixture_repo()
 ```
 
 ## Source index
@@ -4926,298 +4943,300 @@ classDiagram
   `alembic/versions/20260704_add_memory_usage_tracking.py`:1
 - c0012: `alembic/versions/20260822_add_project_last_encoding_point.py` —
   `alembic/versions/20260822_add_project_last_encoding_point.py`:1
-- c0013: `Runtime` — `app/bootstrap.py`:203
-- c0014: `Services` — `app/bootstrap.py`:185
-- c0015: `app/bootstrap.py` — `app/bootstrap.py`:1
-- c0016: `app/config/auth.py` — `app/config/auth.py`:1
-- c0017: `ConsoleFormatter` — `app/config/logging_config.py`:21
-- c0018: `JSONFormatter` — `app/config/logging_config.py`:104
-- c0019: `SensitiveDataFilter` — `app/config/logging_config.py`:56
-- c0020: `app/config/logging_config.py` — `app/config/logging_config.py`:1
-- c0021: `Settings` — `app/config/settings.py`:33
-- c0022: `app/config/settings.py` — `app/config/settings.py`:1
-- c0023: `EventBus` — `app/events/event_bus.py`:28
-- c0024: `ConflictError` — `app/exceptions.py`:7
-- c0025: `CyclicDependencyError` — `app/exceptions.py`:19
-- c0026: `DependencyNotMetError` — `app/exceptions.py`:15
-- c0027: `InvalidStateTransitionError` — `app/exceptions.py`:11
-- c0028: `NotFoundError` — `app/exceptions.py`:4
-- c0029: `CacheEntry` — `app/middleware/auth.py`:23
-- c0030: `TokenCache` — `app/middleware/auth.py`:29
-- c0031: `app/middleware/auth.py` — `app/middleware/auth.py`:1
-- c0032: `app/middleware/logging_middleware.py` — `app/middleware/logging_middleware.py`:1
-- c0033: `ActionType` — `app/models/activity_models.py`:33
-- c0034: `ActivityEvent` — `app/models/activity_models.py`:49
-- c0035: `ActivityListResponse` — `app/models/activity_models.py`:126
-- c0036: `ActivityLogEntry` — `app/models/activity_models.py`:102
-- c0037: `ActorType` — `app/models/activity_models.py`:42
-- c0038: `EntityType` — `app/models/activity_models.py`:14
-- c0039: `CodeArtifact` — `app/models/code_artifact_models.py`:222
-- c0040: `CodeArtifactCreate` — `app/models/code_artifact_models.py`:13
-- c0041: `CodeArtifactSummary` — `app/models/code_artifact_models.py`:253
-- c0042: `CodeArtifactUpdate` — `app/models/code_artifact_models.py`:116
-- c0043: `Document` — `app/models/document_models.py`:238
-- c0044: `DocumentCreate` — `app/models/document_models.py`:13
-- c0045: `DocumentSummary` — `app/models/document_models.py`:269
-- c0046: `DocumentUpdate` — `app/models/document_models.py`:130
-- c0047: `Entity` — `app/models/entity_models.py`:285
-- c0048: `EntityCreate` — `app/models/entity_models.py`:34
-- c0049: `EntityListResponse` — `app/models/entity_models.py`:365
-- c0050: `EntityRelationship` — `app/models/entity_models.py`:537
-- c0051: `EntityRelationshipCreate` — `app/models/entity_models.py`:391
-- c0052: `EntityRelationshipUpdate` — `app/models/entity_models.py`:473
-- c0053: `EntitySummary` — `app/models/entity_models.py`:316
-- c0054: `EntityType` — `app/models/entity_models.py`:15
-- c0055: `EntityUpdate` — `app/models/entity_models.py`:158
-- c0056: `File` — `app/models/file_models.py`:233
-- c0057: `FileCreate` — `app/models/file_models.py`:14
-- c0058: `FileSummary` — `app/models/file_models.py`:263
-- c0059: `FileUpdate` — `app/models/file_models.py`:124
-- c0060: `SubgraphEdge` — `app/models/graph_models.py`:36
-- c0061: `SubgraphMeta` — `app/models/graph_models.py`:81
-- c0062: `SubgraphNode` — `app/models/graph_models.py`:10
-- c0063: `SubgraphResponse` — `app/models/graph_models.py`:253
-- c0064: `LinkedMemory` — `app/models/memory_models.py`:421
-- c0065: `Memory` — `app/models/memory_models.py`:272
-- c0066: `MemoryCreate` — `app/models/memory_models.py`:8
-- c0067: `MemoryCreateResponse` — `app/models/memory_models.py`:340
-- c0068: `MemoryLinkRequest` — `app/models/memory_models.py`:441
-- c0069: `MemoryListResponse` — `app/models/memory_models.py`:363
-- c0070: `MemoryQueryRequest` — `app/models/memory_models.py`:370
-- c0071: `MemoryQueryResult` — `app/models/memory_models.py`:428
-- c0072: `MemoryScore` — `app/models/memory_models.py`:317
-- c0073: `MemorySummary` — `app/models/memory_models.py`:300
-- c0074: `MemoryUpdate` — `app/models/memory_models.py`:143
-- c0075: `ObsoleteMatch` — `app/models/memory_models.py`:328
-- c0076: `HealthStatus` — `app/models/models.py`:8
-- c0077: `Criterion` — `app/models/plan_models.py`:92
-- c0078: `CriterionCreate` — `app/models/plan_models.py`:71
-- c0079: `CriterionUpdate` — `app/models/plan_models.py`:81
-- c0080: `Plan` — `app/models/plan_models.py`:211
-- c0081: `PlanCreate` — `app/models/plan_models.py`:138
-- c0082: `PlanStatus` — `app/models/plan_models.py`:20
-- c0083: `PlanSummary` — `app/models/plan_models.py`:221
-- c0084: `PlanUpdate` — `app/models/plan_models.py`:175
-- c0085: `Task` — `app/models/plan_models.py`:313
-- c0086: `TaskCreate` — `app/models/plan_models.py`:239
-- c0087: `TaskDependency` — `app/models/plan_models.py`:123
-- c0088: `TaskDependencyCreate` — `app/models/plan_models.py`:110
-- c0089: `TaskPriority` — `app/models/plan_models.py`:37
-- c0090: `TaskState` — `app/models/plan_models.py`:28
-- c0091: `TaskSummary` — `app/models/plan_models.py`:343
-- c0092: `TaskUpdate` — `app/models/plan_models.py`:278
-- c0093: `Project` — `app/models/project_models.py`:223
-- c0094: `ProjectCreate` — `app/models/project_models.py`:33
-- c0095: `ProjectStatus` — `app/models/project_models.py`:26
-- c0096: `ProjectSummary` — `app/models/project_models.py`:254
-- c0097: `ProjectType` — `app/models/project_models.py`:9
-- c0098: `ProjectUpdate` — `app/models/project_models.py`:129
-- c0099: `Skill` — `app/models/skill_models.py`:202
-- c0100: `SkillCreate` — `app/models/skill_models.py`:16
-- c0101: `SkillLinks` — `app/models/skill_models.py`:234
-- c0102: `SkillSummary` — `app/models/skill_models.py`:215
-- c0103: `SkillUpdate` — `app/models/skill_models.py`:132
-- c0104: `ToolCategory` — `app/models/tool_registry_models.py`:11
-- c0105: `ToolDataDetailed` — `app/models/tool_registry_models.py`:147
-- c0106: `ToolImplementation` — `app/models/tool_registry_models.py`:154
-- c0107: `ToolMetadata` — `app/models/tool_registry_models.py`:34
-- c0108: `ToolParameter` — `app/models/tool_registry_models.py`:25
-- c0109: `User` — `app/models/user_models.py`:21
-- c0110: `UserCreate` — `app/models/user_models.py`:7
-- c0111: `UserResponse` — `app/models/user_models.py`:28
-- c0112: `UserUpdate` — `app/models/user_models.py`:14
-- c0113: `ActivityRepository` — `app/protocols/activity_protocol.py`:20
-- c0114: `CodeArtifactRepository` — `app/protocols/code_artifact_protocol.py`:17
-- c0115: `DocumentRepository` — `app/protocols/document_protocol.py`:17
-- c0116: `EntityRepository` — `app/protocols/entity_protocol.py`:21
-- c0117: `ToolExecutor` — `app/protocols/executor.py`:10
-- c0118: `FileRepository` — `app/protocols/file_protocol.py`:17
-- c0119: `MemoryRepository` — `app/protocols/memory_protocol.py`:21
-- c0120: `ValidationResult` — `app/protocols/memory_protocol.py`:10
-- c0121: `PlanRepository` — `app/protocols/plan_protocol.py`:13
-- c0122: `ProjectRepository` — `app/protocols/project_protocol.py`:13
-- c0123: `SkillRepository` — `app/protocols/skill_protocol.py`:18
-- c0124: `TaskRepository` — `app/protocols/task_protocol.py`:18
-- c0125: `UserRepository` — `app/protocols/user_protocol.py`:7
-- c0126: `AzureOpenAIAdapter` — `app/repositories/embeddings/embedding_adapter.py`:71
-- c0127: `EmbeddingsAdapter` — `app/repositories/embeddings/embedding_adapter.py`:16
-- c0128: `FastEmbeddingAdapter` — `app/repositories/embeddings/embedding_adapter.py`:21
-- c0129: `GoogleEmbeddingsAdapter` — `app/repositories/embeddings/embedding_adapter.py`:106
-- c0130: `OllamaEmbeddingsAdapter` — `app/repositories/embeddings/embedding_adapter.py`:201
-- c0131: `OpenAIEmbeddingsAdapter` — `app/repositories/embeddings/embedding_adapter.py`:143
-- c0132: `app/repositories/embeddings/fastembed_offline.py` —
+- c0013: `alembic/versions/20261008_add_plan_external_ref.py` —
+  `alembic/versions/20261008_add_plan_external_ref.py`:1
+- c0014: `Runtime` — `app/bootstrap.py`:203
+- c0015: `Services` — `app/bootstrap.py`:185
+- c0016: `app/bootstrap.py` — `app/bootstrap.py`:1
+- c0017: `app/config/auth.py` — `app/config/auth.py`:1
+- c0018: `ConsoleFormatter` — `app/config/logging_config.py`:21
+- c0019: `JSONFormatter` — `app/config/logging_config.py`:104
+- c0020: `SensitiveDataFilter` — `app/config/logging_config.py`:56
+- c0021: `app/config/logging_config.py` — `app/config/logging_config.py`:1
+- c0022: `Settings` — `app/config/settings.py`:33
+- c0023: `app/config/settings.py` — `app/config/settings.py`:1
+- c0024: `EventBus` — `app/events/event_bus.py`:28
+- c0025: `ConflictError` — `app/exceptions.py`:7
+- c0026: `CyclicDependencyError` — `app/exceptions.py`:19
+- c0027: `DependencyNotMetError` — `app/exceptions.py`:15
+- c0028: `InvalidStateTransitionError` — `app/exceptions.py`:11
+- c0029: `NotFoundError` — `app/exceptions.py`:4
+- c0030: `CacheEntry` — `app/middleware/auth.py`:23
+- c0031: `TokenCache` — `app/middleware/auth.py`:29
+- c0032: `app/middleware/auth.py` — `app/middleware/auth.py`:1
+- c0033: `app/middleware/logging_middleware.py` — `app/middleware/logging_middleware.py`:1
+- c0034: `ActionType` — `app/models/activity_models.py`:33
+- c0035: `ActivityEvent` — `app/models/activity_models.py`:49
+- c0036: `ActivityListResponse` — `app/models/activity_models.py`:126
+- c0037: `ActivityLogEntry` — `app/models/activity_models.py`:102
+- c0038: `ActorType` — `app/models/activity_models.py`:42
+- c0039: `EntityType` — `app/models/activity_models.py`:14
+- c0040: `CodeArtifact` — `app/models/code_artifact_models.py`:222
+- c0041: `CodeArtifactCreate` — `app/models/code_artifact_models.py`:13
+- c0042: `CodeArtifactSummary` — `app/models/code_artifact_models.py`:253
+- c0043: `CodeArtifactUpdate` — `app/models/code_artifact_models.py`:116
+- c0044: `Document` — `app/models/document_models.py`:238
+- c0045: `DocumentCreate` — `app/models/document_models.py`:13
+- c0046: `DocumentSummary` — `app/models/document_models.py`:269
+- c0047: `DocumentUpdate` — `app/models/document_models.py`:130
+- c0048: `Entity` — `app/models/entity_models.py`:285
+- c0049: `EntityCreate` — `app/models/entity_models.py`:34
+- c0050: `EntityListResponse` — `app/models/entity_models.py`:365
+- c0051: `EntityRelationship` — `app/models/entity_models.py`:537
+- c0052: `EntityRelationshipCreate` — `app/models/entity_models.py`:391
+- c0053: `EntityRelationshipUpdate` — `app/models/entity_models.py`:473
+- c0054: `EntitySummary` — `app/models/entity_models.py`:316
+- c0055: `EntityType` — `app/models/entity_models.py`:15
+- c0056: `EntityUpdate` — `app/models/entity_models.py`:158
+- c0057: `File` — `app/models/file_models.py`:233
+- c0058: `FileCreate` — `app/models/file_models.py`:14
+- c0059: `FileSummary` — `app/models/file_models.py`:263
+- c0060: `FileUpdate` — `app/models/file_models.py`:124
+- c0061: `SubgraphEdge` — `app/models/graph_models.py`:36
+- c0062: `SubgraphMeta` — `app/models/graph_models.py`:81
+- c0063: `SubgraphNode` — `app/models/graph_models.py`:10
+- c0064: `SubgraphResponse` — `app/models/graph_models.py`:253
+- c0065: `LinkedMemory` — `app/models/memory_models.py`:421
+- c0066: `Memory` — `app/models/memory_models.py`:272
+- c0067: `MemoryCreate` — `app/models/memory_models.py`:8
+- c0068: `MemoryCreateResponse` — `app/models/memory_models.py`:340
+- c0069: `MemoryLinkRequest` — `app/models/memory_models.py`:441
+- c0070: `MemoryListResponse` — `app/models/memory_models.py`:363
+- c0071: `MemoryQueryRequest` — `app/models/memory_models.py`:370
+- c0072: `MemoryQueryResult` — `app/models/memory_models.py`:428
+- c0073: `MemoryScore` — `app/models/memory_models.py`:317
+- c0074: `MemorySummary` — `app/models/memory_models.py`:300
+- c0075: `MemoryUpdate` — `app/models/memory_models.py`:143
+- c0076: `ObsoleteMatch` — `app/models/memory_models.py`:328
+- c0077: `HealthStatus` — `app/models/models.py`:8
+- c0078: `Criterion` — `app/models/plan_models.py`:100
+- c0079: `CriterionCreate` — `app/models/plan_models.py`:79
+- c0080: `CriterionUpdate` — `app/models/plan_models.py`:89
+- c0081: `Plan` — `app/models/plan_models.py`:240
+- c0082: `PlanCreate` — `app/models/plan_models.py`:151
+- c0083: `PlanStatus` — `app/models/plan_models.py`:28
+- c0084: `PlanSummary` — `app/models/plan_models.py`:250
+- c0085: `PlanUpdate` — `app/models/plan_models.py`:192
+- c0086: `Task` — `app/models/plan_models.py`:343
+- c0087: `TaskCreate` — `app/models/plan_models.py`:269
+- c0088: `TaskDependency` — `app/models/plan_models.py`:131
+- c0089: `TaskDependencyCreate` — `app/models/plan_models.py`:118
+- c0090: `TaskPriority` — `app/models/plan_models.py`:45
+- c0091: `TaskState` — `app/models/plan_models.py`:36
+- c0092: `TaskSummary` — `app/models/plan_models.py`:373
+- c0093: `TaskUpdate` — `app/models/plan_models.py`:308
+- c0094: `Project` — `app/models/project_models.py`:223
+- c0095: `ProjectCreate` — `app/models/project_models.py`:33
+- c0096: `ProjectStatus` — `app/models/project_models.py`:26
+- c0097: `ProjectSummary` — `app/models/project_models.py`:254
+- c0098: `ProjectType` — `app/models/project_models.py`:9
+- c0099: `ProjectUpdate` — `app/models/project_models.py`:129
+- c0100: `Skill` — `app/models/skill_models.py`:202
+- c0101: `SkillCreate` — `app/models/skill_models.py`:16
+- c0102: `SkillLinks` — `app/models/skill_models.py`:234
+- c0103: `SkillSummary` — `app/models/skill_models.py`:215
+- c0104: `SkillUpdate` — `app/models/skill_models.py`:132
+- c0105: `ToolCategory` — `app/models/tool_registry_models.py`:11
+- c0106: `ToolDataDetailed` — `app/models/tool_registry_models.py`:147
+- c0107: `ToolImplementation` — `app/models/tool_registry_models.py`:154
+- c0108: `ToolMetadata` — `app/models/tool_registry_models.py`:34
+- c0109: `ToolParameter` — `app/models/tool_registry_models.py`:25
+- c0110: `User` — `app/models/user_models.py`:21
+- c0111: `UserCreate` — `app/models/user_models.py`:7
+- c0112: `UserResponse` — `app/models/user_models.py`:28
+- c0113: `UserUpdate` — `app/models/user_models.py`:14
+- c0114: `ActivityRepository` — `app/protocols/activity_protocol.py`:20
+- c0115: `CodeArtifactRepository` — `app/protocols/code_artifact_protocol.py`:17
+- c0116: `DocumentRepository` — `app/protocols/document_protocol.py`:17
+- c0117: `EntityRepository` — `app/protocols/entity_protocol.py`:21
+- c0118: `ToolExecutor` — `app/protocols/executor.py`:10
+- c0119: `FileRepository` — `app/protocols/file_protocol.py`:17
+- c0120: `MemoryRepository` — `app/protocols/memory_protocol.py`:21
+- c0121: `ValidationResult` — `app/protocols/memory_protocol.py`:10
+- c0122: `PlanRepository` — `app/protocols/plan_protocol.py`:13
+- c0123: `ProjectRepository` — `app/protocols/project_protocol.py`:13
+- c0124: `SkillRepository` — `app/protocols/skill_protocol.py`:18
+- c0125: `TaskRepository` — `app/protocols/task_protocol.py`:18
+- c0126: `UserRepository` — `app/protocols/user_protocol.py`:7
+- c0127: `AzureOpenAIAdapter` — `app/repositories/embeddings/embedding_adapter.py`:71
+- c0128: `EmbeddingsAdapter` — `app/repositories/embeddings/embedding_adapter.py`:16
+- c0129: `FastEmbeddingAdapter` — `app/repositories/embeddings/embedding_adapter.py`:21
+- c0130: `GoogleEmbeddingsAdapter` — `app/repositories/embeddings/embedding_adapter.py`:106
+- c0131: `OllamaEmbeddingsAdapter` — `app/repositories/embeddings/embedding_adapter.py`:201
+- c0132: `OpenAIEmbeddingsAdapter` — `app/repositories/embeddings/embedding_adapter.py`:143
+- c0133: `app/repositories/embeddings/fastembed_offline.py` —
   `app/repositories/embeddings/fastembed_offline.py`:1
-- c0133: `FastEmbedCrossEncoderAdapter` — `app/repositories/embeddings/reranker_adapter.py`:21
-- c0134: `HttpRerankAdapter` — `app/repositories/embeddings/reranker_adapter.py`:111
-- c0135: `RerankAdapter` — `app/repositories/embeddings/reranker_adapter.py`:13
-- c0136: `app/repositories/helpers.py` — `app/repositories/helpers.py`:1
-- c0137: `PostgresActivityRepository` — `app/repositories/postgres/activity_repository.py`:26
-- c0138: `PostgresCodeArtifactRepository` —
+- c0134: `FastEmbedCrossEncoderAdapter` — `app/repositories/embeddings/reranker_adapter.py`:21
+- c0135: `HttpRerankAdapter` — `app/repositories/embeddings/reranker_adapter.py`:111
+- c0136: `RerankAdapter` — `app/repositories/embeddings/reranker_adapter.py`:13
+- c0137: `app/repositories/helpers.py` — `app/repositories/helpers.py`:1
+- c0138: `PostgresActivityRepository` — `app/repositories/postgres/activity_repository.py`:26
+- c0139: `PostgresCodeArtifactRepository` —
   `app/repositories/postgres/code_artifact_repository.py`:22
-- c0139: `PostgresDocumentRepository` — `app/repositories/postgres/document_repository.py`:22
-- c0140: `PostgresEntityRepository` — `app/repositories/postgres/entity_repository.py`:34
-- c0141: `PostgresFileRepository` — `app/repositories/postgres/file_repository.py`:18
-- c0142: `PostgresMemoryRepository` — `app/repositories/postgres/memory_repository.py`:36
-- c0143: `PostgresPlanRepository` — `app/repositories/postgres/plan_repository.py`:24
-- c0144: `PostgresDatabaseAdapter` — `app/repositories/postgres/postgres_adapter.py`:18
-- c0145: `ActivityLogTable` — `app/repositories/postgres/postgres_tables.py`:1175
-- c0146: `Base` — `app/repositories/postgres/postgres_tables.py`:26
-- c0147: `CodeArtifactsTable` — `app/repositories/postgres/postgres_tables.py`:519
-- c0148: `CriteriaTable` — `app/repositories/postgres/postgres_tables.py`:1113
-- c0149: `DocumentsTable` — `app/repositories/postgres/postgres_tables.py`:584
-- c0150: `EntitiesTable` — `app/repositories/postgres/postgres_tables.py`:813
-- c0151: `EntityRelationshipsTable` — `app/repositories/postgres/postgres_tables.py`:916
-- c0152: `FilesTable` — `app/repositories/postgres/postgres_tables.py`:651
-- c0153: `MemoryLinkTable` — `app/repositories/postgres/postgres_tables.py`:412
-- c0154: `MemoryTable` — `app/repositories/postgres/postgres_tables.py`:178
-- c0155: `PlansTable` — `app/repositories/postgres/postgres_tables.py`:982
-- c0156: `ProjectsTable` — `app/repositories/postgres/postgres_tables.py`:433
-- c0157: `SkillsTable` — `app/repositories/postgres/postgres_tables.py`:724
-- c0158: `TaskDependenciesTable` — `app/repositories/postgres/postgres_tables.py`:1147
-- c0159: `TasksTable` — `app/repositories/postgres/postgres_tables.py`:1040
-- c0160: `UsersTable` — `app/repositories/postgres/postgres_tables.py`:112
-- c0161: `PostgresProjectRepository` — `app/repositories/postgres/project_repository.py`:27
-- c0162: `PostgresSkillRepository` — `app/repositories/postgres/skill_repository.py`:36
-- c0163: `PostgresTaskRepository` — `app/repositories/postgres/task_repository.py`:33
-- c0164: `PostgresUserRepository` — `app/repositories/postgres/user_repository.py`:15
-- c0165: `SqliteActivityRepository` — `app/repositories/sqlite/activity_repository.py`:26
-- c0166: `SqliteCodeArtifactRepository` — `app/repositories/sqlite/code_artifact_repository.py`:22
-- c0167: `SqliteDocumentRepository` — `app/repositories/sqlite/document_repository.py`:22
-- c0168: `SqliteEntityRepository` — `app/repositories/sqlite/entity_repository.py`:36
-- c0169: `SqliteFileRepository` — `app/repositories/sqlite/file_repository.py`:18
-- c0170: `SqliteMemoryRepository` — `app/repositories/sqlite/memory_repository.py`:37
-- c0171: `SqlitePlanRepository` — `app/repositories/sqlite/plan_repository.py`:24
-- c0172: `SqliteProjectRepository` — `app/repositories/sqlite/project_repository.py`:27
-- c0173: `SqliteSkillRepository` — `app/repositories/sqlite/skill_repository.py`:37
-- c0174: `SqliteDatabaseAdapter` — `app/repositories/sqlite/sqlite_adapter.py`:46
-- c0175: `app/repositories/sqlite/sqlite_adapter.py` — `app/repositories/sqlite/sqlite_adapter.py`:1
-- c0176: `ActivityLogTable` — `app/repositories/sqlite/sqlite_tables.py`:1182
-- c0177: `Base` — `app/repositories/sqlite/sqlite_tables.py`:31
-- c0178: `CodeArtifactsTable` — `app/repositories/sqlite/sqlite_tables.py`:524
-- c0179: `CriteriaTable` — `app/repositories/sqlite/sqlite_tables.py`:1122
-- c0180: `DocumentsTable` — `app/repositories/sqlite/sqlite_tables.py`:591
-- c0181: `EntitiesTable` — `app/repositories/sqlite/sqlite_tables.py`:822
-- c0182: `EntityRelationshipsTable` — `app/repositories/sqlite/sqlite_tables.py`:925
-- c0183: `FilesTable` — `app/repositories/sqlite/sqlite_tables.py`:659
-- c0184: `MemoryLinkTable` — `app/repositories/sqlite/sqlite_tables.py`:414
-- c0185: `MemoryTable` — `app/repositories/sqlite/sqlite_tables.py`:177
-- c0186: `PlansTable` — `app/repositories/sqlite/sqlite_tables.py`:994
-- c0187: `ProjectsTable` — `app/repositories/sqlite/sqlite_tables.py`:437
-- c0188: `SkillsTable` — `app/repositories/sqlite/sqlite_tables.py`:733
-- c0189: `TaskDependenciesTable` — `app/repositories/sqlite/sqlite_tables.py`:1155
-- c0190: `TasksTable` — `app/repositories/sqlite/sqlite_tables.py`:1050
-- c0191: `UsersTable` — `app/repositories/sqlite/sqlite_tables.py`:124
-- c0192: `SqliteTaskRepository` — `app/repositories/sqlite/task_repository.py`:33
-- c0193: `SqliteUserRepository` — `app/repositories/sqlite/user_repository.py`:15
-- c0194: `app/routes/api/activity.py` — `app/routes/api/activity.py`:1
-- c0195: `app/routes/api/auth.py` — `app/routes/api/auth.py`:1
-- c0196: `app/routes/api/code_artifacts.py` — `app/routes/api/code_artifacts.py`:1
-- c0197: `app/routes/api/documents.py` — `app/routes/api/documents.py`:1
-- c0198: `app/routes/api/entities.py` — `app/routes/api/entities.py`:1
-- c0199: `app/routes/api/files.py` — `app/routes/api/files.py`:1
-- c0200: `app/routes/api/graph.py` — `app/routes/api/graph.py`:1
-- c0201: `app/routes/api/health.py` — `app/routes/api/health.py`:1
-- c0202: `app/routes/api/memories.py` — `app/routes/api/memories.py`:1
-- c0203: `app/routes/api/plans.py` — `app/routes/api/plans.py`:1
-- c0204: `app/routes/api/projects.py` — `app/routes/api/projects.py`:1
-- c0205: `app/routes/api/skills.py` — `app/routes/api/skills.py`:1
-- c0206: `app/routes/api/tasks.py` — `app/routes/api/tasks.py`:1
-- c0207: `app/routes/cli/auth_commands.py` — `app/routes/cli/auth_commands.py`:1
-- c0208: `CliContext` — `app/routes/cli/context.py`:19
-- c0209: `_CliRuntime` — `app/routes/cli/context.py`:11
-- c0210: `LocalExecutor` — `app/routes/cli/local_executor.py`:18
-- c0211: `app/routes/cli/parser.py` — `app/routes/cli/parser.py`:1
-- c0212: `app/routes/cli/paths.py` — `app/routes/cli/paths.py`:1
-- c0213: `RemoteExecutor` — `app/routes/cli/remote_executor.py`:67
-- c0214: `app/routes/cli/remote_executor.py` — `app/routes/cli/remote_executor.py`:1
-- c0215: `app/routes/cli/render.py` — `app/routes/cli/render.py`:1
-- c0216: `CliError` — `app/routes/cli/verbs.py`:20
-- c0217: `app/routes/cli/verbs.py` — `app/routes/cli/verbs.py`:1
-- c0218: `app/routes/mcp/code_artifact_tools.py` — `app/routes/mcp/code_artifact_tools.py`:1
-- c0219: `app/routes/mcp/document_tools.py` — `app/routes/mcp/document_tools.py`:1
-- c0220: `app/routes/mcp/entity_tools.py` — `app/routes/mcp/entity_tools.py`:1
-- c0221: `app/routes/mcp/memory_tools.py` — `app/routes/mcp/memory_tools.py`:1
-- c0222: `app/routes/mcp/meta_tools.py` — `app/routes/mcp/meta_tools.py`:1
-- c0223: `app/routes/mcp/pagination.py` — `app/routes/mcp/pagination.py`:1
-- c0224: `app/routes/mcp/project_tools.py` — `app/routes/mcp/project_tools.py`:1
-- c0225: `app/routes/mcp/scope_resolver.py` — `app/routes/mcp/scope_resolver.py`:1
-- c0226: `app/routes/mcp/skill_tools.py` — `app/routes/mcp/skill_tools.py`:1
-- c0227: `CodeArtifactToolAdapters` — `app/routes/mcp/tool_adapters.py`:1039
-- c0228: `DocumentToolAdapters` — `app/routes/mcp/tool_adapters.py`:1206
-- c0229: `EntityToolAdapters` — `app/routes/mcp/tool_adapters.py`:1375
-- c0230: `FileToolAdapters` — `app/routes/mcp/tool_adapters.py`:2136
-- c0231: `MemoryToolAdapters` — `app/routes/mcp/tool_adapters.py`:145
-- c0232: `PlanToolAdapters` — `app/routes/mcp/tool_adapters.py`:1792
-- c0233: `ProjectToolAdapters` — `app/routes/mcp/tool_adapters.py`:861
-- c0234: `SkillToolAdapters` — `app/routes/mcp/tool_adapters.py`:2303
-- c0235: `TaskToolAdapters` — `app/routes/mcp/tool_adapters.py`:1913
-- c0236: `UserToolAdapters` — `app/routes/mcp/tool_adapters.py`:102
-- c0237: `app/routes/mcp/tool_adapters.py` — `app/routes/mcp/tool_adapters.py`:1
-- c0238: `app/routes/mcp/tool_metadata_registry.py` — `app/routes/mcp/tool_metadata_registry.py`:1
-- c0239: `ToolRegistry` — `app/routes/mcp/tool_registry.py`:19
-- c0240: `app/routes/mcp/user_tools.py` — `app/routes/mcp/user_tools.py`:1
-- c0241: `ActivityService` — `app/services/activity_service.py`:24
-- c0242: `BackupService` — `app/services/backup_service.py`:16
-- c0243: `CodeArtifactService` — `app/services/code_artifact_service.py`:40
-- c0244: `DocumentService` — `app/services/document_service.py`:40
-- c0245: `EntityService` — `app/services/entity_service.py`:47
-- c0246: `FileService` — `app/services/file_service.py`:40
-- c0247: `CodeArtifactServiceProtocol` — `app/services/graph_service.py`:41
-- c0248: `DocumentServiceProtocol` — `app/services/graph_service.py`:36
-- c0249: `FileServiceProtocol` — `app/services/graph_service.py`:46
-- c0250: `GraphService` — `app/services/graph_service.py`:73
-- c0251: `PlanServiceProtocol` — `app/services/graph_service.py`:60
-- c0252: `ProjectServiceProtocol` — `app/services/graph_service.py`:31
-- c0253: `SkillServiceProtocol` — `app/services/graph_service.py`:52
-- c0254: `TaskServiceProtocol` — `app/services/graph_service.py`:66
-- c0255: `MemoryService` — `app/services/memory_service.py`:42
-- c0256: `PlanService` — `app/services/plan_service.py`:34
-- c0257: `ProjectService` — `app/services/project_service.py`:33
-- c0258: `ReEmbedResult` — `app/services/re_embedding_service.py`:20
-- c0259: `ReEmbeddingService` — `app/services/re_embedding_service.py`:40
-- c0260: `TargetedRebuildResult` — `app/services/re_embedding_service.py`:28
-- c0261: `SkillService` — `app/services/skill_service.py`:72
-- c0262: `app/services/skill_service.py` — `app/services/skill_service.py`:1
-- c0263: `TaskService` — `app/services/task_service.py`:46
-- c0264: `UserService` — `app/services/user_service.py`:14
-- c0265: `app/utils/provenance.py` — `app/utils/provenance.py`:1
-- c0266: `app/utils/pydantic_helper.py` — `app/utils/pydantic_helper.py`:1
-- c0267: `app/utils/repository_identity.py` — `app/utils/repository_identity.py`:1
-- c0268: `TokenCounter` — `app/utils/token_counter.py`:10
-- c0269: `app/version.py` — `app/version.py`:1
-- c0270: `debug/reranker-test.py` — `debug/reranker-test.py`:1
-- c0271: `debug/sqlite_vec_poc.py` — `debug/sqlite_vec_poc.py`:1
-- c0272: `debug/test_google_embeddings.py` — `debug/test_google_embeddings.py`:1
-- c0273: `debug/test_mcp_connection.py` — `debug/test_mcp_connection.py`:1
-- c0274: `debug/test_sqlite_init.py` — `debug/test_sqlite_init.py`:1
-- c0275: `main.py` — `main.py`:1
-- c0276: `test_harness/__main__.py` — `test_harness/__main__.py`:1
-- c0277: `HarnessConfig` — `test_harness/config.py`:29
-- c0278: `AgentContainer` — `test_harness/container.py`:174
-- c0279: `test_harness/container.py` — `test_harness/container.py`:1
-- c0280: `test_harness/docker/runner.py` — `test_harness/docker/runner.py`:1
-- c0281: `test_harness/prompts.py` — `test_harness/prompts.py`:1
-- c0282: `ReportIssue` — `test_harness/report.py`:71
-- c0283: `ReportLoad` — `test_harness/report.py`:94
-- c0284: `ReportStep` — `test_harness/report.py`:60
-- c0285: `WalkthroughReport` — `test_harness/report.py`:82
-- c0286: `test_harness/report.py` — `test_harness/report.py`:1
-- c0291: `HarnessInfraError` — `test_harness/server.py`:27
-- c0292: `ThrowawayForgetful` — `test_harness/server.py`:43
-- c0293: `test_harness/server.py` — `test_harness/server.py`:1
-- c0294: `SessionOutcome` — `test_harness/walkthrough.py`:43
-- c0295: `SessionRunner` — `test_harness/walkthrough.py`:51
-- c0296: `SkillRunResult` — `test_harness/walkthrough.py`:58
-- c0297: `Walkthrough` — `test_harness/walkthrough.py`:128
-- c0298: `test_harness/walkthrough.py` — `test_harness/walkthrough.py`:1
+- c0140: `PostgresDocumentRepository` — `app/repositories/postgres/document_repository.py`:22
+- c0141: `PostgresEntityRepository` — `app/repositories/postgres/entity_repository.py`:34
+- c0142: `PostgresFileRepository` — `app/repositories/postgres/file_repository.py`:18
+- c0143: `PostgresMemoryRepository` — `app/repositories/postgres/memory_repository.py`:36
+- c0144: `PostgresPlanRepository` — `app/repositories/postgres/plan_repository.py`:25
+- c0145: `PostgresDatabaseAdapter` — `app/repositories/postgres/postgres_adapter.py`:18
+- c0146: `ActivityLogTable` — `app/repositories/postgres/postgres_tables.py`:1177
+- c0147: `Base` — `app/repositories/postgres/postgres_tables.py`:26
+- c0148: `CodeArtifactsTable` — `app/repositories/postgres/postgres_tables.py`:519
+- c0149: `CriteriaTable` — `app/repositories/postgres/postgres_tables.py`:1115
+- c0150: `DocumentsTable` — `app/repositories/postgres/postgres_tables.py`:584
+- c0151: `EntitiesTable` — `app/repositories/postgres/postgres_tables.py`:813
+- c0152: `EntityRelationshipsTable` — `app/repositories/postgres/postgres_tables.py`:916
+- c0153: `FilesTable` — `app/repositories/postgres/postgres_tables.py`:651
+- c0154: `MemoryLinkTable` — `app/repositories/postgres/postgres_tables.py`:412
+- c0155: `MemoryTable` — `app/repositories/postgres/postgres_tables.py`:178
+- c0156: `PlansTable` — `app/repositories/postgres/postgres_tables.py`:982
+- c0157: `ProjectsTable` — `app/repositories/postgres/postgres_tables.py`:433
+- c0158: `SkillsTable` — `app/repositories/postgres/postgres_tables.py`:724
+- c0159: `TaskDependenciesTable` — `app/repositories/postgres/postgres_tables.py`:1149
+- c0160: `TasksTable` — `app/repositories/postgres/postgres_tables.py`:1042
+- c0161: `UsersTable` — `app/repositories/postgres/postgres_tables.py`:112
+- c0162: `PostgresProjectRepository` — `app/repositories/postgres/project_repository.py`:27
+- c0163: `PostgresSkillRepository` — `app/repositories/postgres/skill_repository.py`:36
+- c0164: `PostgresTaskRepository` — `app/repositories/postgres/task_repository.py`:33
+- c0165: `PostgresUserRepository` — `app/repositories/postgres/user_repository.py`:15
+- c0166: `SqliteActivityRepository` — `app/repositories/sqlite/activity_repository.py`:26
+- c0167: `SqliteCodeArtifactRepository` — `app/repositories/sqlite/code_artifact_repository.py`:22
+- c0168: `SqliteDocumentRepository` — `app/repositories/sqlite/document_repository.py`:22
+- c0169: `SqliteEntityRepository` — `app/repositories/sqlite/entity_repository.py`:36
+- c0170: `SqliteFileRepository` — `app/repositories/sqlite/file_repository.py`:18
+- c0171: `SqliteMemoryRepository` — `app/repositories/sqlite/memory_repository.py`:37
+- c0172: `SqlitePlanRepository` — `app/repositories/sqlite/plan_repository.py`:25
+- c0173: `SqliteProjectRepository` — `app/repositories/sqlite/project_repository.py`:27
+- c0174: `SqliteSkillRepository` — `app/repositories/sqlite/skill_repository.py`:37
+- c0175: `SqliteDatabaseAdapter` — `app/repositories/sqlite/sqlite_adapter.py`:46
+- c0176: `app/repositories/sqlite/sqlite_adapter.py` — `app/repositories/sqlite/sqlite_adapter.py`:1
+- c0177: `ActivityLogTable` — `app/repositories/sqlite/sqlite_tables.py`:1184
+- c0178: `Base` — `app/repositories/sqlite/sqlite_tables.py`:31
+- c0179: `CodeArtifactsTable` — `app/repositories/sqlite/sqlite_tables.py`:524
+- c0180: `CriteriaTable` — `app/repositories/sqlite/sqlite_tables.py`:1124
+- c0181: `DocumentsTable` — `app/repositories/sqlite/sqlite_tables.py`:591
+- c0182: `EntitiesTable` — `app/repositories/sqlite/sqlite_tables.py`:822
+- c0183: `EntityRelationshipsTable` — `app/repositories/sqlite/sqlite_tables.py`:925
+- c0184: `FilesTable` — `app/repositories/sqlite/sqlite_tables.py`:659
+- c0185: `MemoryLinkTable` — `app/repositories/sqlite/sqlite_tables.py`:414
+- c0186: `MemoryTable` — `app/repositories/sqlite/sqlite_tables.py`:177
+- c0187: `PlansTable` — `app/repositories/sqlite/sqlite_tables.py`:994
+- c0188: `ProjectsTable` — `app/repositories/sqlite/sqlite_tables.py`:437
+- c0189: `SkillsTable` — `app/repositories/sqlite/sqlite_tables.py`:733
+- c0190: `TaskDependenciesTable` — `app/repositories/sqlite/sqlite_tables.py`:1157
+- c0191: `TasksTable` — `app/repositories/sqlite/sqlite_tables.py`:1052
+- c0192: `UsersTable` — `app/repositories/sqlite/sqlite_tables.py`:124
+- c0193: `SqliteTaskRepository` — `app/repositories/sqlite/task_repository.py`:33
+- c0194: `SqliteUserRepository` — `app/repositories/sqlite/user_repository.py`:15
+- c0195: `app/routes/api/activity.py` — `app/routes/api/activity.py`:1
+- c0196: `app/routes/api/auth.py` — `app/routes/api/auth.py`:1
+- c0197: `app/routes/api/code_artifacts.py` — `app/routes/api/code_artifacts.py`:1
+- c0198: `app/routes/api/documents.py` — `app/routes/api/documents.py`:1
+- c0199: `app/routes/api/entities.py` — `app/routes/api/entities.py`:1
+- c0200: `app/routes/api/files.py` — `app/routes/api/files.py`:1
+- c0201: `app/routes/api/graph.py` — `app/routes/api/graph.py`:1
+- c0202: `app/routes/api/health.py` — `app/routes/api/health.py`:1
+- c0203: `app/routes/api/memories.py` — `app/routes/api/memories.py`:1
+- c0204: `app/routes/api/plans.py` — `app/routes/api/plans.py`:1
+- c0205: `app/routes/api/projects.py` — `app/routes/api/projects.py`:1
+- c0206: `app/routes/api/skills.py` — `app/routes/api/skills.py`:1
+- c0207: `app/routes/api/tasks.py` — `app/routes/api/tasks.py`:1
+- c0208: `app/routes/cli/auth_commands.py` — `app/routes/cli/auth_commands.py`:1
+- c0209: `CliContext` — `app/routes/cli/context.py`:19
+- c0210: `_CliRuntime` — `app/routes/cli/context.py`:11
+- c0211: `LocalExecutor` — `app/routes/cli/local_executor.py`:18
+- c0212: `app/routes/cli/parser.py` — `app/routes/cli/parser.py`:1
+- c0213: `app/routes/cli/paths.py` — `app/routes/cli/paths.py`:1
+- c0214: `RemoteExecutor` — `app/routes/cli/remote_executor.py`:67
+- c0215: `app/routes/cli/remote_executor.py` — `app/routes/cli/remote_executor.py`:1
+- c0216: `app/routes/cli/render.py` — `app/routes/cli/render.py`:1
+- c0217: `CliError` — `app/routes/cli/verbs.py`:20
+- c0218: `app/routes/cli/verbs.py` — `app/routes/cli/verbs.py`:1
+- c0219: `app/routes/mcp/code_artifact_tools.py` — `app/routes/mcp/code_artifact_tools.py`:1
+- c0220: `app/routes/mcp/document_tools.py` — `app/routes/mcp/document_tools.py`:1
+- c0221: `app/routes/mcp/entity_tools.py` — `app/routes/mcp/entity_tools.py`:1
+- c0222: `app/routes/mcp/memory_tools.py` — `app/routes/mcp/memory_tools.py`:1
+- c0223: `app/routes/mcp/meta_tools.py` — `app/routes/mcp/meta_tools.py`:1
+- c0224: `app/routes/mcp/pagination.py` — `app/routes/mcp/pagination.py`:1
+- c0225: `app/routes/mcp/project_tools.py` — `app/routes/mcp/project_tools.py`:1
+- c0226: `app/routes/mcp/scope_resolver.py` — `app/routes/mcp/scope_resolver.py`:1
+- c0227: `app/routes/mcp/skill_tools.py` — `app/routes/mcp/skill_tools.py`:1
+- c0228: `CodeArtifactToolAdapters` — `app/routes/mcp/tool_adapters.py`:1039
+- c0229: `DocumentToolAdapters` — `app/routes/mcp/tool_adapters.py`:1206
+- c0230: `EntityToolAdapters` — `app/routes/mcp/tool_adapters.py`:1375
+- c0231: `FileToolAdapters` — `app/routes/mcp/tool_adapters.py`:2142
+- c0232: `MemoryToolAdapters` — `app/routes/mcp/tool_adapters.py`:145
+- c0233: `PlanToolAdapters` — `app/routes/mcp/tool_adapters.py`:1792
+- c0234: `ProjectToolAdapters` — `app/routes/mcp/tool_adapters.py`:861
+- c0235: `SkillToolAdapters` — `app/routes/mcp/tool_adapters.py`:2309
+- c0236: `TaskToolAdapters` — `app/routes/mcp/tool_adapters.py`:1919
+- c0237: `UserToolAdapters` — `app/routes/mcp/tool_adapters.py`:102
+- c0238: `app/routes/mcp/tool_adapters.py` — `app/routes/mcp/tool_adapters.py`:1
+- c0239: `app/routes/mcp/tool_metadata_registry.py` — `app/routes/mcp/tool_metadata_registry.py`:1
+- c0240: `ToolRegistry` — `app/routes/mcp/tool_registry.py`:19
+- c0241: `app/routes/mcp/user_tools.py` — `app/routes/mcp/user_tools.py`:1
+- c0242: `ActivityService` — `app/services/activity_service.py`:24
+- c0243: `BackupService` — `app/services/backup_service.py`:16
+- c0244: `CodeArtifactService` — `app/services/code_artifact_service.py`:40
+- c0245: `DocumentService` — `app/services/document_service.py`:40
+- c0246: `EntityService` — `app/services/entity_service.py`:47
+- c0247: `FileService` — `app/services/file_service.py`:40
+- c0248: `CodeArtifactServiceProtocol` — `app/services/graph_service.py`:41
+- c0249: `DocumentServiceProtocol` — `app/services/graph_service.py`:36
+- c0250: `FileServiceProtocol` — `app/services/graph_service.py`:46
+- c0251: `GraphService` — `app/services/graph_service.py`:73
+- c0252: `PlanServiceProtocol` — `app/services/graph_service.py`:60
+- c0253: `ProjectServiceProtocol` — `app/services/graph_service.py`:31
+- c0254: `SkillServiceProtocol` — `app/services/graph_service.py`:52
+- c0255: `TaskServiceProtocol` — `app/services/graph_service.py`:66
+- c0256: `MemoryService` — `app/services/memory_service.py`:42
+- c0257: `PlanService` — `app/services/plan_service.py`:37
+- c0258: `ProjectService` — `app/services/project_service.py`:33
+- c0259: `ReEmbedResult` — `app/services/re_embedding_service.py`:20
+- c0260: `ReEmbeddingService` — `app/services/re_embedding_service.py`:40
+- c0261: `TargetedRebuildResult` — `app/services/re_embedding_service.py`:28
+- c0262: `SkillService` — `app/services/skill_service.py`:72
+- c0263: `app/services/skill_service.py` — `app/services/skill_service.py`:1
+- c0264: `TaskService` — `app/services/task_service.py`:46
+- c0265: `UserService` — `app/services/user_service.py`:14
+- c0266: `app/utils/provenance.py` — `app/utils/provenance.py`:1
+- c0267: `app/utils/pydantic_helper.py` — `app/utils/pydantic_helper.py`:1
+- c0268: `app/utils/repository_identity.py` — `app/utils/repository_identity.py`:1
+- c0269: `TokenCounter` — `app/utils/token_counter.py`:10
+- c0270: `app/version.py` — `app/version.py`:1
+- c0271: `debug/reranker-test.py` — `debug/reranker-test.py`:1
+- c0272: `debug/sqlite_vec_poc.py` — `debug/sqlite_vec_poc.py`:1
+- c0273: `debug/test_google_embeddings.py` — `debug/test_google_embeddings.py`:1
+- c0274: `debug/test_mcp_connection.py` — `debug/test_mcp_connection.py`:1
+- c0275: `debug/test_sqlite_init.py` — `debug/test_sqlite_init.py`:1
+- c0276: `main.py` — `main.py`:1
+- c0277: `test_harness/__main__.py` — `test_harness/__main__.py`:1
+- c0278: `HarnessConfig` — `test_harness/config.py`:29
+- c0279: `AgentContainer` — `test_harness/container.py`:174
+- c0280: `test_harness/container.py` — `test_harness/container.py`:1
+- c0281: `test_harness/docker/runner.py` — `test_harness/docker/runner.py`:1
+- c0282: `test_harness/prompts.py` — `test_harness/prompts.py`:1
+- c0283: `ReportIssue` — `test_harness/report.py`:71
+- c0284: `ReportLoad` — `test_harness/report.py`:94
+- c0285: `ReportStep` — `test_harness/report.py`:60
+- c0286: `WalkthroughReport` — `test_harness/report.py`:82
+- c0287: `test_harness/report.py` — `test_harness/report.py`:1
+- c0292: `HarnessInfraError` — `test_harness/server.py`:27
+- c0293: `ThrowawayForgetful` — `test_harness/server.py`:43
+- c0294: `test_harness/server.py` — `test_harness/server.py`:1
+- c0295: `SessionOutcome` — `test_harness/walkthrough.py`:43
+- c0296: `SessionRunner` — `test_harness/walkthrough.py`:51
+- c0297: `SkillRunResult` — `test_harness/walkthrough.py`:58
+- c0298: `Walkthrough` — `test_harness/walkthrough.py`:128
+- c0299: `test_harness/walkthrough.py` — `test_harness/walkthrough.py`:1
 
 ## Relationships
 
 - c0002 ..> c0002: `run_migrations_online() calls do_run_migrations()`
 - c0002 ..> c0002: `run_migrations_online() calls run_async_migrations()`
-- c0002 ..> c0030: `run_migrations_online() calls get()`
-- c0002 ..> c0144: `run_async_migrations() calls dispose()`
-- c0002 ..> c0217: `run_migrations_online() calls run()`
+- c0002 ..> c0031: `run_migrations_online() calls get()`
+- c0002 ..> c0145: `run_async_migrations() calls dispose()`
+- c0002 ..> c0218: `run_migrations_online() calls run()`
 - c0003 ..> c0000: `downgrade() calls downgrade_postgres()`
 - c0003 ..> c0000: `upgrade() calls upgrade_postgres()`
 - c0003 ..> c0001: `downgrade() calls downgrade_sqlite()`
@@ -5236,2557 +5255,2562 @@ classDiagram
 - c0010 ..> c0010: `downgrade() calls _drop_full_provenance()`
 - c0010 ..> c0010: `upgrade() calls _add_full_provenance()`
 - c0010 ..> c0010: `upgrade() calls _add_source_files_column()`
-- c0013 --> c0014: `field services`
-- c0013 --> c0239: `field registry`
-- c0015 ..> c0013: `build_runtime() constructs Runtime`
-- c0015 ..> c0013: `type in build_runtime`
-- c0015 ..> c0013: `type in dispose_runtime`
-- c0015 ..> c0014: `build_runtime() constructs Services`
-- c0015 ..> c0015: `build_runtime() calls check_first_run_models()`
-- c0015 ..> c0015: `build_runtime() calls create_db_adapter()`
-- c0015 ..> c0015: `build_runtime() calls create_repositories()`
-- c0015 ..> c0015: `build_runtime() calls get_embedding_adapter()`
-- c0015 ..> c0015: `build_runtime() calls get_reranker_adapter()`
-- c0015 ..> c0023: `build_runtime() calls subscribe()`
-- c0015 ..> c0023: `build_runtime() constructs EventBus`
-- c0015 ..> c0023: `dispose_runtime() calls wait_for_pending()`
-- c0015 ..> c0126: `get_embedding_adapter() constructs AzureOpenAIAdapter`
-- c0015 ..> c0128: `get_embedding_adapter() constructs FastEmbeddingAdapter`
-- c0015 ..> c0129: `get_embedding_adapter() constructs GoogleEmbeddingsAdapter`
-- c0015 ..> c0130: `get_embedding_adapter() constructs OllamaEmbeddingsAdapter`
-- c0015 ..> c0131: `get_embedding_adapter() constructs OpenAIEmbeddingsAdapter`
-- c0015 ..> c0133: `get_reranker_adapter() constructs FastEmbedCrossEncoderAdapter`
-- c0015 ..> c0134: `get_reranker_adapter() constructs HttpRerankAdapter`
-- c0015 ..> c0137: `create_repositories() constructs PostgresActivityRepository`
-- c0015 ..> c0138: `create_repositories() constructs PostgresCodeArtifactRepository`
-- c0015 ..> c0139: `create_repositories() constructs PostgresDocumentRepository`
-- c0015 ..> c0140: `create_repositories() constructs PostgresEntityRepository`
-- c0015 ..> c0141: `create_repositories() constructs PostgresFileRepository`
-- c0015 ..> c0142: `create_repositories() constructs PostgresMemoryRepository`
-- c0015 ..> c0143: `create_repositories() constructs PostgresPlanRepository`
-- c0015 ..> c0144: `build_runtime() calls init_db()`
-- c0015 ..> c0144: `create_db_adapter() constructs PostgresDatabaseAdapter`
-- c0015 ..> c0144: `dispose_runtime() calls dispose()`
-- c0015 ..> c0161: `create_repositories() constructs PostgresProjectRepository`
-- c0015 ..> c0162: `create_repositories() constructs PostgresSkillRepository`
-- c0015 ..> c0163: `create_repositories() constructs PostgresTaskRepository`
-- c0015 ..> c0164: `create_repositories() constructs PostgresUserRepository`
-- c0015 ..> c0165: `create_repositories() constructs SqliteActivityRepository`
-- c0015 ..> c0166: `create_repositories() constructs SqliteCodeArtifactRepository`
-- c0015 ..> c0167: `create_repositories() constructs SqliteDocumentRepository`
-- c0015 ..> c0168: `create_repositories() constructs SqliteEntityRepository`
-- c0015 ..> c0169: `create_repositories() constructs SqliteFileRepository`
-- c0015 ..> c0170: `create_repositories() constructs SqliteMemoryRepository`
-- c0015 ..> c0171: `create_repositories() constructs SqlitePlanRepository`
-- c0015 ..> c0172: `create_repositories() constructs SqliteProjectRepository`
-- c0015 ..> c0173: `create_repositories() constructs SqliteSkillRepository`
-- c0015 ..> c0174: `create_db_adapter() constructs SqliteDatabaseAdapter`
-- c0015 ..> c0192: `create_repositories() constructs SqliteTaskRepository`
-- c0015 ..> c0193: `create_repositories() constructs SqliteUserRepository`
-- c0015 ..> c0225: `build_runtime() calls parse_scopes()`
-- c0015 ..> c0225: `build_runtime() calls resolve_permitted_tools()`
-- c0015 ..> c0238: `build_runtime() calls register_all_tools_metadata()`
-- c0015 ..> c0239: `build_runtime() calls list_categories()`
-- c0015 ..> c0239: `build_runtime() constructs ToolRegistry`
-- c0015 ..> c0241: `build_runtime() constructs ActivityService`
-- c0015 ..> c0243: `build_runtime() constructs CodeArtifactService`
-- c0015 ..> c0244: `build_runtime() constructs DocumentService`
-- c0015 ..> c0245: `build_runtime() constructs EntityService`
-- c0015 ..> c0246: `build_runtime() constructs FileService`
-- c0015 ..> c0250: `build_runtime() constructs GraphService`
-- c0015 ..> c0255: `build_runtime() calls register_access_tracking_handlers()`
-- c0015 ..> c0255: `build_runtime() constructs MemoryService`
-- c0015 ..> c0256: `build_runtime() constructs PlanService`
-- c0015 ..> c0257: `build_runtime() constructs ProjectService`
-- c0015 ..> c0261: `build_runtime() constructs SkillService`
-- c0015 ..> c0263: `build_runtime() constructs TaskService`
-- c0015 ..> c0264: `build_runtime() constructs UserService`
-- c0016 ..> c0016: `_build_github() calls _required()`
-- c0016 ..> c0016: `_build_github() calls _scopes()`
-- c0016 ..> c0016: `_build_google() calls _required()`
-- c0016 ..> c0016: `_build_google() calls _scopes()`
-- c0016 ..> c0016: `_build_introspection() calls _required()`
-- c0016 ..> c0016: `_build_introspection() calls _scopes()`
-- c0016 ..> c0016: `_build_jwt() calls _scopes()`
-- c0016 ..> c0030: `build_auth_provider() calls get()`
-- c0018 ..> c0030: `format() calls get()`
-- c0018 ..> c0032: `format() calls get_request_id()`
-- c0018 ..> c0032: `format() calls get_user_id()`
-- c0019 ..> c0019: `filter() calls _mask_value()`
-- c0020 ..> c0017: `configure_logging() constructs ConsoleFormatter`
-- c0020 ..> c0018: `configure_logging() constructs JSONFormatter`
-- c0020 ..> c0019: `configure_logging() constructs SensitiveDataFilter`
-- c0020 ..> c0023: `configure_logging() calls clear()`
-- c0020 ..> c0278: `configure_logging() calls start()`
-- c0020 ..> c0278: `shutdown_logging() calls stop()`
-- c0021 ..> c0022: `_validate_onnx_providers() calls parse_onnx_providers()`
-- c0021 ..> c0022: `embedding_onnx_providers() calls parse_onnx_providers()`
-- c0021 ..> c0022: `reranking_onnx_providers() calls parse_onnx_providers()`
-- c0023 ..> c0023: `_emit_to_streams() calls _next_seq()`
-- c0023 ..> c0023: `emit() calls _emit_to_streams()`
-- c0023 ..> c0023: `emit() calls _safe_dispatch()`
-- c0023 ..> c0030: `_emit_to_streams() calls get()`
-- c0023 ..> c0030: `clear() calls clear()`
-- c0023 ..> c0030: `get_current_seq() calls get()`
-- c0023 ..> c0030: `stream_subscriber_count() calls get()`
-- c0023 ..> c0030: `subscribe_stream() calls get()`
-- c0023 ..> c0030: `subscriber_count() calls get()`
-- c0023 ..> c0034: `type in _emit_to_streams`
-- c0023 ..> c0034: `type in _safe_dispatch`
-- c0023 ..> c0034: `type in emit`
-- c0023 ..> c0124: `emit() calls create_task()`
-- c0029 --> c0109: `field user`
-- c0030 ..> c0023: `clear() calls clear()`
-- c0030 --> c0029: `field _cache`
-- c0030 ..> c0029: `set() constructs CacheEntry`
-- c0030 ..> c0030: `get() calls _hash_token()`
-- c0030 ..> c0030: `invalidate() calls _hash_token()`
-- c0030 ..> c0030: `set() calls _hash_token()`
-- c0030 ..> c0109: `type in get`
-- c0030 ..> c0109: `type in set`
-- c0031 ..> c0030: `get_user_from_auth() calls get()`
-- c0031 ..> c0030: `get_user_from_request() calls get()`
-- c0031 ..> c0109: `type in get_user_from_auth`
-- c0031 ..> c0109: `type in get_user_from_request`
-- c0031 ..> c0110: `get_user_from_auth() constructs UserCreate`
-- c0031 ..> c0110: `get_user_from_request() constructs UserCreate`
-- c0031 ..> c0264: `get_user_from_auth() calls get_or_create_user()`
-- c0031 ..> c0264: `get_user_from_request() calls get_or_create_user()`
-- c0032 ..> c0030: `get_request_id() calls get()`
-- c0032 ..> c0030: `get_user_id() calls get()`
-- c0034 --> c0033: `field action`
-- c0034 --> c0037: `field actor`
-- c0034 --> c0038: `field entity_type`
-- c0035 --> c0036: `field events`
-- c0036 --> c0033: `field action`
-- c0036 --> c0037: `field actor`
-- c0036 --> c0038: `field entity_type`
-- c0039 --|> c0040: `inherits`
-- c0043 --|> c0044: `inherits`
-- c0044 ..> c0030: `calculate_size_bytes() calls get()`
-- c0047 --|> c0048: `inherits`
-- c0048 --> c0054: `field entity_type`
-- c0049 --> c0053: `field entities`
-- c0050 --|> c0051: `inherits`
-- c0053 --> c0054: `field entity_type`
-- c0055 --> c0054: `field entity_type`
-- c0056 --|> c0057: `inherits`
-- c0063 --> c0060: `field edges`
-- c0063 --> c0061: `field meta`
-- c0063 --> c0062: `field nodes`
-- c0064 --> c0065: `field memory`
-- c0065 --|> c0066: `inherits`
-- c0067 --> c0073: `field similar_memories`
-- c0067 --> c0075: `field obsolete_matches`
-- c0069 --> c0065: `field memories`
-- c0071 --> c0064: `field linked_memories`
-- c0071 --> c0065: `field primary_memories`
-- c0071 --> c0072: `field scores`
-- c0080 --|> c0081: `inherits`
-- c0081 --> c0082: `field status`
-- c0083 --> c0082: `field status`
-- c0084 --> c0082: `field status`
-- c0085 --> c0077: `field criteria`
-- c0085 --> c0089: `field priority`
-- c0085 --> c0090: `field state`
+- c0014 --> c0015: `field services`
+- c0014 --> c0240: `field registry`
+- c0016 ..> c0014: `build_runtime() constructs Runtime`
+- c0016 ..> c0014: `type in build_runtime`
+- c0016 ..> c0014: `type in dispose_runtime`
+- c0016 ..> c0015: `build_runtime() constructs Services`
+- c0016 ..> c0016: `build_runtime() calls check_first_run_models()`
+- c0016 ..> c0016: `build_runtime() calls create_db_adapter()`
+- c0016 ..> c0016: `build_runtime() calls create_repositories()`
+- c0016 ..> c0016: `build_runtime() calls get_embedding_adapter()`
+- c0016 ..> c0016: `build_runtime() calls get_reranker_adapter()`
+- c0016 ..> c0024: `build_runtime() calls subscribe()`
+- c0016 ..> c0024: `build_runtime() constructs EventBus`
+- c0016 ..> c0024: `dispose_runtime() calls wait_for_pending()`
+- c0016 ..> c0127: `get_embedding_adapter() constructs AzureOpenAIAdapter`
+- c0016 ..> c0129: `get_embedding_adapter() constructs FastEmbeddingAdapter`
+- c0016 ..> c0130: `get_embedding_adapter() constructs GoogleEmbeddingsAdapter`
+- c0016 ..> c0131: `get_embedding_adapter() constructs OllamaEmbeddingsAdapter`
+- c0016 ..> c0132: `get_embedding_adapter() constructs OpenAIEmbeddingsAdapter`
+- c0016 ..> c0134: `get_reranker_adapter() constructs FastEmbedCrossEncoderAdapter`
+- c0016 ..> c0135: `get_reranker_adapter() constructs HttpRerankAdapter`
+- c0016 ..> c0138: `create_repositories() constructs PostgresActivityRepository`
+- c0016 ..> c0139: `create_repositories() constructs PostgresCodeArtifactRepository`
+- c0016 ..> c0140: `create_repositories() constructs PostgresDocumentRepository`
+- c0016 ..> c0141: `create_repositories() constructs PostgresEntityRepository`
+- c0016 ..> c0142: `create_repositories() constructs PostgresFileRepository`
+- c0016 ..> c0143: `create_repositories() constructs PostgresMemoryRepository`
+- c0016 ..> c0144: `create_repositories() constructs PostgresPlanRepository`
+- c0016 ..> c0145: `build_runtime() calls init_db()`
+- c0016 ..> c0145: `create_db_adapter() constructs PostgresDatabaseAdapter`
+- c0016 ..> c0145: `dispose_runtime() calls dispose()`
+- c0016 ..> c0162: `create_repositories() constructs PostgresProjectRepository`
+- c0016 ..> c0163: `create_repositories() constructs PostgresSkillRepository`
+- c0016 ..> c0164: `create_repositories() constructs PostgresTaskRepository`
+- c0016 ..> c0165: `create_repositories() constructs PostgresUserRepository`
+- c0016 ..> c0166: `create_repositories() constructs SqliteActivityRepository`
+- c0016 ..> c0167: `create_repositories() constructs SqliteCodeArtifactRepository`
+- c0016 ..> c0168: `create_repositories() constructs SqliteDocumentRepository`
+- c0016 ..> c0169: `create_repositories() constructs SqliteEntityRepository`
+- c0016 ..> c0170: `create_repositories() constructs SqliteFileRepository`
+- c0016 ..> c0171: `create_repositories() constructs SqliteMemoryRepository`
+- c0016 ..> c0172: `create_repositories() constructs SqlitePlanRepository`
+- c0016 ..> c0173: `create_repositories() constructs SqliteProjectRepository`
+- c0016 ..> c0174: `create_repositories() constructs SqliteSkillRepository`
+- c0016 ..> c0175: `create_db_adapter() constructs SqliteDatabaseAdapter`
+- c0016 ..> c0193: `create_repositories() constructs SqliteTaskRepository`
+- c0016 ..> c0194: `create_repositories() constructs SqliteUserRepository`
+- c0016 ..> c0226: `build_runtime() calls parse_scopes()`
+- c0016 ..> c0226: `build_runtime() calls resolve_permitted_tools()`
+- c0016 ..> c0239: `build_runtime() calls register_all_tools_metadata()`
+- c0016 ..> c0240: `build_runtime() calls list_categories()`
+- c0016 ..> c0240: `build_runtime() constructs ToolRegistry`
+- c0016 ..> c0242: `build_runtime() constructs ActivityService`
+- c0016 ..> c0244: `build_runtime() constructs CodeArtifactService`
+- c0016 ..> c0245: `build_runtime() constructs DocumentService`
+- c0016 ..> c0246: `build_runtime() constructs EntityService`
+- c0016 ..> c0247: `build_runtime() constructs FileService`
+- c0016 ..> c0251: `build_runtime() constructs GraphService`
+- c0016 ..> c0256: `build_runtime() calls register_access_tracking_handlers()`
+- c0016 ..> c0256: `build_runtime() constructs MemoryService`
+- c0016 ..> c0257: `build_runtime() constructs PlanService`
+- c0016 ..> c0258: `build_runtime() constructs ProjectService`
+- c0016 ..> c0262: `build_runtime() constructs SkillService`
+- c0016 ..> c0264: `build_runtime() constructs TaskService`
+- c0016 ..> c0265: `build_runtime() constructs UserService`
+- c0017 ..> c0017: `_build_github() calls _required()`
+- c0017 ..> c0017: `_build_github() calls _scopes()`
+- c0017 ..> c0017: `_build_google() calls _required()`
+- c0017 ..> c0017: `_build_google() calls _scopes()`
+- c0017 ..> c0017: `_build_introspection() calls _required()`
+- c0017 ..> c0017: `_build_introspection() calls _scopes()`
+- c0017 ..> c0017: `_build_jwt() calls _scopes()`
+- c0017 ..> c0031: `build_auth_provider() calls get()`
+- c0019 ..> c0031: `format() calls get()`
+- c0019 ..> c0033: `format() calls get_request_id()`
+- c0019 ..> c0033: `format() calls get_user_id()`
+- c0020 ..> c0020: `filter() calls _mask_value()`
+- c0021 ..> c0018: `configure_logging() constructs ConsoleFormatter`
+- c0021 ..> c0019: `configure_logging() constructs JSONFormatter`
+- c0021 ..> c0020: `configure_logging() constructs SensitiveDataFilter`
+- c0021 ..> c0024: `configure_logging() calls clear()`
+- c0021 ..> c0279: `configure_logging() calls start()`
+- c0021 ..> c0279: `shutdown_logging() calls stop()`
+- c0022 ..> c0023: `_validate_onnx_providers() calls parse_onnx_providers()`
+- c0022 ..> c0023: `embedding_onnx_providers() calls parse_onnx_providers()`
+- c0022 ..> c0023: `reranking_onnx_providers() calls parse_onnx_providers()`
+- c0024 ..> c0024: `_emit_to_streams() calls _next_seq()`
+- c0024 ..> c0024: `emit() calls _emit_to_streams()`
+- c0024 ..> c0024: `emit() calls _safe_dispatch()`
+- c0024 ..> c0031: `_emit_to_streams() calls get()`
+- c0024 ..> c0031: `clear() calls clear()`
+- c0024 ..> c0031: `get_current_seq() calls get()`
+- c0024 ..> c0031: `stream_subscriber_count() calls get()`
+- c0024 ..> c0031: `subscribe_stream() calls get()`
+- c0024 ..> c0031: `subscriber_count() calls get()`
+- c0024 ..> c0035: `type in _emit_to_streams`
+- c0024 ..> c0035: `type in _safe_dispatch`
+- c0024 ..> c0035: `type in emit`
+- c0024 ..> c0125: `emit() calls create_task()`
+- c0030 --> c0110: `field user`
+- c0031 ..> c0024: `clear() calls clear()`
+- c0031 --> c0030: `field _cache`
+- c0031 ..> c0030: `set() constructs CacheEntry`
+- c0031 ..> c0031: `get() calls _hash_token()`
+- c0031 ..> c0031: `invalidate() calls _hash_token()`
+- c0031 ..> c0031: `set() calls _hash_token()`
+- c0031 ..> c0110: `type in get`
+- c0031 ..> c0110: `type in set`
+- c0032 ..> c0031: `get_user_from_auth() calls get()`
+- c0032 ..> c0031: `get_user_from_request() calls get()`
+- c0032 ..> c0110: `type in get_user_from_auth`
+- c0032 ..> c0110: `type in get_user_from_request`
+- c0032 ..> c0111: `get_user_from_auth() constructs UserCreate`
+- c0032 ..> c0111: `get_user_from_request() constructs UserCreate`
+- c0032 ..> c0265: `get_user_from_auth() calls get_or_create_user()`
+- c0032 ..> c0265: `get_user_from_request() calls get_or_create_user()`
+- c0033 ..> c0031: `get_request_id() calls get()`
+- c0033 ..> c0031: `get_user_id() calls get()`
+- c0035 --> c0034: `field action`
+- c0035 --> c0038: `field actor`
+- c0035 --> c0039: `field entity_type`
+- c0036 --> c0037: `field events`
+- c0037 --> c0034: `field action`
+- c0037 --> c0038: `field actor`
+- c0037 --> c0039: `field entity_type`
+- c0040 --|> c0041: `inherits`
+- c0044 --|> c0045: `inherits`
+- c0045 ..> c0031: `calculate_size_bytes() calls get()`
+- c0048 --|> c0049: `inherits`
+- c0049 --> c0055: `field entity_type`
+- c0050 --> c0054: `field entities`
+- c0051 --|> c0052: `inherits`
+- c0054 --> c0055: `field entity_type`
+- c0056 --> c0055: `field entity_type`
+- c0057 --|> c0058: `inherits`
+- c0064 --> c0061: `field edges`
+- c0064 --> c0062: `field meta`
+- c0064 --> c0063: `field nodes`
+- c0065 --> c0066: `field memory`
+- c0066 --|> c0067: `inherits`
+- c0068 --> c0074: `field similar_memories`
+- c0068 --> c0076: `field obsolete_matches`
+- c0070 --> c0066: `field memories`
+- c0072 --> c0065: `field linked_memories`
+- c0072 --> c0066: `field primary_memories`
+- c0072 --> c0073: `field scores`
+- c0081 --|> c0082: `inherits`
+- c0082 --> c0083: `field status`
+- c0084 --> c0083: `field status`
+- c0085 ..> c0031: `ignore_null_external_ref() calls get()`
+- c0085 --> c0083: `field status`
 - c0086 --> c0078: `field criteria`
-- c0086 --> c0089: `field priority`
-- c0088 ..> c0030: `cannot_depend_on_self() calls get()`
-- c0091 --> c0089: `field priority`
-- c0091 --> c0090: `field state`
-- c0092 --> c0089: `field priority`
-- c0093 --|> c0094: `inherits`
-- c0094 --> c0095: `field status`
-- c0094 --> c0097: `field project_type`
-- c0096 --> c0095: `field status`
-- c0096 --> c0097: `field project_type`
-- c0098 --> c0095: `field status`
-- c0098 --> c0097: `field project_type`
-- c0099 --|> c0100: `inherits`
-- c0105 --|> c0107: `inherits`
-- c0106 --> c0107: `field metadata`
-- c0107 ..> c0030: `_map_python_type_to_json_type() calls get()`
-- c0107 --> c0104: `field category`
-- c0107 ..> c0107: `_generate_json_schema() calls _map_python_type_to_json_type()`
-- c0107 ..> c0107: `to_detailed_dict() calls _generate_json_schema()`
-- c0107 --> c0108: `field parameters`
-- c0109 --|> c0110: `inherits`
-- c0113 ..> c0033: `type in count_events`
-- c0113 ..> c0033: `type in query_events`
-- c0113 ..> c0034: `type in save_event`
-- c0113 ..> c0036: `type in query_events`
-- c0113 ..> c0036: `type in save_event`
-- c0113 ..> c0037: `type in query_events`
-- c0113 ..> c0038: `type in count_events`
-- c0113 ..> c0038: `type in query_events`
-- c0114 ..> c0039: `type in create_code_artifact`
-- c0114 ..> c0039: `type in get_code_artifact_by_id`
-- c0114 ..> c0039: `type in update_code_artifact`
-- c0114 ..> c0040: `type in create_code_artifact`
-- c0114 ..> c0041: `type in list_code_artifacts`
-- c0114 ..> c0042: `type in update_code_artifact`
-- c0115 ..> c0043: `type in create_document`
-- c0115 ..> c0043: `type in get_document_by_id`
-- c0115 ..> c0043: `type in update_document`
-- c0115 ..> c0044: `type in create_document`
-- c0115 ..> c0045: `type in list_documents`
-- c0115 ..> c0046: `type in update_document`
-- c0116 ..> c0047: `type in create_entity`
-- c0116 ..> c0047: `type in get_entity_by_id`
-- c0116 ..> c0047: `type in update_entity`
-- c0116 ..> c0048: `type in create_entity`
-- c0116 ..> c0050: `type in create_entity_relationship`
-- c0116 ..> c0050: `type in get_all_entity_relationships`
-- c0116 ..> c0050: `type in get_entity_relationships`
-- c0116 ..> c0050: `type in update_entity_relationship`
-- c0116 ..> c0051: `type in create_entity_relationship`
-- c0116 ..> c0052: `type in update_entity_relationship`
-- c0116 ..> c0053: `type in list_entities`
-- c0116 ..> c0053: `type in search_entities`
-- c0116 ..> c0054: `type in list_entities`
-- c0116 ..> c0054: `type in search_entities`
-- c0116 ..> c0055: `type in update_entity`
-- c0118 ..> c0056: `type in create_file`
-- c0118 ..> c0056: `type in get_file_by_id`
-- c0118 ..> c0056: `type in update_file`
-- c0118 ..> c0057: `type in create_file`
-- c0118 ..> c0058: `type in list_files`
-- c0118 ..> c0059: `type in update_file`
-- c0119 ..> c0065: `type in create_memory`
-- c0119 ..> c0065: `type in find_obsolete_matches`
-- c0119 ..> c0065: `type in find_similar_memories`
-- c0119 ..> c0065: `type in find_similar_memories_scored`
-- c0119 ..> c0065: `type in get_linked_memories`
-- c0119 ..> c0065: `type in get_memories_for_reembedding`
-- c0119 ..> c0065: `type in get_memories_for_targeted_rebuild`
-- c0119 ..> c0065: `type in get_memory_by_id`
-- c0119 ..> c0065: `type in list_memories`
-- c0119 ..> c0065: `type in search`
-- c0119 ..> c0065: `type in search_scored`
-- c0119 ..> c0065: `type in update_memory`
-- c0119 ..> c0066: `type in create_memory`
-- c0119 ..> c0072: `type in search_scored`
-- c0119 ..> c0074: `type in update_memory`
-- c0121 ..> c0080: `type in create_plan`
-- c0121 ..> c0080: `type in get_plan_by_id`
-- c0121 ..> c0080: `type in update_plan`
-- c0121 ..> c0081: `type in create_plan`
-- c0121 ..> c0082: `type in list_plans`
-- c0121 ..> c0083: `type in list_plans`
-- c0121 ..> c0084: `type in update_plan`
-- c0122 ..> c0093: `type in create_project`
-- c0122 ..> c0093: `type in get_project_by_id`
-- c0122 ..> c0093: `type in update_project`
-- c0122 ..> c0094: `type in create_project`
-- c0122 ..> c0095: `type in list_projects`
-- c0122 ..> c0096: `type in list_projects`
-- c0122 ..> c0098: `type in update_project`
-- c0123 ..> c0099: `type in create_skill`
-- c0123 ..> c0099: `type in get_skill_by_id`
-- c0123 ..> c0099: `type in update_skill`
-- c0123 ..> c0100: `type in create_skill`
-- c0123 ..> c0101: `type in get_skill_links`
-- c0123 ..> c0102: `type in list_skills`
-- c0123 ..> c0102: `type in search_skills`
-- c0123 ..> c0103: `type in update_skill`
-- c0124 ..> c0077: `type in create_criterion`
-- c0124 ..> c0077: `type in get_criteria_for_task`
-- c0124 ..> c0077: `type in update_criterion`
-- c0124 ..> c0078: `type in create_criterion`
-- c0124 ..> c0079: `type in update_criterion`
-- c0124 ..> c0085: `type in create_task`
-- c0124 ..> c0085: `type in get_task_by_id`
-- c0124 ..> c0085: `type in transition_task_state`
-- c0124 ..> c0085: `type in update_task`
-- c0124 ..> c0086: `type in create_task`
-- c0124 ..> c0087: `type in add_dependency`
-- c0124 ..> c0089: `type in list_tasks`
-- c0124 ..> c0090: `type in list_tasks`
-- c0124 ..> c0090: `type in transition_task_state`
-- c0124 ..> c0091: `type in list_tasks`
-- c0124 ..> c0091: `type in list_tasks_for_user`
-- c0124 ..> c0092: `type in update_task`
-- c0125 ..> c0109: `type in create_user`
-- c0125 ..> c0109: `type in get_user_by_external_id`
-- c0125 ..> c0109: `type in get_user_by_id`
-- c0125 ..> c0109: `type in update_user`
-- c0125 ..> c0110: `type in create_user`
-- c0125 ..> c0112: `type in update_user`
-- c0126 --|> c0127: `inherits`
-- c0128 --|> c0127: `inherits`
-- c0129 --|> c0127: `inherits`
-- c0130 --|> c0127: `inherits`
-- c0130 ..> c0128: `__init__() calls _create_text_embedding()`
-- c0130 ..> c0132: `__init__() calls load_fastembed_model()`
-- c0130 ..> c0210: `generate_embedding() calls create()`
-- c0131 --|> c0127: `inherits`
-- c0132 ..> c0132: `load_fastembed_model() calls get_fastembed_kwargs()`
-- c0133 ..> c0134: `_rerank_sync() calls rerank()`
-- c0134 ..> c0132: `__init__() calls load_fastembed_model()`
-- c0134 ..> c0133: `__init__() calls _create_text_cross_encoder()`
-- c0136 ..> c0065: `type in build_memory_text`
-- c0136 ..> c0066: `type in build_embedding_text`
-- c0137 ..> c0033: `type in count_events`
-- c0137 ..> c0033: `type in query_events`
-- c0137 ..> c0034: `type in save_event`
-- c0137 ..> c0036: `query_events() constructs ActivityLogEntry`
-- c0137 ..> c0036: `save_event() constructs ActivityLogEntry`
-- c0137 ..> c0036: `type in query_events`
-- c0137 ..> c0036: `type in save_event`
-- c0137 ..> c0037: `type in query_events`
-- c0137 ..> c0038: `type in count_events`
-- c0137 ..> c0038: `type in query_events`
-- c0137 ..> c0117: `cleanup_expired() calls execute()`
-- c0137 ..> c0117: `count_events() calls execute()`
-- c0137 ..> c0117: `query_events() calls execute()`
-- c0137 ..> c0144: `cleanup_expired() calls session()`
-- c0137 ..> c0144: `count_events() calls session()`
-- c0137 ..> c0144: `query_events() calls session()`
-- c0137 ..> c0144: `save_event() calls session()`
-- c0137 ..> c0144: `type in __init__`
-- c0137 ..> c0145: `save_event() constructs ActivityLogTable`
-- c0138 ..> c0028: `update_code_artifact() constructs NotFoundError`
-- c0138 ..> c0030: `update_code_artifact() calls get()`
-- c0138 ..> c0039: `type in create_code_artifact`
-- c0138 ..> c0039: `type in get_code_artifact_by_id`
-- c0138 ..> c0039: `type in update_code_artifact`
-- c0138 ..> c0040: `type in create_code_artifact`
-- c0138 ..> c0041: `type in list_code_artifacts`
-- c0138 ..> c0042: `type in update_code_artifact`
-- c0138 ..> c0117: `delete_code_artifact() calls execute()`
-- c0138 ..> c0117: `get_code_artifact_by_id() calls execute()`
-- c0138 ..> c0117: `list_code_artifacts() calls execute()`
-- c0138 ..> c0117: `update_code_artifact() calls execute()`
-- c0138 ..> c0144: `create_code_artifact() calls session()`
-- c0138 ..> c0144: `delete_code_artifact() calls session()`
-- c0138 ..> c0144: `get_code_artifact_by_id() calls session()`
-- c0138 ..> c0144: `list_code_artifacts() calls session()`
-- c0138 ..> c0144: `type in __init__`
-- c0138 ..> c0144: `update_code_artifact() calls session()`
-- c0138 ..> c0147: `create_code_artifact() constructs CodeArtifactsTable`
-- c0139 ..> c0028: `update_document() constructs NotFoundError`
-- c0139 ..> c0030: `update_document() calls get()`
-- c0139 ..> c0043: `type in create_document`
-- c0139 ..> c0043: `type in get_document_by_id`
-- c0139 ..> c0043: `type in update_document`
-- c0139 ..> c0044: `type in create_document`
-- c0139 ..> c0045: `type in list_documents`
-- c0139 ..> c0046: `type in update_document`
-- c0139 ..> c0117: `delete_document() calls execute()`
-- c0139 ..> c0117: `get_document_by_id() calls execute()`
-- c0139 ..> c0117: `list_documents() calls execute()`
-- c0139 ..> c0117: `update_document() calls execute()`
-- c0139 ..> c0144: `create_document() calls session()`
-- c0139 ..> c0144: `delete_document() calls session()`
-- c0139 ..> c0144: `get_document_by_id() calls session()`
-- c0139 ..> c0144: `list_documents() calls session()`
-- c0139 ..> c0144: `type in __init__`
-- c0139 ..> c0144: `update_document() calls session()`
-- c0139 ..> c0149: `create_document() constructs DocumentsTable`
-- c0140 ..> c0028: `create_entity_relationship() constructs NotFoundError`
-- c0140 ..> c0028: `get_entity_memories() constructs NotFoundError`
-- c0140 ..> c0028: `get_entity_relationships() constructs NotFoundError`
-- c0140 ..> c0028: `get_memory_entities() constructs NotFoundError`
-- c0140 ..> c0028: `link_entity_to_memory() constructs NotFoundError`
-- c0140 ..> c0028: `link_entity_to_project() constructs NotFoundError`
-- c0140 ..> c0028: `update_entity() constructs NotFoundError`
-- c0140 ..> c0028: `update_entity_relationship() constructs NotFoundError`
-- c0140 ..> c0030: `update_entity() calls get()`
-- c0140 ..> c0047: `type in create_entity`
-- c0140 ..> c0047: `type in get_entity_by_id`
-- c0140 ..> c0047: `type in update_entity`
-- c0140 ..> c0048: `type in create_entity`
-- c0140 ..> c0050: `create_entity_relationship() constructs EntityRelationship`
-- c0140 ..> c0050: `get_all_entity_relationships() constructs EntityRelationship`
-- c0140 ..> c0050: `get_entity_relationships() constructs EntityRelationship`
-- c0140 ..> c0050: `type in create_entity_relationship`
-- c0140 ..> c0050: `type in get_all_entity_relationships`
-- c0140 ..> c0050: `type in get_entity_relationships`
-- c0140 ..> c0050: `type in update_entity_relationship`
-- c0140 ..> c0050: `update_entity_relationship() constructs EntityRelationship`
-- c0140 ..> c0051: `type in create_entity_relationship`
-- c0140 ..> c0052: `type in update_entity_relationship`
-- c0140 ..> c0053: `type in list_entities`
-- c0140 ..> c0053: `type in search_entities`
-- c0140 ..> c0054: `type in list_entities`
-- c0140 ..> c0054: `type in search_entities`
-- c0140 ..> c0055: `type in update_entity`
-- c0140 ..> c0117: `create_entity() calls execute()`
-- c0140 ..> c0117: `create_entity_relationship() calls execute()`
-- c0140 ..> c0117: `delete_entity() calls execute()`
-- c0140 ..> c0117: `delete_entity_relationship() calls execute()`
-- c0140 ..> c0117: `get_all_entity_file_links() calls execute()`
-- c0140 ..> c0117: `get_all_entity_memory_links() calls execute()`
-- c0140 ..> c0117: `get_all_entity_project_links() calls execute()`
-- c0140 ..> c0117: `get_all_entity_relationships() calls execute()`
-- c0140 ..> c0117: `get_entity_by_id() calls execute()`
-- c0140 ..> c0117: `get_entity_memories() calls execute()`
-- c0140 ..> c0117: `get_entity_relationships() calls execute()`
-- c0140 ..> c0117: `get_memory_entities() calls execute()`
-- c0140 ..> c0117: `link_entity_to_memory() calls execute()`
-- c0140 ..> c0117: `link_entity_to_project() calls execute()`
-- c0140 ..> c0117: `list_entities() calls execute()`
-- c0140 ..> c0117: `search_entities() calls execute()`
-- c0140 ..> c0117: `unlink_entity_from_memory() calls execute()`
-- c0140 ..> c0117: `unlink_entity_from_project() calls execute()`
-- c0140 ..> c0117: `update_entity() calls execute()`
-- c0140 ..> c0117: `update_entity_relationship() calls execute()`
-- c0140 ..> c0144: `create_entity() calls session()`
-- c0140 ..> c0144: `create_entity_relationship() calls session()`
-- c0140 ..> c0144: `delete_entity() calls session()`
-- c0140 ..> c0144: `delete_entity_relationship() calls session()`
-- c0140 ..> c0144: `get_all_entity_file_links() calls session()`
-- c0140 ..> c0144: `get_all_entity_memory_links() calls session()`
-- c0140 ..> c0144: `get_all_entity_project_links() calls session()`
-- c0140 ..> c0144: `get_all_entity_relationships() calls session()`
-- c0140 ..> c0144: `get_entity_by_id() calls session()`
-- c0140 ..> c0144: `get_entity_memories() calls session()`
-- c0140 ..> c0144: `get_entity_relationships() calls session()`
-- c0140 ..> c0144: `get_memory_entities() calls session()`
-- c0140 ..> c0144: `link_entity_to_memory() calls session()`
-- c0140 ..> c0144: `link_entity_to_project() calls session()`
-- c0140 ..> c0144: `list_entities() calls session()`
-- c0140 ..> c0144: `search_entities() calls session()`
-- c0140 ..> c0144: `type in __init__`
-- c0140 ..> c0144: `unlink_entity_from_memory() calls session()`
-- c0140 ..> c0144: `unlink_entity_from_project() calls session()`
-- c0140 ..> c0144: `update_entity() calls session()`
-- c0140 ..> c0144: `update_entity_relationship() calls session()`
-- c0140 ..> c0150: `create_entity() constructs EntitiesTable`
-- c0140 ..> c0151: `create_entity_relationship() constructs EntityRelationshipsTable`
-- c0141 ..> c0028: `update_file() constructs NotFoundError`
-- c0141 ..> c0056: `_to_file_model() constructs File`
-- c0141 ..> c0056: `type in _to_file_model`
-- c0141 ..> c0056: `type in create_file`
-- c0141 ..> c0056: `type in get_file_by_id`
-- c0141 ..> c0056: `type in update_file`
-- c0141 ..> c0057: `type in create_file`
-- c0141 ..> c0058: `type in list_files`
-- c0141 ..> c0059: `type in update_file`
-- c0141 ..> c0117: `delete_file() calls execute()`
-- c0141 ..> c0117: `get_file_by_id() calls execute()`
-- c0141 ..> c0117: `list_files() calls execute()`
-- c0141 ..> c0117: `update_file() calls execute()`
-- c0141 ..> c0141: `create_file() calls _to_file_model()`
-- c0141 ..> c0141: `get_file_by_id() calls _to_file_model()`
-- c0141 ..> c0141: `update_file() calls _to_file_model()`
-- c0141 ..> c0144: `create_file() calls session()`
-- c0141 ..> c0144: `delete_file() calls session()`
-- c0141 ..> c0144: `get_file_by_id() calls session()`
-- c0141 ..> c0144: `list_files() calls session()`
-- c0141 ..> c0144: `type in __init__`
-- c0141 ..> c0144: `update_file() calls session()`
-- c0141 ..> c0152: `create_file() constructs FilesTable`
-- c0141 ..> c0152: `type in _to_file_model`
-- c0142 ..> c0023: `update_memory() calls clear()`
-- c0142 ..> c0028: `_link_code_artifacts() constructs NotFoundError`
-- c0142 ..> c0028: `_link_documents() constructs NotFoundError`
-- c0142 ..> c0028: `_link_files() constructs NotFoundError`
-- c0142 ..> c0028: `_link_projects() constructs NotFoundError`
-- c0142 ..> c0028: `_link_skills() constructs NotFoundError`
-- c0142 ..> c0028: `create_link() constructs NotFoundError`
-- c0142 ..> c0028: `get_linked_memories() constructs NotFoundError`
-- c0142 ..> c0028: `get_memory_by_id() constructs NotFoundError`
-- c0142 ..> c0028: `get_memory_table_by_id() constructs NotFoundError`
-- c0142 ..> c0028: `mark_obsolete() constructs NotFoundError`
-- c0142 ..> c0028: `update_memory() constructs NotFoundError`
-- c0142 ..> c0030: `create_link() calls get()`
-- c0142 ..> c0030: `list_memories() calls get()`
-- c0142 ..> c0065: `type in create_memory`
-- c0142 ..> c0065: `type in find_obsolete_matches`
-- c0142 ..> c0065: `type in find_similar_memories`
-- c0142 ..> c0065: `type in find_similar_memories_scored`
-- c0142 ..> c0065: `type in get_linked_memories`
-- c0142 ..> c0065: `type in get_memories_for_reembedding`
-- c0142 ..> c0065: `type in get_memories_for_targeted_rebuild`
-- c0142 ..> c0065: `type in get_memory_by_id`
-- c0142 ..> c0065: `type in list_memories`
-- c0142 ..> c0065: `type in search`
-- c0142 ..> c0065: `type in search_scored`
-- c0142 ..> c0065: `type in semantic_search`
-- c0142 ..> c0065: `type in semantic_search_scored`
-- c0142 ..> c0065: `type in update_memory`
-- c0142 ..> c0066: `type in create_memory`
-- c0142 ..> c0072: `search_scored() constructs MemoryScore`
-- c0142 ..> c0072: `type in search_scored`
-- c0142 ..> c0074: `type in update_memory`
-- c0142 ..> c0117: `_link_code_artifacts() calls execute()`
-- c0142 ..> c0117: `_link_documents() calls execute()`
-- c0142 ..> c0117: `_link_files() calls execute()`
-- c0142 ..> c0117: `_link_projects() calls execute()`
-- c0142 ..> c0117: `_link_skills() calls execute()`
-- c0142 ..> c0117: `bulk_update_embeddings() calls execute()`
-- c0142 ..> c0117: `count_memories_for_targeted_rebuild() calls execute()`
-- c0142 ..> c0117: `create_memory() calls execute()`
-- c0142 ..> c0117: `find_obsolete_matches() calls execute()`
-- c0142 ..> c0117: `find_similar_memories_scored() calls execute()`
-- c0142 ..> c0117: `get_linked_memories() calls execute()`
-- c0142 ..> c0117: `get_memories_for_reembedding() calls execute()`
-- c0142 ..> c0117: `get_memories_for_targeted_rebuild() calls execute()`
-- c0142 ..> c0117: `get_memory_table_by_id() calls execute()`
-- c0142 ..> c0117: `get_subgraph_nodes() calls execute()`
-- c0142 ..> c0117: `list_memories() calls execute()`
-- c0142 ..> c0117: `mark_obsolete() calls execute()`
-- c0142 ..> c0117: `record_memory_access() calls execute()`
-- c0142 ..> c0117: `reset_embedding_storage() calls execute()`
-- c0142 ..> c0117: `semantic_search_scored() calls execute()`
-- c0142 ..> c0117: `unlink_memories() calls execute()`
-- c0142 ..> c0117: `update_memory() calls execute()`
-- c0142 ..> c0117: `upsert_targeted_embeddings() calls execute()`
-- c0142 ..> c0117: `validate_embedding_dimensions() calls execute()`
-- c0142 ..> c0117: `validate_search_works() calls execute()`
-- c0142 ..> c0127: `type in __init__`
-- c0142 ..> c0130: `_generate_embeddings() calls generate_embedding()`
-- c0142 ..> c0134: `search_scored() calls rerank()`
-- c0142 ..> c0135: `type in __init__`
-- c0142 ..> c0136: `create_memory() calls build_embedding_text()`
-- c0142 ..> c0136: `search_scored() calls build_contextual_query()`
-- c0142 ..> c0136: `search_scored() calls build_memory_text()`
-- c0142 ..> c0136: `update_memory() calls build_embedding_text()`
-- c0142 ..> c0142: `count_memories_for_targeted_rebuild() calls _build_targeted_rebuild_filter()`
-- c0142 ..> c0142: `create_links_batch() calls create_link()`
-- c0142 ..> c0142: `create_memory() calls _generate_embeddings()`
-- c0142 ..> c0142: `create_memory() calls _link_code_artifacts()`
-- c0142 ..> c0142: `create_memory() calls _link_documents()`
-- c0142 ..> c0142: `create_memory() calls _link_files()`
-- c0142 ..> c0142: `create_memory() calls _link_projects()`
-- c0142 ..> c0142: `create_memory() calls _link_skills()`
-- c0142 ..> c0142: `find_obsolete_matches() calls get_memory_table_by_id()`
-- c0142 ..> c0142: `find_similar_memories() calls find_similar_memories_scored()`
-- c0142 ..> c0142: `find_similar_memories_scored() calls get_memory_table_by_id()`
-- c0142 ..> c0142: `get_memories_for_targeted_rebuild() calls _build_targeted_rebuild_filter()`
-- c0142 ..> c0142: `get_memory_by_id() calls get_memory_table_by_id()`
-- c0142 ..> c0142: `search() calls search_scored()`
-- c0142 ..> c0142: `search_scored() calls semantic_search_scored()`
-- c0142 ..> c0142: `semantic_search() calls semantic_search_scored()`
-- c0142 ..> c0142: `semantic_search_scored() calls _generate_embeddings()`
-- c0142 ..> c0142: `update_memory() calls _generate_embeddings()`
-- c0142 ..> c0142: `update_memory() calls _link_code_artifacts()`
-- c0142 ..> c0142: `update_memory() calls _link_documents()`
-- c0142 ..> c0142: `update_memory() calls _link_files()`
-- c0142 ..> c0142: `update_memory() calls _link_projects()`
-- c0142 ..> c0142: `validate_search_works() calls _generate_embeddings()`
-- c0142 ..> c0144: `bulk_update_embeddings() calls system_session()`
-- c0142 ..> c0144: `count_all_memories() calls system_session()`
-- c0142 ..> c0144: `count_memories_for_targeted_rebuild() calls system_session()`
-- c0142 ..> c0144: `create_link() calls session()`
-- c0142 ..> c0144: `create_memory() calls session()`
-- c0142 ..> c0144: `find_obsolete_matches() calls session()`
-- c0142 ..> c0144: `find_similar_memories_scored() calls session()`
-- c0142 ..> c0144: `get_linked_memories() calls session()`
-- c0142 ..> c0144: `get_memories_for_reembedding() calls system_session()`
-- c0142 ..> c0144: `get_memories_for_targeted_rebuild() calls system_session()`
-- c0142 ..> c0144: `get_memory_table_by_id() calls session()`
-- c0142 ..> c0144: `get_subgraph_nodes() calls session()`
-- c0142 ..> c0144: `list_memories() calls session()`
-- c0142 ..> c0144: `mark_obsolete() calls session()`
-- c0142 ..> c0144: `record_memory_access() calls system_session()`
-- c0142 ..> c0144: `reset_embedding_storage() calls system_session()`
-- c0142 ..> c0144: `semantic_search_scored() calls session()`
-- c0142 ..> c0144: `type in __init__`
-- c0142 ..> c0144: `unlink_memories() calls session()`
-- c0142 ..> c0144: `update_memory() calls session()`
-- c0142 ..> c0144: `upsert_targeted_embeddings() calls system_session()`
-- c0142 ..> c0144: `validate_embedding_count() calls system_session()`
-- c0142 ..> c0144: `validate_embedding_dimensions() calls system_session()`
-- c0142 ..> c0144: `validate_search_works() calls system_session()`
-- c0142 ..> c0153: `create_link() constructs MemoryLinkTable`
-- c0142 ..> c0153: `type in create_link`
-- c0142 ..> c0154: `create_memory() constructs MemoryTable`
-- c0142 ..> c0154: `type in _link_code_artifacts`
-- c0142 ..> c0154: `type in _link_documents`
-- c0142 ..> c0154: `type in _link_files`
-- c0142 ..> c0154: `type in _link_projects`
-- c0142 ..> c0154: `type in _link_skills`
-- c0142 ..> c0154: `type in get_memory_table_by_id`
-- c0143 ..> c0028: `update_plan() constructs NotFoundError`
-- c0143 ..> c0080: `type in create_plan`
-- c0143 ..> c0080: `type in get_plan_by_id`
-- c0143 ..> c0080: `type in update_plan`
-- c0143 ..> c0081: `type in create_plan`
-- c0143 ..> c0082: `type in list_plans`
-- c0143 ..> c0083: `type in list_plans`
-- c0143 ..> c0084: `type in update_plan`
-- c0143 ..> c0117: `delete_plan() calls execute()`
-- c0143 ..> c0117: `get_plan_by_id() calls execute()`
-- c0143 ..> c0117: `list_plans() calls execute()`
-- c0143 ..> c0117: `update_plan() calls execute()`
-- c0143 ..> c0144: `create_plan() calls session()`
-- c0143 ..> c0144: `delete_plan() calls session()`
-- c0143 ..> c0144: `get_plan_by_id() calls session()`
-- c0143 ..> c0144: `list_plans() calls session()`
-- c0143 ..> c0144: `type in __init__`
-- c0143 ..> c0144: `update_plan() calls session()`
-- c0143 ..> c0155: `create_plan() constructs PlansTable`
-- c0144 ..> c0003: `_run_migrations() calls upgrade()`
-- c0144 ..> c0117: `init_db() calls execute()`
-- c0144 ..> c0117: `session() calls close()`
-- c0144 ..> c0117: `session() calls execute()`
-- c0144 ..> c0117: `system_session() calls close()`
-- c0144 ..> c0144: `__init__() calls construct_postgres_connection_string()`
-- c0144 ..> c0144: `_run_migrations() calls construct_postgres_connection_string()`
-- c0144 ..> c0174: `dispose() calls dispose()`
-- c0145 --|> c0146: `inherits`
-- c0147 --|> c0146: `inherits`
-- c0147 --> c0154: `field memories`
-- c0147 --> c0156: `field project`
-- c0147 --> c0157: `field skills`
-- c0147 --> c0160: `field user`
-- c0148 --|> c0146: `inherits`
-- c0148 --> c0159: `field task`
-- c0149 --|> c0146: `inherits`
-- c0149 --> c0154: `field memories`
-- c0149 --> c0156: `field project`
-- c0149 --> c0157: `field skills`
-- c0149 --> c0160: `field user`
-- c0150 --|> c0146: `inherits`
-- c0150 --> c0151: `field incoming_relationships`
-- c0150 --> c0151: `field outgoing_relationships`
-- c0150 --> c0152: `field files`
-- c0150 --> c0154: `field memories`
-- c0150 --> c0156: `field projects`
-- c0150 --> c0160: `field user`
-- c0151 --|> c0146: `inherits`
-- c0151 --> c0150: `field source_entity`
-- c0151 --> c0150: `field target_entity`
-- c0152 --|> c0146: `inherits`
-- c0152 --> c0150: `field entities`
-- c0152 --> c0154: `field memories`
-- c0152 --> c0156: `field project`
-- c0152 --> c0157: `field skills`
-- c0152 --> c0160: `field user`
-- c0153 --|> c0146: `inherits`
-- c0154 --|> c0146: `inherits`
-- c0154 --> c0147: `field code_artifacts`
-- c0154 --> c0149: `field documents`
-- c0154 --> c0150: `field entities`
-- c0154 --> c0152: `field files`
-- c0154 --> c0156: `field projects`
-- c0154 --> c0157: `field skills`
-- c0154 --> c0160: `field user`
-- c0155 --|> c0146: `inherits`
-- c0155 --> c0156: `field project`
-- c0155 --> c0159: `field tasks`
-- c0155 --> c0160: `field user`
-- c0156 --|> c0146: `inherits`
-- c0156 --> c0147: `field code_artifacts`
-- c0156 --> c0149: `field documents`
-- c0156 --> c0150: `field entities`
-- c0156 --> c0152: `field files`
-- c0156 --> c0154: `field memories`
-- c0156 --> c0155: `field plans`
-- c0156 --> c0157: `field skills`
-- c0156 --> c0160: `field user`
-- c0157 --|> c0146: `inherits`
-- c0157 --> c0147: `field code_artifacts`
-- c0157 --> c0149: `field documents`
-- c0157 --> c0152: `field files`
-- c0157 --> c0154: `field memories`
-- c0157 --> c0156: `field project`
-- c0157 --> c0160: `field user`
-- c0158 --|> c0146: `inherits`
-- c0158 --> c0159: `field task`
-- c0159 --|> c0146: `inherits`
-- c0159 --> c0148: `field criteria`
-- c0159 --> c0155: `field plan`
-- c0159 --> c0158: `field depends_on`
-- c0160 --|> c0146: `inherits`
-- c0160 --> c0147: `field code_artifacts`
-- c0160 --> c0149: `field documents`
-- c0160 --> c0150: `field entities`
-- c0160 --> c0152: `field files`
-- c0160 --> c0154: `field memories`
-- c0160 --> c0155: `field plans`
-- c0160 --> c0156: `field projects`
-- c0160 --> c0157: `field skills`
-- c0161 ..> c0028: `update_project() constructs NotFoundError`
-- c0161 ..> c0093: `type in create_project`
-- c0161 ..> c0093: `type in get_project_by_id`
-- c0161 ..> c0093: `type in update_project`
-- c0161 ..> c0094: `type in create_project`
-- c0161 ..> c0095: `type in list_projects`
-- c0161 ..> c0096: `type in list_projects`
-- c0161 ..> c0098: `type in update_project`
-- c0161 ..> c0117: `delete_project() calls execute()`
-- c0161 ..> c0117: `get_project_by_id() calls execute()`
-- c0161 ..> c0117: `list_projects() calls execute()`
-- c0161 ..> c0117: `update_project() calls execute()`
-- c0161 ..> c0144: `create_project() calls session()`
-- c0161 ..> c0144: `delete_project() calls session()`
-- c0161 ..> c0144: `get_project_by_id() calls session()`
-- c0161 ..> c0144: `list_projects() calls session()`
-- c0161 ..> c0144: `type in __init__`
-- c0161 ..> c0144: `update_project() calls session()`
-- c0161 ..> c0156: `create_project() constructs ProjectsTable`
-- c0161 ..> c0267: `list_projects() calls repository_identity()`
-- c0162 ..> c0028: `get_skill_links() constructs NotFoundError`
-- c0162 ..> c0028: `link_skill_to_code_artifact() constructs NotFoundError`
-- c0162 ..> c0028: `link_skill_to_document() constructs NotFoundError`
-- c0162 ..> c0028: `link_skill_to_file() constructs NotFoundError`
-- c0162 ..> c0028: `link_skill_to_memory() constructs NotFoundError`
-- c0162 ..> c0028: `update_skill() constructs NotFoundError`
-- c0162 ..> c0099: `_to_skill() constructs Skill`
-- c0162 ..> c0099: `type in _to_skill`
-- c0162 ..> c0099: `type in create_skill`
-- c0162 ..> c0099: `type in get_skill_by_id`
-- c0162 ..> c0099: `type in update_skill`
-- c0162 ..> c0100: `type in create_skill`
-- c0162 ..> c0101: `get_skill_links() constructs SkillLinks`
-- c0162 ..> c0101: `type in get_skill_links`
-- c0162 ..> c0102: `type in list_skills`
-- c0162 ..> c0102: `type in search_skills`
-- c0162 ..> c0103: `type in update_skill`
-- c0162 ..> c0117: `delete_skill() calls execute()`
-- c0162 ..> c0117: `get_all_skill_code_artifact_links() calls execute()`
-- c0162 ..> c0117: `get_all_skill_document_links() calls execute()`
-- c0162 ..> c0117: `get_all_skill_file_links() calls execute()`
-- c0162 ..> c0117: `get_skill_by_id() calls execute()`
-- c0162 ..> c0117: `get_skill_links() calls execute()`
-- c0162 ..> c0117: `link_skill_to_code_artifact() calls execute()`
-- c0162 ..> c0117: `link_skill_to_document() calls execute()`
-- c0162 ..> c0117: `link_skill_to_file() calls execute()`
-- c0162 ..> c0117: `link_skill_to_memory() calls execute()`
-- c0162 ..> c0117: `list_skills() calls execute()`
-- c0162 ..> c0117: `search_skills() calls execute()`
-- c0162 ..> c0117: `skill_name_exists() calls execute()`
-- c0162 ..> c0117: `unlink_skill_from_code_artifact() calls execute()`
-- c0162 ..> c0117: `unlink_skill_from_document() calls execute()`
-- c0162 ..> c0117: `unlink_skill_from_file() calls execute()`
-- c0162 ..> c0117: `unlink_skill_from_memory() calls execute()`
-- c0162 ..> c0117: `update_skill() calls execute()`
-- c0162 ..> c0127: `type in __init__`
-- c0162 ..> c0130: `create_skill() calls generate_embedding()`
-- c0162 ..> c0130: `search_skills() calls generate_embedding()`
-- c0162 ..> c0130: `update_skill() calls generate_embedding()`
-- c0162 ..> c0134: `search_skills() calls rerank()`
-- c0162 ..> c0135: `type in __init__`
-- c0162 ..> c0136: `create_skill() calls build_skill_embedding_text()`
-- c0162 ..> c0136: `update_skill() calls build_skill_embedding_text()`
-- c0162 ..> c0144: `create_skill() calls session()`
-- c0162 ..> c0144: `delete_skill() calls session()`
-- c0162 ..> c0144: `get_all_skill_code_artifact_links() calls session()`
-- c0162 ..> c0144: `get_all_skill_document_links() calls session()`
-- c0162 ..> c0144: `get_all_skill_file_links() calls session()`
-- c0162 ..> c0144: `get_skill_by_id() calls session()`
-- c0162 ..> c0144: `get_skill_links() calls session()`
-- c0162 ..> c0144: `link_skill_to_code_artifact() calls session()`
-- c0162 ..> c0144: `link_skill_to_document() calls session()`
-- c0162 ..> c0144: `link_skill_to_file() calls session()`
-- c0162 ..> c0144: `link_skill_to_memory() calls session()`
-- c0162 ..> c0144: `list_skills() calls session()`
-- c0162 ..> c0144: `search_skills() calls session()`
-- c0162 ..> c0144: `skill_name_exists() calls session()`
-- c0162 ..> c0144: `type in __init__`
-- c0162 ..> c0144: `unlink_skill_from_code_artifact() calls session()`
-- c0162 ..> c0144: `unlink_skill_from_document() calls session()`
-- c0162 ..> c0144: `unlink_skill_from_file() calls session()`
-- c0162 ..> c0144: `unlink_skill_from_memory() calls session()`
-- c0162 ..> c0144: `update_skill() calls session()`
-- c0162 ..> c0157: `create_skill() constructs SkillsTable`
-- c0162 ..> c0157: `type in _to_skill`
-- c0162 ..> c0162: `create_skill() calls _to_skill()`
-- c0162 ..> c0162: `get_skill_by_id() calls _to_skill()`
-- c0162 ..> c0162: `update_skill() calls _to_skill()`
-- c0163 ..> c0024: `transition_task_state() constructs ConflictError`
-- c0163 ..> c0028: `transition_task_state() constructs NotFoundError`
-- c0163 ..> c0028: `update_criterion() constructs NotFoundError`
-- c0163 ..> c0028: `update_task() constructs NotFoundError`
-- c0163 ..> c0030: `update_criterion() calls get()`
-- c0163 ..> c0077: `type in create_criterion`
-- c0163 ..> c0077: `type in get_criteria_for_task`
-- c0163 ..> c0077: `type in update_criterion`
-- c0163 ..> c0078: `type in create_criterion`
-- c0163 ..> c0079: `type in update_criterion`
-- c0163 ..> c0085: `type in create_task`
-- c0163 ..> c0085: `type in get_task_by_id`
-- c0163 ..> c0085: `type in transition_task_state`
-- c0163 ..> c0085: `type in update_task`
-- c0163 ..> c0086: `type in create_task`
-- c0163 ..> c0087: `type in add_dependency`
-- c0163 ..> c0089: `list_tasks() constructs TaskPriority`
-- c0163 ..> c0089: `list_tasks_for_user() constructs TaskPriority`
-- c0163 ..> c0089: `type in list_tasks`
-- c0163 ..> c0090: `list_tasks() constructs TaskState`
-- c0163 ..> c0090: `list_tasks_for_user() constructs TaskState`
-- c0163 ..> c0090: `type in list_tasks`
-- c0163 ..> c0090: `type in transition_task_state`
-- c0163 ..> c0091: `list_tasks() constructs TaskSummary`
-- c0163 ..> c0091: `list_tasks_for_user() constructs TaskSummary`
-- c0163 ..> c0091: `type in list_tasks`
-- c0163 ..> c0091: `type in list_tasks_for_user`
-- c0163 ..> c0092: `type in update_task`
-- c0163 ..> c0117: `delete_criterion() calls execute()`
-- c0163 ..> c0117: `delete_task() calls execute()`
-- c0163 ..> c0117: `get_criteria_for_task() calls execute()`
-- c0163 ..> c0117: `get_dependencies() calls execute()`
-- c0163 ..> c0117: `get_dependents() calls execute()`
-- c0163 ..> c0117: `get_task_by_id() calls execute()`
-- c0163 ..> c0117: `list_tasks() calls execute()`
-- c0163 ..> c0117: `list_tasks_for_user() calls execute()`
-- c0163 ..> c0117: `remove_dependency() calls execute()`
-- c0163 ..> c0117: `transition_task_state() calls execute()`
-- c0163 ..> c0117: `update_criterion() calls execute()`
-- c0163 ..> c0117: `update_task() calls execute()`
-- c0163 ..> c0144: `add_dependency() calls session()`
-- c0163 ..> c0144: `create_criterion() calls session()`
-- c0163 ..> c0144: `create_task() calls session()`
-- c0163 ..> c0144: `delete_criterion() calls session()`
-- c0163 ..> c0144: `delete_task() calls session()`
-- c0163 ..> c0144: `get_criteria_for_task() calls session()`
-- c0163 ..> c0144: `get_dependencies() calls session()`
-- c0163 ..> c0144: `get_dependents() calls session()`
-- c0163 ..> c0144: `get_task_by_id() calls session()`
-- c0163 ..> c0144: `list_tasks() calls session()`
-- c0163 ..> c0144: `list_tasks_for_user() calls session()`
-- c0163 ..> c0144: `remove_dependency() calls session()`
-- c0163 ..> c0144: `transition_task_state() calls session()`
-- c0163 ..> c0144: `type in __init__`
-- c0163 ..> c0144: `update_criterion() calls session()`
-- c0163 ..> c0144: `update_task() calls session()`
-- c0163 ..> c0148: `create_criterion() constructs CriteriaTable`
-- c0163 ..> c0158: `add_dependency() constructs TaskDependenciesTable`
-- c0163 ..> c0159: `create_task() constructs TasksTable`
-- c0163 ..> c0163: `update_task() calls get_task_by_id()`
-- c0164 ..> c0028: `update_user() constructs NotFoundError`
-- c0164 ..> c0109: `type in create_user`
-- c0164 ..> c0109: `type in get_user_by_external_id`
-- c0164 ..> c0109: `type in get_user_by_id`
-- c0164 ..> c0109: `type in update_user`
-- c0164 ..> c0110: `type in create_user`
-- c0164 ..> c0112: `type in update_user`
-- c0164 ..> c0117: `get_user_by_external_id() calls execute()`
-- c0164 ..> c0117: `get_user_by_id() calls execute()`
-- c0164 ..> c0117: `update_user() calls execute()`
-- c0164 ..> c0144: `create_user() calls system_session()`
-- c0164 ..> c0144: `get_user_by_external_id() calls system_session()`
-- c0164 ..> c0144: `get_user_by_id() calls system_session()`
-- c0164 ..> c0144: `type in __init__`
-- c0164 ..> c0144: `update_user() calls system_session()`
-- c0164 ..> c0160: `create_user() constructs UsersTable`
-- c0165 ..> c0033: `type in count_events`
-- c0165 ..> c0033: `type in query_events`
-- c0165 ..> c0034: `type in save_event`
-- c0165 ..> c0036: `query_events() constructs ActivityLogEntry`
-- c0165 ..> c0036: `save_event() constructs ActivityLogEntry`
-- c0165 ..> c0036: `type in query_events`
-- c0165 ..> c0036: `type in save_event`
-- c0165 ..> c0037: `type in query_events`
-- c0165 ..> c0038: `type in count_events`
-- c0165 ..> c0038: `type in query_events`
-- c0165 ..> c0117: `cleanup_expired() calls execute()`
-- c0165 ..> c0117: `count_events() calls execute()`
-- c0165 ..> c0117: `query_events() calls execute()`
-- c0165 ..> c0174: `cleanup_expired() calls session()`
-- c0165 ..> c0174: `count_events() calls session()`
-- c0165 ..> c0174: `query_events() calls session()`
-- c0165 ..> c0174: `save_event() calls session()`
-- c0165 ..> c0174: `type in __init__`
-- c0165 ..> c0176: `save_event() constructs ActivityLogTable`
-- c0166 ..> c0028: `update_code_artifact() constructs NotFoundError`
-- c0166 ..> c0030: `update_code_artifact() calls get()`
-- c0166 ..> c0039: `type in create_code_artifact`
-- c0166 ..> c0039: `type in get_code_artifact_by_id`
-- c0166 ..> c0039: `type in update_code_artifact`
-- c0166 ..> c0040: `type in create_code_artifact`
-- c0166 ..> c0041: `type in list_code_artifacts`
-- c0166 ..> c0042: `type in update_code_artifact`
-- c0166 ..> c0117: `delete_code_artifact() calls execute()`
-- c0166 ..> c0117: `get_code_artifact_by_id() calls execute()`
-- c0166 ..> c0117: `list_code_artifacts() calls execute()`
-- c0166 ..> c0117: `update_code_artifact() calls execute()`
-- c0166 ..> c0174: `create_code_artifact() calls session()`
-- c0166 ..> c0174: `delete_code_artifact() calls session()`
-- c0166 ..> c0174: `get_code_artifact_by_id() calls session()`
-- c0166 ..> c0174: `list_code_artifacts() calls session()`
-- c0166 ..> c0174: `type in __init__`
-- c0166 ..> c0174: `update_code_artifact() calls session()`
-- c0166 ..> c0178: `create_code_artifact() constructs CodeArtifactsTable`
-- c0167 ..> c0028: `update_document() constructs NotFoundError`
-- c0167 ..> c0030: `update_document() calls get()`
-- c0167 ..> c0043: `type in create_document`
-- c0167 ..> c0043: `type in get_document_by_id`
-- c0167 ..> c0043: `type in update_document`
-- c0167 ..> c0044: `type in create_document`
-- c0167 ..> c0045: `type in list_documents`
-- c0167 ..> c0046: `type in update_document`
-- c0167 ..> c0117: `delete_document() calls execute()`
-- c0167 ..> c0117: `get_document_by_id() calls execute()`
-- c0167 ..> c0117: `list_documents() calls execute()`
-- c0167 ..> c0117: `update_document() calls execute()`
-- c0167 ..> c0174: `create_document() calls session()`
-- c0167 ..> c0174: `delete_document() calls session()`
-- c0167 ..> c0174: `get_document_by_id() calls session()`
-- c0167 ..> c0174: `list_documents() calls session()`
-- c0167 ..> c0174: `type in __init__`
-- c0167 ..> c0174: `update_document() calls session()`
-- c0167 ..> c0180: `create_document() constructs DocumentsTable`
-- c0168 ..> c0028: `create_entity_relationship() constructs NotFoundError`
-- c0168 ..> c0028: `get_entity_memories() constructs NotFoundError`
-- c0168 ..> c0028: `get_entity_relationships() constructs NotFoundError`
-- c0168 ..> c0028: `get_memory_entities() constructs NotFoundError`
-- c0168 ..> c0028: `link_entity_to_memory() constructs NotFoundError`
-- c0168 ..> c0028: `link_entity_to_project() constructs NotFoundError`
-- c0168 ..> c0028: `update_entity() constructs NotFoundError`
-- c0168 ..> c0028: `update_entity_relationship() constructs NotFoundError`
-- c0168 ..> c0030: `update_entity() calls get()`
-- c0168 ..> c0047: `type in create_entity`
-- c0168 ..> c0047: `type in get_entity_by_id`
-- c0168 ..> c0047: `type in update_entity`
-- c0168 ..> c0048: `type in create_entity`
-- c0168 ..> c0050: `create_entity_relationship() constructs EntityRelationship`
-- c0168 ..> c0050: `get_all_entity_relationships() constructs EntityRelationship`
-- c0168 ..> c0050: `get_entity_relationships() constructs EntityRelationship`
-- c0168 ..> c0050: `type in create_entity_relationship`
-- c0168 ..> c0050: `type in get_all_entity_relationships`
-- c0168 ..> c0050: `type in get_entity_relationships`
-- c0168 ..> c0050: `type in update_entity_relationship`
-- c0168 ..> c0050: `update_entity_relationship() constructs EntityRelationship`
-- c0168 ..> c0051: `type in create_entity_relationship`
-- c0168 ..> c0052: `type in update_entity_relationship`
-- c0168 ..> c0053: `type in list_entities`
-- c0168 ..> c0053: `type in search_entities`
-- c0168 ..> c0054: `type in list_entities`
-- c0168 ..> c0054: `type in search_entities`
-- c0168 ..> c0055: `type in update_entity`
-- c0168 ..> c0117: `create_entity() calls execute()`
-- c0168 ..> c0117: `create_entity_relationship() calls execute()`
-- c0168 ..> c0117: `delete_entity() calls execute()`
-- c0168 ..> c0117: `delete_entity_relationship() calls execute()`
-- c0168 ..> c0117: `get_all_entity_file_links() calls execute()`
-- c0168 ..> c0117: `get_all_entity_memory_links() calls execute()`
-- c0168 ..> c0117: `get_all_entity_project_links() calls execute()`
-- c0168 ..> c0117: `get_all_entity_relationships() calls execute()`
-- c0168 ..> c0117: `get_entity_by_id() calls execute()`
-- c0168 ..> c0117: `get_entity_memories() calls execute()`
-- c0168 ..> c0117: `get_entity_relationships() calls execute()`
-- c0168 ..> c0117: `get_memory_entities() calls execute()`
-- c0168 ..> c0117: `link_entity_to_memory() calls execute()`
-- c0168 ..> c0117: `link_entity_to_project() calls execute()`
-- c0168 ..> c0117: `list_entities() calls execute()`
-- c0168 ..> c0117: `search_entities() calls execute()`
-- c0168 ..> c0117: `unlink_entity_from_memory() calls execute()`
-- c0168 ..> c0117: `unlink_entity_from_project() calls execute()`
-- c0168 ..> c0117: `update_entity() calls execute()`
-- c0168 ..> c0117: `update_entity_relationship() calls execute()`
-- c0168 ..> c0174: `create_entity() calls session()`
-- c0168 ..> c0174: `create_entity_relationship() calls session()`
-- c0168 ..> c0174: `delete_entity() calls session()`
-- c0168 ..> c0174: `delete_entity_relationship() calls session()`
-- c0168 ..> c0174: `get_all_entity_file_links() calls session()`
-- c0168 ..> c0174: `get_all_entity_memory_links() calls session()`
-- c0168 ..> c0174: `get_all_entity_project_links() calls session()`
-- c0168 ..> c0174: `get_all_entity_relationships() calls session()`
-- c0168 ..> c0174: `get_entity_by_id() calls session()`
-- c0168 ..> c0174: `get_entity_memories() calls session()`
-- c0168 ..> c0174: `get_entity_relationships() calls session()`
-- c0168 ..> c0174: `get_memory_entities() calls session()`
-- c0168 ..> c0174: `link_entity_to_memory() calls session()`
-- c0168 ..> c0174: `link_entity_to_project() calls session()`
-- c0168 ..> c0174: `list_entities() calls session()`
-- c0168 ..> c0174: `search_entities() calls session()`
-- c0168 ..> c0174: `type in __init__`
-- c0168 ..> c0174: `unlink_entity_from_memory() calls session()`
-- c0168 ..> c0174: `unlink_entity_from_project() calls session()`
-- c0168 ..> c0174: `update_entity() calls session()`
-- c0168 ..> c0174: `update_entity_relationship() calls session()`
-- c0168 ..> c0181: `create_entity() constructs EntitiesTable`
-- c0168 ..> c0182: `create_entity_relationship() constructs EntityRelationshipsTable`
-- c0169 ..> c0028: `update_file() constructs NotFoundError`
-- c0169 ..> c0056: `_to_file_model() constructs File`
-- c0169 ..> c0056: `type in _to_file_model`
-- c0169 ..> c0056: `type in create_file`
-- c0169 ..> c0056: `type in get_file_by_id`
-- c0169 ..> c0056: `type in update_file`
-- c0169 ..> c0057: `type in create_file`
-- c0169 ..> c0058: `type in list_files`
-- c0169 ..> c0059: `type in update_file`
-- c0169 ..> c0117: `delete_file() calls execute()`
-- c0169 ..> c0117: `get_file_by_id() calls execute()`
-- c0169 ..> c0117: `list_files() calls execute()`
-- c0169 ..> c0117: `update_file() calls execute()`
-- c0169 ..> c0169: `create_file() calls _to_file_model()`
-- c0169 ..> c0169: `get_file_by_id() calls _to_file_model()`
-- c0169 ..> c0169: `update_file() calls _to_file_model()`
-- c0169 ..> c0174: `create_file() calls session()`
-- c0169 ..> c0174: `delete_file() calls session()`
-- c0169 ..> c0174: `get_file_by_id() calls session()`
-- c0169 ..> c0174: `list_files() calls session()`
-- c0169 ..> c0174: `type in __init__`
-- c0169 ..> c0174: `update_file() calls session()`
-- c0169 ..> c0183: `create_file() constructs FilesTable`
-- c0169 ..> c0183: `type in _to_file_model`
-- c0170 ..> c0023: `update_memory() calls clear()`
-- c0170 ..> c0028: `_link_code_artifacts() constructs NotFoundError`
-- c0170 ..> c0028: `_link_documents() constructs NotFoundError`
-- c0170 ..> c0028: `_link_files() constructs NotFoundError`
-- c0170 ..> c0028: `_link_projects() constructs NotFoundError`
-- c0170 ..> c0028: `_link_skills() constructs NotFoundError`
-- c0170 ..> c0028: `create_link() constructs NotFoundError`
-- c0170 ..> c0028: `find_similar_memories_scored() constructs NotFoundError`
-- c0170 ..> c0028: `get_linked_memories() constructs NotFoundError`
-- c0170 ..> c0028: `get_memory_by_id() constructs NotFoundError`
-- c0170 ..> c0028: `get_memory_table_by_id() constructs NotFoundError`
-- c0170 ..> c0028: `mark_obsolete() constructs NotFoundError`
-- c0170 ..> c0028: `update_memory() constructs NotFoundError`
-- c0170 ..> c0030: `create_link() calls get()`
-- c0170 ..> c0030: `list_memories() calls get()`
-- c0170 ..> c0065: `type in create_memory`
-- c0170 ..> c0065: `type in find_obsolete_matches`
-- c0170 ..> c0065: `type in find_similar_memories`
-- c0170 ..> c0065: `type in find_similar_memories_scored`
-- c0170 ..> c0065: `type in get_linked_memories`
-- c0170 ..> c0065: `type in get_memories_for_reembedding`
-- c0170 ..> c0065: `type in get_memories_for_targeted_rebuild`
-- c0170 ..> c0065: `type in get_memory_by_id`
-- c0170 ..> c0065: `type in list_memories`
-- c0170 ..> c0065: `type in search`
-- c0170 ..> c0065: `type in search_scored`
-- c0170 ..> c0065: `type in semantic_search`
-- c0170 ..> c0065: `type in semantic_search_scored`
-- c0170 ..> c0065: `type in update_memory`
-- c0170 ..> c0066: `type in create_memory`
-- c0170 ..> c0072: `search_scored() constructs MemoryScore`
-- c0170 ..> c0072: `type in search_scored`
-- c0170 ..> c0074: `type in update_memory`
-- c0170 ..> c0117: `_link_code_artifacts() calls execute()`
-- c0170 ..> c0117: `_link_documents() calls execute()`
-- c0170 ..> c0117: `_link_files() calls execute()`
-- c0170 ..> c0117: `_link_projects() calls execute()`
-- c0170 ..> c0117: `_link_skills() calls execute()`
-- c0170 ..> c0117: `bulk_update_embeddings() calls execute()`
-- c0170 ..> c0117: `count_all_memories() calls execute()`
-- c0170 ..> c0117: `count_memories_for_targeted_rebuild() calls execute()`
-- c0170 ..> c0117: `create_memory() calls execute()`
-- c0170 ..> c0117: `find_obsolete_matches() calls execute()`
-- c0170 ..> c0117: `find_similar_memories_scored() calls execute()`
-- c0170 ..> c0117: `get_linked_memories() calls execute()`
-- c0170 ..> c0117: `get_memories_for_reembedding() calls execute()`
-- c0170 ..> c0117: `get_memories_for_targeted_rebuild() calls execute()`
-- c0170 ..> c0117: `get_memory_table_by_id() calls execute()`
-- c0170 ..> c0117: `get_subgraph_nodes() calls execute()`
-- c0170 ..> c0117: `list_memories() calls execute()`
-- c0170 ..> c0117: `mark_obsolete() calls execute()`
-- c0170 ..> c0117: `record_memory_access() calls execute()`
-- c0170 ..> c0117: `reset_embedding_storage() calls execute()`
-- c0170 ..> c0117: `semantic_search_scored() calls execute()`
-- c0170 ..> c0117: `unlink_memories() calls execute()`
-- c0170 ..> c0117: `update_memory() calls execute()`
-- c0170 ..> c0117: `upsert_targeted_embeddings() calls execute()`
-- c0170 ..> c0117: `validate_embedding_count() calls execute()`
-- c0170 ..> c0117: `validate_embedding_dimensions() calls execute()`
-- c0170 ..> c0117: `validate_search_works() calls execute()`
-- c0170 ..> c0127: `type in __init__`
-- c0170 ..> c0130: `_generate_embeddings() calls generate_embedding()`
-- c0170 ..> c0134: `search_scored() calls rerank()`
-- c0170 ..> c0135: `type in __init__`
-- c0170 ..> c0136: `create_memory() calls build_embedding_text()`
-- c0170 ..> c0136: `search_scored() calls build_contextual_query()`
-- c0170 ..> c0136: `search_scored() calls build_memory_text()`
-- c0170 ..> c0136: `update_memory() calls build_embedding_text()`
-- c0170 ..> c0170: `count_memories_for_targeted_rebuild() calls _build_targeted_rebuild_filter()`
-- c0170 ..> c0170: `create_links_batch() calls create_link()`
-- c0170 ..> c0170: `create_memory() calls _generate_embeddings()`
-- c0170 ..> c0170: `create_memory() calls _link_code_artifacts()`
-- c0170 ..> c0170: `create_memory() calls _link_documents()`
-- c0170 ..> c0170: `create_memory() calls _link_files()`
-- c0170 ..> c0170: `create_memory() calls _link_projects()`
-- c0170 ..> c0170: `create_memory() calls _link_skills()`
-- c0170 ..> c0170: `find_similar_memories() calls find_similar_memories_scored()`
-- c0170 ..> c0170: `get_memories_for_targeted_rebuild() calls _build_targeted_rebuild_filter()`
-- c0170 ..> c0170: `get_memory_by_id() calls get_memory_table_by_id()`
-- c0170 ..> c0170: `search() calls search_scored()`
-- c0170 ..> c0170: `search_scored() calls semantic_search_scored()`
-- c0170 ..> c0170: `semantic_search() calls semantic_search_scored()`
-- c0170 ..> c0170: `semantic_search_scored() calls _generate_embeddings()`
-- c0170 ..> c0170: `update_memory() calls _generate_embeddings()`
-- c0170 ..> c0170: `update_memory() calls _link_code_artifacts()`
-- c0170 ..> c0170: `update_memory() calls _link_documents()`
-- c0170 ..> c0170: `update_memory() calls _link_files()`
-- c0170 ..> c0170: `update_memory() calls _link_projects()`
-- c0170 ..> c0170: `validate_search_works() calls _generate_embeddings()`
-- c0170 ..> c0174: `bulk_update_embeddings() calls system_session()`
-- c0170 ..> c0174: `count_all_memories() calls system_session()`
-- c0170 ..> c0174: `count_memories_for_targeted_rebuild() calls system_session()`
-- c0170 ..> c0174: `create_link() calls session()`
-- c0170 ..> c0174: `create_memory() calls session()`
-- c0170 ..> c0174: `find_obsolete_matches() calls session()`
-- c0170 ..> c0174: `find_similar_memories_scored() calls session()`
-- c0170 ..> c0174: `get_linked_memories() calls session()`
-- c0170 ..> c0174: `get_memories_for_reembedding() calls system_session()`
-- c0170 ..> c0174: `get_memories_for_targeted_rebuild() calls system_session()`
-- c0170 ..> c0174: `get_memory_table_by_id() calls session()`
-- c0170 ..> c0174: `get_subgraph_nodes() calls session()`
-- c0170 ..> c0174: `list_memories() calls session()`
-- c0170 ..> c0174: `mark_obsolete() calls session()`
-- c0170 ..> c0174: `record_memory_access() calls system_session()`
-- c0170 ..> c0174: `reset_embedding_storage() calls system_session()`
-- c0170 ..> c0174: `semantic_search_scored() calls session()`
-- c0170 ..> c0174: `type in __init__`
-- c0170 ..> c0174: `unlink_memories() calls session()`
-- c0170 ..> c0174: `update_memory() calls session()`
-- c0170 ..> c0174: `upsert_targeted_embeddings() calls system_session()`
-- c0170 ..> c0174: `validate_embedding_count() calls system_session()`
-- c0170 ..> c0174: `validate_embedding_dimensions() calls system_session()`
-- c0170 ..> c0174: `validate_search_works() calls system_session()`
-- c0170 ..> c0184: `create_link() constructs MemoryLinkTable`
-- c0170 ..> c0184: `type in create_link`
-- c0170 ..> c0185: `create_memory() constructs MemoryTable`
-- c0170 ..> c0185: `type in _link_code_artifacts`
-- c0170 ..> c0185: `type in _link_documents`
-- c0170 ..> c0185: `type in _link_files`
-- c0170 ..> c0185: `type in _link_projects`
-- c0170 ..> c0185: `type in _link_skills`
-- c0170 ..> c0185: `type in get_memory_table_by_id`
-- c0171 ..> c0028: `update_plan() constructs NotFoundError`
-- c0171 ..> c0080: `type in create_plan`
-- c0171 ..> c0080: `type in get_plan_by_id`
-- c0171 ..> c0080: `type in update_plan`
-- c0171 ..> c0081: `type in create_plan`
-- c0171 ..> c0082: `type in list_plans`
-- c0171 ..> c0083: `type in list_plans`
-- c0171 ..> c0084: `type in update_plan`
-- c0171 ..> c0117: `delete_plan() calls execute()`
-- c0171 ..> c0117: `get_plan_by_id() calls execute()`
-- c0171 ..> c0117: `list_plans() calls execute()`
-- c0171 ..> c0117: `update_plan() calls execute()`
-- c0171 ..> c0174: `create_plan() calls session()`
-- c0171 ..> c0174: `delete_plan() calls session()`
-- c0171 ..> c0174: `get_plan_by_id() calls session()`
-- c0171 ..> c0174: `list_plans() calls session()`
-- c0171 ..> c0174: `type in __init__`
-- c0171 ..> c0174: `update_plan() calls session()`
-- c0171 ..> c0186: `create_plan() constructs PlansTable`
-- c0172 ..> c0028: `update_project() constructs NotFoundError`
-- c0172 ..> c0093: `type in create_project`
-- c0172 ..> c0093: `type in get_project_by_id`
-- c0172 ..> c0093: `type in update_project`
-- c0172 ..> c0094: `type in create_project`
-- c0172 ..> c0095: `type in list_projects`
-- c0172 ..> c0096: `type in list_projects`
-- c0172 ..> c0098: `type in update_project`
-- c0172 ..> c0117: `delete_project() calls execute()`
-- c0172 ..> c0117: `get_project_by_id() calls execute()`
-- c0172 ..> c0117: `list_projects() calls execute()`
-- c0172 ..> c0117: `update_project() calls execute()`
-- c0172 ..> c0174: `create_project() calls session()`
-- c0172 ..> c0174: `delete_project() calls session()`
-- c0172 ..> c0174: `get_project_by_id() calls session()`
-- c0172 ..> c0174: `list_projects() calls session()`
-- c0172 ..> c0174: `type in __init__`
-- c0172 ..> c0174: `update_project() calls session()`
-- c0172 ..> c0187: `create_project() constructs ProjectsTable`
-- c0172 ..> c0267: `list_projects() calls repository_identity()`
-- c0173 ..> c0028: `get_skill_links() constructs NotFoundError`
-- c0173 ..> c0028: `link_skill_to_code_artifact() constructs NotFoundError`
-- c0173 ..> c0028: `link_skill_to_document() constructs NotFoundError`
-- c0173 ..> c0028: `link_skill_to_file() constructs NotFoundError`
-- c0173 ..> c0028: `link_skill_to_memory() constructs NotFoundError`
-- c0173 ..> c0028: `update_skill() constructs NotFoundError`
-- c0173 ..> c0099: `_to_skill() constructs Skill`
-- c0173 ..> c0099: `type in _to_skill`
-- c0173 ..> c0099: `type in create_skill`
-- c0173 ..> c0099: `type in get_skill_by_id`
-- c0173 ..> c0099: `type in update_skill`
-- c0173 ..> c0100: `type in create_skill`
-- c0173 ..> c0101: `get_skill_links() constructs SkillLinks`
-- c0173 ..> c0101: `type in get_skill_links`
-- c0173 ..> c0102: `type in list_skills`
-- c0173 ..> c0102: `type in search_skills`
-- c0173 ..> c0103: `type in update_skill`
-- c0173 ..> c0117: `create_skill() calls execute()`
-- c0173 ..> c0117: `delete_skill() calls execute()`
-- c0173 ..> c0117: `get_all_skill_code_artifact_links() calls execute()`
-- c0173 ..> c0117: `get_all_skill_document_links() calls execute()`
-- c0173 ..> c0117: `get_all_skill_file_links() calls execute()`
-- c0173 ..> c0117: `get_skill_by_id() calls execute()`
-- c0173 ..> c0117: `get_skill_links() calls execute()`
-- c0173 ..> c0117: `link_skill_to_code_artifact() calls execute()`
-- c0173 ..> c0117: `link_skill_to_document() calls execute()`
-- c0173 ..> c0117: `link_skill_to_file() calls execute()`
-- c0173 ..> c0117: `link_skill_to_memory() calls execute()`
-- c0173 ..> c0117: `list_skills() calls execute()`
-- c0173 ..> c0117: `search_skills() calls execute()`
-- c0173 ..> c0117: `skill_name_exists() calls execute()`
-- c0173 ..> c0117: `unlink_skill_from_code_artifact() calls execute()`
-- c0173 ..> c0117: `unlink_skill_from_document() calls execute()`
-- c0173 ..> c0117: `unlink_skill_from_file() calls execute()`
-- c0173 ..> c0117: `unlink_skill_from_memory() calls execute()`
-- c0173 ..> c0117: `update_skill() calls execute()`
-- c0173 ..> c0127: `type in __init__`
-- c0173 ..> c0130: `create_skill() calls generate_embedding()`
-- c0173 ..> c0130: `search_skills() calls generate_embedding()`
-- c0173 ..> c0130: `update_skill() calls generate_embedding()`
-- c0173 ..> c0134: `search_skills() calls rerank()`
-- c0173 ..> c0135: `type in __init__`
-- c0173 ..> c0136: `create_skill() calls build_skill_embedding_text()`
-- c0173 ..> c0136: `update_skill() calls build_skill_embedding_text()`
-- c0173 ..> c0173: `create_skill() calls _to_skill()`
-- c0173 ..> c0173: `get_skill_by_id() calls _to_skill()`
-- c0173 ..> c0173: `update_skill() calls _to_skill()`
-- c0173 ..> c0174: `create_skill() calls session()`
-- c0173 ..> c0174: `delete_skill() calls session()`
-- c0173 ..> c0174: `get_all_skill_code_artifact_links() calls session()`
-- c0173 ..> c0174: `get_all_skill_document_links() calls session()`
-- c0173 ..> c0174: `get_all_skill_file_links() calls session()`
-- c0173 ..> c0174: `get_skill_by_id() calls session()`
-- c0173 ..> c0174: `get_skill_links() calls session()`
-- c0173 ..> c0174: `link_skill_to_code_artifact() calls session()`
-- c0173 ..> c0174: `link_skill_to_document() calls session()`
-- c0173 ..> c0174: `link_skill_to_file() calls session()`
-- c0173 ..> c0174: `link_skill_to_memory() calls session()`
-- c0173 ..> c0174: `list_skills() calls session()`
-- c0173 ..> c0174: `search_skills() calls session()`
-- c0173 ..> c0174: `skill_name_exists() calls session()`
-- c0173 ..> c0174: `type in __init__`
-- c0173 ..> c0174: `unlink_skill_from_code_artifact() calls session()`
-- c0173 ..> c0174: `unlink_skill_from_document() calls session()`
-- c0173 ..> c0174: `unlink_skill_from_file() calls session()`
-- c0173 ..> c0174: `unlink_skill_from_memory() calls session()`
-- c0173 ..> c0174: `update_skill() calls session()`
-- c0173 ..> c0188: `create_skill() constructs SkillsTable`
-- c0173 ..> c0188: `type in _to_skill`
-- c0174 ..> c0003: `_run_migrations() calls upgrade()`
-- c0174 ..> c0117: `init_db() calls execute()`
-- c0174 ..> c0117: `session() calls close()`
-- c0174 ..> c0117: `system_session() calls close()`
-- c0174 ..> c0144: `dispose() calls dispose()`
-- c0174 ..> c0174: `__init__() calls _construct_connection_string()`
-- c0174 ..> c0174: `_run_migrations() calls _construct_connection_string()`
-- c0175 ..> c0117: `_sqlite_connection_creator() calls execute()`
-- c0176 --|> c0177: `inherits`
-- c0178 --|> c0177: `inherits`
-- c0178 --> c0185: `field memories`
-- c0178 --> c0187: `field project`
-- c0178 --> c0188: `field skills`
-- c0178 --> c0191: `field user`
-- c0179 --|> c0177: `inherits`
-- c0179 --> c0190: `field task`
-- c0180 --|> c0177: `inherits`
-- c0180 --> c0185: `field memories`
-- c0180 --> c0187: `field project`
-- c0180 --> c0188: `field skills`
-- c0180 --> c0191: `field user`
-- c0181 --|> c0177: `inherits`
-- c0181 --> c0182: `field incoming_relationships`
-- c0181 --> c0182: `field outgoing_relationships`
-- c0181 --> c0183: `field files`
-- c0181 --> c0185: `field memories`
-- c0181 --> c0187: `field projects`
-- c0181 --> c0191: `field user`
-- c0182 --|> c0177: `inherits`
-- c0182 --> c0181: `field source_entity`
-- c0182 --> c0181: `field target_entity`
-- c0183 --|> c0177: `inherits`
-- c0183 --> c0181: `field entities`
-- c0183 --> c0185: `field memories`
-- c0183 --> c0187: `field project`
-- c0183 --> c0188: `field skills`
-- c0183 --> c0191: `field user`
-- c0184 --|> c0177: `inherits`
-- c0185 --|> c0177: `inherits`
-- c0185 --> c0178: `field code_artifacts`
-- c0185 --> c0180: `field documents`
-- c0185 --> c0181: `field entities`
-- c0185 --> c0183: `field files`
-- c0185 --> c0187: `field projects`
-- c0185 --> c0188: `field skills`
-- c0185 --> c0191: `field user`
-- c0186 --|> c0177: `inherits`
-- c0186 --> c0187: `field project`
-- c0186 --> c0190: `field tasks`
-- c0186 --> c0191: `field user`
-- c0187 --|> c0177: `inherits`
-- c0187 --> c0178: `field code_artifacts`
-- c0187 --> c0180: `field documents`
-- c0187 --> c0181: `field entities`
-- c0187 --> c0183: `field files`
-- c0187 --> c0185: `field memories`
-- c0187 --> c0186: `field plans`
-- c0187 --> c0188: `field skills`
-- c0187 --> c0191: `field user`
-- c0188 --|> c0177: `inherits`
-- c0188 --> c0178: `field code_artifacts`
-- c0188 --> c0180: `field documents`
-- c0188 --> c0183: `field files`
-- c0188 --> c0185: `field memories`
-- c0188 --> c0187: `field project`
-- c0188 --> c0191: `field user`
-- c0189 --|> c0177: `inherits`
-- c0189 --> c0190: `field task`
-- c0190 --|> c0177: `inherits`
-- c0190 --> c0179: `field criteria`
-- c0190 --> c0186: `field plan`
-- c0190 --> c0189: `field depends_on`
-- c0191 --|> c0177: `inherits`
-- c0191 --> c0178: `field code_artifacts`
-- c0191 --> c0180: `field documents`
-- c0191 --> c0181: `field entities`
-- c0191 --> c0183: `field files`
-- c0191 --> c0185: `field memories`
-- c0191 --> c0186: `field plans`
-- c0191 --> c0187: `field projects`
-- c0191 --> c0188: `field skills`
-- c0192 ..> c0024: `transition_task_state() constructs ConflictError`
-- c0192 ..> c0028: `transition_task_state() constructs NotFoundError`
-- c0192 ..> c0028: `update_criterion() constructs NotFoundError`
-- c0192 ..> c0028: `update_task() constructs NotFoundError`
-- c0192 ..> c0030: `update_criterion() calls get()`
-- c0192 ..> c0077: `type in create_criterion`
-- c0192 ..> c0077: `type in get_criteria_for_task`
-- c0192 ..> c0077: `type in update_criterion`
-- c0192 ..> c0078: `type in create_criterion`
-- c0192 ..> c0079: `type in update_criterion`
-- c0192 ..> c0085: `type in create_task`
-- c0192 ..> c0085: `type in get_task_by_id`
-- c0192 ..> c0085: `type in transition_task_state`
-- c0192 ..> c0085: `type in update_task`
-- c0192 ..> c0086: `type in create_task`
-- c0192 ..> c0087: `type in add_dependency`
-- c0192 ..> c0089: `list_tasks() constructs TaskPriority`
-- c0192 ..> c0089: `list_tasks_for_user() constructs TaskPriority`
-- c0192 ..> c0089: `type in list_tasks`
-- c0192 ..> c0090: `list_tasks() constructs TaskState`
-- c0192 ..> c0090: `list_tasks_for_user() constructs TaskState`
-- c0192 ..> c0090: `type in list_tasks`
-- c0192 ..> c0090: `type in transition_task_state`
-- c0192 ..> c0091: `list_tasks() constructs TaskSummary`
-- c0192 ..> c0091: `list_tasks_for_user() constructs TaskSummary`
-- c0192 ..> c0091: `type in list_tasks`
-- c0192 ..> c0091: `type in list_tasks_for_user`
-- c0192 ..> c0092: `type in update_task`
-- c0192 ..> c0117: `delete_criterion() calls execute()`
-- c0192 ..> c0117: `delete_task() calls execute()`
-- c0192 ..> c0117: `get_criteria_for_task() calls execute()`
-- c0192 ..> c0117: `get_dependencies() calls execute()`
-- c0192 ..> c0117: `get_dependents() calls execute()`
-- c0192 ..> c0117: `get_task_by_id() calls execute()`
-- c0192 ..> c0117: `list_tasks() calls execute()`
-- c0192 ..> c0117: `list_tasks_for_user() calls execute()`
-- c0192 ..> c0117: `remove_dependency() calls execute()`
-- c0192 ..> c0117: `transition_task_state() calls execute()`
-- c0192 ..> c0117: `update_criterion() calls execute()`
-- c0192 ..> c0117: `update_task() calls execute()`
-- c0192 ..> c0174: `add_dependency() calls session()`
-- c0192 ..> c0174: `create_criterion() calls session()`
-- c0192 ..> c0174: `create_task() calls session()`
-- c0192 ..> c0174: `delete_criterion() calls session()`
-- c0192 ..> c0174: `delete_task() calls session()`
-- c0192 ..> c0174: `get_criteria_for_task() calls session()`
-- c0192 ..> c0174: `get_dependencies() calls session()`
-- c0192 ..> c0174: `get_dependents() calls session()`
-- c0192 ..> c0174: `get_task_by_id() calls session()`
-- c0192 ..> c0174: `list_tasks() calls session()`
-- c0192 ..> c0174: `list_tasks_for_user() calls session()`
-- c0192 ..> c0174: `remove_dependency() calls session()`
-- c0192 ..> c0174: `transition_task_state() calls session()`
-- c0192 ..> c0174: `type in __init__`
-- c0192 ..> c0174: `update_criterion() calls session()`
-- c0192 ..> c0174: `update_task() calls session()`
-- c0192 ..> c0179: `create_criterion() constructs CriteriaTable`
-- c0192 ..> c0189: `add_dependency() constructs TaskDependenciesTable`
-- c0192 ..> c0190: `create_task() constructs TasksTable`
-- c0192 ..> c0192: `update_task() calls get_task_by_id()`
-- c0193 ..> c0028: `update_user() constructs NotFoundError`
-- c0193 ..> c0109: `type in create_user`
-- c0193 ..> c0109: `type in get_user_by_external_id`
-- c0193 ..> c0109: `type in get_user_by_id`
-- c0193 ..> c0109: `type in update_user`
-- c0193 ..> c0110: `type in create_user`
-- c0193 ..> c0112: `type in update_user`
-- c0193 ..> c0117: `get_user_by_external_id() calls execute()`
-- c0193 ..> c0117: `get_user_by_id() calls execute()`
-- c0193 ..> c0117: `update_user() calls execute()`
-- c0193 ..> c0174: `create_user() calls system_session()`
-- c0193 ..> c0174: `get_user_by_external_id() calls system_session()`
-- c0193 ..> c0174: `get_user_by_id() calls system_session()`
-- c0193 ..> c0174: `type in __init__`
-- c0193 ..> c0174: `update_user() calls system_session()`
-- c0193 ..> c0191: `create_user() constructs UsersTable`
-- c0194 ..> c0030: `parse_datetime_param() calls get()`
-- c0194 ..> c0030: `parse_int_param() calls get()`
-- c0198 ..> c0030: `parse_int_param() calls get()`
-- c0202 ..> c0030: `parse_int_param() calls get()`
-- c0207 ..> c0030: `status() calls get()`
-- c0207 ..> c0207: `login() calls upsert_env_var()`
-- c0207 ..> c0207: `status() calls _has_cached_credentials()`
-- c0207 ..> c0212: `login() calls token_cache_dir()`
-- c0207 ..> c0212: `login() calls user_env_file()`
-- c0207 ..> c0212: `logout() calls token_cache_dir()`
-- c0207 ..> c0212: `status() calls token_cache_dir()`
-- c0207 ..> c0213: `status() calls close()`
-- c0207 ..> c0213: `status() calls execute()`
-- c0207 ..> c0213: `status() constructs RemoteExecutor`
-- c0207 ..> c0214: `login() calls normalize_server_url()`
-- c0207 ..> c0214: `status() calls normalize_server_url()`
-- c0208 ..> c0013: `type in __init__`
-- c0208 ..> c0209: `__init__() constructs _CliRuntime`
-- c0209 ..> c0013: `type in __init__`
-- c0210 ..> c0013: `type in __init__`
-- c0210 ..> c0015: `close() calls dispose_runtime()`
-- c0210 ..> c0015: `create() calls build_runtime()`
-- c0210 ..> c0117: `execute() calls execute()`
-- c0210 ..> c0208: `__init__() constructs CliContext`
-- c0210 ..> c0222: `execute() calls ensure_tool_executable()`
-- c0210 ..> c0222: `list_tools() calls build_discovery_payload()`
-- c0210 ..> c0222: `tool_info() calls build_tool_documentation()`
-- c0211 ..> c0030: `_build_executor() calls get()`
-- c0211 ..> c0117: `_run_tool_command() calls close()`
-- c0211 ..> c0117: `_run_tool_command() calls execute()`
-- c0211 ..> c0117: `_run_tool_command() calls list_tools()`
-- c0211 ..> c0117: `_run_tool_command() calls tool_info()`
-- c0211 ..> c0207: `_run_auth_command() calls login()`
-- c0211 ..> c0207: `_run_auth_command() calls logout()`
-- c0211 ..> c0207: `_run_auth_command() calls status()`
-- c0211 ..> c0210: `_build_executor() calls create()`
-- c0211 ..> c0211: `_run_tool_command() calls _build_executor()`
-- c0211 ..> c0211: `dispatch() calls _run_auth_command()`
-- c0211 ..> c0211: `dispatch() calls _run_tool_command()`
-- c0211 ..> c0211: `dispatch() calls build_parser()`
-- c0211 ..> c0213: `_build_executor() constructs RemoteExecutor`
-- c0211 ..> c0215: `_run_auth_command() calls emit_error()`
-- c0211 ..> c0215: `_run_tool_command() calls emit_error()`
-- c0211 ..> c0215: `_run_tool_command() calls render_result()`
-- c0211 ..> c0217: `_run_tool_command() calls run()`
-- c0211 ..> c0217: `dispatch() calls run()`
-- c0211 ..> c0269: `build_parser() calls get_version()`
-- c0212 ..> c0212: `token_cache_dir() calls config_dir()`
-- c0212 ..> c0212: `user_env_file() calls config_dir()`
-- c0213 ..> c0117: `close() calls close()`
-- c0213 ..> c0213: `execute() calls _call()`
-- c0213 ..> c0213: `list_tools() calls _call()`
-- c0213 ..> c0213: `tool_info() calls _call()`
-- c0213 ..> c0214: `__init__() calls normalize_server_url()`
-- c0214 ..> c0212: `_default_client_factory() calls token_cache_dir()`
-- c0215 ..> c0030: `render_memory_detail() calls get()`
-- c0215 ..> c0030: `render_memory_lines() calls get()`
-- c0215 ..> c0030: `render_project_lines() calls get()`
-- c0215 ..> c0215: `render_result() calls to_jsonable()`
-- c0217 ..> c0030: `_memory_recent() calls get()`
-- c0217 ..> c0030: `_memory_search() calls get()`
-- c0217 ..> c0030: `_project_list() calls get()`
-- c0217 ..> c0030: `resolve_project() calls get()`
-- c0217 ..> c0117: `_memory_get() calls execute()`
-- c0217 ..> c0117: `_memory_recent() calls execute()`
-- c0217 ..> c0117: `_memory_save() calls execute()`
-- c0217 ..> c0117: `_memory_search() calls execute()`
-- c0217 ..> c0117: `_project_list() calls execute()`
-- c0217 ..> c0117: `resolve_project() calls execute()`
-- c0217 ..> c0215: `_memory_get() calls render_memory_detail()`
-- c0217 ..> c0215: `_memory_get() calls to_jsonable()`
-- c0217 ..> c0215: `_memory_recent() calls render_memory_lines()`
-- c0217 ..> c0215: `_memory_recent() calls to_jsonable()`
-- c0217 ..> c0215: `_memory_save() calls to_jsonable()`
-- c0217 ..> c0215: `_memory_search() calls render_memory_lines()`
-- c0217 ..> c0215: `_memory_search() calls to_jsonable()`
-- c0217 ..> c0215: `_project_list() calls render_project_lines()`
-- c0217 ..> c0215: `_project_list() calls to_jsonable()`
-- c0217 ..> c0215: `resolve_project() calls to_jsonable()`
-- c0217 ..> c0216: `resolve_project() constructs CliError`
-- c0217 ..> c0217: `_memory_recent() calls resolve_project()`
-- c0217 ..> c0217: `_memory_save() calls resolve_project()`
-- c0217 ..> c0217: `_memory_search() calls resolve_project()`
-- c0217 ..> c0217: `run() calls _project_list()`
-- c0222 ..> c0104: `build_discovery_payload() constructs ToolCategory`
-- c0222 ..> c0107: `build_discovery_payload() calls to_discovery_dict()`
-- c0222 ..> c0107: `build_tool_documentation() calls to_detailed_dict()`
-- c0222 ..> c0222: `_build_discover_docstring() calls _build_category_list()`
-- c0222 ..> c0222: `_build_discover_docstring() calls _build_compact_discover_docstring()`
-- c0222 ..> c0222: `_build_discover_docstring() calls _get_mcp_descriptor_mode()`
-- c0222 ..> c0222: `_build_execute_docstring() calls _build_compact_execute_docstring()`
-- c0222 ..> c0222: `_build_execute_docstring() calls _build_tool_categories_line()`
-- c0222 ..> c0222: `_build_execute_docstring() calls _get_mcp_descriptor_mode()`
-- c0222 ..> c0222: `register() calls _build_discover_docstring()`
-- c0222 ..> c0222: `register() calls _build_execute_docstring()`
-- c0222 ..> c0225: `build_tool_documentation() calls get_required_scope()`
-- c0222 ..> c0225: `ensure_tool_executable() calls get_required_scope()`
-- c0222 ..> c0239: `build_discovery_payload() calls get_permitted_by_category()`
-- c0222 ..> c0239: `build_discovery_payload() calls get_permitted_categories()`
-- c0222 ..> c0239: `build_discovery_payload() calls get_permitted_tools()`
-- c0222 ..> c0239: `build_tool_documentation() calls get_permitted_tools()`
-- c0222 ..> c0239: `build_tool_documentation() calls get_tool()`
-- c0222 ..> c0239: `build_tool_documentation() calls is_permitted()`
-- c0222 ..> c0239: `ensure_tool_executable() calls get_permitted_tools()`
-- c0222 ..> c0239: `ensure_tool_executable() calls tool_exists()`
-- c0225 ..> c0030: `_extract_token_scopes() calls get()`
-- c0225 ..> c0030: `get_required_scope() calls get()`
-- c0225 ..> c0030: `resolve_permitted_tools() calls get()`
-- c0225 ..> c0225: `_extract_token_scopes() calls parse_scopes()`
-- c0225 ..> c0225: `get_effective_scopes() calls _extract_token_scopes()`
-- c0225 ..> c0225: `get_effective_scopes() calls resolve_permitted_tools()`
-- c0225 ..> c0239: `get_effective_scopes() calls list_all_tools()`
-- c0225 ..> c0239: `get_required_scope() calls get_tool()`
-- c0225 ..> c0239: `resolve_permitted_tools() calls list_all_tools()`
-- c0225 ..> c0239: `type in get_required_scope`
-- c0225 ..> c0239: `type in resolve_permitted_tools`
-- c0227 ..> c0031: `create_code_artifact() calls get_user_from_auth()`
-- c0227 ..> c0031: `delete_code_artifact() calls get_user_from_auth()`
-- c0227 ..> c0031: `get_code_artifact() calls get_user_from_auth()`
-- c0227 ..> c0031: `list_code_artifacts() calls get_user_from_auth()`
-- c0227 ..> c0031: `update_code_artifact() calls get_user_from_auth()`
-- c0227 ..> c0039: `type in create_code_artifact`
-- c0227 ..> c0039: `type in get_code_artifact`
-- c0227 ..> c0039: `type in update_code_artifact`
-- c0227 ..> c0040: `create_code_artifact() constructs CodeArtifactCreate`
-- c0227 ..> c0042: `update_code_artifact() constructs CodeArtifactUpdate`
-- c0227 ..> c0243: `create_code_artifact() calls create_code_artifact()`
-- c0227 ..> c0243: `delete_code_artifact() calls delete_code_artifact()`
-- c0227 ..> c0243: `get_code_artifact() calls get_code_artifact()`
-- c0227 ..> c0243: `list_code_artifacts() calls list_code_artifacts()`
-- c0227 ..> c0243: `type in __init__`
-- c0227 ..> c0243: `update_code_artifact() calls update_code_artifact()`
-- c0227 ..> c0264: `type in __init__`
-- c0227 ..> c0266: `update_code_artifact() calls filter_none_values()`
-- c0228 ..> c0031: `create_document() calls get_user_from_auth()`
-- c0228 ..> c0031: `delete_document() calls get_user_from_auth()`
-- c0228 ..> c0031: `get_document() calls get_user_from_auth()`
-- c0228 ..> c0031: `list_documents() calls get_user_from_auth()`
-- c0228 ..> c0031: `update_document() calls get_user_from_auth()`
-- c0228 ..> c0043: `type in create_document`
-- c0228 ..> c0043: `type in get_document`
-- c0228 ..> c0043: `type in update_document`
-- c0228 ..> c0044: `create_document() constructs DocumentCreate`
-- c0228 ..> c0046: `update_document() constructs DocumentUpdate`
-- c0228 ..> c0244: `create_document() calls create_document()`
-- c0228 ..> c0244: `delete_document() calls delete_document()`
-- c0228 ..> c0244: `get_document() calls get_document()`
-- c0228 ..> c0244: `list_documents() calls list_documents()`
+- c0086 --> c0090: `field priority`
+- c0086 --> c0091: `field state`
+- c0087 --> c0079: `field criteria`
+- c0087 --> c0090: `field priority`
+- c0089 ..> c0031: `cannot_depend_on_self() calls get()`
+- c0092 --> c0090: `field priority`
+- c0092 --> c0091: `field state`
+- c0093 --> c0090: `field priority`
+- c0094 --|> c0095: `inherits`
+- c0095 --> c0096: `field status`
+- c0095 --> c0098: `field project_type`
+- c0097 --> c0096: `field status`
+- c0097 --> c0098: `field project_type`
+- c0099 --> c0096: `field status`
+- c0099 --> c0098: `field project_type`
+- c0100 --|> c0101: `inherits`
+- c0106 --|> c0108: `inherits`
+- c0107 --> c0108: `field metadata`
+- c0108 ..> c0031: `_map_python_type_to_json_type() calls get()`
+- c0108 --> c0105: `field category`
+- c0108 ..> c0108: `_generate_json_schema() calls _map_python_type_to_json_type()`
+- c0108 ..> c0108: `to_detailed_dict() calls _generate_json_schema()`
+- c0108 --> c0109: `field parameters`
+- c0110 --|> c0111: `inherits`
+- c0114 ..> c0034: `type in count_events`
+- c0114 ..> c0034: `type in query_events`
+- c0114 ..> c0035: `type in save_event`
+- c0114 ..> c0037: `type in query_events`
+- c0114 ..> c0037: `type in save_event`
+- c0114 ..> c0038: `type in query_events`
+- c0114 ..> c0039: `type in count_events`
+- c0114 ..> c0039: `type in query_events`
+- c0115 ..> c0040: `type in create_code_artifact`
+- c0115 ..> c0040: `type in get_code_artifact_by_id`
+- c0115 ..> c0040: `type in update_code_artifact`
+- c0115 ..> c0041: `type in create_code_artifact`
+- c0115 ..> c0042: `type in list_code_artifacts`
+- c0115 ..> c0043: `type in update_code_artifact`
+- c0116 ..> c0044: `type in create_document`
+- c0116 ..> c0044: `type in get_document_by_id`
+- c0116 ..> c0044: `type in update_document`
+- c0116 ..> c0045: `type in create_document`
+- c0116 ..> c0046: `type in list_documents`
+- c0116 ..> c0047: `type in update_document`
+- c0117 ..> c0048: `type in create_entity`
+- c0117 ..> c0048: `type in get_entity_by_id`
+- c0117 ..> c0048: `type in update_entity`
+- c0117 ..> c0049: `type in create_entity`
+- c0117 ..> c0051: `type in create_entity_relationship`
+- c0117 ..> c0051: `type in get_all_entity_relationships`
+- c0117 ..> c0051: `type in get_entity_relationships`
+- c0117 ..> c0051: `type in update_entity_relationship`
+- c0117 ..> c0052: `type in create_entity_relationship`
+- c0117 ..> c0053: `type in update_entity_relationship`
+- c0117 ..> c0054: `type in list_entities`
+- c0117 ..> c0054: `type in search_entities`
+- c0117 ..> c0055: `type in list_entities`
+- c0117 ..> c0055: `type in search_entities`
+- c0117 ..> c0056: `type in update_entity`
+- c0119 ..> c0057: `type in create_file`
+- c0119 ..> c0057: `type in get_file_by_id`
+- c0119 ..> c0057: `type in update_file`
+- c0119 ..> c0058: `type in create_file`
+- c0119 ..> c0059: `type in list_files`
+- c0119 ..> c0060: `type in update_file`
+- c0120 ..> c0066: `type in create_memory`
+- c0120 ..> c0066: `type in find_obsolete_matches`
+- c0120 ..> c0066: `type in find_similar_memories`
+- c0120 ..> c0066: `type in find_similar_memories_scored`
+- c0120 ..> c0066: `type in get_linked_memories`
+- c0120 ..> c0066: `type in get_memories_for_reembedding`
+- c0120 ..> c0066: `type in get_memories_for_targeted_rebuild`
+- c0120 ..> c0066: `type in get_memory_by_id`
+- c0120 ..> c0066: `type in list_memories`
+- c0120 ..> c0066: `type in search`
+- c0120 ..> c0066: `type in search_scored`
+- c0120 ..> c0066: `type in update_memory`
+- c0120 ..> c0067: `type in create_memory`
+- c0120 ..> c0073: `type in search_scored`
+- c0120 ..> c0075: `type in update_memory`
+- c0122 ..> c0081: `type in create_plan`
+- c0122 ..> c0081: `type in get_plan_by_id`
+- c0122 ..> c0081: `type in update_plan`
+- c0122 ..> c0082: `type in create_plan`
+- c0122 ..> c0083: `type in list_plans`
+- c0122 ..> c0084: `type in list_plans`
+- c0122 ..> c0085: `type in update_plan`
+- c0123 ..> c0094: `type in create_project`
+- c0123 ..> c0094: `type in get_project_by_id`
+- c0123 ..> c0094: `type in update_project`
+- c0123 ..> c0095: `type in create_project`
+- c0123 ..> c0096: `type in list_projects`
+- c0123 ..> c0097: `type in list_projects`
+- c0123 ..> c0099: `type in update_project`
+- c0124 ..> c0100: `type in create_skill`
+- c0124 ..> c0100: `type in get_skill_by_id`
+- c0124 ..> c0100: `type in update_skill`
+- c0124 ..> c0101: `type in create_skill`
+- c0124 ..> c0102: `type in get_skill_links`
+- c0124 ..> c0103: `type in list_skills`
+- c0124 ..> c0103: `type in search_skills`
+- c0124 ..> c0104: `type in update_skill`
+- c0125 ..> c0078: `type in create_criterion`
+- c0125 ..> c0078: `type in get_criteria_for_task`
+- c0125 ..> c0078: `type in update_criterion`
+- c0125 ..> c0079: `type in create_criterion`
+- c0125 ..> c0080: `type in update_criterion`
+- c0125 ..> c0086: `type in create_task`
+- c0125 ..> c0086: `type in get_task_by_id`
+- c0125 ..> c0086: `type in transition_task_state`
+- c0125 ..> c0086: `type in update_task`
+- c0125 ..> c0087: `type in create_task`
+- c0125 ..> c0088: `type in add_dependency`
+- c0125 ..> c0090: `type in list_tasks`
+- c0125 ..> c0091: `type in list_tasks`
+- c0125 ..> c0091: `type in transition_task_state`
+- c0125 ..> c0092: `type in list_tasks`
+- c0125 ..> c0092: `type in list_tasks_for_user`
+- c0125 ..> c0093: `type in update_task`
+- c0126 ..> c0110: `type in create_user`
+- c0126 ..> c0110: `type in get_user_by_external_id`
+- c0126 ..> c0110: `type in get_user_by_id`
+- c0126 ..> c0110: `type in update_user`
+- c0126 ..> c0111: `type in create_user`
+- c0126 ..> c0113: `type in update_user`
+- c0127 --|> c0128: `inherits`
+- c0129 --|> c0128: `inherits`
+- c0130 --|> c0128: `inherits`
+- c0131 --|> c0128: `inherits`
+- c0131 ..> c0129: `__init__() calls _create_text_embedding()`
+- c0131 ..> c0133: `__init__() calls load_fastembed_model()`
+- c0131 ..> c0211: `generate_embedding() calls create()`
+- c0132 --|> c0128: `inherits`
+- c0133 ..> c0133: `load_fastembed_model() calls get_fastembed_kwargs()`
+- c0134 ..> c0135: `_rerank_sync() calls rerank()`
+- c0135 ..> c0133: `__init__() calls load_fastembed_model()`
+- c0135 ..> c0134: `__init__() calls _create_text_cross_encoder()`
+- c0137 ..> c0066: `type in build_memory_text`
+- c0137 ..> c0067: `type in build_embedding_text`
+- c0138 ..> c0034: `type in count_events`
+- c0138 ..> c0034: `type in query_events`
+- c0138 ..> c0035: `type in save_event`
+- c0138 ..> c0037: `query_events() constructs ActivityLogEntry`
+- c0138 ..> c0037: `save_event() constructs ActivityLogEntry`
+- c0138 ..> c0037: `type in query_events`
+- c0138 ..> c0037: `type in save_event`
+- c0138 ..> c0038: `type in query_events`
+- c0138 ..> c0039: `type in count_events`
+- c0138 ..> c0039: `type in query_events`
+- c0138 ..> c0118: `cleanup_expired() calls execute()`
+- c0138 ..> c0118: `count_events() calls execute()`
+- c0138 ..> c0118: `query_events() calls execute()`
+- c0138 ..> c0145: `cleanup_expired() calls session()`
+- c0138 ..> c0145: `count_events() calls session()`
+- c0138 ..> c0145: `query_events() calls session()`
+- c0138 ..> c0145: `save_event() calls session()`
+- c0138 ..> c0145: `type in __init__`
+- c0138 ..> c0146: `save_event() constructs ActivityLogTable`
+- c0139 ..> c0029: `update_code_artifact() constructs NotFoundError`
+- c0139 ..> c0031: `update_code_artifact() calls get()`
+- c0139 ..> c0040: `type in create_code_artifact`
+- c0139 ..> c0040: `type in get_code_artifact_by_id`
+- c0139 ..> c0040: `type in update_code_artifact`
+- c0139 ..> c0041: `type in create_code_artifact`
+- c0139 ..> c0042: `type in list_code_artifacts`
+- c0139 ..> c0043: `type in update_code_artifact`
+- c0139 ..> c0118: `delete_code_artifact() calls execute()`
+- c0139 ..> c0118: `get_code_artifact_by_id() calls execute()`
+- c0139 ..> c0118: `list_code_artifacts() calls execute()`
+- c0139 ..> c0118: `update_code_artifact() calls execute()`
+- c0139 ..> c0145: `create_code_artifact() calls session()`
+- c0139 ..> c0145: `delete_code_artifact() calls session()`
+- c0139 ..> c0145: `get_code_artifact_by_id() calls session()`
+- c0139 ..> c0145: `list_code_artifacts() calls session()`
+- c0139 ..> c0145: `type in __init__`
+- c0139 ..> c0145: `update_code_artifact() calls session()`
+- c0139 ..> c0148: `create_code_artifact() constructs CodeArtifactsTable`
+- c0140 ..> c0029: `update_document() constructs NotFoundError`
+- c0140 ..> c0031: `update_document() calls get()`
+- c0140 ..> c0044: `type in create_document`
+- c0140 ..> c0044: `type in get_document_by_id`
+- c0140 ..> c0044: `type in update_document`
+- c0140 ..> c0045: `type in create_document`
+- c0140 ..> c0046: `type in list_documents`
+- c0140 ..> c0047: `type in update_document`
+- c0140 ..> c0118: `delete_document() calls execute()`
+- c0140 ..> c0118: `get_document_by_id() calls execute()`
+- c0140 ..> c0118: `list_documents() calls execute()`
+- c0140 ..> c0118: `update_document() calls execute()`
+- c0140 ..> c0145: `create_document() calls session()`
+- c0140 ..> c0145: `delete_document() calls session()`
+- c0140 ..> c0145: `get_document_by_id() calls session()`
+- c0140 ..> c0145: `list_documents() calls session()`
+- c0140 ..> c0145: `type in __init__`
+- c0140 ..> c0145: `update_document() calls session()`
+- c0140 ..> c0150: `create_document() constructs DocumentsTable`
+- c0141 ..> c0029: `create_entity_relationship() constructs NotFoundError`
+- c0141 ..> c0029: `get_entity_memories() constructs NotFoundError`
+- c0141 ..> c0029: `get_entity_relationships() constructs NotFoundError`
+- c0141 ..> c0029: `get_memory_entities() constructs NotFoundError`
+- c0141 ..> c0029: `link_entity_to_memory() constructs NotFoundError`
+- c0141 ..> c0029: `link_entity_to_project() constructs NotFoundError`
+- c0141 ..> c0029: `update_entity() constructs NotFoundError`
+- c0141 ..> c0029: `update_entity_relationship() constructs NotFoundError`
+- c0141 ..> c0031: `update_entity() calls get()`
+- c0141 ..> c0048: `type in create_entity`
+- c0141 ..> c0048: `type in get_entity_by_id`
+- c0141 ..> c0048: `type in update_entity`
+- c0141 ..> c0049: `type in create_entity`
+- c0141 ..> c0051: `create_entity_relationship() constructs EntityRelationship`
+- c0141 ..> c0051: `get_all_entity_relationships() constructs EntityRelationship`
+- c0141 ..> c0051: `get_entity_relationships() constructs EntityRelationship`
+- c0141 ..> c0051: `type in create_entity_relationship`
+- c0141 ..> c0051: `type in get_all_entity_relationships`
+- c0141 ..> c0051: `type in get_entity_relationships`
+- c0141 ..> c0051: `type in update_entity_relationship`
+- c0141 ..> c0051: `update_entity_relationship() constructs EntityRelationship`
+- c0141 ..> c0052: `type in create_entity_relationship`
+- c0141 ..> c0053: `type in update_entity_relationship`
+- c0141 ..> c0054: `type in list_entities`
+- c0141 ..> c0054: `type in search_entities`
+- c0141 ..> c0055: `type in list_entities`
+- c0141 ..> c0055: `type in search_entities`
+- c0141 ..> c0056: `type in update_entity`
+- c0141 ..> c0118: `create_entity() calls execute()`
+- c0141 ..> c0118: `create_entity_relationship() calls execute()`
+- c0141 ..> c0118: `delete_entity() calls execute()`
+- c0141 ..> c0118: `delete_entity_relationship() calls execute()`
+- c0141 ..> c0118: `get_all_entity_file_links() calls execute()`
+- c0141 ..> c0118: `get_all_entity_memory_links() calls execute()`
+- c0141 ..> c0118: `get_all_entity_project_links() calls execute()`
+- c0141 ..> c0118: `get_all_entity_relationships() calls execute()`
+- c0141 ..> c0118: `get_entity_by_id() calls execute()`
+- c0141 ..> c0118: `get_entity_memories() calls execute()`
+- c0141 ..> c0118: `get_entity_relationships() calls execute()`
+- c0141 ..> c0118: `get_memory_entities() calls execute()`
+- c0141 ..> c0118: `link_entity_to_memory() calls execute()`
+- c0141 ..> c0118: `link_entity_to_project() calls execute()`
+- c0141 ..> c0118: `list_entities() calls execute()`
+- c0141 ..> c0118: `search_entities() calls execute()`
+- c0141 ..> c0118: `unlink_entity_from_memory() calls execute()`
+- c0141 ..> c0118: `unlink_entity_from_project() calls execute()`
+- c0141 ..> c0118: `update_entity() calls execute()`
+- c0141 ..> c0118: `update_entity_relationship() calls execute()`
+- c0141 ..> c0145: `create_entity() calls session()`
+- c0141 ..> c0145: `create_entity_relationship() calls session()`
+- c0141 ..> c0145: `delete_entity() calls session()`
+- c0141 ..> c0145: `delete_entity_relationship() calls session()`
+- c0141 ..> c0145: `get_all_entity_file_links() calls session()`
+- c0141 ..> c0145: `get_all_entity_memory_links() calls session()`
+- c0141 ..> c0145: `get_all_entity_project_links() calls session()`
+- c0141 ..> c0145: `get_all_entity_relationships() calls session()`
+- c0141 ..> c0145: `get_entity_by_id() calls session()`
+- c0141 ..> c0145: `get_entity_memories() calls session()`
+- c0141 ..> c0145: `get_entity_relationships() calls session()`
+- c0141 ..> c0145: `get_memory_entities() calls session()`
+- c0141 ..> c0145: `link_entity_to_memory() calls session()`
+- c0141 ..> c0145: `link_entity_to_project() calls session()`
+- c0141 ..> c0145: `list_entities() calls session()`
+- c0141 ..> c0145: `search_entities() calls session()`
+- c0141 ..> c0145: `type in __init__`
+- c0141 ..> c0145: `unlink_entity_from_memory() calls session()`
+- c0141 ..> c0145: `unlink_entity_from_project() calls session()`
+- c0141 ..> c0145: `update_entity() calls session()`
+- c0141 ..> c0145: `update_entity_relationship() calls session()`
+- c0141 ..> c0151: `create_entity() constructs EntitiesTable`
+- c0141 ..> c0152: `create_entity_relationship() constructs EntityRelationshipsTable`
+- c0142 ..> c0029: `update_file() constructs NotFoundError`
+- c0142 ..> c0057: `_to_file_model() constructs File`
+- c0142 ..> c0057: `type in _to_file_model`
+- c0142 ..> c0057: `type in create_file`
+- c0142 ..> c0057: `type in get_file_by_id`
+- c0142 ..> c0057: `type in update_file`
+- c0142 ..> c0058: `type in create_file`
+- c0142 ..> c0059: `type in list_files`
+- c0142 ..> c0060: `type in update_file`
+- c0142 ..> c0118: `delete_file() calls execute()`
+- c0142 ..> c0118: `get_file_by_id() calls execute()`
+- c0142 ..> c0118: `list_files() calls execute()`
+- c0142 ..> c0118: `update_file() calls execute()`
+- c0142 ..> c0142: `create_file() calls _to_file_model()`
+- c0142 ..> c0142: `get_file_by_id() calls _to_file_model()`
+- c0142 ..> c0142: `update_file() calls _to_file_model()`
+- c0142 ..> c0145: `create_file() calls session()`
+- c0142 ..> c0145: `delete_file() calls session()`
+- c0142 ..> c0145: `get_file_by_id() calls session()`
+- c0142 ..> c0145: `list_files() calls session()`
+- c0142 ..> c0145: `type in __init__`
+- c0142 ..> c0145: `update_file() calls session()`
+- c0142 ..> c0153: `create_file() constructs FilesTable`
+- c0142 ..> c0153: `type in _to_file_model`
+- c0143 ..> c0024: `update_memory() calls clear()`
+- c0143 ..> c0029: `_link_code_artifacts() constructs NotFoundError`
+- c0143 ..> c0029: `_link_documents() constructs NotFoundError`
+- c0143 ..> c0029: `_link_files() constructs NotFoundError`
+- c0143 ..> c0029: `_link_projects() constructs NotFoundError`
+- c0143 ..> c0029: `_link_skills() constructs NotFoundError`
+- c0143 ..> c0029: `create_link() constructs NotFoundError`
+- c0143 ..> c0029: `get_linked_memories() constructs NotFoundError`
+- c0143 ..> c0029: `get_memory_by_id() constructs NotFoundError`
+- c0143 ..> c0029: `get_memory_table_by_id() constructs NotFoundError`
+- c0143 ..> c0029: `mark_obsolete() constructs NotFoundError`
+- c0143 ..> c0029: `update_memory() constructs NotFoundError`
+- c0143 ..> c0031: `create_link() calls get()`
+- c0143 ..> c0031: `list_memories() calls get()`
+- c0143 ..> c0066: `type in create_memory`
+- c0143 ..> c0066: `type in find_obsolete_matches`
+- c0143 ..> c0066: `type in find_similar_memories`
+- c0143 ..> c0066: `type in find_similar_memories_scored`
+- c0143 ..> c0066: `type in get_linked_memories`
+- c0143 ..> c0066: `type in get_memories_for_reembedding`
+- c0143 ..> c0066: `type in get_memories_for_targeted_rebuild`
+- c0143 ..> c0066: `type in get_memory_by_id`
+- c0143 ..> c0066: `type in list_memories`
+- c0143 ..> c0066: `type in search`
+- c0143 ..> c0066: `type in search_scored`
+- c0143 ..> c0066: `type in semantic_search`
+- c0143 ..> c0066: `type in semantic_search_scored`
+- c0143 ..> c0066: `type in update_memory`
+- c0143 ..> c0067: `type in create_memory`
+- c0143 ..> c0073: `search_scored() constructs MemoryScore`
+- c0143 ..> c0073: `type in search_scored`
+- c0143 ..> c0075: `type in update_memory`
+- c0143 ..> c0118: `_link_code_artifacts() calls execute()`
+- c0143 ..> c0118: `_link_documents() calls execute()`
+- c0143 ..> c0118: `_link_files() calls execute()`
+- c0143 ..> c0118: `_link_projects() calls execute()`
+- c0143 ..> c0118: `_link_skills() calls execute()`
+- c0143 ..> c0118: `bulk_update_embeddings() calls execute()`
+- c0143 ..> c0118: `count_memories_for_targeted_rebuild() calls execute()`
+- c0143 ..> c0118: `create_memory() calls execute()`
+- c0143 ..> c0118: `find_obsolete_matches() calls execute()`
+- c0143 ..> c0118: `find_similar_memories_scored() calls execute()`
+- c0143 ..> c0118: `get_linked_memories() calls execute()`
+- c0143 ..> c0118: `get_memories_for_reembedding() calls execute()`
+- c0143 ..> c0118: `get_memories_for_targeted_rebuild() calls execute()`
+- c0143 ..> c0118: `get_memory_table_by_id() calls execute()`
+- c0143 ..> c0118: `get_subgraph_nodes() calls execute()`
+- c0143 ..> c0118: `list_memories() calls execute()`
+- c0143 ..> c0118: `mark_obsolete() calls execute()`
+- c0143 ..> c0118: `record_memory_access() calls execute()`
+- c0143 ..> c0118: `reset_embedding_storage() calls execute()`
+- c0143 ..> c0118: `semantic_search_scored() calls execute()`
+- c0143 ..> c0118: `unlink_memories() calls execute()`
+- c0143 ..> c0118: `update_memory() calls execute()`
+- c0143 ..> c0118: `upsert_targeted_embeddings() calls execute()`
+- c0143 ..> c0118: `validate_embedding_dimensions() calls execute()`
+- c0143 ..> c0118: `validate_search_works() calls execute()`
+- c0143 ..> c0128: `type in __init__`
+- c0143 ..> c0131: `_generate_embeddings() calls generate_embedding()`
+- c0143 ..> c0135: `search_scored() calls rerank()`
+- c0143 ..> c0136: `type in __init__`
+- c0143 ..> c0137: `create_memory() calls build_embedding_text()`
+- c0143 ..> c0137: `search_scored() calls build_contextual_query()`
+- c0143 ..> c0137: `search_scored() calls build_memory_text()`
+- c0143 ..> c0137: `update_memory() calls build_embedding_text()`
+- c0143 ..> c0143: `count_memories_for_targeted_rebuild() calls _build_targeted_rebuild_filter()`
+- c0143 ..> c0143: `create_links_batch() calls create_link()`
+- c0143 ..> c0143: `create_memory() calls _generate_embeddings()`
+- c0143 ..> c0143: `create_memory() calls _link_code_artifacts()`
+- c0143 ..> c0143: `create_memory() calls _link_documents()`
+- c0143 ..> c0143: `create_memory() calls _link_files()`
+- c0143 ..> c0143: `create_memory() calls _link_projects()`
+- c0143 ..> c0143: `create_memory() calls _link_skills()`
+- c0143 ..> c0143: `find_obsolete_matches() calls get_memory_table_by_id()`
+- c0143 ..> c0143: `find_similar_memories() calls find_similar_memories_scored()`
+- c0143 ..> c0143: `find_similar_memories_scored() calls get_memory_table_by_id()`
+- c0143 ..> c0143: `get_memories_for_targeted_rebuild() calls _build_targeted_rebuild_filter()`
+- c0143 ..> c0143: `get_memory_by_id() calls get_memory_table_by_id()`
+- c0143 ..> c0143: `search() calls search_scored()`
+- c0143 ..> c0143: `search_scored() calls semantic_search_scored()`
+- c0143 ..> c0143: `semantic_search() calls semantic_search_scored()`
+- c0143 ..> c0143: `semantic_search_scored() calls _generate_embeddings()`
+- c0143 ..> c0143: `update_memory() calls _generate_embeddings()`
+- c0143 ..> c0143: `update_memory() calls _link_code_artifacts()`
+- c0143 ..> c0143: `update_memory() calls _link_documents()`
+- c0143 ..> c0143: `update_memory() calls _link_files()`
+- c0143 ..> c0143: `update_memory() calls _link_projects()`
+- c0143 ..> c0143: `validate_search_works() calls _generate_embeddings()`
+- c0143 ..> c0145: `bulk_update_embeddings() calls system_session()`
+- c0143 ..> c0145: `count_all_memories() calls system_session()`
+- c0143 ..> c0145: `count_memories_for_targeted_rebuild() calls system_session()`
+- c0143 ..> c0145: `create_link() calls session()`
+- c0143 ..> c0145: `create_memory() calls session()`
+- c0143 ..> c0145: `find_obsolete_matches() calls session()`
+- c0143 ..> c0145: `find_similar_memories_scored() calls session()`
+- c0143 ..> c0145: `get_linked_memories() calls session()`
+- c0143 ..> c0145: `get_memories_for_reembedding() calls system_session()`
+- c0143 ..> c0145: `get_memories_for_targeted_rebuild() calls system_session()`
+- c0143 ..> c0145: `get_memory_table_by_id() calls session()`
+- c0143 ..> c0145: `get_subgraph_nodes() calls session()`
+- c0143 ..> c0145: `list_memories() calls session()`
+- c0143 ..> c0145: `mark_obsolete() calls session()`
+- c0143 ..> c0145: `record_memory_access() calls system_session()`
+- c0143 ..> c0145: `reset_embedding_storage() calls system_session()`
+- c0143 ..> c0145: `semantic_search_scored() calls session()`
+- c0143 ..> c0145: `type in __init__`
+- c0143 ..> c0145: `unlink_memories() calls session()`
+- c0143 ..> c0145: `update_memory() calls session()`
+- c0143 ..> c0145: `upsert_targeted_embeddings() calls system_session()`
+- c0143 ..> c0145: `validate_embedding_count() calls system_session()`
+- c0143 ..> c0145: `validate_embedding_dimensions() calls system_session()`
+- c0143 ..> c0145: `validate_search_works() calls system_session()`
+- c0143 ..> c0154: `create_link() constructs MemoryLinkTable`
+- c0143 ..> c0154: `type in create_link`
+- c0143 ..> c0155: `create_memory() constructs MemoryTable`
+- c0143 ..> c0155: `type in _link_code_artifacts`
+- c0143 ..> c0155: `type in _link_documents`
+- c0143 ..> c0155: `type in _link_files`
+- c0143 ..> c0155: `type in _link_projects`
+- c0143 ..> c0155: `type in _link_skills`
+- c0143 ..> c0155: `type in get_memory_table_by_id`
+- c0144 ..> c0025: `create_plan() constructs ConflictError`
+- c0144 ..> c0025: `update_plan() constructs ConflictError`
+- c0144 ..> c0029: `update_plan() constructs NotFoundError`
+- c0144 ..> c0081: `type in create_plan`
+- c0144 ..> c0081: `type in get_plan_by_id`
+- c0144 ..> c0081: `type in update_plan`
+- c0144 ..> c0082: `type in create_plan`
+- c0144 ..> c0083: `type in list_plans`
+- c0144 ..> c0084: `type in list_plans`
+- c0144 ..> c0085: `type in update_plan`
+- c0144 ..> c0118: `delete_plan() calls execute()`
+- c0144 ..> c0118: `get_plan_by_id() calls execute()`
+- c0144 ..> c0118: `list_plans() calls execute()`
+- c0144 ..> c0118: `update_plan() calls execute()`
+- c0144 ..> c0145: `create_plan() calls session()`
+- c0144 ..> c0145: `delete_plan() calls session()`
+- c0144 ..> c0145: `get_plan_by_id() calls session()`
+- c0144 ..> c0145: `list_plans() calls session()`
+- c0144 ..> c0145: `type in __init__`
+- c0144 ..> c0145: `update_plan() calls session()`
+- c0144 ..> c0156: `create_plan() constructs PlansTable`
+- c0145 ..> c0003: `_run_migrations() calls upgrade()`
+- c0145 ..> c0118: `init_db() calls execute()`
+- c0145 ..> c0118: `session() calls close()`
+- c0145 ..> c0118: `session() calls execute()`
+- c0145 ..> c0118: `system_session() calls close()`
+- c0145 ..> c0145: `__init__() calls construct_postgres_connection_string()`
+- c0145 ..> c0145: `_run_migrations() calls construct_postgres_connection_string()`
+- c0145 ..> c0175: `dispose() calls dispose()`
+- c0146 --|> c0147: `inherits`
+- c0148 --|> c0147: `inherits`
+- c0148 --> c0155: `field memories`
+- c0148 --> c0157: `field project`
+- c0148 --> c0158: `field skills`
+- c0148 --> c0161: `field user`
+- c0149 --|> c0147: `inherits`
+- c0149 --> c0160: `field task`
+- c0150 --|> c0147: `inherits`
+- c0150 --> c0155: `field memories`
+- c0150 --> c0157: `field project`
+- c0150 --> c0158: `field skills`
+- c0150 --> c0161: `field user`
+- c0151 --|> c0147: `inherits`
+- c0151 --> c0152: `field incoming_relationships`
+- c0151 --> c0152: `field outgoing_relationships`
+- c0151 --> c0153: `field files`
+- c0151 --> c0155: `field memories`
+- c0151 --> c0157: `field projects`
+- c0151 --> c0161: `field user`
+- c0152 --|> c0147: `inherits`
+- c0152 --> c0151: `field source_entity`
+- c0152 --> c0151: `field target_entity`
+- c0153 --|> c0147: `inherits`
+- c0153 --> c0151: `field entities`
+- c0153 --> c0155: `field memories`
+- c0153 --> c0157: `field project`
+- c0153 --> c0158: `field skills`
+- c0153 --> c0161: `field user`
+- c0154 --|> c0147: `inherits`
+- c0155 --|> c0147: `inherits`
+- c0155 --> c0148: `field code_artifacts`
+- c0155 --> c0150: `field documents`
+- c0155 --> c0151: `field entities`
+- c0155 --> c0153: `field files`
+- c0155 --> c0157: `field projects`
+- c0155 --> c0158: `field skills`
+- c0155 --> c0161: `field user`
+- c0156 --|> c0147: `inherits`
+- c0156 --> c0157: `field project`
+- c0156 --> c0160: `field tasks`
+- c0156 --> c0161: `field user`
+- c0157 --|> c0147: `inherits`
+- c0157 --> c0148: `field code_artifacts`
+- c0157 --> c0150: `field documents`
+- c0157 --> c0151: `field entities`
+- c0157 --> c0153: `field files`
+- c0157 --> c0155: `field memories`
+- c0157 --> c0156: `field plans`
+- c0157 --> c0158: `field skills`
+- c0157 --> c0161: `field user`
+- c0158 --|> c0147: `inherits`
+- c0158 --> c0148: `field code_artifacts`
+- c0158 --> c0150: `field documents`
+- c0158 --> c0153: `field files`
+- c0158 --> c0155: `field memories`
+- c0158 --> c0157: `field project`
+- c0158 --> c0161: `field user`
+- c0159 --|> c0147: `inherits`
+- c0159 --> c0160: `field task`
+- c0160 --|> c0147: `inherits`
+- c0160 --> c0149: `field criteria`
+- c0160 --> c0156: `field plan`
+- c0160 --> c0159: `field depends_on`
+- c0161 --|> c0147: `inherits`
+- c0161 --> c0148: `field code_artifacts`
+- c0161 --> c0150: `field documents`
+- c0161 --> c0151: `field entities`
+- c0161 --> c0153: `field files`
+- c0161 --> c0155: `field memories`
+- c0161 --> c0156: `field plans`
+- c0161 --> c0157: `field projects`
+- c0161 --> c0158: `field skills`
+- c0162 ..> c0029: `update_project() constructs NotFoundError`
+- c0162 ..> c0094: `type in create_project`
+- c0162 ..> c0094: `type in get_project_by_id`
+- c0162 ..> c0094: `type in update_project`
+- c0162 ..> c0095: `type in create_project`
+- c0162 ..> c0096: `type in list_projects`
+- c0162 ..> c0097: `type in list_projects`
+- c0162 ..> c0099: `type in update_project`
+- c0162 ..> c0118: `delete_project() calls execute()`
+- c0162 ..> c0118: `get_project_by_id() calls execute()`
+- c0162 ..> c0118: `list_projects() calls execute()`
+- c0162 ..> c0118: `update_project() calls execute()`
+- c0162 ..> c0145: `create_project() calls session()`
+- c0162 ..> c0145: `delete_project() calls session()`
+- c0162 ..> c0145: `get_project_by_id() calls session()`
+- c0162 ..> c0145: `list_projects() calls session()`
+- c0162 ..> c0145: `type in __init__`
+- c0162 ..> c0145: `update_project() calls session()`
+- c0162 ..> c0157: `create_project() constructs ProjectsTable`
+- c0162 ..> c0268: `list_projects() calls repository_identity()`
+- c0163 ..> c0029: `get_skill_links() constructs NotFoundError`
+- c0163 ..> c0029: `link_skill_to_code_artifact() constructs NotFoundError`
+- c0163 ..> c0029: `link_skill_to_document() constructs NotFoundError`
+- c0163 ..> c0029: `link_skill_to_file() constructs NotFoundError`
+- c0163 ..> c0029: `link_skill_to_memory() constructs NotFoundError`
+- c0163 ..> c0029: `update_skill() constructs NotFoundError`
+- c0163 ..> c0100: `_to_skill() constructs Skill`
+- c0163 ..> c0100: `type in _to_skill`
+- c0163 ..> c0100: `type in create_skill`
+- c0163 ..> c0100: `type in get_skill_by_id`
+- c0163 ..> c0100: `type in update_skill`
+- c0163 ..> c0101: `type in create_skill`
+- c0163 ..> c0102: `get_skill_links() constructs SkillLinks`
+- c0163 ..> c0102: `type in get_skill_links`
+- c0163 ..> c0103: `type in list_skills`
+- c0163 ..> c0103: `type in search_skills`
+- c0163 ..> c0104: `type in update_skill`
+- c0163 ..> c0118: `delete_skill() calls execute()`
+- c0163 ..> c0118: `get_all_skill_code_artifact_links() calls execute()`
+- c0163 ..> c0118: `get_all_skill_document_links() calls execute()`
+- c0163 ..> c0118: `get_all_skill_file_links() calls execute()`
+- c0163 ..> c0118: `get_skill_by_id() calls execute()`
+- c0163 ..> c0118: `get_skill_links() calls execute()`
+- c0163 ..> c0118: `link_skill_to_code_artifact() calls execute()`
+- c0163 ..> c0118: `link_skill_to_document() calls execute()`
+- c0163 ..> c0118: `link_skill_to_file() calls execute()`
+- c0163 ..> c0118: `link_skill_to_memory() calls execute()`
+- c0163 ..> c0118: `list_skills() calls execute()`
+- c0163 ..> c0118: `search_skills() calls execute()`
+- c0163 ..> c0118: `skill_name_exists() calls execute()`
+- c0163 ..> c0118: `unlink_skill_from_code_artifact() calls execute()`
+- c0163 ..> c0118: `unlink_skill_from_document() calls execute()`
+- c0163 ..> c0118: `unlink_skill_from_file() calls execute()`
+- c0163 ..> c0118: `unlink_skill_from_memory() calls execute()`
+- c0163 ..> c0118: `update_skill() calls execute()`
+- c0163 ..> c0128: `type in __init__`
+- c0163 ..> c0131: `create_skill() calls generate_embedding()`
+- c0163 ..> c0131: `search_skills() calls generate_embedding()`
+- c0163 ..> c0131: `update_skill() calls generate_embedding()`
+- c0163 ..> c0135: `search_skills() calls rerank()`
+- c0163 ..> c0136: `type in __init__`
+- c0163 ..> c0137: `create_skill() calls build_skill_embedding_text()`
+- c0163 ..> c0137: `update_skill() calls build_skill_embedding_text()`
+- c0163 ..> c0145: `create_skill() calls session()`
+- c0163 ..> c0145: `delete_skill() calls session()`
+- c0163 ..> c0145: `get_all_skill_code_artifact_links() calls session()`
+- c0163 ..> c0145: `get_all_skill_document_links() calls session()`
+- c0163 ..> c0145: `get_all_skill_file_links() calls session()`
+- c0163 ..> c0145: `get_skill_by_id() calls session()`
+- c0163 ..> c0145: `get_skill_links() calls session()`
+- c0163 ..> c0145: `link_skill_to_code_artifact() calls session()`
+- c0163 ..> c0145: `link_skill_to_document() calls session()`
+- c0163 ..> c0145: `link_skill_to_file() calls session()`
+- c0163 ..> c0145: `link_skill_to_memory() calls session()`
+- c0163 ..> c0145: `list_skills() calls session()`
+- c0163 ..> c0145: `search_skills() calls session()`
+- c0163 ..> c0145: `skill_name_exists() calls session()`
+- c0163 ..> c0145: `type in __init__`
+- c0163 ..> c0145: `unlink_skill_from_code_artifact() calls session()`
+- c0163 ..> c0145: `unlink_skill_from_document() calls session()`
+- c0163 ..> c0145: `unlink_skill_from_file() calls session()`
+- c0163 ..> c0145: `unlink_skill_from_memory() calls session()`
+- c0163 ..> c0145: `update_skill() calls session()`
+- c0163 ..> c0158: `create_skill() constructs SkillsTable`
+- c0163 ..> c0158: `type in _to_skill`
+- c0163 ..> c0163: `create_skill() calls _to_skill()`
+- c0163 ..> c0163: `get_skill_by_id() calls _to_skill()`
+- c0163 ..> c0163: `update_skill() calls _to_skill()`
+- c0164 ..> c0025: `transition_task_state() constructs ConflictError`
+- c0164 ..> c0029: `transition_task_state() constructs NotFoundError`
+- c0164 ..> c0029: `update_criterion() constructs NotFoundError`
+- c0164 ..> c0029: `update_task() constructs NotFoundError`
+- c0164 ..> c0031: `update_criterion() calls get()`
+- c0164 ..> c0078: `type in create_criterion`
+- c0164 ..> c0078: `type in get_criteria_for_task`
+- c0164 ..> c0078: `type in update_criterion`
+- c0164 ..> c0079: `type in create_criterion`
+- c0164 ..> c0080: `type in update_criterion`
+- c0164 ..> c0086: `type in create_task`
+- c0164 ..> c0086: `type in get_task_by_id`
+- c0164 ..> c0086: `type in transition_task_state`
+- c0164 ..> c0086: `type in update_task`
+- c0164 ..> c0087: `type in create_task`
+- c0164 ..> c0088: `type in add_dependency`
+- c0164 ..> c0090: `list_tasks() constructs TaskPriority`
+- c0164 ..> c0090: `list_tasks_for_user() constructs TaskPriority`
+- c0164 ..> c0090: `type in list_tasks`
+- c0164 ..> c0091: `list_tasks() constructs TaskState`
+- c0164 ..> c0091: `list_tasks_for_user() constructs TaskState`
+- c0164 ..> c0091: `type in list_tasks`
+- c0164 ..> c0091: `type in transition_task_state`
+- c0164 ..> c0092: `list_tasks() constructs TaskSummary`
+- c0164 ..> c0092: `list_tasks_for_user() constructs TaskSummary`
+- c0164 ..> c0092: `type in list_tasks`
+- c0164 ..> c0092: `type in list_tasks_for_user`
+- c0164 ..> c0093: `type in update_task`
+- c0164 ..> c0118: `delete_criterion() calls execute()`
+- c0164 ..> c0118: `delete_task() calls execute()`
+- c0164 ..> c0118: `get_criteria_for_task() calls execute()`
+- c0164 ..> c0118: `get_dependencies() calls execute()`
+- c0164 ..> c0118: `get_dependents() calls execute()`
+- c0164 ..> c0118: `get_task_by_id() calls execute()`
+- c0164 ..> c0118: `list_tasks() calls execute()`
+- c0164 ..> c0118: `list_tasks_for_user() calls execute()`
+- c0164 ..> c0118: `remove_dependency() calls execute()`
+- c0164 ..> c0118: `transition_task_state() calls execute()`
+- c0164 ..> c0118: `update_criterion() calls execute()`
+- c0164 ..> c0118: `update_task() calls execute()`
+- c0164 ..> c0145: `add_dependency() calls session()`
+- c0164 ..> c0145: `create_criterion() calls session()`
+- c0164 ..> c0145: `create_task() calls session()`
+- c0164 ..> c0145: `delete_criterion() calls session()`
+- c0164 ..> c0145: `delete_task() calls session()`
+- c0164 ..> c0145: `get_criteria_for_task() calls session()`
+- c0164 ..> c0145: `get_dependencies() calls session()`
+- c0164 ..> c0145: `get_dependents() calls session()`
+- c0164 ..> c0145: `get_task_by_id() calls session()`
+- c0164 ..> c0145: `list_tasks() calls session()`
+- c0164 ..> c0145: `list_tasks_for_user() calls session()`
+- c0164 ..> c0145: `remove_dependency() calls session()`
+- c0164 ..> c0145: `transition_task_state() calls session()`
+- c0164 ..> c0145: `type in __init__`
+- c0164 ..> c0145: `update_criterion() calls session()`
+- c0164 ..> c0145: `update_task() calls session()`
+- c0164 ..> c0149: `create_criterion() constructs CriteriaTable`
+- c0164 ..> c0159: `add_dependency() constructs TaskDependenciesTable`
+- c0164 ..> c0160: `create_task() constructs TasksTable`
+- c0164 ..> c0164: `update_task() calls get_task_by_id()`
+- c0165 ..> c0029: `update_user() constructs NotFoundError`
+- c0165 ..> c0110: `type in create_user`
+- c0165 ..> c0110: `type in get_user_by_external_id`
+- c0165 ..> c0110: `type in get_user_by_id`
+- c0165 ..> c0110: `type in update_user`
+- c0165 ..> c0111: `type in create_user`
+- c0165 ..> c0113: `type in update_user`
+- c0165 ..> c0118: `get_user_by_external_id() calls execute()`
+- c0165 ..> c0118: `get_user_by_id() calls execute()`
+- c0165 ..> c0118: `update_user() calls execute()`
+- c0165 ..> c0145: `create_user() calls system_session()`
+- c0165 ..> c0145: `get_user_by_external_id() calls system_session()`
+- c0165 ..> c0145: `get_user_by_id() calls system_session()`
+- c0165 ..> c0145: `type in __init__`
+- c0165 ..> c0145: `update_user() calls system_session()`
+- c0165 ..> c0161: `create_user() constructs UsersTable`
+- c0166 ..> c0034: `type in count_events`
+- c0166 ..> c0034: `type in query_events`
+- c0166 ..> c0035: `type in save_event`
+- c0166 ..> c0037: `query_events() constructs ActivityLogEntry`
+- c0166 ..> c0037: `save_event() constructs ActivityLogEntry`
+- c0166 ..> c0037: `type in query_events`
+- c0166 ..> c0037: `type in save_event`
+- c0166 ..> c0038: `type in query_events`
+- c0166 ..> c0039: `type in count_events`
+- c0166 ..> c0039: `type in query_events`
+- c0166 ..> c0118: `cleanup_expired() calls execute()`
+- c0166 ..> c0118: `count_events() calls execute()`
+- c0166 ..> c0118: `query_events() calls execute()`
+- c0166 ..> c0175: `cleanup_expired() calls session()`
+- c0166 ..> c0175: `count_events() calls session()`
+- c0166 ..> c0175: `query_events() calls session()`
+- c0166 ..> c0175: `save_event() calls session()`
+- c0166 ..> c0175: `type in __init__`
+- c0166 ..> c0177: `save_event() constructs ActivityLogTable`
+- c0167 ..> c0029: `update_code_artifact() constructs NotFoundError`
+- c0167 ..> c0031: `update_code_artifact() calls get()`
+- c0167 ..> c0040: `type in create_code_artifact`
+- c0167 ..> c0040: `type in get_code_artifact_by_id`
+- c0167 ..> c0040: `type in update_code_artifact`
+- c0167 ..> c0041: `type in create_code_artifact`
+- c0167 ..> c0042: `type in list_code_artifacts`
+- c0167 ..> c0043: `type in update_code_artifact`
+- c0167 ..> c0118: `delete_code_artifact() calls execute()`
+- c0167 ..> c0118: `get_code_artifact_by_id() calls execute()`
+- c0167 ..> c0118: `list_code_artifacts() calls execute()`
+- c0167 ..> c0118: `update_code_artifact() calls execute()`
+- c0167 ..> c0175: `create_code_artifact() calls session()`
+- c0167 ..> c0175: `delete_code_artifact() calls session()`
+- c0167 ..> c0175: `get_code_artifact_by_id() calls session()`
+- c0167 ..> c0175: `list_code_artifacts() calls session()`
+- c0167 ..> c0175: `type in __init__`
+- c0167 ..> c0175: `update_code_artifact() calls session()`
+- c0167 ..> c0179: `create_code_artifact() constructs CodeArtifactsTable`
+- c0168 ..> c0029: `update_document() constructs NotFoundError`
+- c0168 ..> c0031: `update_document() calls get()`
+- c0168 ..> c0044: `type in create_document`
+- c0168 ..> c0044: `type in get_document_by_id`
+- c0168 ..> c0044: `type in update_document`
+- c0168 ..> c0045: `type in create_document`
+- c0168 ..> c0046: `type in list_documents`
+- c0168 ..> c0047: `type in update_document`
+- c0168 ..> c0118: `delete_document() calls execute()`
+- c0168 ..> c0118: `get_document_by_id() calls execute()`
+- c0168 ..> c0118: `list_documents() calls execute()`
+- c0168 ..> c0118: `update_document() calls execute()`
+- c0168 ..> c0175: `create_document() calls session()`
+- c0168 ..> c0175: `delete_document() calls session()`
+- c0168 ..> c0175: `get_document_by_id() calls session()`
+- c0168 ..> c0175: `list_documents() calls session()`
+- c0168 ..> c0175: `type in __init__`
+- c0168 ..> c0175: `update_document() calls session()`
+- c0168 ..> c0181: `create_document() constructs DocumentsTable`
+- c0169 ..> c0029: `create_entity_relationship() constructs NotFoundError`
+- c0169 ..> c0029: `get_entity_memories() constructs NotFoundError`
+- c0169 ..> c0029: `get_entity_relationships() constructs NotFoundError`
+- c0169 ..> c0029: `get_memory_entities() constructs NotFoundError`
+- c0169 ..> c0029: `link_entity_to_memory() constructs NotFoundError`
+- c0169 ..> c0029: `link_entity_to_project() constructs NotFoundError`
+- c0169 ..> c0029: `update_entity() constructs NotFoundError`
+- c0169 ..> c0029: `update_entity_relationship() constructs NotFoundError`
+- c0169 ..> c0031: `update_entity() calls get()`
+- c0169 ..> c0048: `type in create_entity`
+- c0169 ..> c0048: `type in get_entity_by_id`
+- c0169 ..> c0048: `type in update_entity`
+- c0169 ..> c0049: `type in create_entity`
+- c0169 ..> c0051: `create_entity_relationship() constructs EntityRelationship`
+- c0169 ..> c0051: `get_all_entity_relationships() constructs EntityRelationship`
+- c0169 ..> c0051: `get_entity_relationships() constructs EntityRelationship`
+- c0169 ..> c0051: `type in create_entity_relationship`
+- c0169 ..> c0051: `type in get_all_entity_relationships`
+- c0169 ..> c0051: `type in get_entity_relationships`
+- c0169 ..> c0051: `type in update_entity_relationship`
+- c0169 ..> c0051: `update_entity_relationship() constructs EntityRelationship`
+- c0169 ..> c0052: `type in create_entity_relationship`
+- c0169 ..> c0053: `type in update_entity_relationship`
+- c0169 ..> c0054: `type in list_entities`
+- c0169 ..> c0054: `type in search_entities`
+- c0169 ..> c0055: `type in list_entities`
+- c0169 ..> c0055: `type in search_entities`
+- c0169 ..> c0056: `type in update_entity`
+- c0169 ..> c0118: `create_entity() calls execute()`
+- c0169 ..> c0118: `create_entity_relationship() calls execute()`
+- c0169 ..> c0118: `delete_entity() calls execute()`
+- c0169 ..> c0118: `delete_entity_relationship() calls execute()`
+- c0169 ..> c0118: `get_all_entity_file_links() calls execute()`
+- c0169 ..> c0118: `get_all_entity_memory_links() calls execute()`
+- c0169 ..> c0118: `get_all_entity_project_links() calls execute()`
+- c0169 ..> c0118: `get_all_entity_relationships() calls execute()`
+- c0169 ..> c0118: `get_entity_by_id() calls execute()`
+- c0169 ..> c0118: `get_entity_memories() calls execute()`
+- c0169 ..> c0118: `get_entity_relationships() calls execute()`
+- c0169 ..> c0118: `get_memory_entities() calls execute()`
+- c0169 ..> c0118: `link_entity_to_memory() calls execute()`
+- c0169 ..> c0118: `link_entity_to_project() calls execute()`
+- c0169 ..> c0118: `list_entities() calls execute()`
+- c0169 ..> c0118: `search_entities() calls execute()`
+- c0169 ..> c0118: `unlink_entity_from_memory() calls execute()`
+- c0169 ..> c0118: `unlink_entity_from_project() calls execute()`
+- c0169 ..> c0118: `update_entity() calls execute()`
+- c0169 ..> c0118: `update_entity_relationship() calls execute()`
+- c0169 ..> c0175: `create_entity() calls session()`
+- c0169 ..> c0175: `create_entity_relationship() calls session()`
+- c0169 ..> c0175: `delete_entity() calls session()`
+- c0169 ..> c0175: `delete_entity_relationship() calls session()`
+- c0169 ..> c0175: `get_all_entity_file_links() calls session()`
+- c0169 ..> c0175: `get_all_entity_memory_links() calls session()`
+- c0169 ..> c0175: `get_all_entity_project_links() calls session()`
+- c0169 ..> c0175: `get_all_entity_relationships() calls session()`
+- c0169 ..> c0175: `get_entity_by_id() calls session()`
+- c0169 ..> c0175: `get_entity_memories() calls session()`
+- c0169 ..> c0175: `get_entity_relationships() calls session()`
+- c0169 ..> c0175: `get_memory_entities() calls session()`
+- c0169 ..> c0175: `link_entity_to_memory() calls session()`
+- c0169 ..> c0175: `link_entity_to_project() calls session()`
+- c0169 ..> c0175: `list_entities() calls session()`
+- c0169 ..> c0175: `search_entities() calls session()`
+- c0169 ..> c0175: `type in __init__`
+- c0169 ..> c0175: `unlink_entity_from_memory() calls session()`
+- c0169 ..> c0175: `unlink_entity_from_project() calls session()`
+- c0169 ..> c0175: `update_entity() calls session()`
+- c0169 ..> c0175: `update_entity_relationship() calls session()`
+- c0169 ..> c0182: `create_entity() constructs EntitiesTable`
+- c0169 ..> c0183: `create_entity_relationship() constructs EntityRelationshipsTable`
+- c0170 ..> c0029: `update_file() constructs NotFoundError`
+- c0170 ..> c0057: `_to_file_model() constructs File`
+- c0170 ..> c0057: `type in _to_file_model`
+- c0170 ..> c0057: `type in create_file`
+- c0170 ..> c0057: `type in get_file_by_id`
+- c0170 ..> c0057: `type in update_file`
+- c0170 ..> c0058: `type in create_file`
+- c0170 ..> c0059: `type in list_files`
+- c0170 ..> c0060: `type in update_file`
+- c0170 ..> c0118: `delete_file() calls execute()`
+- c0170 ..> c0118: `get_file_by_id() calls execute()`
+- c0170 ..> c0118: `list_files() calls execute()`
+- c0170 ..> c0118: `update_file() calls execute()`
+- c0170 ..> c0170: `create_file() calls _to_file_model()`
+- c0170 ..> c0170: `get_file_by_id() calls _to_file_model()`
+- c0170 ..> c0170: `update_file() calls _to_file_model()`
+- c0170 ..> c0175: `create_file() calls session()`
+- c0170 ..> c0175: `delete_file() calls session()`
+- c0170 ..> c0175: `get_file_by_id() calls session()`
+- c0170 ..> c0175: `list_files() calls session()`
+- c0170 ..> c0175: `type in __init__`
+- c0170 ..> c0175: `update_file() calls session()`
+- c0170 ..> c0184: `create_file() constructs FilesTable`
+- c0170 ..> c0184: `type in _to_file_model`
+- c0171 ..> c0024: `update_memory() calls clear()`
+- c0171 ..> c0029: `_link_code_artifacts() constructs NotFoundError`
+- c0171 ..> c0029: `_link_documents() constructs NotFoundError`
+- c0171 ..> c0029: `_link_files() constructs NotFoundError`
+- c0171 ..> c0029: `_link_projects() constructs NotFoundError`
+- c0171 ..> c0029: `_link_skills() constructs NotFoundError`
+- c0171 ..> c0029: `create_link() constructs NotFoundError`
+- c0171 ..> c0029: `find_similar_memories_scored() constructs NotFoundError`
+- c0171 ..> c0029: `get_linked_memories() constructs NotFoundError`
+- c0171 ..> c0029: `get_memory_by_id() constructs NotFoundError`
+- c0171 ..> c0029: `get_memory_table_by_id() constructs NotFoundError`
+- c0171 ..> c0029: `mark_obsolete() constructs NotFoundError`
+- c0171 ..> c0029: `update_memory() constructs NotFoundError`
+- c0171 ..> c0031: `create_link() calls get()`
+- c0171 ..> c0031: `list_memories() calls get()`
+- c0171 ..> c0066: `type in create_memory`
+- c0171 ..> c0066: `type in find_obsolete_matches`
+- c0171 ..> c0066: `type in find_similar_memories`
+- c0171 ..> c0066: `type in find_similar_memories_scored`
+- c0171 ..> c0066: `type in get_linked_memories`
+- c0171 ..> c0066: `type in get_memories_for_reembedding`
+- c0171 ..> c0066: `type in get_memories_for_targeted_rebuild`
+- c0171 ..> c0066: `type in get_memory_by_id`
+- c0171 ..> c0066: `type in list_memories`
+- c0171 ..> c0066: `type in search`
+- c0171 ..> c0066: `type in search_scored`
+- c0171 ..> c0066: `type in semantic_search`
+- c0171 ..> c0066: `type in semantic_search_scored`
+- c0171 ..> c0066: `type in update_memory`
+- c0171 ..> c0067: `type in create_memory`
+- c0171 ..> c0073: `search_scored() constructs MemoryScore`
+- c0171 ..> c0073: `type in search_scored`
+- c0171 ..> c0075: `type in update_memory`
+- c0171 ..> c0118: `_link_code_artifacts() calls execute()`
+- c0171 ..> c0118: `_link_documents() calls execute()`
+- c0171 ..> c0118: `_link_files() calls execute()`
+- c0171 ..> c0118: `_link_projects() calls execute()`
+- c0171 ..> c0118: `_link_skills() calls execute()`
+- c0171 ..> c0118: `bulk_update_embeddings() calls execute()`
+- c0171 ..> c0118: `count_all_memories() calls execute()`
+- c0171 ..> c0118: `count_memories_for_targeted_rebuild() calls execute()`
+- c0171 ..> c0118: `create_memory() calls execute()`
+- c0171 ..> c0118: `find_obsolete_matches() calls execute()`
+- c0171 ..> c0118: `find_similar_memories_scored() calls execute()`
+- c0171 ..> c0118: `get_linked_memories() calls execute()`
+- c0171 ..> c0118: `get_memories_for_reembedding() calls execute()`
+- c0171 ..> c0118: `get_memories_for_targeted_rebuild() calls execute()`
+- c0171 ..> c0118: `get_memory_table_by_id() calls execute()`
+- c0171 ..> c0118: `get_subgraph_nodes() calls execute()`
+- c0171 ..> c0118: `list_memories() calls execute()`
+- c0171 ..> c0118: `mark_obsolete() calls execute()`
+- c0171 ..> c0118: `record_memory_access() calls execute()`
+- c0171 ..> c0118: `reset_embedding_storage() calls execute()`
+- c0171 ..> c0118: `semantic_search_scored() calls execute()`
+- c0171 ..> c0118: `unlink_memories() calls execute()`
+- c0171 ..> c0118: `update_memory() calls execute()`
+- c0171 ..> c0118: `upsert_targeted_embeddings() calls execute()`
+- c0171 ..> c0118: `validate_embedding_count() calls execute()`
+- c0171 ..> c0118: `validate_embedding_dimensions() calls execute()`
+- c0171 ..> c0118: `validate_search_works() calls execute()`
+- c0171 ..> c0128: `type in __init__`
+- c0171 ..> c0131: `_generate_embeddings() calls generate_embedding()`
+- c0171 ..> c0135: `search_scored() calls rerank()`
+- c0171 ..> c0136: `type in __init__`
+- c0171 ..> c0137: `create_memory() calls build_embedding_text()`
+- c0171 ..> c0137: `search_scored() calls build_contextual_query()`
+- c0171 ..> c0137: `search_scored() calls build_memory_text()`
+- c0171 ..> c0137: `update_memory() calls build_embedding_text()`
+- c0171 ..> c0171: `count_memories_for_targeted_rebuild() calls _build_targeted_rebuild_filter()`
+- c0171 ..> c0171: `create_links_batch() calls create_link()`
+- c0171 ..> c0171: `create_memory() calls _generate_embeddings()`
+- c0171 ..> c0171: `create_memory() calls _link_code_artifacts()`
+- c0171 ..> c0171: `create_memory() calls _link_documents()`
+- c0171 ..> c0171: `create_memory() calls _link_files()`
+- c0171 ..> c0171: `create_memory() calls _link_projects()`
+- c0171 ..> c0171: `create_memory() calls _link_skills()`
+- c0171 ..> c0171: `find_similar_memories() calls find_similar_memories_scored()`
+- c0171 ..> c0171: `get_memories_for_targeted_rebuild() calls _build_targeted_rebuild_filter()`
+- c0171 ..> c0171: `get_memory_by_id() calls get_memory_table_by_id()`
+- c0171 ..> c0171: `search() calls search_scored()`
+- c0171 ..> c0171: `search_scored() calls semantic_search_scored()`
+- c0171 ..> c0171: `semantic_search() calls semantic_search_scored()`
+- c0171 ..> c0171: `semantic_search_scored() calls _generate_embeddings()`
+- c0171 ..> c0171: `update_memory() calls _generate_embeddings()`
+- c0171 ..> c0171: `update_memory() calls _link_code_artifacts()`
+- c0171 ..> c0171: `update_memory() calls _link_documents()`
+- c0171 ..> c0171: `update_memory() calls _link_files()`
+- c0171 ..> c0171: `update_memory() calls _link_projects()`
+- c0171 ..> c0171: `validate_search_works() calls _generate_embeddings()`
+- c0171 ..> c0175: `bulk_update_embeddings() calls system_session()`
+- c0171 ..> c0175: `count_all_memories() calls system_session()`
+- c0171 ..> c0175: `count_memories_for_targeted_rebuild() calls system_session()`
+- c0171 ..> c0175: `create_link() calls session()`
+- c0171 ..> c0175: `create_memory() calls session()`
+- c0171 ..> c0175: `find_obsolete_matches() calls session()`
+- c0171 ..> c0175: `find_similar_memories_scored() calls session()`
+- c0171 ..> c0175: `get_linked_memories() calls session()`
+- c0171 ..> c0175: `get_memories_for_reembedding() calls system_session()`
+- c0171 ..> c0175: `get_memories_for_targeted_rebuild() calls system_session()`
+- c0171 ..> c0175: `get_memory_table_by_id() calls session()`
+- c0171 ..> c0175: `get_subgraph_nodes() calls session()`
+- c0171 ..> c0175: `list_memories() calls session()`
+- c0171 ..> c0175: `mark_obsolete() calls session()`
+- c0171 ..> c0175: `record_memory_access() calls system_session()`
+- c0171 ..> c0175: `reset_embedding_storage() calls system_session()`
+- c0171 ..> c0175: `semantic_search_scored() calls session()`
+- c0171 ..> c0175: `type in __init__`
+- c0171 ..> c0175: `unlink_memories() calls session()`
+- c0171 ..> c0175: `update_memory() calls session()`
+- c0171 ..> c0175: `upsert_targeted_embeddings() calls system_session()`
+- c0171 ..> c0175: `validate_embedding_count() calls system_session()`
+- c0171 ..> c0175: `validate_embedding_dimensions() calls system_session()`
+- c0171 ..> c0175: `validate_search_works() calls system_session()`
+- c0171 ..> c0185: `create_link() constructs MemoryLinkTable`
+- c0171 ..> c0185: `type in create_link`
+- c0171 ..> c0186: `create_memory() constructs MemoryTable`
+- c0171 ..> c0186: `type in _link_code_artifacts`
+- c0171 ..> c0186: `type in _link_documents`
+- c0171 ..> c0186: `type in _link_files`
+- c0171 ..> c0186: `type in _link_projects`
+- c0171 ..> c0186: `type in _link_skills`
+- c0171 ..> c0186: `type in get_memory_table_by_id`
+- c0172 ..> c0025: `create_plan() constructs ConflictError`
+- c0172 ..> c0025: `update_plan() constructs ConflictError`
+- c0172 ..> c0029: `update_plan() constructs NotFoundError`
+- c0172 ..> c0081: `type in create_plan`
+- c0172 ..> c0081: `type in get_plan_by_id`
+- c0172 ..> c0081: `type in update_plan`
+- c0172 ..> c0082: `type in create_plan`
+- c0172 ..> c0083: `type in list_plans`
+- c0172 ..> c0084: `type in list_plans`
+- c0172 ..> c0085: `type in update_plan`
+- c0172 ..> c0118: `delete_plan() calls execute()`
+- c0172 ..> c0118: `get_plan_by_id() calls execute()`
+- c0172 ..> c0118: `list_plans() calls execute()`
+- c0172 ..> c0118: `update_plan() calls execute()`
+- c0172 ..> c0175: `create_plan() calls session()`
+- c0172 ..> c0175: `delete_plan() calls session()`
+- c0172 ..> c0175: `get_plan_by_id() calls session()`
+- c0172 ..> c0175: `list_plans() calls session()`
+- c0172 ..> c0175: `type in __init__`
+- c0172 ..> c0175: `update_plan() calls session()`
+- c0172 ..> c0187: `create_plan() constructs PlansTable`
+- c0173 ..> c0029: `update_project() constructs NotFoundError`
+- c0173 ..> c0094: `type in create_project`
+- c0173 ..> c0094: `type in get_project_by_id`
+- c0173 ..> c0094: `type in update_project`
+- c0173 ..> c0095: `type in create_project`
+- c0173 ..> c0096: `type in list_projects`
+- c0173 ..> c0097: `type in list_projects`
+- c0173 ..> c0099: `type in update_project`
+- c0173 ..> c0118: `delete_project() calls execute()`
+- c0173 ..> c0118: `get_project_by_id() calls execute()`
+- c0173 ..> c0118: `list_projects() calls execute()`
+- c0173 ..> c0118: `update_project() calls execute()`
+- c0173 ..> c0175: `create_project() calls session()`
+- c0173 ..> c0175: `delete_project() calls session()`
+- c0173 ..> c0175: `get_project_by_id() calls session()`
+- c0173 ..> c0175: `list_projects() calls session()`
+- c0173 ..> c0175: `type in __init__`
+- c0173 ..> c0175: `update_project() calls session()`
+- c0173 ..> c0188: `create_project() constructs ProjectsTable`
+- c0173 ..> c0268: `list_projects() calls repository_identity()`
+- c0174 ..> c0029: `get_skill_links() constructs NotFoundError`
+- c0174 ..> c0029: `link_skill_to_code_artifact() constructs NotFoundError`
+- c0174 ..> c0029: `link_skill_to_document() constructs NotFoundError`
+- c0174 ..> c0029: `link_skill_to_file() constructs NotFoundError`
+- c0174 ..> c0029: `link_skill_to_memory() constructs NotFoundError`
+- c0174 ..> c0029: `update_skill() constructs NotFoundError`
+- c0174 ..> c0100: `_to_skill() constructs Skill`
+- c0174 ..> c0100: `type in _to_skill`
+- c0174 ..> c0100: `type in create_skill`
+- c0174 ..> c0100: `type in get_skill_by_id`
+- c0174 ..> c0100: `type in update_skill`
+- c0174 ..> c0101: `type in create_skill`
+- c0174 ..> c0102: `get_skill_links() constructs SkillLinks`
+- c0174 ..> c0102: `type in get_skill_links`
+- c0174 ..> c0103: `type in list_skills`
+- c0174 ..> c0103: `type in search_skills`
+- c0174 ..> c0104: `type in update_skill`
+- c0174 ..> c0118: `create_skill() calls execute()`
+- c0174 ..> c0118: `delete_skill() calls execute()`
+- c0174 ..> c0118: `get_all_skill_code_artifact_links() calls execute()`
+- c0174 ..> c0118: `get_all_skill_document_links() calls execute()`
+- c0174 ..> c0118: `get_all_skill_file_links() calls execute()`
+- c0174 ..> c0118: `get_skill_by_id() calls execute()`
+- c0174 ..> c0118: `get_skill_links() calls execute()`
+- c0174 ..> c0118: `link_skill_to_code_artifact() calls execute()`
+- c0174 ..> c0118: `link_skill_to_document() calls execute()`
+- c0174 ..> c0118: `link_skill_to_file() calls execute()`
+- c0174 ..> c0118: `link_skill_to_memory() calls execute()`
+- c0174 ..> c0118: `list_skills() calls execute()`
+- c0174 ..> c0118: `search_skills() calls execute()`
+- c0174 ..> c0118: `skill_name_exists() calls execute()`
+- c0174 ..> c0118: `unlink_skill_from_code_artifact() calls execute()`
+- c0174 ..> c0118: `unlink_skill_from_document() calls execute()`
+- c0174 ..> c0118: `unlink_skill_from_file() calls execute()`
+- c0174 ..> c0118: `unlink_skill_from_memory() calls execute()`
+- c0174 ..> c0118: `update_skill() calls execute()`
+- c0174 ..> c0128: `type in __init__`
+- c0174 ..> c0131: `create_skill() calls generate_embedding()`
+- c0174 ..> c0131: `search_skills() calls generate_embedding()`
+- c0174 ..> c0131: `update_skill() calls generate_embedding()`
+- c0174 ..> c0135: `search_skills() calls rerank()`
+- c0174 ..> c0136: `type in __init__`
+- c0174 ..> c0137: `create_skill() calls build_skill_embedding_text()`
+- c0174 ..> c0137: `update_skill() calls build_skill_embedding_text()`
+- c0174 ..> c0174: `create_skill() calls _to_skill()`
+- c0174 ..> c0174: `get_skill_by_id() calls _to_skill()`
+- c0174 ..> c0174: `update_skill() calls _to_skill()`
+- c0174 ..> c0175: `create_skill() calls session()`
+- c0174 ..> c0175: `delete_skill() calls session()`
+- c0174 ..> c0175: `get_all_skill_code_artifact_links() calls session()`
+- c0174 ..> c0175: `get_all_skill_document_links() calls session()`
+- c0174 ..> c0175: `get_all_skill_file_links() calls session()`
+- c0174 ..> c0175: `get_skill_by_id() calls session()`
+- c0174 ..> c0175: `get_skill_links() calls session()`
+- c0174 ..> c0175: `link_skill_to_code_artifact() calls session()`
+- c0174 ..> c0175: `link_skill_to_document() calls session()`
+- c0174 ..> c0175: `link_skill_to_file() calls session()`
+- c0174 ..> c0175: `link_skill_to_memory() calls session()`
+- c0174 ..> c0175: `list_skills() calls session()`
+- c0174 ..> c0175: `search_skills() calls session()`
+- c0174 ..> c0175: `skill_name_exists() calls session()`
+- c0174 ..> c0175: `type in __init__`
+- c0174 ..> c0175: `unlink_skill_from_code_artifact() calls session()`
+- c0174 ..> c0175: `unlink_skill_from_document() calls session()`
+- c0174 ..> c0175: `unlink_skill_from_file() calls session()`
+- c0174 ..> c0175: `unlink_skill_from_memory() calls session()`
+- c0174 ..> c0175: `update_skill() calls session()`
+- c0174 ..> c0189: `create_skill() constructs SkillsTable`
+- c0174 ..> c0189: `type in _to_skill`
+- c0175 ..> c0003: `_run_migrations() calls upgrade()`
+- c0175 ..> c0118: `init_db() calls execute()`
+- c0175 ..> c0118: `session() calls close()`
+- c0175 ..> c0118: `system_session() calls close()`
+- c0175 ..> c0145: `dispose() calls dispose()`
+- c0175 ..> c0175: `__init__() calls _construct_connection_string()`
+- c0175 ..> c0175: `_run_migrations() calls _construct_connection_string()`
+- c0176 ..> c0118: `_sqlite_connection_creator() calls execute()`
+- c0177 --|> c0178: `inherits`
+- c0179 --|> c0178: `inherits`
+- c0179 --> c0186: `field memories`
+- c0179 --> c0188: `field project`
+- c0179 --> c0189: `field skills`
+- c0179 --> c0192: `field user`
+- c0180 --|> c0178: `inherits`
+- c0180 --> c0191: `field task`
+- c0181 --|> c0178: `inherits`
+- c0181 --> c0186: `field memories`
+- c0181 --> c0188: `field project`
+- c0181 --> c0189: `field skills`
+- c0181 --> c0192: `field user`
+- c0182 --|> c0178: `inherits`
+- c0182 --> c0183: `field incoming_relationships`
+- c0182 --> c0183: `field outgoing_relationships`
+- c0182 --> c0184: `field files`
+- c0182 --> c0186: `field memories`
+- c0182 --> c0188: `field projects`
+- c0182 --> c0192: `field user`
+- c0183 --|> c0178: `inherits`
+- c0183 --> c0182: `field source_entity`
+- c0183 --> c0182: `field target_entity`
+- c0184 --|> c0178: `inherits`
+- c0184 --> c0182: `field entities`
+- c0184 --> c0186: `field memories`
+- c0184 --> c0188: `field project`
+- c0184 --> c0189: `field skills`
+- c0184 --> c0192: `field user`
+- c0185 --|> c0178: `inherits`
+- c0186 --|> c0178: `inherits`
+- c0186 --> c0179: `field code_artifacts`
+- c0186 --> c0181: `field documents`
+- c0186 --> c0182: `field entities`
+- c0186 --> c0184: `field files`
+- c0186 --> c0188: `field projects`
+- c0186 --> c0189: `field skills`
+- c0186 --> c0192: `field user`
+- c0187 --|> c0178: `inherits`
+- c0187 --> c0188: `field project`
+- c0187 --> c0191: `field tasks`
+- c0187 --> c0192: `field user`
+- c0188 --|> c0178: `inherits`
+- c0188 --> c0179: `field code_artifacts`
+- c0188 --> c0181: `field documents`
+- c0188 --> c0182: `field entities`
+- c0188 --> c0184: `field files`
+- c0188 --> c0186: `field memories`
+- c0188 --> c0187: `field plans`
+- c0188 --> c0189: `field skills`
+- c0188 --> c0192: `field user`
+- c0189 --|> c0178: `inherits`
+- c0189 --> c0179: `field code_artifacts`
+- c0189 --> c0181: `field documents`
+- c0189 --> c0184: `field files`
+- c0189 --> c0186: `field memories`
+- c0189 --> c0188: `field project`
+- c0189 --> c0192: `field user`
+- c0190 --|> c0178: `inherits`
+- c0190 --> c0191: `field task`
+- c0191 --|> c0178: `inherits`
+- c0191 --> c0180: `field criteria`
+- c0191 --> c0187: `field plan`
+- c0191 --> c0190: `field depends_on`
+- c0192 --|> c0178: `inherits`
+- c0192 --> c0179: `field code_artifacts`
+- c0192 --> c0181: `field documents`
+- c0192 --> c0182: `field entities`
+- c0192 --> c0184: `field files`
+- c0192 --> c0186: `field memories`
+- c0192 --> c0187: `field plans`
+- c0192 --> c0188: `field projects`
+- c0192 --> c0189: `field skills`
+- c0193 ..> c0025: `transition_task_state() constructs ConflictError`
+- c0193 ..> c0029: `transition_task_state() constructs NotFoundError`
+- c0193 ..> c0029: `update_criterion() constructs NotFoundError`
+- c0193 ..> c0029: `update_task() constructs NotFoundError`
+- c0193 ..> c0031: `update_criterion() calls get()`
+- c0193 ..> c0078: `type in create_criterion`
+- c0193 ..> c0078: `type in get_criteria_for_task`
+- c0193 ..> c0078: `type in update_criterion`
+- c0193 ..> c0079: `type in create_criterion`
+- c0193 ..> c0080: `type in update_criterion`
+- c0193 ..> c0086: `type in create_task`
+- c0193 ..> c0086: `type in get_task_by_id`
+- c0193 ..> c0086: `type in transition_task_state`
+- c0193 ..> c0086: `type in update_task`
+- c0193 ..> c0087: `type in create_task`
+- c0193 ..> c0088: `type in add_dependency`
+- c0193 ..> c0090: `list_tasks() constructs TaskPriority`
+- c0193 ..> c0090: `list_tasks_for_user() constructs TaskPriority`
+- c0193 ..> c0090: `type in list_tasks`
+- c0193 ..> c0091: `list_tasks() constructs TaskState`
+- c0193 ..> c0091: `list_tasks_for_user() constructs TaskState`
+- c0193 ..> c0091: `type in list_tasks`
+- c0193 ..> c0091: `type in transition_task_state`
+- c0193 ..> c0092: `list_tasks() constructs TaskSummary`
+- c0193 ..> c0092: `list_tasks_for_user() constructs TaskSummary`
+- c0193 ..> c0092: `type in list_tasks`
+- c0193 ..> c0092: `type in list_tasks_for_user`
+- c0193 ..> c0093: `type in update_task`
+- c0193 ..> c0118: `delete_criterion() calls execute()`
+- c0193 ..> c0118: `delete_task() calls execute()`
+- c0193 ..> c0118: `get_criteria_for_task() calls execute()`
+- c0193 ..> c0118: `get_dependencies() calls execute()`
+- c0193 ..> c0118: `get_dependents() calls execute()`
+- c0193 ..> c0118: `get_task_by_id() calls execute()`
+- c0193 ..> c0118: `list_tasks() calls execute()`
+- c0193 ..> c0118: `list_tasks_for_user() calls execute()`
+- c0193 ..> c0118: `remove_dependency() calls execute()`
+- c0193 ..> c0118: `transition_task_state() calls execute()`
+- c0193 ..> c0118: `update_criterion() calls execute()`
+- c0193 ..> c0118: `update_task() calls execute()`
+- c0193 ..> c0175: `add_dependency() calls session()`
+- c0193 ..> c0175: `create_criterion() calls session()`
+- c0193 ..> c0175: `create_task() calls session()`
+- c0193 ..> c0175: `delete_criterion() calls session()`
+- c0193 ..> c0175: `delete_task() calls session()`
+- c0193 ..> c0175: `get_criteria_for_task() calls session()`
+- c0193 ..> c0175: `get_dependencies() calls session()`
+- c0193 ..> c0175: `get_dependents() calls session()`
+- c0193 ..> c0175: `get_task_by_id() calls session()`
+- c0193 ..> c0175: `list_tasks() calls session()`
+- c0193 ..> c0175: `list_tasks_for_user() calls session()`
+- c0193 ..> c0175: `remove_dependency() calls session()`
+- c0193 ..> c0175: `transition_task_state() calls session()`
+- c0193 ..> c0175: `type in __init__`
+- c0193 ..> c0175: `update_criterion() calls session()`
+- c0193 ..> c0175: `update_task() calls session()`
+- c0193 ..> c0180: `create_criterion() constructs CriteriaTable`
+- c0193 ..> c0190: `add_dependency() constructs TaskDependenciesTable`
+- c0193 ..> c0191: `create_task() constructs TasksTable`
+- c0193 ..> c0193: `update_task() calls get_task_by_id()`
+- c0194 ..> c0029: `update_user() constructs NotFoundError`
+- c0194 ..> c0110: `type in create_user`
+- c0194 ..> c0110: `type in get_user_by_external_id`
+- c0194 ..> c0110: `type in get_user_by_id`
+- c0194 ..> c0110: `type in update_user`
+- c0194 ..> c0111: `type in create_user`
+- c0194 ..> c0113: `type in update_user`
+- c0194 ..> c0118: `get_user_by_external_id() calls execute()`
+- c0194 ..> c0118: `get_user_by_id() calls execute()`
+- c0194 ..> c0118: `update_user() calls execute()`
+- c0194 ..> c0175: `create_user() calls system_session()`
+- c0194 ..> c0175: `get_user_by_external_id() calls system_session()`
+- c0194 ..> c0175: `get_user_by_id() calls system_session()`
+- c0194 ..> c0175: `type in __init__`
+- c0194 ..> c0175: `update_user() calls system_session()`
+- c0194 ..> c0192: `create_user() constructs UsersTable`
+- c0195 ..> c0031: `parse_datetime_param() calls get()`
+- c0195 ..> c0031: `parse_int_param() calls get()`
+- c0199 ..> c0031: `parse_int_param() calls get()`
+- c0203 ..> c0031: `parse_int_param() calls get()`
+- c0208 ..> c0031: `status() calls get()`
+- c0208 ..> c0208: `login() calls upsert_env_var()`
+- c0208 ..> c0208: `status() calls _has_cached_credentials()`
+- c0208 ..> c0213: `login() calls token_cache_dir()`
+- c0208 ..> c0213: `login() calls user_env_file()`
+- c0208 ..> c0213: `logout() calls token_cache_dir()`
+- c0208 ..> c0213: `status() calls token_cache_dir()`
+- c0208 ..> c0214: `status() calls close()`
+- c0208 ..> c0214: `status() calls execute()`
+- c0208 ..> c0214: `status() constructs RemoteExecutor`
+- c0208 ..> c0215: `login() calls normalize_server_url()`
+- c0208 ..> c0215: `status() calls normalize_server_url()`
+- c0209 ..> c0014: `type in __init__`
+- c0209 ..> c0210: `__init__() constructs _CliRuntime`
+- c0210 ..> c0014: `type in __init__`
+- c0211 ..> c0014: `type in __init__`
+- c0211 ..> c0016: `close() calls dispose_runtime()`
+- c0211 ..> c0016: `create() calls build_runtime()`
+- c0211 ..> c0118: `execute() calls execute()`
+- c0211 ..> c0209: `__init__() constructs CliContext`
+- c0211 ..> c0223: `execute() calls ensure_tool_executable()`
+- c0211 ..> c0223: `list_tools() calls build_discovery_payload()`
+- c0211 ..> c0223: `tool_info() calls build_tool_documentation()`
+- c0212 ..> c0031: `_build_executor() calls get()`
+- c0212 ..> c0118: `_run_tool_command() calls close()`
+- c0212 ..> c0118: `_run_tool_command() calls execute()`
+- c0212 ..> c0118: `_run_tool_command() calls list_tools()`
+- c0212 ..> c0118: `_run_tool_command() calls tool_info()`
+- c0212 ..> c0208: `_run_auth_command() calls login()`
+- c0212 ..> c0208: `_run_auth_command() calls logout()`
+- c0212 ..> c0208: `_run_auth_command() calls status()`
+- c0212 ..> c0211: `_build_executor() calls create()`
+- c0212 ..> c0212: `_run_tool_command() calls _build_executor()`
+- c0212 ..> c0212: `dispatch() calls _run_auth_command()`
+- c0212 ..> c0212: `dispatch() calls _run_tool_command()`
+- c0212 ..> c0212: `dispatch() calls build_parser()`
+- c0212 ..> c0214: `_build_executor() constructs RemoteExecutor`
+- c0212 ..> c0216: `_run_auth_command() calls emit_error()`
+- c0212 ..> c0216: `_run_tool_command() calls emit_error()`
+- c0212 ..> c0216: `_run_tool_command() calls render_result()`
+- c0212 ..> c0218: `_run_tool_command() calls run()`
+- c0212 ..> c0218: `dispatch() calls run()`
+- c0212 ..> c0270: `build_parser() calls get_version()`
+- c0213 ..> c0213: `token_cache_dir() calls config_dir()`
+- c0213 ..> c0213: `user_env_file() calls config_dir()`
+- c0214 ..> c0118: `close() calls close()`
+- c0214 ..> c0214: `execute() calls _call()`
+- c0214 ..> c0214: `list_tools() calls _call()`
+- c0214 ..> c0214: `tool_info() calls _call()`
+- c0214 ..> c0215: `__init__() calls normalize_server_url()`
+- c0215 ..> c0213: `_default_client_factory() calls token_cache_dir()`
+- c0216 ..> c0031: `render_memory_detail() calls get()`
+- c0216 ..> c0031: `render_memory_lines() calls get()`
+- c0216 ..> c0031: `render_project_lines() calls get()`
+- c0216 ..> c0216: `render_result() calls to_jsonable()`
+- c0218 ..> c0031: `_memory_recent() calls get()`
+- c0218 ..> c0031: `_memory_search() calls get()`
+- c0218 ..> c0031: `_project_list() calls get()`
+- c0218 ..> c0031: `resolve_project() calls get()`
+- c0218 ..> c0118: `_memory_get() calls execute()`
+- c0218 ..> c0118: `_memory_recent() calls execute()`
+- c0218 ..> c0118: `_memory_save() calls execute()`
+- c0218 ..> c0118: `_memory_search() calls execute()`
+- c0218 ..> c0118: `_project_list() calls execute()`
+- c0218 ..> c0118: `resolve_project() calls execute()`
+- c0218 ..> c0216: `_memory_get() calls render_memory_detail()`
+- c0218 ..> c0216: `_memory_get() calls to_jsonable()`
+- c0218 ..> c0216: `_memory_recent() calls render_memory_lines()`
+- c0218 ..> c0216: `_memory_recent() calls to_jsonable()`
+- c0218 ..> c0216: `_memory_save() calls to_jsonable()`
+- c0218 ..> c0216: `_memory_search() calls render_memory_lines()`
+- c0218 ..> c0216: `_memory_search() calls to_jsonable()`
+- c0218 ..> c0216: `_project_list() calls render_project_lines()`
+- c0218 ..> c0216: `_project_list() calls to_jsonable()`
+- c0218 ..> c0216: `resolve_project() calls to_jsonable()`
+- c0218 ..> c0217: `resolve_project() constructs CliError`
+- c0218 ..> c0218: `_memory_recent() calls resolve_project()`
+- c0218 ..> c0218: `_memory_save() calls resolve_project()`
+- c0218 ..> c0218: `_memory_search() calls resolve_project()`
+- c0218 ..> c0218: `run() calls _project_list()`
+- c0223 ..> c0105: `build_discovery_payload() constructs ToolCategory`
+- c0223 ..> c0108: `build_discovery_payload() calls to_discovery_dict()`
+- c0223 ..> c0108: `build_tool_documentation() calls to_detailed_dict()`
+- c0223 ..> c0223: `_build_discover_docstring() calls _build_category_list()`
+- c0223 ..> c0223: `_build_discover_docstring() calls _build_compact_discover_docstring()`
+- c0223 ..> c0223: `_build_discover_docstring() calls _get_mcp_descriptor_mode()`
+- c0223 ..> c0223: `_build_execute_docstring() calls _build_compact_execute_docstring()`
+- c0223 ..> c0223: `_build_execute_docstring() calls _build_tool_categories_line()`
+- c0223 ..> c0223: `_build_execute_docstring() calls _get_mcp_descriptor_mode()`
+- c0223 ..> c0223: `register() calls _build_discover_docstring()`
+- c0223 ..> c0223: `register() calls _build_execute_docstring()`
+- c0223 ..> c0226: `build_tool_documentation() calls get_required_scope()`
+- c0223 ..> c0226: `ensure_tool_executable() calls get_required_scope()`
+- c0223 ..> c0240: `build_discovery_payload() calls get_permitted_by_category()`
+- c0223 ..> c0240: `build_discovery_payload() calls get_permitted_categories()`
+- c0223 ..> c0240: `build_discovery_payload() calls get_permitted_tools()`
+- c0223 ..> c0240: `build_tool_documentation() calls get_permitted_tools()`
+- c0223 ..> c0240: `build_tool_documentation() calls get_tool()`
+- c0223 ..> c0240: `build_tool_documentation() calls is_permitted()`
+- c0223 ..> c0240: `ensure_tool_executable() calls get_permitted_tools()`
+- c0223 ..> c0240: `ensure_tool_executable() calls tool_exists()`
+- c0226 ..> c0031: `_extract_token_scopes() calls get()`
+- c0226 ..> c0031: `get_required_scope() calls get()`
+- c0226 ..> c0031: `resolve_permitted_tools() calls get()`
+- c0226 ..> c0226: `_extract_token_scopes() calls parse_scopes()`
+- c0226 ..> c0226: `get_effective_scopes() calls _extract_token_scopes()`
+- c0226 ..> c0226: `get_effective_scopes() calls resolve_permitted_tools()`
+- c0226 ..> c0240: `get_effective_scopes() calls list_all_tools()`
+- c0226 ..> c0240: `get_required_scope() calls get_tool()`
+- c0226 ..> c0240: `resolve_permitted_tools() calls list_all_tools()`
+- c0226 ..> c0240: `type in get_required_scope`
+- c0226 ..> c0240: `type in resolve_permitted_tools`
+- c0228 ..> c0032: `create_code_artifact() calls get_user_from_auth()`
+- c0228 ..> c0032: `delete_code_artifact() calls get_user_from_auth()`
+- c0228 ..> c0032: `get_code_artifact() calls get_user_from_auth()`
+- c0228 ..> c0032: `list_code_artifacts() calls get_user_from_auth()`
+- c0228 ..> c0032: `update_code_artifact() calls get_user_from_auth()`
+- c0228 ..> c0040: `type in create_code_artifact`
+- c0228 ..> c0040: `type in get_code_artifact`
+- c0228 ..> c0040: `type in update_code_artifact`
+- c0228 ..> c0041: `create_code_artifact() constructs CodeArtifactCreate`
+- c0228 ..> c0043: `update_code_artifact() constructs CodeArtifactUpdate`
+- c0228 ..> c0244: `create_code_artifact() calls create_code_artifact()`
+- c0228 ..> c0244: `delete_code_artifact() calls delete_code_artifact()`
+- c0228 ..> c0244: `get_code_artifact() calls get_code_artifact()`
+- c0228 ..> c0244: `list_code_artifacts() calls list_code_artifacts()`
 - c0228 ..> c0244: `type in __init__`
-- c0228 ..> c0244: `update_document() calls update_document()`
-- c0228 ..> c0264: `type in __init__`
-- c0228 ..> c0266: `update_document() calls filter_none_values()`
-- c0229 ..> c0031: `create_entity() calls get_user_from_auth()`
-- c0229 ..> c0031: `create_entity_relationship() calls get_user_from_auth()`
-- c0229 ..> c0031: `delete_entity() calls get_user_from_auth()`
-- c0229 ..> c0031: `delete_entity_relationship() calls get_user_from_auth()`
-- c0229 ..> c0031: `get_entity() calls get_user_from_auth()`
-- c0229 ..> c0031: `get_entity_memories() calls get_user_from_auth()`
-- c0229 ..> c0031: `get_entity_relationships() calls get_user_from_auth()`
-- c0229 ..> c0031: `get_memory_entities() calls get_user_from_auth()`
-- c0229 ..> c0031: `link_entity_to_memory() calls get_user_from_auth()`
-- c0229 ..> c0031: `link_entity_to_project() calls get_user_from_auth()`
-- c0229 ..> c0031: `list_entities() calls get_user_from_auth()`
-- c0229 ..> c0031: `search_entities() calls get_user_from_auth()`
-- c0229 ..> c0031: `unlink_entity_from_memory() calls get_user_from_auth()`
-- c0229 ..> c0031: `unlink_entity_from_project() calls get_user_from_auth()`
-- c0229 ..> c0031: `update_entity() calls get_user_from_auth()`
-- c0229 ..> c0031: `update_entity_relationship() calls get_user_from_auth()`
-- c0229 ..> c0047: `type in create_entity`
-- c0229 ..> c0047: `type in get_entity`
-- c0229 ..> c0047: `type in update_entity`
-- c0229 ..> c0048: `create_entity() constructs EntityCreate`
-- c0229 ..> c0050: `type in create_entity_relationship`
-- c0229 ..> c0050: `type in update_entity_relationship`
-- c0229 ..> c0051: `create_entity_relationship() constructs EntityRelationshipCreate`
-- c0229 ..> c0052: `update_entity_relationship() constructs EntityRelationshipUpdate`
-- c0229 ..> c0054: `list_entities() constructs EntityType`
-- c0229 ..> c0054: `search_entities() constructs EntityType`
-- c0229 ..> c0055: `update_entity() constructs EntityUpdate`
-- c0229 ..> c0245: `create_entity() calls create_entity()`
-- c0229 ..> c0245: `create_entity_relationship() calls create_entity_relationship()`
-- c0229 ..> c0245: `delete_entity() calls delete_entity()`
-- c0229 ..> c0245: `delete_entity_relationship() calls delete_entity_relationship()`
-- c0229 ..> c0245: `get_entity() calls get_entity()`
-- c0229 ..> c0245: `get_entity_memories() calls get_entity_memories()`
-- c0229 ..> c0245: `get_entity_relationships() calls get_entity_relationships()`
-- c0229 ..> c0245: `get_memory_entities() calls get_memory_entities()`
-- c0229 ..> c0245: `link_entity_to_memory() calls link_entity_to_memory()`
-- c0229 ..> c0245: `link_entity_to_project() calls link_entity_to_project()`
-- c0229 ..> c0245: `list_entities() calls list_entities()`
-- c0229 ..> c0245: `search_entities() calls search_entities()`
+- c0228 ..> c0244: `update_code_artifact() calls update_code_artifact()`
+- c0228 ..> c0265: `type in __init__`
+- c0228 ..> c0267: `update_code_artifact() calls filter_none_values()`
+- c0229 ..> c0032: `create_document() calls get_user_from_auth()`
+- c0229 ..> c0032: `delete_document() calls get_user_from_auth()`
+- c0229 ..> c0032: `get_document() calls get_user_from_auth()`
+- c0229 ..> c0032: `list_documents() calls get_user_from_auth()`
+- c0229 ..> c0032: `update_document() calls get_user_from_auth()`
+- c0229 ..> c0044: `type in create_document`
+- c0229 ..> c0044: `type in get_document`
+- c0229 ..> c0044: `type in update_document`
+- c0229 ..> c0045: `create_document() constructs DocumentCreate`
+- c0229 ..> c0047: `update_document() constructs DocumentUpdate`
+- c0229 ..> c0245: `create_document() calls create_document()`
+- c0229 ..> c0245: `delete_document() calls delete_document()`
+- c0229 ..> c0245: `get_document() calls get_document()`
+- c0229 ..> c0245: `list_documents() calls list_documents()`
 - c0229 ..> c0245: `type in __init__`
-- c0229 ..> c0245: `unlink_entity_from_memory() calls unlink_entity_from_memory()`
-- c0229 ..> c0245: `unlink_entity_from_project() calls unlink_entity_from_project()`
-- c0229 ..> c0245: `update_entity() calls update_entity()`
-- c0229 ..> c0245: `update_entity_relationship() calls update_entity_relationship()`
-- c0229 ..> c0264: `type in __init__`
-- c0229 ..> c0266: `create_entity() calls filter_none_values()`
-- c0229 ..> c0266: `update_entity() calls filter_none_values()`
-- c0229 ..> c0266: `update_entity_relationship() calls filter_none_values()`
-- c0230 ..> c0031: `create_file() calls get_user_from_auth()`
-- c0230 ..> c0031: `delete_file() calls get_user_from_auth()`
-- c0230 ..> c0031: `get_file() calls get_user_from_auth()`
-- c0230 ..> c0031: `list_files() calls get_user_from_auth()`
-- c0230 ..> c0031: `update_file() calls get_user_from_auth()`
-- c0230 ..> c0057: `create_file() constructs FileCreate`
-- c0230 ..> c0059: `update_file() constructs FileUpdate`
-- c0230 ..> c0118: `create_file() calls create_file()`
-- c0230 ..> c0118: `delete_file() calls delete_file()`
-- c0230 ..> c0118: `list_files() calls list_files()`
-- c0230 ..> c0118: `update_file() calls update_file()`
-- c0230 ..> c0246: `get_file() calls get_file()`
-- c0230 ..> c0264: `type in __init__`
-- c0230 ..> c0266: `update_file() calls filter_none_values()`
-- c0231 ..> c0031: `create_memory() calls get_user_from_auth()`
-- c0231 ..> c0031: `get_memory() calls get_user_from_auth()`
-- c0231 ..> c0031: `get_recent_memories() calls get_user_from_auth()`
-- c0231 ..> c0031: `link_memories() calls get_user_from_auth()`
-- c0231 ..> c0031: `mark_memory_obsolete() calls get_user_from_auth()`
-- c0231 ..> c0031: `query_memory() calls get_user_from_auth()`
-- c0231 ..> c0031: `rebuild_embeddings() calls get_user_from_auth()`
-- c0231 ..> c0031: `unlink_memories() calls get_user_from_auth()`
-- c0231 ..> c0031: `update_memory() calls get_user_from_auth()`
-- c0231 ..> c0065: `type in get_memory`
-- c0231 ..> c0065: `type in update_memory`
-- c0231 ..> c0066: `create_memory() constructs MemoryCreate`
-- c0231 ..> c0067: `create_memory() constructs MemoryCreateResponse`
-- c0231 ..> c0067: `type in create_memory`
-- c0231 ..> c0070: `query_memory() constructs MemoryQueryRequest`
-- c0231 ..> c0071: `type in query_memory`
-- c0231 ..> c0074: `update_memory() constructs MemoryUpdate`
-- c0231 ..> c0119: `_validate_rebuild_scope() calls count_memories_for_targeted_rebuild()`
-- c0231 ..> c0223: `get_recent_memories() calls clamp_list_pagination()`
-- c0231 ..> c0231: `rebuild_embeddings() calls _build_re_embedding_service()`
-- c0231 ..> c0231: `rebuild_embeddings() calls _validate_rebuild_scope()`
-- c0231 ..> c0237: `create_memory() calls _coerce_int_id()`
-- c0231 ..> c0237: `create_memory() calls _coerce_int_ids()`
-- c0231 ..> c0237: `get_memory() calls _coerce_int_id()`
-- c0231 ..> c0237: `get_recent_memories() calls _coerce_int_id()`
-- c0231 ..> c0237: `link_memories() calls _coerce_int_id()`
-- c0231 ..> c0237: `link_memories() calls _coerce_int_ids()`
-- c0231 ..> c0237: `mark_memory_obsolete() calls _coerce_int_id()`
-- c0231 ..> c0237: `query_memory() calls _coerce_int_id()`
-- c0231 ..> c0237: `rebuild_embeddings() calls _coerce_int_id()`
-- c0231 ..> c0237: `unlink_memories() calls _coerce_int_id()`
-- c0231 ..> c0237: `unlink_memories() calls _coerce_int_ids()`
-- c0231 ..> c0237: `update_memory() calls _coerce_int_id()`
-- c0231 ..> c0237: `update_memory() calls _coerce_int_ids()`
-- c0231 ..> c0255: `create_memory() calls create_memory()`
-- c0231 ..> c0255: `create_memory() calls find_obsolete_matches()`
-- c0231 ..> c0255: `get_memory() calls get_memory()`
-- c0231 ..> c0255: `get_recent_memories() calls list_memories()`
-- c0231 ..> c0255: `link_memories() calls link_memories()`
-- c0231 ..> c0255: `mark_memory_obsolete() calls mark_memory_obsolete()`
-- c0231 ..> c0255: `query_memory() calls query_memory()`
-- c0231 ..> c0255: `type in __init__`
-- c0231 ..> c0255: `unlink_memories() calls unlink_memories()`
-- c0231 ..> c0255: `update_memory() calls update_memory()`
-- c0231 ..> c0259: `_build_re_embedding_service() constructs ReEmbeddingService`
-- c0231 ..> c0259: `rebuild_embeddings() calls rebuild_targeted()`
-- c0231 ..> c0259: `type in _build_re_embedding_service`
-- c0231 ..> c0264: `type in __init__`
-- c0231 ..> c0266: `update_memory() calls filter_none_values()`
-- c0232 ..> c0031: `create_plan() calls get_user_from_auth()`
-- c0232 ..> c0031: `get_plan() calls get_user_from_auth()`
-- c0232 ..> c0031: `list_plans() calls get_user_from_auth()`
-- c0232 ..> c0031: `update_plan() calls get_user_from_auth()`
-- c0232 ..> c0081: `create_plan() constructs PlanCreate`
-- c0232 ..> c0082: `create_plan() constructs PlanStatus`
-- c0232 ..> c0082: `list_plans() constructs PlanStatus`
-- c0232 ..> c0082: `update_plan() constructs PlanStatus`
-- c0232 ..> c0084: `update_plan() constructs PlanUpdate`
-- c0232 ..> c0121: `create_plan() calls create_plan()`
-- c0232 ..> c0121: `list_plans() calls list_plans()`
-- c0232 ..> c0121: `update_plan() calls update_plan()`
-- c0232 ..> c0251: `get_plan() calls get_plan()`
-- c0232 ..> c0266: `update_plan() calls filter_none_values()`
-- c0233 ..> c0031: `create_project() calls get_user_from_auth()`
-- c0233 ..> c0031: `delete_project() calls get_user_from_auth()`
-- c0233 ..> c0031: `get_project() calls get_user_from_auth()`
-- c0233 ..> c0031: `list_projects() calls get_user_from_auth()`
-- c0233 ..> c0031: `update_project() calls get_user_from_auth()`
-- c0233 ..> c0093: `type in create_project`
-- c0233 ..> c0093: `type in get_project`
-- c0233 ..> c0093: `type in update_project`
-- c0233 ..> c0094: `create_project() constructs ProjectCreate`
-- c0233 ..> c0095: `list_projects() constructs ProjectStatus`
-- c0233 ..> c0095: `type in create_project`
-- c0233 ..> c0095: `type in update_project`
-- c0233 ..> c0097: `type in create_project`
-- c0233 ..> c0097: `type in update_project`
-- c0233 ..> c0098: `update_project() constructs ProjectUpdate`
-- c0233 ..> c0257: `create_project() calls create_project()`
-- c0233 ..> c0257: `delete_project() calls delete_project()`
-- c0233 ..> c0257: `get_project() calls get_project()`
-- c0233 ..> c0257: `list_projects() calls list_projects()`
-- c0233 ..> c0257: `type in __init__`
-- c0233 ..> c0257: `update_project() calls update_project()`
-- c0233 ..> c0264: `type in __init__`
-- c0233 ..> c0266: `update_project() calls filter_none_values()`
-- c0234 ..> c0031: `create_skill() calls get_user_from_auth()`
-- c0234 ..> c0031: `delete_skill() calls get_user_from_auth()`
-- c0234 ..> c0031: `export_skill() calls get_user_from_auth()`
-- c0234 ..> c0031: `get_skill() calls get_user_from_auth()`
-- c0234 ..> c0031: `get_skill_links() calls get_user_from_auth()`
-- c0234 ..> c0031: `import_skill() calls get_user_from_auth()`
-- c0234 ..> c0031: `link_skill_to_code_artifact() calls get_user_from_auth()`
-- c0234 ..> c0031: `link_skill_to_document() calls get_user_from_auth()`
-- c0234 ..> c0031: `link_skill_to_file() calls get_user_from_auth()`
-- c0234 ..> c0031: `link_skill_to_memory() calls get_user_from_auth()`
-- c0234 ..> c0031: `list_skills() calls get_user_from_auth()`
-- c0234 ..> c0031: `search_skills() calls get_user_from_auth()`
-- c0234 ..> c0031: `unlink_skill_from_code_artifact() calls get_user_from_auth()`
-- c0234 ..> c0031: `unlink_skill_from_document() calls get_user_from_auth()`
-- c0234 ..> c0031: `unlink_skill_from_file() calls get_user_from_auth()`
-- c0234 ..> c0031: `unlink_skill_from_memory() calls get_user_from_auth()`
-- c0234 ..> c0031: `update_skill() calls get_user_from_auth()`
-- c0234 ..> c0100: `create_skill() constructs SkillCreate`
-- c0234 ..> c0103: `update_skill() constructs SkillUpdate`
-- c0234 ..> c0123: `create_skill() calls create_skill()`
-- c0234 ..> c0123: `delete_skill() calls delete_skill()`
-- c0234 ..> c0123: `get_skill_links() calls get_skill_links()`
-- c0234 ..> c0123: `link_skill_to_code_artifact() calls link_skill_to_code_artifact()`
-- c0234 ..> c0123: `link_skill_to_document() calls link_skill_to_document()`
-- c0234 ..> c0123: `link_skill_to_file() calls link_skill_to_file()`
-- c0234 ..> c0123: `link_skill_to_memory() calls link_skill_to_memory()`
-- c0234 ..> c0123: `list_skills() calls list_skills()`
-- c0234 ..> c0123: `search_skills() calls search_skills()`
-- c0234 ..> c0123: `unlink_skill_from_code_artifact() calls unlink_skill_from_code_artifact()`
-- c0234 ..> c0123: `unlink_skill_from_document() calls unlink_skill_from_document()`
-- c0234 ..> c0123: `unlink_skill_from_file() calls unlink_skill_from_file()`
-- c0234 ..> c0123: `unlink_skill_from_memory() calls unlink_skill_from_memory()`
-- c0234 ..> c0123: `update_skill() calls update_skill()`
-- c0234 ..> c0253: `get_skill() calls get_skill()`
-- c0234 ..> c0261: `export_skill() calls export_skill()`
-- c0234 ..> c0261: `import_skill() calls import_skill()`
-- c0234 ..> c0264: `type in __init__`
-- c0234 ..> c0266: `update_skill() calls filter_none_values()`
-- c0235 ..> c0031: `add_criterion() calls get_user_from_auth()`
-- c0235 ..> c0031: `add_dependency() calls get_user_from_auth()`
-- c0235 ..> c0031: `claim_task() calls get_user_from_auth()`
-- c0235 ..> c0031: `create_task() calls get_user_from_auth()`
-- c0235 ..> c0031: `delete_criterion() calls get_user_from_auth()`
-- c0235 ..> c0031: `get_task() calls get_user_from_auth()`
-- c0235 ..> c0031: `query_tasks() calls get_user_from_auth()`
-- c0235 ..> c0031: `remove_dependency() calls get_user_from_auth()`
-- c0235 ..> c0031: `transition_task() calls get_user_from_auth()`
-- c0235 ..> c0031: `update_task() calls get_user_from_auth()`
-- c0235 ..> c0031: `verify_criterion() calls get_user_from_auth()`
-- c0235 ..> c0078: `add_criterion() constructs CriterionCreate`
-- c0235 ..> c0078: `create_task() constructs CriterionCreate`
-- c0235 ..> c0079: `verify_criterion() constructs CriterionUpdate`
-- c0235 ..> c0086: `create_task() constructs TaskCreate`
-- c0235 ..> c0089: `create_task() constructs TaskPriority`
-- c0235 ..> c0089: `query_tasks() constructs TaskPriority`
-- c0235 ..> c0089: `update_task() constructs TaskPriority`
-- c0235 ..> c0090: `query_tasks() constructs TaskState`
-- c0235 ..> c0090: `transition_task() constructs TaskState`
-- c0235 ..> c0092: `update_task() constructs TaskUpdate`
-- c0235 ..> c0124: `add_dependency() calls add_dependency()`
-- c0235 ..> c0124: `create_task() calls create_task()`
-- c0235 ..> c0124: `delete_criterion() calls delete_criterion()`
-- c0235 ..> c0124: `query_tasks() calls list_tasks()`
-- c0235 ..> c0124: `remove_dependency() calls remove_dependency()`
-- c0235 ..> c0124: `update_task() calls update_task()`
-- c0235 ..> c0124: `verify_criterion() calls update_criterion()`
-- c0235 ..> c0254: `get_task() calls get_task()`
-- c0235 ..> c0263: `add_criterion() calls add_criterion()`
-- c0235 ..> c0263: `claim_task() calls claim_task()`
-- c0235 ..> c0263: `transition_task() calls transition_task()`
-- c0235 ..> c0266: `update_task() calls filter_none_values()`
-- c0236 ..> c0031: `get_current_user() calls get_user_from_auth()`
-- c0236 ..> c0031: `update_user_notes() calls get_user_from_auth()`
-- c0236 ..> c0111: `get_current_user() constructs UserResponse`
-- c0236 ..> c0111: `type in get_current_user`
-- c0236 ..> c0111: `type in update_user_notes`
-- c0236 ..> c0111: `update_user_notes() constructs UserResponse`
-- c0236 ..> c0112: `update_user_notes() constructs UserUpdate`
-- c0236 ..> c0264: `type in __init__`
-- c0236 ..> c0264: `update_user_notes() calls update_user()`
-- c0237 ..> c0227: `create_code_artifact_adapters() constructs CodeArtifactToolAdapters`
-- c0237 ..> c0228: `create_document_adapters() constructs DocumentToolAdapters`
-- c0237 ..> c0229: `create_entity_adapters() constructs EntityToolAdapters`
-- c0237 ..> c0230: `create_file_adapters() constructs FileToolAdapters`
-- c0237 ..> c0231: `create_memory_adapters() constructs MemoryToolAdapters`
-- c0237 ..> c0232: `create_plan_adapters() constructs PlanToolAdapters`
-- c0237 ..> c0233: `create_project_adapters() constructs ProjectToolAdapters`
-- c0237 ..> c0234: `create_skill_adapters() constructs SkillToolAdapters`
-- c0237 ..> c0235: `create_task_adapters() constructs TaskToolAdapters`
-- c0237 ..> c0236: `create_user_adapters() constructs UserToolAdapters`
-- c0237 ..> c0237: `_coerce_int_ids() calls _coerce_int_id()`
-- c0237 ..> c0243: `type in create_code_artifact_adapters`
-- c0237 ..> c0244: `type in create_document_adapters`
-- c0237 ..> c0245: `type in create_entity_adapters`
-- c0237 ..> c0255: `type in create_memory_adapters`
-- c0237 ..> c0257: `type in create_project_adapters`
-- c0237 ..> c0264: `type in create_code_artifact_adapters`
-- c0237 ..> c0264: `type in create_document_adapters`
-- c0237 ..> c0264: `type in create_entity_adapters`
-- c0237 ..> c0264: `type in create_file_adapters`
-- c0237 ..> c0264: `type in create_memory_adapters`
-- c0237 ..> c0264: `type in create_project_adapters`
-- c0237 ..> c0264: `type in create_skill_adapters`
-- c0237 ..> c0264: `type in create_user_adapters`
-- c0238 ..> c0030: `register_code_artifact_tools_metadata() calls get()`
-- c0238 ..> c0030: `register_document_tools_metadata() calls get()`
-- c0238 ..> c0030: `register_entity_tools_metadata() calls get()`
-- c0238 ..> c0030: `register_file_tools_metadata() calls get()`
-- c0238 ..> c0030: `register_memory_tools_metadata() calls get()`
-- c0238 ..> c0030: `register_plan_tools_metadata() calls get()`
-- c0238 ..> c0030: `register_project_tools_metadata() calls get()`
-- c0238 ..> c0030: `register_simplified_tool() calls get()`
-- c0238 ..> c0030: `register_skill_tools_metadata() calls get()`
-- c0238 ..> c0030: `register_task_tools_metadata() calls get()`
-- c0238 ..> c0030: `register_user_tools_metadata() calls get()`
-- c0238 ..> c0104: `type in register_simplified_tool`
-- c0238 ..> c0108: `register_simplified_tool() constructs ToolParameter`
-- c0238 ..> c0237: `register_all_tools_metadata() calls create_code_artifact_adapters()`
-- c0238 ..> c0237: `register_all_tools_metadata() calls create_document_adapters()`
-- c0238 ..> c0237: `register_all_tools_metadata() calls create_entity_adapters()`
-- c0238 ..> c0237: `register_all_tools_metadata() calls create_file_adapters()`
-- c0238 ..> c0237: `register_all_tools_metadata() calls create_memory_adapters()`
-- c0238 ..> c0237: `register_all_tools_metadata() calls create_plan_adapters()`
-- c0238 ..> c0237: `register_all_tools_metadata() calls create_project_adapters()`
-- c0238 ..> c0237: `register_all_tools_metadata() calls create_skill_adapters()`
-- c0238 ..> c0237: `register_all_tools_metadata() calls create_task_adapters()`
-- c0238 ..> c0237: `register_all_tools_metadata() calls create_user_adapters()`
-- c0238 ..> c0238: `register_all_tools_metadata() calls register_code_artifact_tools_metadata()`
-- c0238 ..> c0238: `register_all_tools_metadata() calls register_document_tools_metadata()`
-- c0238 ..> c0238: `register_all_tools_metadata() calls register_entity_tools_metadata()`
-- c0238 ..> c0238: `register_all_tools_metadata() calls register_file_tools_metadata()`
-- c0238 ..> c0238: `register_all_tools_metadata() calls register_memory_tools_metadata()`
-- c0238 ..> c0238: `register_all_tools_metadata() calls register_plan_tools_metadata()`
-- c0238 ..> c0238: `register_all_tools_metadata() calls register_project_tools_metadata()`
-- c0238 ..> c0238: `register_all_tools_metadata() calls register_skill_tools_metadata()`
-- c0238 ..> c0238: `register_all_tools_metadata() calls register_task_tools_metadata()`
-- c0238 ..> c0238: `register_all_tools_metadata() calls register_user_tools_metadata()`
-- c0238 ..> c0238: `register_code_artifact_tools_metadata() calls register_simplified_tool()`
-- c0238 ..> c0238: `register_document_tools_metadata() calls register_simplified_tool()`
-- c0238 ..> c0238: `register_entity_tools_metadata() calls register_simplified_tool()`
-- c0238 ..> c0238: `register_file_tools_metadata() calls register_simplified_tool()`
-- c0238 ..> c0238: `register_memory_tools_metadata() calls register_simplified_tool()`
-- c0238 ..> c0238: `register_plan_tools_metadata() calls register_simplified_tool()`
-- c0238 ..> c0238: `register_project_tools_metadata() calls register_simplified_tool()`
-- c0238 ..> c0238: `register_skill_tools_metadata() calls register_simplified_tool()`
-- c0238 ..> c0238: `register_task_tools_metadata() calls register_simplified_tool()`
-- c0238 ..> c0238: `register_user_tools_metadata() calls register_simplified_tool()`
-- c0238 ..> c0239: `register_all_tools_metadata() calls list_categories()`
-- c0238 ..> c0239: `register_simplified_tool() calls register()`
-- c0238 ..> c0239: `type in register_all_tools_metadata`
-- c0238 ..> c0239: `type in register_code_artifact_tools_metadata`
-- c0238 ..> c0239: `type in register_document_tools_metadata`
-- c0238 ..> c0239: `type in register_entity_tools_metadata`
-- c0238 ..> c0239: `type in register_file_tools_metadata`
-- c0238 ..> c0239: `type in register_memory_tools_metadata`
-- c0238 ..> c0239: `type in register_plan_tools_metadata`
-- c0238 ..> c0239: `type in register_project_tools_metadata`
-- c0238 ..> c0239: `type in register_simplified_tool`
-- c0238 ..> c0239: `type in register_skill_tools_metadata`
-- c0238 ..> c0239: `type in register_task_tools_metadata`
-- c0238 ..> c0239: `type in register_user_tools_metadata`
-- c0238 ..> c0255: `type in register_all_tools_metadata`
-- c0238 ..> c0264: `type in register_all_tools_metadata`
-- c0239 ..> c0030: `get_permitted_categories() calls get()`
-- c0239 ..> c0030: `get_tool() calls get()`
-- c0239 ..> c0030: `list_categories() calls get()`
-- c0239 ..> c0104: `type in get_permitted_by_category`
-- c0239 ..> c0104: `type in list_by_category`
-- c0239 ..> c0104: `type in register`
-- c0239 --> c0106: `field _tools`
-- c0239 ..> c0106: `register() constructs ToolImplementation`
-- c0239 ..> c0106: `type in get_tool`
-- c0239 ..> c0107: `register() constructs ToolMetadata`
-- c0239 ..> c0107: `type in get_permitted_by_category`
-- c0239 ..> c0107: `type in get_permitted_tools`
-- c0239 ..> c0107: `type in list_all_tools`
-- c0239 ..> c0107: `type in list_by_category`
-- c0239 ..> c0108: `type in register`
-- c0239 ..> c0239: `execute() calls get_tool()`
-- c0241 ..> c0033: `type in count_activity`
-- c0241 ..> c0033: `type in get_activity`
-- c0241 ..> c0034: `type in handle_event`
-- c0241 ..> c0035: `get_activity() constructs ActivityListResponse`
-- c0241 ..> c0035: `type in get_activity`
-- c0241 ..> c0035: `type in get_entity_history`
-- c0241 ..> c0037: `type in get_activity`
-- c0241 ..> c0038: `type in count_activity`
-- c0241 ..> c0038: `type in get_activity`
-- c0241 ..> c0038: `type in get_entity_history`
-- c0241 ..> c0113: `_cleanup_if_configured() calls cleanup_expired()`
-- c0241 ..> c0113: `count_activity() calls count_events()`
-- c0241 ..> c0113: `get_activity() calls query_events()`
-- c0241 ..> c0113: `handle_event() calls save_event()`
-- c0241 ..> c0113: `type in __init__`
-- c0241 ..> c0241: `get_activity() calls _cleanup_if_configured()`
-- c0241 ..> c0241: `get_entity_history() calls get_activity()`
-- c0242 ..> c0217: `_backup_postgres() calls run()`
-- c0242 ..> c0217: `_restore_postgres() calls run()`
-- c0242 ..> c0242: `create_backup() calls _backup_postgres()`
-- c0242 ..> c0242: `create_backup() calls _backup_sqlite()`
-- c0242 ..> c0242: `restore_backup() calls _restore_postgres()`
-- c0242 ..> c0242: `restore_backup() calls _restore_sqlite()`
-- c0243 ..> c0023: `_emit_event() calls emit()`
-- c0243 ..> c0023: `type in __init__`
-- c0243 ..> c0028: `get_code_artifact() constructs NotFoundError`
-- c0243 ..> c0028: `update_code_artifact() constructs NotFoundError`
-- c0243 ..> c0033: `type in _emit_event`
-- c0243 ..> c0034: `_emit_event() constructs ActivityEvent`
-- c0243 ..> c0038: `type in _emit_event`
-- c0243 ..> c0039: `type in create_code_artifact`
-- c0243 ..> c0039: `type in get_code_artifact`
-- c0243 ..> c0039: `type in update_code_artifact`
-- c0243 ..> c0040: `type in create_code_artifact`
-- c0243 ..> c0041: `type in list_code_artifacts`
-- c0243 ..> c0042: `type in update_code_artifact`
-- c0243 ..> c0114: `create_code_artifact() calls create_code_artifact()`
-- c0243 ..> c0114: `delete_code_artifact() calls delete_code_artifact()`
-- c0243 ..> c0114: `delete_code_artifact() calls get_code_artifact_by_id()`
-- c0243 ..> c0114: `get_code_artifact() calls get_code_artifact_by_id()`
-- c0243 ..> c0114: `list_code_artifacts() calls list_code_artifacts()`
-- c0243 ..> c0114: `type in __init__`
-- c0243 ..> c0114: `update_code_artifact() calls get_code_artifact_by_id()`
-- c0243 ..> c0114: `update_code_artifact() calls update_code_artifact()`
-- c0243 ..> c0243: `create_code_artifact() calls _emit_event()`
-- c0243 ..> c0243: `delete_code_artifact() calls _emit_event()`
-- c0243 ..> c0243: `get_code_artifact() calls _emit_event()`
-- c0243 ..> c0243: `list_code_artifacts() calls _emit_event()`
-- c0243 ..> c0243: `update_code_artifact() calls _emit_event()`
-- c0243 ..> c0265: `create_code_artifact() calls apply_provenance_defaults()`
-- c0243 ..> c0265: `update_code_artifact() calls apply_provenance_defaults_for_update()`
-- c0243 ..> c0266: `update_code_artifact() calls get_changed_fields()`
-- c0244 ..> c0023: `_emit_event() calls emit()`
-- c0244 ..> c0023: `type in __init__`
-- c0244 ..> c0028: `get_document() constructs NotFoundError`
-- c0244 ..> c0028: `update_document() constructs NotFoundError`
-- c0244 ..> c0033: `type in _emit_event`
-- c0244 ..> c0034: `_emit_event() constructs ActivityEvent`
-- c0244 ..> c0038: `type in _emit_event`
-- c0244 ..> c0043: `type in create_document`
-- c0244 ..> c0043: `type in get_document`
-- c0244 ..> c0043: `type in update_document`
-- c0244 ..> c0044: `type in create_document`
-- c0244 ..> c0045: `type in list_documents`
-- c0244 ..> c0046: `type in update_document`
-- c0244 ..> c0115: `create_document() calls create_document()`
-- c0244 ..> c0115: `delete_document() calls delete_document()`
-- c0244 ..> c0115: `delete_document() calls get_document_by_id()`
-- c0244 ..> c0115: `get_document() calls get_document_by_id()`
-- c0244 ..> c0115: `list_documents() calls list_documents()`
+- c0229 ..> c0245: `update_document() calls update_document()`
+- c0229 ..> c0265: `type in __init__`
+- c0229 ..> c0267: `update_document() calls filter_none_values()`
+- c0230 ..> c0032: `create_entity() calls get_user_from_auth()`
+- c0230 ..> c0032: `create_entity_relationship() calls get_user_from_auth()`
+- c0230 ..> c0032: `delete_entity() calls get_user_from_auth()`
+- c0230 ..> c0032: `delete_entity_relationship() calls get_user_from_auth()`
+- c0230 ..> c0032: `get_entity() calls get_user_from_auth()`
+- c0230 ..> c0032: `get_entity_memories() calls get_user_from_auth()`
+- c0230 ..> c0032: `get_entity_relationships() calls get_user_from_auth()`
+- c0230 ..> c0032: `get_memory_entities() calls get_user_from_auth()`
+- c0230 ..> c0032: `link_entity_to_memory() calls get_user_from_auth()`
+- c0230 ..> c0032: `link_entity_to_project() calls get_user_from_auth()`
+- c0230 ..> c0032: `list_entities() calls get_user_from_auth()`
+- c0230 ..> c0032: `search_entities() calls get_user_from_auth()`
+- c0230 ..> c0032: `unlink_entity_from_memory() calls get_user_from_auth()`
+- c0230 ..> c0032: `unlink_entity_from_project() calls get_user_from_auth()`
+- c0230 ..> c0032: `update_entity() calls get_user_from_auth()`
+- c0230 ..> c0032: `update_entity_relationship() calls get_user_from_auth()`
+- c0230 ..> c0048: `type in create_entity`
+- c0230 ..> c0048: `type in get_entity`
+- c0230 ..> c0048: `type in update_entity`
+- c0230 ..> c0049: `create_entity() constructs EntityCreate`
+- c0230 ..> c0051: `type in create_entity_relationship`
+- c0230 ..> c0051: `type in update_entity_relationship`
+- c0230 ..> c0052: `create_entity_relationship() constructs EntityRelationshipCreate`
+- c0230 ..> c0053: `update_entity_relationship() constructs EntityRelationshipUpdate`
+- c0230 ..> c0055: `list_entities() constructs EntityType`
+- c0230 ..> c0055: `search_entities() constructs EntityType`
+- c0230 ..> c0056: `update_entity() constructs EntityUpdate`
+- c0230 ..> c0246: `create_entity() calls create_entity()`
+- c0230 ..> c0246: `create_entity_relationship() calls create_entity_relationship()`
+- c0230 ..> c0246: `delete_entity() calls delete_entity()`
+- c0230 ..> c0246: `delete_entity_relationship() calls delete_entity_relationship()`
+- c0230 ..> c0246: `get_entity() calls get_entity()`
+- c0230 ..> c0246: `get_entity_memories() calls get_entity_memories()`
+- c0230 ..> c0246: `get_entity_relationships() calls get_entity_relationships()`
+- c0230 ..> c0246: `get_memory_entities() calls get_memory_entities()`
+- c0230 ..> c0246: `link_entity_to_memory() calls link_entity_to_memory()`
+- c0230 ..> c0246: `link_entity_to_project() calls link_entity_to_project()`
+- c0230 ..> c0246: `list_entities() calls list_entities()`
+- c0230 ..> c0246: `search_entities() calls search_entities()`
+- c0230 ..> c0246: `type in __init__`
+- c0230 ..> c0246: `unlink_entity_from_memory() calls unlink_entity_from_memory()`
+- c0230 ..> c0246: `unlink_entity_from_project() calls unlink_entity_from_project()`
+- c0230 ..> c0246: `update_entity() calls update_entity()`
+- c0230 ..> c0246: `update_entity_relationship() calls update_entity_relationship()`
+- c0230 ..> c0265: `type in __init__`
+- c0230 ..> c0267: `create_entity() calls filter_none_values()`
+- c0230 ..> c0267: `update_entity() calls filter_none_values()`
+- c0230 ..> c0267: `update_entity_relationship() calls filter_none_values()`
+- c0231 ..> c0032: `create_file() calls get_user_from_auth()`
+- c0231 ..> c0032: `delete_file() calls get_user_from_auth()`
+- c0231 ..> c0032: `get_file() calls get_user_from_auth()`
+- c0231 ..> c0032: `list_files() calls get_user_from_auth()`
+- c0231 ..> c0032: `update_file() calls get_user_from_auth()`
+- c0231 ..> c0058: `create_file() constructs FileCreate`
+- c0231 ..> c0060: `update_file() constructs FileUpdate`
+- c0231 ..> c0119: `create_file() calls create_file()`
+- c0231 ..> c0119: `delete_file() calls delete_file()`
+- c0231 ..> c0119: `list_files() calls list_files()`
+- c0231 ..> c0119: `update_file() calls update_file()`
+- c0231 ..> c0247: `get_file() calls get_file()`
+- c0231 ..> c0265: `type in __init__`
+- c0231 ..> c0267: `update_file() calls filter_none_values()`
+- c0232 ..> c0032: `create_memory() calls get_user_from_auth()`
+- c0232 ..> c0032: `get_memory() calls get_user_from_auth()`
+- c0232 ..> c0032: `get_recent_memories() calls get_user_from_auth()`
+- c0232 ..> c0032: `link_memories() calls get_user_from_auth()`
+- c0232 ..> c0032: `mark_memory_obsolete() calls get_user_from_auth()`
+- c0232 ..> c0032: `query_memory() calls get_user_from_auth()`
+- c0232 ..> c0032: `rebuild_embeddings() calls get_user_from_auth()`
+- c0232 ..> c0032: `unlink_memories() calls get_user_from_auth()`
+- c0232 ..> c0032: `update_memory() calls get_user_from_auth()`
+- c0232 ..> c0066: `type in get_memory`
+- c0232 ..> c0066: `type in update_memory`
+- c0232 ..> c0067: `create_memory() constructs MemoryCreate`
+- c0232 ..> c0068: `create_memory() constructs MemoryCreateResponse`
+- c0232 ..> c0068: `type in create_memory`
+- c0232 ..> c0071: `query_memory() constructs MemoryQueryRequest`
+- c0232 ..> c0072: `type in query_memory`
+- c0232 ..> c0075: `update_memory() constructs MemoryUpdate`
+- c0232 ..> c0120: `_validate_rebuild_scope() calls count_memories_for_targeted_rebuild()`
+- c0232 ..> c0224: `get_recent_memories() calls clamp_list_pagination()`
+- c0232 ..> c0232: `rebuild_embeddings() calls _build_re_embedding_service()`
+- c0232 ..> c0232: `rebuild_embeddings() calls _validate_rebuild_scope()`
+- c0232 ..> c0238: `create_memory() calls _coerce_int_id()`
+- c0232 ..> c0238: `create_memory() calls _coerce_int_ids()`
+- c0232 ..> c0238: `get_memory() calls _coerce_int_id()`
+- c0232 ..> c0238: `get_recent_memories() calls _coerce_int_id()`
+- c0232 ..> c0238: `link_memories() calls _coerce_int_id()`
+- c0232 ..> c0238: `link_memories() calls _coerce_int_ids()`
+- c0232 ..> c0238: `mark_memory_obsolete() calls _coerce_int_id()`
+- c0232 ..> c0238: `query_memory() calls _coerce_int_id()`
+- c0232 ..> c0238: `rebuild_embeddings() calls _coerce_int_id()`
+- c0232 ..> c0238: `unlink_memories() calls _coerce_int_id()`
+- c0232 ..> c0238: `unlink_memories() calls _coerce_int_ids()`
+- c0232 ..> c0238: `update_memory() calls _coerce_int_id()`
+- c0232 ..> c0238: `update_memory() calls _coerce_int_ids()`
+- c0232 ..> c0256: `create_memory() calls create_memory()`
+- c0232 ..> c0256: `create_memory() calls find_obsolete_matches()`
+- c0232 ..> c0256: `get_memory() calls get_memory()`
+- c0232 ..> c0256: `get_recent_memories() calls list_memories()`
+- c0232 ..> c0256: `link_memories() calls link_memories()`
+- c0232 ..> c0256: `mark_memory_obsolete() calls mark_memory_obsolete()`
+- c0232 ..> c0256: `query_memory() calls query_memory()`
+- c0232 ..> c0256: `type in __init__`
+- c0232 ..> c0256: `unlink_memories() calls unlink_memories()`
+- c0232 ..> c0256: `update_memory() calls update_memory()`
+- c0232 ..> c0260: `_build_re_embedding_service() constructs ReEmbeddingService`
+- c0232 ..> c0260: `rebuild_embeddings() calls rebuild_targeted()`
+- c0232 ..> c0260: `type in _build_re_embedding_service`
+- c0232 ..> c0265: `type in __init__`
+- c0232 ..> c0267: `update_memory() calls filter_none_values()`
+- c0233 ..> c0032: `create_plan() calls get_user_from_auth()`
+- c0233 ..> c0032: `get_plan() calls get_user_from_auth()`
+- c0233 ..> c0032: `list_plans() calls get_user_from_auth()`
+- c0233 ..> c0032: `update_plan() calls get_user_from_auth()`
+- c0233 ..> c0082: `create_plan() constructs PlanCreate`
+- c0233 ..> c0083: `create_plan() constructs PlanStatus`
+- c0233 ..> c0083: `list_plans() constructs PlanStatus`
+- c0233 ..> c0083: `update_plan() constructs PlanStatus`
+- c0233 ..> c0085: `update_plan() constructs PlanUpdate`
+- c0233 ..> c0122: `create_plan() calls create_plan()`
+- c0233 ..> c0122: `list_plans() calls list_plans()`
+- c0233 ..> c0122: `update_plan() calls update_plan()`
+- c0233 ..> c0252: `get_plan() calls get_plan()`
+- c0233 ..> c0267: `update_plan() calls filter_none_values()`
+- c0234 ..> c0032: `create_project() calls get_user_from_auth()`
+- c0234 ..> c0032: `delete_project() calls get_user_from_auth()`
+- c0234 ..> c0032: `get_project() calls get_user_from_auth()`
+- c0234 ..> c0032: `list_projects() calls get_user_from_auth()`
+- c0234 ..> c0032: `update_project() calls get_user_from_auth()`
+- c0234 ..> c0094: `type in create_project`
+- c0234 ..> c0094: `type in get_project`
+- c0234 ..> c0094: `type in update_project`
+- c0234 ..> c0095: `create_project() constructs ProjectCreate`
+- c0234 ..> c0096: `list_projects() constructs ProjectStatus`
+- c0234 ..> c0096: `type in create_project`
+- c0234 ..> c0096: `type in update_project`
+- c0234 ..> c0098: `type in create_project`
+- c0234 ..> c0098: `type in update_project`
+- c0234 ..> c0099: `update_project() constructs ProjectUpdate`
+- c0234 ..> c0258: `create_project() calls create_project()`
+- c0234 ..> c0258: `delete_project() calls delete_project()`
+- c0234 ..> c0258: `get_project() calls get_project()`
+- c0234 ..> c0258: `list_projects() calls list_projects()`
+- c0234 ..> c0258: `type in __init__`
+- c0234 ..> c0258: `update_project() calls update_project()`
+- c0234 ..> c0265: `type in __init__`
+- c0234 ..> c0267: `update_project() calls filter_none_values()`
+- c0235 ..> c0032: `create_skill() calls get_user_from_auth()`
+- c0235 ..> c0032: `delete_skill() calls get_user_from_auth()`
+- c0235 ..> c0032: `export_skill() calls get_user_from_auth()`
+- c0235 ..> c0032: `get_skill() calls get_user_from_auth()`
+- c0235 ..> c0032: `get_skill_links() calls get_user_from_auth()`
+- c0235 ..> c0032: `import_skill() calls get_user_from_auth()`
+- c0235 ..> c0032: `link_skill_to_code_artifact() calls get_user_from_auth()`
+- c0235 ..> c0032: `link_skill_to_document() calls get_user_from_auth()`
+- c0235 ..> c0032: `link_skill_to_file() calls get_user_from_auth()`
+- c0235 ..> c0032: `link_skill_to_memory() calls get_user_from_auth()`
+- c0235 ..> c0032: `list_skills() calls get_user_from_auth()`
+- c0235 ..> c0032: `search_skills() calls get_user_from_auth()`
+- c0235 ..> c0032: `unlink_skill_from_code_artifact() calls get_user_from_auth()`
+- c0235 ..> c0032: `unlink_skill_from_document() calls get_user_from_auth()`
+- c0235 ..> c0032: `unlink_skill_from_file() calls get_user_from_auth()`
+- c0235 ..> c0032: `unlink_skill_from_memory() calls get_user_from_auth()`
+- c0235 ..> c0032: `update_skill() calls get_user_from_auth()`
+- c0235 ..> c0101: `create_skill() constructs SkillCreate`
+- c0235 ..> c0104: `update_skill() constructs SkillUpdate`
+- c0235 ..> c0124: `create_skill() calls create_skill()`
+- c0235 ..> c0124: `delete_skill() calls delete_skill()`
+- c0235 ..> c0124: `get_skill_links() calls get_skill_links()`
+- c0235 ..> c0124: `link_skill_to_code_artifact() calls link_skill_to_code_artifact()`
+- c0235 ..> c0124: `link_skill_to_document() calls link_skill_to_document()`
+- c0235 ..> c0124: `link_skill_to_file() calls link_skill_to_file()`
+- c0235 ..> c0124: `link_skill_to_memory() calls link_skill_to_memory()`
+- c0235 ..> c0124: `list_skills() calls list_skills()`
+- c0235 ..> c0124: `search_skills() calls search_skills()`
+- c0235 ..> c0124: `unlink_skill_from_code_artifact() calls unlink_skill_from_code_artifact()`
+- c0235 ..> c0124: `unlink_skill_from_document() calls unlink_skill_from_document()`
+- c0235 ..> c0124: `unlink_skill_from_file() calls unlink_skill_from_file()`
+- c0235 ..> c0124: `unlink_skill_from_memory() calls unlink_skill_from_memory()`
+- c0235 ..> c0124: `update_skill() calls update_skill()`
+- c0235 ..> c0254: `get_skill() calls get_skill()`
+- c0235 ..> c0262: `export_skill() calls export_skill()`
+- c0235 ..> c0262: `import_skill() calls import_skill()`
+- c0235 ..> c0265: `type in __init__`
+- c0235 ..> c0267: `update_skill() calls filter_none_values()`
+- c0236 ..> c0032: `add_criterion() calls get_user_from_auth()`
+- c0236 ..> c0032: `add_dependency() calls get_user_from_auth()`
+- c0236 ..> c0032: `claim_task() calls get_user_from_auth()`
+- c0236 ..> c0032: `create_task() calls get_user_from_auth()`
+- c0236 ..> c0032: `delete_criterion() calls get_user_from_auth()`
+- c0236 ..> c0032: `get_task() calls get_user_from_auth()`
+- c0236 ..> c0032: `query_tasks() calls get_user_from_auth()`
+- c0236 ..> c0032: `remove_dependency() calls get_user_from_auth()`
+- c0236 ..> c0032: `transition_task() calls get_user_from_auth()`
+- c0236 ..> c0032: `update_task() calls get_user_from_auth()`
+- c0236 ..> c0032: `verify_criterion() calls get_user_from_auth()`
+- c0236 ..> c0079: `add_criterion() constructs CriterionCreate`
+- c0236 ..> c0079: `create_task() constructs CriterionCreate`
+- c0236 ..> c0080: `verify_criterion() constructs CriterionUpdate`
+- c0236 ..> c0087: `create_task() constructs TaskCreate`
+- c0236 ..> c0090: `create_task() constructs TaskPriority`
+- c0236 ..> c0090: `query_tasks() constructs TaskPriority`
+- c0236 ..> c0090: `update_task() constructs TaskPriority`
+- c0236 ..> c0091: `query_tasks() constructs TaskState`
+- c0236 ..> c0091: `transition_task() constructs TaskState`
+- c0236 ..> c0093: `update_task() constructs TaskUpdate`
+- c0236 ..> c0125: `add_dependency() calls add_dependency()`
+- c0236 ..> c0125: `create_task() calls create_task()`
+- c0236 ..> c0125: `delete_criterion() calls delete_criterion()`
+- c0236 ..> c0125: `query_tasks() calls list_tasks()`
+- c0236 ..> c0125: `remove_dependency() calls remove_dependency()`
+- c0236 ..> c0125: `update_task() calls update_task()`
+- c0236 ..> c0125: `verify_criterion() calls update_criterion()`
+- c0236 ..> c0255: `get_task() calls get_task()`
+- c0236 ..> c0264: `add_criterion() calls add_criterion()`
+- c0236 ..> c0264: `claim_task() calls claim_task()`
+- c0236 ..> c0264: `transition_task() calls transition_task()`
+- c0236 ..> c0267: `update_task() calls filter_none_values()`
+- c0237 ..> c0032: `get_current_user() calls get_user_from_auth()`
+- c0237 ..> c0032: `update_user_notes() calls get_user_from_auth()`
+- c0237 ..> c0112: `get_current_user() constructs UserResponse`
+- c0237 ..> c0112: `type in get_current_user`
+- c0237 ..> c0112: `type in update_user_notes`
+- c0237 ..> c0112: `update_user_notes() constructs UserResponse`
+- c0237 ..> c0113: `update_user_notes() constructs UserUpdate`
+- c0237 ..> c0265: `type in __init__`
+- c0237 ..> c0265: `update_user_notes() calls update_user()`
+- c0238 ..> c0228: `create_code_artifact_adapters() constructs CodeArtifactToolAdapters`
+- c0238 ..> c0229: `create_document_adapters() constructs DocumentToolAdapters`
+- c0238 ..> c0230: `create_entity_adapters() constructs EntityToolAdapters`
+- c0238 ..> c0231: `create_file_adapters() constructs FileToolAdapters`
+- c0238 ..> c0232: `create_memory_adapters() constructs MemoryToolAdapters`
+- c0238 ..> c0233: `create_plan_adapters() constructs PlanToolAdapters`
+- c0238 ..> c0234: `create_project_adapters() constructs ProjectToolAdapters`
+- c0238 ..> c0235: `create_skill_adapters() constructs SkillToolAdapters`
+- c0238 ..> c0236: `create_task_adapters() constructs TaskToolAdapters`
+- c0238 ..> c0237: `create_user_adapters() constructs UserToolAdapters`
+- c0238 ..> c0238: `_coerce_int_ids() calls _coerce_int_id()`
+- c0238 ..> c0244: `type in create_code_artifact_adapters`
+- c0238 ..> c0245: `type in create_document_adapters`
+- c0238 ..> c0246: `type in create_entity_adapters`
+- c0238 ..> c0256: `type in create_memory_adapters`
+- c0238 ..> c0258: `type in create_project_adapters`
+- c0238 ..> c0265: `type in create_code_artifact_adapters`
+- c0238 ..> c0265: `type in create_document_adapters`
+- c0238 ..> c0265: `type in create_entity_adapters`
+- c0238 ..> c0265: `type in create_file_adapters`
+- c0238 ..> c0265: `type in create_memory_adapters`
+- c0238 ..> c0265: `type in create_project_adapters`
+- c0238 ..> c0265: `type in create_skill_adapters`
+- c0238 ..> c0265: `type in create_user_adapters`
+- c0239 ..> c0031: `register_code_artifact_tools_metadata() calls get()`
+- c0239 ..> c0031: `register_document_tools_metadata() calls get()`
+- c0239 ..> c0031: `register_entity_tools_metadata() calls get()`
+- c0239 ..> c0031: `register_file_tools_metadata() calls get()`
+- c0239 ..> c0031: `register_memory_tools_metadata() calls get()`
+- c0239 ..> c0031: `register_plan_tools_metadata() calls get()`
+- c0239 ..> c0031: `register_project_tools_metadata() calls get()`
+- c0239 ..> c0031: `register_simplified_tool() calls get()`
+- c0239 ..> c0031: `register_skill_tools_metadata() calls get()`
+- c0239 ..> c0031: `register_task_tools_metadata() calls get()`
+- c0239 ..> c0031: `register_user_tools_metadata() calls get()`
+- c0239 ..> c0105: `type in register_simplified_tool`
+- c0239 ..> c0109: `register_simplified_tool() constructs ToolParameter`
+- c0239 ..> c0238: `register_all_tools_metadata() calls create_code_artifact_adapters()`
+- c0239 ..> c0238: `register_all_tools_metadata() calls create_document_adapters()`
+- c0239 ..> c0238: `register_all_tools_metadata() calls create_entity_adapters()`
+- c0239 ..> c0238: `register_all_tools_metadata() calls create_file_adapters()`
+- c0239 ..> c0238: `register_all_tools_metadata() calls create_memory_adapters()`
+- c0239 ..> c0238: `register_all_tools_metadata() calls create_plan_adapters()`
+- c0239 ..> c0238: `register_all_tools_metadata() calls create_project_adapters()`
+- c0239 ..> c0238: `register_all_tools_metadata() calls create_skill_adapters()`
+- c0239 ..> c0238: `register_all_tools_metadata() calls create_task_adapters()`
+- c0239 ..> c0238: `register_all_tools_metadata() calls create_user_adapters()`
+- c0239 ..> c0239: `register_all_tools_metadata() calls register_code_artifact_tools_metadata()`
+- c0239 ..> c0239: `register_all_tools_metadata() calls register_document_tools_metadata()`
+- c0239 ..> c0239: `register_all_tools_metadata() calls register_entity_tools_metadata()`
+- c0239 ..> c0239: `register_all_tools_metadata() calls register_file_tools_metadata()`
+- c0239 ..> c0239: `register_all_tools_metadata() calls register_memory_tools_metadata()`
+- c0239 ..> c0239: `register_all_tools_metadata() calls register_plan_tools_metadata()`
+- c0239 ..> c0239: `register_all_tools_metadata() calls register_project_tools_metadata()`
+- c0239 ..> c0239: `register_all_tools_metadata() calls register_skill_tools_metadata()`
+- c0239 ..> c0239: `register_all_tools_metadata() calls register_task_tools_metadata()`
+- c0239 ..> c0239: `register_all_tools_metadata() calls register_user_tools_metadata()`
+- c0239 ..> c0239: `register_code_artifact_tools_metadata() calls register_simplified_tool()`
+- c0239 ..> c0239: `register_document_tools_metadata() calls register_simplified_tool()`
+- c0239 ..> c0239: `register_entity_tools_metadata() calls register_simplified_tool()`
+- c0239 ..> c0239: `register_file_tools_metadata() calls register_simplified_tool()`
+- c0239 ..> c0239: `register_memory_tools_metadata() calls register_simplified_tool()`
+- c0239 ..> c0239: `register_plan_tools_metadata() calls register_simplified_tool()`
+- c0239 ..> c0239: `register_project_tools_metadata() calls register_simplified_tool()`
+- c0239 ..> c0239: `register_skill_tools_metadata() calls register_simplified_tool()`
+- c0239 ..> c0239: `register_task_tools_metadata() calls register_simplified_tool()`
+- c0239 ..> c0239: `register_user_tools_metadata() calls register_simplified_tool()`
+- c0239 ..> c0240: `register_all_tools_metadata() calls list_categories()`
+- c0239 ..> c0240: `register_simplified_tool() calls register()`
+- c0239 ..> c0240: `type in register_all_tools_metadata`
+- c0239 ..> c0240: `type in register_code_artifact_tools_metadata`
+- c0239 ..> c0240: `type in register_document_tools_metadata`
+- c0239 ..> c0240: `type in register_entity_tools_metadata`
+- c0239 ..> c0240: `type in register_file_tools_metadata`
+- c0239 ..> c0240: `type in register_memory_tools_metadata`
+- c0239 ..> c0240: `type in register_plan_tools_metadata`
+- c0239 ..> c0240: `type in register_project_tools_metadata`
+- c0239 ..> c0240: `type in register_simplified_tool`
+- c0239 ..> c0240: `type in register_skill_tools_metadata`
+- c0239 ..> c0240: `type in register_task_tools_metadata`
+- c0239 ..> c0240: `type in register_user_tools_metadata`
+- c0239 ..> c0256: `type in register_all_tools_metadata`
+- c0239 ..> c0265: `type in register_all_tools_metadata`
+- c0240 ..> c0031: `get_permitted_categories() calls get()`
+- c0240 ..> c0031: `get_tool() calls get()`
+- c0240 ..> c0031: `list_categories() calls get()`
+- c0240 ..> c0105: `type in get_permitted_by_category`
+- c0240 ..> c0105: `type in list_by_category`
+- c0240 ..> c0105: `type in register`
+- c0240 --> c0107: `field _tools`
+- c0240 ..> c0107: `register() constructs ToolImplementation`
+- c0240 ..> c0107: `type in get_tool`
+- c0240 ..> c0108: `register() constructs ToolMetadata`
+- c0240 ..> c0108: `type in get_permitted_by_category`
+- c0240 ..> c0108: `type in get_permitted_tools`
+- c0240 ..> c0108: `type in list_all_tools`
+- c0240 ..> c0108: `type in list_by_category`
+- c0240 ..> c0109: `type in register`
+- c0240 ..> c0240: `execute() calls get_tool()`
+- c0242 ..> c0034: `type in count_activity`
+- c0242 ..> c0034: `type in get_activity`
+- c0242 ..> c0035: `type in handle_event`
+- c0242 ..> c0036: `get_activity() constructs ActivityListResponse`
+- c0242 ..> c0036: `type in get_activity`
+- c0242 ..> c0036: `type in get_entity_history`
+- c0242 ..> c0038: `type in get_activity`
+- c0242 ..> c0039: `type in count_activity`
+- c0242 ..> c0039: `type in get_activity`
+- c0242 ..> c0039: `type in get_entity_history`
+- c0242 ..> c0114: `_cleanup_if_configured() calls cleanup_expired()`
+- c0242 ..> c0114: `count_activity() calls count_events()`
+- c0242 ..> c0114: `get_activity() calls query_events()`
+- c0242 ..> c0114: `handle_event() calls save_event()`
+- c0242 ..> c0114: `type in __init__`
+- c0242 ..> c0242: `get_activity() calls _cleanup_if_configured()`
+- c0242 ..> c0242: `get_entity_history() calls get_activity()`
+- c0243 ..> c0218: `_backup_postgres() calls run()`
+- c0243 ..> c0218: `_restore_postgres() calls run()`
+- c0243 ..> c0243: `create_backup() calls _backup_postgres()`
+- c0243 ..> c0243: `create_backup() calls _backup_sqlite()`
+- c0243 ..> c0243: `restore_backup() calls _restore_postgres()`
+- c0243 ..> c0243: `restore_backup() calls _restore_sqlite()`
+- c0244 ..> c0024: `_emit_event() calls emit()`
+- c0244 ..> c0024: `type in __init__`
+- c0244 ..> c0029: `get_code_artifact() constructs NotFoundError`
+- c0244 ..> c0029: `update_code_artifact() constructs NotFoundError`
+- c0244 ..> c0034: `type in _emit_event`
+- c0244 ..> c0035: `_emit_event() constructs ActivityEvent`
+- c0244 ..> c0039: `type in _emit_event`
+- c0244 ..> c0040: `type in create_code_artifact`
+- c0244 ..> c0040: `type in get_code_artifact`
+- c0244 ..> c0040: `type in update_code_artifact`
+- c0244 ..> c0041: `type in create_code_artifact`
+- c0244 ..> c0042: `type in list_code_artifacts`
+- c0244 ..> c0043: `type in update_code_artifact`
+- c0244 ..> c0115: `create_code_artifact() calls create_code_artifact()`
+- c0244 ..> c0115: `delete_code_artifact() calls delete_code_artifact()`
+- c0244 ..> c0115: `delete_code_artifact() calls get_code_artifact_by_id()`
+- c0244 ..> c0115: `get_code_artifact() calls get_code_artifact_by_id()`
+- c0244 ..> c0115: `list_code_artifacts() calls list_code_artifacts()`
 - c0244 ..> c0115: `type in __init__`
-- c0244 ..> c0115: `update_document() calls get_document_by_id()`
-- c0244 ..> c0115: `update_document() calls update_document()`
-- c0244 ..> c0244: `create_document() calls _emit_event()`
-- c0244 ..> c0244: `delete_document() calls _emit_event()`
-- c0244 ..> c0244: `get_document() calls _emit_event()`
-- c0244 ..> c0244: `list_documents() calls _emit_event()`
-- c0244 ..> c0244: `update_document() calls _emit_event()`
-- c0244 ..> c0265: `create_document() calls apply_provenance_defaults()`
-- c0244 ..> c0265: `update_document() calls apply_provenance_defaults_for_update()`
-- c0244 ..> c0266: `update_document() calls get_changed_fields()`
-- c0245 ..> c0023: `_emit_event() calls emit()`
-- c0245 ..> c0023: `type in __init__`
-- c0245 ..> c0028: `get_entity() constructs NotFoundError`
-- c0245 ..> c0028: `update_entity() constructs NotFoundError`
-- c0245 ..> c0033: `type in _emit_event`
-- c0245 ..> c0034: `_emit_event() constructs ActivityEvent`
-- c0245 ..> c0038: `type in _emit_event`
-- c0245 ..> c0047: `type in create_entity`
-- c0245 ..> c0047: `type in get_entity`
-- c0245 ..> c0047: `type in update_entity`
-- c0245 ..> c0048: `type in create_entity`
-- c0245 ..> c0050: `type in create_entity_relationship`
-- c0245 ..> c0050: `type in get_all_entity_relationships`
-- c0245 ..> c0050: `type in get_entity_relationships`
-- c0245 ..> c0050: `type in update_entity_relationship`
-- c0245 ..> c0051: `type in create_entity_relationship`
-- c0245 ..> c0052: `type in update_entity_relationship`
-- c0245 ..> c0053: `type in list_entities`
-- c0245 ..> c0053: `type in search_entities`
-- c0245 ..> c0054: `type in list_entities`
-- c0245 ..> c0054: `type in search_entities`
-- c0245 ..> c0055: `type in update_entity`
-- c0245 ..> c0116: `create_entity() calls create_entity()`
-- c0245 ..> c0116: `create_entity_relationship() calls create_entity_relationship()`
-- c0245 ..> c0116: `delete_entity() calls delete_entity()`
-- c0245 ..> c0116: `delete_entity() calls get_entity_by_id()`
-- c0245 ..> c0116: `delete_entity_relationship() calls delete_entity_relationship()`
-- c0245 ..> c0116: `get_all_entity_file_links() calls get_all_entity_file_links()`
-- c0245 ..> c0116: `get_all_entity_memory_links() calls get_all_entity_memory_links()`
-- c0245 ..> c0116: `get_all_entity_project_links() calls get_all_entity_project_links()`
-- c0245 ..> c0116: `get_all_entity_relationships() calls get_all_entity_relationships()`
-- c0245 ..> c0116: `get_entity() calls get_entity_by_id()`
-- c0245 ..> c0116: `get_entity_memories() calls get_entity_memories()`
-- c0245 ..> c0116: `get_entity_relationships() calls get_entity_relationships()`
-- c0245 ..> c0116: `get_memory_entities() calls get_memory_entities()`
-- c0245 ..> c0116: `link_entity_to_memory() calls link_entity_to_memory()`
-- c0245 ..> c0116: `link_entity_to_project() calls link_entity_to_project()`
-- c0245 ..> c0116: `list_entities() calls list_entities()`
-- c0245 ..> c0116: `search_entities() calls search_entities()`
+- c0244 ..> c0115: `update_code_artifact() calls get_code_artifact_by_id()`
+- c0244 ..> c0115: `update_code_artifact() calls update_code_artifact()`
+- c0244 ..> c0244: `create_code_artifact() calls _emit_event()`
+- c0244 ..> c0244: `delete_code_artifact() calls _emit_event()`
+- c0244 ..> c0244: `get_code_artifact() calls _emit_event()`
+- c0244 ..> c0244: `list_code_artifacts() calls _emit_event()`
+- c0244 ..> c0244: `update_code_artifact() calls _emit_event()`
+- c0244 ..> c0266: `create_code_artifact() calls apply_provenance_defaults()`
+- c0244 ..> c0266: `update_code_artifact() calls apply_provenance_defaults_for_update()`
+- c0244 ..> c0267: `update_code_artifact() calls get_changed_fields()`
+- c0245 ..> c0024: `_emit_event() calls emit()`
+- c0245 ..> c0024: `type in __init__`
+- c0245 ..> c0029: `get_document() constructs NotFoundError`
+- c0245 ..> c0029: `update_document() constructs NotFoundError`
+- c0245 ..> c0034: `type in _emit_event`
+- c0245 ..> c0035: `_emit_event() constructs ActivityEvent`
+- c0245 ..> c0039: `type in _emit_event`
+- c0245 ..> c0044: `type in create_document`
+- c0245 ..> c0044: `type in get_document`
+- c0245 ..> c0044: `type in update_document`
+- c0245 ..> c0045: `type in create_document`
+- c0245 ..> c0046: `type in list_documents`
+- c0245 ..> c0047: `type in update_document`
+- c0245 ..> c0116: `create_document() calls create_document()`
+- c0245 ..> c0116: `delete_document() calls delete_document()`
+- c0245 ..> c0116: `delete_document() calls get_document_by_id()`
+- c0245 ..> c0116: `get_document() calls get_document_by_id()`
+- c0245 ..> c0116: `list_documents() calls list_documents()`
 - c0245 ..> c0116: `type in __init__`
-- c0245 ..> c0116: `unlink_entity_from_memory() calls unlink_entity_from_memory()`
-- c0245 ..> c0116: `unlink_entity_from_project() calls unlink_entity_from_project()`
-- c0245 ..> c0116: `update_entity() calls get_entity_by_id()`
-- c0245 ..> c0116: `update_entity() calls update_entity()`
-- c0245 ..> c0116: `update_entity_relationship() calls update_entity_relationship()`
-- c0245 ..> c0245: `create_entity() calls _emit_event()`
-- c0245 ..> c0245: `create_entity_relationship() calls _emit_event()`
-- c0245 ..> c0245: `delete_entity() calls _emit_event()`
-- c0245 ..> c0245: `delete_entity_relationship() calls _emit_event()`
-- c0245 ..> c0245: `get_entity() calls _emit_event()`
-- c0245 ..> c0245: `link_entity_to_memory() calls _emit_event()`
-- c0245 ..> c0245: `link_entity_to_project() calls _emit_event()`
-- c0245 ..> c0245: `list_entities() calls _emit_event()`
-- c0245 ..> c0245: `search_entities() calls _emit_event()`
-- c0245 ..> c0245: `unlink_entity_from_memory() calls _emit_event()`
-- c0245 ..> c0245: `unlink_entity_from_project() calls _emit_event()`
-- c0245 ..> c0245: `update_entity() calls _emit_event()`
-- c0245 ..> c0245: `update_entity_relationship() calls _emit_event()`
-- c0245 ..> c0265: `create_entity() calls apply_provenance_defaults()`
-- c0245 ..> c0265: `create_entity_relationship() calls apply_provenance_defaults()`
-- c0245 ..> c0265: `update_entity() calls apply_provenance_defaults_for_update()`
-- c0245 ..> c0265: `update_entity_relationship() calls apply_provenance_defaults_for_update()`
-- c0245 ..> c0266: `update_entity() calls get_changed_fields()`
-- c0246 ..> c0023: `_emit_event() calls emit()`
-- c0246 ..> c0023: `type in __init__`
-- c0246 ..> c0028: `get_file() constructs NotFoundError`
-- c0246 ..> c0028: `update_file() constructs NotFoundError`
-- c0246 ..> c0033: `type in _emit_event`
-- c0246 ..> c0034: `_emit_event() constructs ActivityEvent`
-- c0246 ..> c0038: `type in _emit_event`
-- c0246 ..> c0056: `type in _snapshot_without_data`
-- c0246 ..> c0056: `type in create_file`
-- c0246 ..> c0056: `type in get_file`
-- c0246 ..> c0056: `type in update_file`
-- c0246 ..> c0057: `type in create_file`
-- c0246 ..> c0058: `type in list_files`
-- c0246 ..> c0059: `type in update_file`
-- c0246 ..> c0118: `create_file() calls create_file()`
-- c0246 ..> c0118: `delete_file() calls delete_file()`
-- c0246 ..> c0118: `delete_file() calls get_file_by_id()`
-- c0246 ..> c0118: `get_file() calls get_file_by_id()`
-- c0246 ..> c0118: `list_files() calls list_files()`
-- c0246 ..> c0118: `type in __init__`
-- c0246 ..> c0118: `update_file() calls get_file_by_id()`
-- c0246 ..> c0118: `update_file() calls update_file()`
-- c0246 ..> c0246: `create_file() calls _emit_event()`
-- c0246 ..> c0246: `create_file() calls _snapshot_without_data()`
-- c0246 ..> c0246: `delete_file() calls _emit_event()`
-- c0246 ..> c0246: `delete_file() calls _snapshot_without_data()`
-- c0246 ..> c0246: `get_file() calls _emit_event()`
-- c0246 ..> c0246: `get_file() calls _snapshot_without_data()`
-- c0246 ..> c0246: `list_files() calls _emit_event()`
-- c0246 ..> c0246: `update_file() calls _emit_event()`
-- c0246 ..> c0246: `update_file() calls _snapshot_without_data()`
-- c0246 ..> c0265: `create_file() calls apply_provenance_defaults()`
-- c0246 ..> c0265: `update_file() calls apply_provenance_defaults_for_update()`
-- c0246 ..> c0266: `update_file() calls get_changed_fields()`
-- c0250 ..> c0028: `_validate_center_node() constructs NotFoundError`
-- c0250 ..> c0030: `_fetch_node_data() calls get()`
-- c0250 ..> c0060: `_fetch_edges() constructs SubgraphEdge`
-- c0250 ..> c0060: `type in _fetch_edges`
-- c0250 ..> c0061: `get_subgraph() constructs SubgraphMeta`
-- c0250 ..> c0062: `_fetch_node_data() constructs SubgraphNode`
-- c0250 ..> c0062: `type in _fetch_node_data`
-- c0250 ..> c0063: `get_subgraph() constructs SubgraphResponse`
-- c0250 ..> c0063: `type in get_subgraph`
-- c0250 ..> c0116: `_fetch_edges() calls get_all_entity_file_links()`
-- c0250 ..> c0116: `_fetch_edges() calls get_all_entity_memory_links()`
-- c0250 ..> c0116: `_fetch_edges() calls get_all_entity_project_links()`
-- c0250 ..> c0116: `_fetch_edges() calls get_all_entity_relationships()`
-- c0250 ..> c0116: `_fetch_node_data() calls get_entity_by_id()`
-- c0250 ..> c0116: `_validate_center_node() calls get_entity_by_id()`
-- c0250 ..> c0116: `type in __init__`
-- c0250 ..> c0119: `_fetch_edges() calls get_memory_by_id()`
-- c0250 ..> c0119: `_fetch_node_data() calls get_memory_by_id()`
-- c0250 ..> c0119: `_validate_center_node() calls get_memory_by_id()`
-- c0250 ..> c0119: `get_subgraph() calls get_subgraph_nodes()`
-- c0250 ..> c0119: `type in __init__`
-- c0250 ..> c0247: `_fetch_edges() calls get_code_artifact()`
-- c0250 ..> c0247: `_fetch_node_data() calls get_code_artifact()`
-- c0250 ..> c0247: `_validate_center_node() calls get_code_artifact()`
-- c0250 ..> c0247: `type in __init__`
-- c0250 ..> c0248: `_fetch_edges() calls get_document()`
-- c0250 ..> c0248: `_fetch_node_data() calls get_document()`
-- c0250 ..> c0248: `_validate_center_node() calls get_document()`
-- c0250 ..> c0248: `type in __init__`
-- c0250 ..> c0249: `_fetch_edges() calls list_files()`
-- c0250 ..> c0249: `_fetch_node_data() calls list_files()`
-- c0250 ..> c0249: `_validate_center_node() calls get_file()`
-- c0250 ..> c0249: `type in __init__`
-- c0250 ..> c0250: `get_subgraph() calls _fetch_edges()`
-- c0250 ..> c0250: `get_subgraph() calls _fetch_node_data()`
-- c0250 ..> c0250: `get_subgraph() calls _validate_center_node()`
-- c0250 ..> c0250: `get_subgraph() calls parse_node_id()`
-- c0250 ..> c0251: `_fetch_edges() calls get_plan()`
-- c0250 ..> c0251: `_fetch_node_data() calls get_plan()`
-- c0250 ..> c0251: `_validate_center_node() calls get_plan()`
-- c0250 ..> c0251: `type in __init__`
-- c0250 ..> c0252: `_fetch_node_data() calls get_project()`
-- c0250 ..> c0252: `_validate_center_node() calls get_project()`
-- c0250 ..> c0252: `type in __init__`
-- c0250 ..> c0253: `_fetch_edges() calls get_all_skill_code_artifact_links()`
-- c0250 ..> c0253: `_fetch_edges() calls get_all_skill_document_links()`
-- c0250 ..> c0253: `_fetch_edges() calls get_all_skill_file_links()`
-- c0250 ..> c0253: `_fetch_edges() calls get_skill()`
-- c0250 ..> c0253: `_fetch_node_data() calls get_skill()`
-- c0250 ..> c0253: `_validate_center_node() calls get_skill()`
-- c0250 ..> c0253: `type in __init__`
-- c0250 ..> c0254: `_validate_center_node() calls get_task()`
-- c0250 ..> c0254: `get_subgraph() calls list_tasks_for_user()`
-- c0250 ..> c0254: `type in __init__`
-- c0255 ..> c0023: `_emit_event() calls emit()`
-- c0255 ..> c0023: `register_access_tracking_handlers() calls subscribe()`
-- c0255 ..> c0023: `type in __init__`
-- c0255 ..> c0023: `type in register_access_tracking_handlers`
-- c0255 ..> c0030: `handle_memory_access_event() calls get()`
-- c0255 ..> c0033: `type in _emit_event`
-- c0255 ..> c0034: `_emit_event() constructs ActivityEvent`
-- c0255 ..> c0034: `type in handle_memory_access_event`
-- c0255 ..> c0038: `type in _emit_event`
-- c0255 ..> c0064: `_fetch_linked_memories() constructs LinkedMemory`
-- c0255 ..> c0064: `type in _apply_token_budget`
-- c0255 ..> c0064: `type in _fetch_linked_memories`
-- c0255 ..> c0065: `type in _apply_token_budget`
-- c0255 ..> c0065: `type in _count_memory_tokens`
-- c0255 ..> c0065: `type in _fetch_linked_memories`
-- c0255 ..> c0065: `type in create_memory`
-- c0255 ..> c0065: `type in get_memory`
-- c0255 ..> c0065: `type in list_memories`
-- c0255 ..> c0065: `type in truncate_memories_by_budget`
-- c0255 ..> c0065: `type in update_memory`
-- c0255 ..> c0066: `type in create_memory`
-- c0255 ..> c0070: `type in query_memory`
-- c0255 ..> c0071: `query_memory() constructs MemoryQueryResult`
-- c0255 ..> c0071: `type in query_memory`
-- c0255 ..> c0073: `create_memory() constructs MemorySummary`
-- c0255 ..> c0073: `type in create_memory`
-- c0255 ..> c0074: `type in update_memory`
-- c0255 ..> c0075: `find_obsolete_matches() constructs ObsoleteMatch`
-- c0255 ..> c0075: `type in find_obsolete_matches`
-- c0255 ..> c0119: `_fetch_linked_memories() calls get_linked_memories()`
-- c0255 ..> c0119: `create_memory() calls create_links_batch()`
-- c0255 ..> c0119: `create_memory() calls create_memory()`
-- c0255 ..> c0119: `create_memory() calls find_similar_memories_scored()`
-- c0255 ..> c0119: `find_obsolete_matches() calls find_obsolete_matches()`
-- c0255 ..> c0119: `get_memory() calls get_memory_by_id()`
-- c0255 ..> c0119: `handle_memory_access_event() calls record_memory_access()`
-- c0255 ..> c0119: `link_memories() calls create_links_batch()`
-- c0255 ..> c0119: `link_memories() calls get_memory_by_id()`
-- c0255 ..> c0119: `list_memories() calls list_memories()`
-- c0255 ..> c0119: `mark_memory_obsolete() calls get_memory_by_id()`
-- c0255 ..> c0119: `mark_memory_obsolete() calls mark_obsolete()`
-- c0255 ..> c0119: `query_memory() calls search_scored()`
-- c0255 ..> c0119: `type in __init__`
-- c0255 ..> c0119: `unlink_memories() calls unlink_memories()`
-- c0255 ..> c0119: `update_memory() calls get_memory_by_id()`
-- c0255 ..> c0119: `update_memory() calls update_memory()`
-- c0255 ..> c0255: `_apply_token_budget() calls truncate_memories_by_budget()`
-- c0255 ..> c0255: `create_memory() calls _emit_event()`
-- c0255 ..> c0255: `get_memory() calls _emit_event()`
-- c0255 ..> c0255: `link_memories() calls _emit_event()`
-- c0255 ..> c0255: `mark_memory_obsolete() calls _emit_event()`
-- c0255 ..> c0255: `query_memory() calls _apply_token_budget()`
-- c0255 ..> c0255: `query_memory() calls _emit_event()`
-- c0255 ..> c0255: `query_memory() calls _fetch_linked_memories()`
-- c0255 ..> c0255: `truncate_memories_by_budget() calls _count_memory_tokens()`
-- c0255 ..> c0255: `unlink_memories() calls _emit_event()`
-- c0255 ..> c0255: `unlink_memories() calls get_memory()`
-- c0255 ..> c0255: `update_memory() calls _emit_event()`
-- c0255 ..> c0265: `create_memory() calls apply_provenance_defaults()`
-- c0255 ..> c0265: `update_memory() calls apply_provenance_defaults_for_update()`
-- c0255 ..> c0266: `update_memory() calls get_changed_fields()`
-- c0255 ..> c0268: `_count_memory_tokens() calls count_tokens()`
-- c0255 ..> c0268: `_count_memory_tokens() constructs TokenCounter`
-- c0256 ..> c0023: `_emit_event() calls emit()`
-- c0256 ..> c0023: `type in __init__`
-- c0256 ..> c0027: `update_plan() constructs InvalidStateTransitionError`
-- c0256 ..> c0028: `get_plan() constructs NotFoundError`
-- c0256 ..> c0030: `update_plan() calls get()`
-- c0256 ..> c0033: `type in _emit_event`
-- c0256 ..> c0034: `_emit_event() constructs ActivityEvent`
-- c0256 ..> c0038: `type in _emit_event`
-- c0256 ..> c0080: `type in create_plan`
-- c0256 ..> c0080: `type in get_plan`
-- c0256 ..> c0080: `type in update_plan`
-- c0256 ..> c0081: `type in create_plan`
-- c0256 ..> c0082: `check_plan_completion() constructs PlanStatus`
-- c0256 ..> c0082: `type in list_plans`
-- c0256 ..> c0082: `update_plan() constructs PlanStatus`
-- c0256 ..> c0083: `type in list_plans`
-- c0256 ..> c0084: `type in update_plan`
-- c0256 ..> c0121: `check_plan_completion() calls get_plan_by_id()`
-- c0256 ..> c0121: `create_plan() calls create_plan()`
-- c0256 ..> c0121: `delete_plan() calls delete_plan()`
-- c0256 ..> c0121: `delete_plan() calls get_plan_by_id()`
-- c0256 ..> c0121: `get_plan() calls get_plan_by_id()`
-- c0256 ..> c0121: `list_plans() calls list_plans()`
-- c0256 ..> c0121: `type in __init__`
-- c0256 ..> c0121: `update_plan() calls get_plan_by_id()`
-- c0256 ..> c0121: `update_plan() calls update_plan()`
-- c0256 ..> c0256: `create_plan() calls _emit_event()`
-- c0256 ..> c0256: `delete_plan() calls _emit_event()`
-- c0256 ..> c0256: `get_plan() calls _emit_event()`
-- c0256 ..> c0256: `update_plan() calls _emit_event()`
-- c0256 ..> c0265: `create_plan() calls apply_provenance_defaults()`
-- c0256 ..> c0265: `update_plan() calls apply_provenance_defaults_for_update()`
-- c0256 ..> c0266: `update_plan() calls get_changed_fields()`
-- c0257 ..> c0023: `_emit_event() calls emit()`
-- c0257 ..> c0023: `type in __init__`
-- c0257 ..> c0028: `get_project() constructs NotFoundError`
-- c0257 ..> c0033: `type in _emit_event`
-- c0257 ..> c0034: `_emit_event() constructs ActivityEvent`
-- c0257 ..> c0038: `type in _emit_event`
-- c0257 ..> c0093: `type in create_project`
-- c0257 ..> c0093: `type in get_project`
-- c0257 ..> c0093: `type in update_project`
-- c0257 ..> c0094: `type in create_project`
-- c0257 ..> c0095: `type in list_projects`
-- c0257 ..> c0096: `type in list_projects`
-- c0257 ..> c0098: `type in update_project`
-- c0257 ..> c0122: `create_project() calls create_project()`
-- c0257 ..> c0122: `delete_project() calls delete_project()`
-- c0257 ..> c0122: `delete_project() calls get_project_by_id()`
-- c0257 ..> c0122: `get_project() calls get_project_by_id()`
-- c0257 ..> c0122: `list_projects() calls list_projects()`
+- c0245 ..> c0116: `update_document() calls get_document_by_id()`
+- c0245 ..> c0116: `update_document() calls update_document()`
+- c0245 ..> c0245: `create_document() calls _emit_event()`
+- c0245 ..> c0245: `delete_document() calls _emit_event()`
+- c0245 ..> c0245: `get_document() calls _emit_event()`
+- c0245 ..> c0245: `list_documents() calls _emit_event()`
+- c0245 ..> c0245: `update_document() calls _emit_event()`
+- c0245 ..> c0266: `create_document() calls apply_provenance_defaults()`
+- c0245 ..> c0266: `update_document() calls apply_provenance_defaults_for_update()`
+- c0245 ..> c0267: `update_document() calls get_changed_fields()`
+- c0246 ..> c0024: `_emit_event() calls emit()`
+- c0246 ..> c0024: `type in __init__`
+- c0246 ..> c0029: `get_entity() constructs NotFoundError`
+- c0246 ..> c0029: `update_entity() constructs NotFoundError`
+- c0246 ..> c0034: `type in _emit_event`
+- c0246 ..> c0035: `_emit_event() constructs ActivityEvent`
+- c0246 ..> c0039: `type in _emit_event`
+- c0246 ..> c0048: `type in create_entity`
+- c0246 ..> c0048: `type in get_entity`
+- c0246 ..> c0048: `type in update_entity`
+- c0246 ..> c0049: `type in create_entity`
+- c0246 ..> c0051: `type in create_entity_relationship`
+- c0246 ..> c0051: `type in get_all_entity_relationships`
+- c0246 ..> c0051: `type in get_entity_relationships`
+- c0246 ..> c0051: `type in update_entity_relationship`
+- c0246 ..> c0052: `type in create_entity_relationship`
+- c0246 ..> c0053: `type in update_entity_relationship`
+- c0246 ..> c0054: `type in list_entities`
+- c0246 ..> c0054: `type in search_entities`
+- c0246 ..> c0055: `type in list_entities`
+- c0246 ..> c0055: `type in search_entities`
+- c0246 ..> c0056: `type in update_entity`
+- c0246 ..> c0117: `create_entity() calls create_entity()`
+- c0246 ..> c0117: `create_entity_relationship() calls create_entity_relationship()`
+- c0246 ..> c0117: `delete_entity() calls delete_entity()`
+- c0246 ..> c0117: `delete_entity() calls get_entity_by_id()`
+- c0246 ..> c0117: `delete_entity_relationship() calls delete_entity_relationship()`
+- c0246 ..> c0117: `get_all_entity_file_links() calls get_all_entity_file_links()`
+- c0246 ..> c0117: `get_all_entity_memory_links() calls get_all_entity_memory_links()`
+- c0246 ..> c0117: `get_all_entity_project_links() calls get_all_entity_project_links()`
+- c0246 ..> c0117: `get_all_entity_relationships() calls get_all_entity_relationships()`
+- c0246 ..> c0117: `get_entity() calls get_entity_by_id()`
+- c0246 ..> c0117: `get_entity_memories() calls get_entity_memories()`
+- c0246 ..> c0117: `get_entity_relationships() calls get_entity_relationships()`
+- c0246 ..> c0117: `get_memory_entities() calls get_memory_entities()`
+- c0246 ..> c0117: `link_entity_to_memory() calls link_entity_to_memory()`
+- c0246 ..> c0117: `link_entity_to_project() calls link_entity_to_project()`
+- c0246 ..> c0117: `list_entities() calls list_entities()`
+- c0246 ..> c0117: `search_entities() calls search_entities()`
+- c0246 ..> c0117: `type in __init__`
+- c0246 ..> c0117: `unlink_entity_from_memory() calls unlink_entity_from_memory()`
+- c0246 ..> c0117: `unlink_entity_from_project() calls unlink_entity_from_project()`
+- c0246 ..> c0117: `update_entity() calls get_entity_by_id()`
+- c0246 ..> c0117: `update_entity() calls update_entity()`
+- c0246 ..> c0117: `update_entity_relationship() calls update_entity_relationship()`
+- c0246 ..> c0246: `create_entity() calls _emit_event()`
+- c0246 ..> c0246: `create_entity_relationship() calls _emit_event()`
+- c0246 ..> c0246: `delete_entity() calls _emit_event()`
+- c0246 ..> c0246: `delete_entity_relationship() calls _emit_event()`
+- c0246 ..> c0246: `get_entity() calls _emit_event()`
+- c0246 ..> c0246: `link_entity_to_memory() calls _emit_event()`
+- c0246 ..> c0246: `link_entity_to_project() calls _emit_event()`
+- c0246 ..> c0246: `list_entities() calls _emit_event()`
+- c0246 ..> c0246: `search_entities() calls _emit_event()`
+- c0246 ..> c0246: `unlink_entity_from_memory() calls _emit_event()`
+- c0246 ..> c0246: `unlink_entity_from_project() calls _emit_event()`
+- c0246 ..> c0246: `update_entity() calls _emit_event()`
+- c0246 ..> c0246: `update_entity_relationship() calls _emit_event()`
+- c0246 ..> c0266: `create_entity() calls apply_provenance_defaults()`
+- c0246 ..> c0266: `create_entity_relationship() calls apply_provenance_defaults()`
+- c0246 ..> c0266: `update_entity() calls apply_provenance_defaults_for_update()`
+- c0246 ..> c0266: `update_entity_relationship() calls apply_provenance_defaults_for_update()`
+- c0246 ..> c0267: `update_entity() calls get_changed_fields()`
+- c0247 ..> c0024: `_emit_event() calls emit()`
+- c0247 ..> c0024: `type in __init__`
+- c0247 ..> c0029: `get_file() constructs NotFoundError`
+- c0247 ..> c0029: `update_file() constructs NotFoundError`
+- c0247 ..> c0034: `type in _emit_event`
+- c0247 ..> c0035: `_emit_event() constructs ActivityEvent`
+- c0247 ..> c0039: `type in _emit_event`
+- c0247 ..> c0057: `type in _snapshot_without_data`
+- c0247 ..> c0057: `type in create_file`
+- c0247 ..> c0057: `type in get_file`
+- c0247 ..> c0057: `type in update_file`
+- c0247 ..> c0058: `type in create_file`
+- c0247 ..> c0059: `type in list_files`
+- c0247 ..> c0060: `type in update_file`
+- c0247 ..> c0119: `create_file() calls create_file()`
+- c0247 ..> c0119: `delete_file() calls delete_file()`
+- c0247 ..> c0119: `delete_file() calls get_file_by_id()`
+- c0247 ..> c0119: `get_file() calls get_file_by_id()`
+- c0247 ..> c0119: `list_files() calls list_files()`
+- c0247 ..> c0119: `type in __init__`
+- c0247 ..> c0119: `update_file() calls get_file_by_id()`
+- c0247 ..> c0119: `update_file() calls update_file()`
+- c0247 ..> c0247: `create_file() calls _emit_event()`
+- c0247 ..> c0247: `create_file() calls _snapshot_without_data()`
+- c0247 ..> c0247: `delete_file() calls _emit_event()`
+- c0247 ..> c0247: `delete_file() calls _snapshot_without_data()`
+- c0247 ..> c0247: `get_file() calls _emit_event()`
+- c0247 ..> c0247: `get_file() calls _snapshot_without_data()`
+- c0247 ..> c0247: `list_files() calls _emit_event()`
+- c0247 ..> c0247: `update_file() calls _emit_event()`
+- c0247 ..> c0247: `update_file() calls _snapshot_without_data()`
+- c0247 ..> c0266: `create_file() calls apply_provenance_defaults()`
+- c0247 ..> c0266: `update_file() calls apply_provenance_defaults_for_update()`
+- c0247 ..> c0267: `update_file() calls get_changed_fields()`
+- c0251 ..> c0029: `_validate_center_node() constructs NotFoundError`
+- c0251 ..> c0031: `_fetch_node_data() calls get()`
+- c0251 ..> c0061: `_fetch_edges() constructs SubgraphEdge`
+- c0251 ..> c0061: `type in _fetch_edges`
+- c0251 ..> c0062: `get_subgraph() constructs SubgraphMeta`
+- c0251 ..> c0063: `_fetch_node_data() constructs SubgraphNode`
+- c0251 ..> c0063: `type in _fetch_node_data`
+- c0251 ..> c0064: `get_subgraph() constructs SubgraphResponse`
+- c0251 ..> c0064: `type in get_subgraph`
+- c0251 ..> c0117: `_fetch_edges() calls get_all_entity_file_links()`
+- c0251 ..> c0117: `_fetch_edges() calls get_all_entity_memory_links()`
+- c0251 ..> c0117: `_fetch_edges() calls get_all_entity_project_links()`
+- c0251 ..> c0117: `_fetch_edges() calls get_all_entity_relationships()`
+- c0251 ..> c0117: `_fetch_node_data() calls get_entity_by_id()`
+- c0251 ..> c0117: `_validate_center_node() calls get_entity_by_id()`
+- c0251 ..> c0117: `type in __init__`
+- c0251 ..> c0120: `_fetch_edges() calls get_memory_by_id()`
+- c0251 ..> c0120: `_fetch_node_data() calls get_memory_by_id()`
+- c0251 ..> c0120: `_validate_center_node() calls get_memory_by_id()`
+- c0251 ..> c0120: `get_subgraph() calls get_subgraph_nodes()`
+- c0251 ..> c0120: `type in __init__`
+- c0251 ..> c0248: `_fetch_edges() calls get_code_artifact()`
+- c0251 ..> c0248: `_fetch_node_data() calls get_code_artifact()`
+- c0251 ..> c0248: `_validate_center_node() calls get_code_artifact()`
+- c0251 ..> c0248: `type in __init__`
+- c0251 ..> c0249: `_fetch_edges() calls get_document()`
+- c0251 ..> c0249: `_fetch_node_data() calls get_document()`
+- c0251 ..> c0249: `_validate_center_node() calls get_document()`
+- c0251 ..> c0249: `type in __init__`
+- c0251 ..> c0250: `_fetch_edges() calls list_files()`
+- c0251 ..> c0250: `_fetch_node_data() calls list_files()`
+- c0251 ..> c0250: `_validate_center_node() calls get_file()`
+- c0251 ..> c0250: `type in __init__`
+- c0251 ..> c0251: `get_subgraph() calls _fetch_edges()`
+- c0251 ..> c0251: `get_subgraph() calls _fetch_node_data()`
+- c0251 ..> c0251: `get_subgraph() calls _validate_center_node()`
+- c0251 ..> c0251: `get_subgraph() calls parse_node_id()`
+- c0251 ..> c0252: `_fetch_edges() calls get_plan()`
+- c0251 ..> c0252: `_fetch_node_data() calls get_plan()`
+- c0251 ..> c0252: `_validate_center_node() calls get_plan()`
+- c0251 ..> c0252: `type in __init__`
+- c0251 ..> c0253: `_fetch_node_data() calls get_project()`
+- c0251 ..> c0253: `_validate_center_node() calls get_project()`
+- c0251 ..> c0253: `type in __init__`
+- c0251 ..> c0254: `_fetch_edges() calls get_all_skill_code_artifact_links()`
+- c0251 ..> c0254: `_fetch_edges() calls get_all_skill_document_links()`
+- c0251 ..> c0254: `_fetch_edges() calls get_all_skill_file_links()`
+- c0251 ..> c0254: `_fetch_edges() calls get_skill()`
+- c0251 ..> c0254: `_fetch_node_data() calls get_skill()`
+- c0251 ..> c0254: `_validate_center_node() calls get_skill()`
+- c0251 ..> c0254: `type in __init__`
+- c0251 ..> c0255: `_validate_center_node() calls get_task()`
+- c0251 ..> c0255: `get_subgraph() calls list_tasks_for_user()`
+- c0251 ..> c0255: `type in __init__`
+- c0256 ..> c0024: `_emit_event() calls emit()`
+- c0256 ..> c0024: `register_access_tracking_handlers() calls subscribe()`
+- c0256 ..> c0024: `type in __init__`
+- c0256 ..> c0024: `type in register_access_tracking_handlers`
+- c0256 ..> c0031: `handle_memory_access_event() calls get()`
+- c0256 ..> c0034: `type in _emit_event`
+- c0256 ..> c0035: `_emit_event() constructs ActivityEvent`
+- c0256 ..> c0035: `type in handle_memory_access_event`
+- c0256 ..> c0039: `type in _emit_event`
+- c0256 ..> c0065: `_fetch_linked_memories() constructs LinkedMemory`
+- c0256 ..> c0065: `type in _apply_token_budget`
+- c0256 ..> c0065: `type in _fetch_linked_memories`
+- c0256 ..> c0066: `type in _apply_token_budget`
+- c0256 ..> c0066: `type in _count_memory_tokens`
+- c0256 ..> c0066: `type in _fetch_linked_memories`
+- c0256 ..> c0066: `type in create_memory`
+- c0256 ..> c0066: `type in get_memory`
+- c0256 ..> c0066: `type in list_memories`
+- c0256 ..> c0066: `type in truncate_memories_by_budget`
+- c0256 ..> c0066: `type in update_memory`
+- c0256 ..> c0067: `type in create_memory`
+- c0256 ..> c0071: `type in query_memory`
+- c0256 ..> c0072: `query_memory() constructs MemoryQueryResult`
+- c0256 ..> c0072: `type in query_memory`
+- c0256 ..> c0074: `create_memory() constructs MemorySummary`
+- c0256 ..> c0074: `type in create_memory`
+- c0256 ..> c0075: `type in update_memory`
+- c0256 ..> c0076: `find_obsolete_matches() constructs ObsoleteMatch`
+- c0256 ..> c0076: `type in find_obsolete_matches`
+- c0256 ..> c0120: `_fetch_linked_memories() calls get_linked_memories()`
+- c0256 ..> c0120: `create_memory() calls create_links_batch()`
+- c0256 ..> c0120: `create_memory() calls create_memory()`
+- c0256 ..> c0120: `create_memory() calls find_similar_memories_scored()`
+- c0256 ..> c0120: `find_obsolete_matches() calls find_obsolete_matches()`
+- c0256 ..> c0120: `get_memory() calls get_memory_by_id()`
+- c0256 ..> c0120: `handle_memory_access_event() calls record_memory_access()`
+- c0256 ..> c0120: `link_memories() calls create_links_batch()`
+- c0256 ..> c0120: `link_memories() calls get_memory_by_id()`
+- c0256 ..> c0120: `list_memories() calls list_memories()`
+- c0256 ..> c0120: `mark_memory_obsolete() calls get_memory_by_id()`
+- c0256 ..> c0120: `mark_memory_obsolete() calls mark_obsolete()`
+- c0256 ..> c0120: `query_memory() calls search_scored()`
+- c0256 ..> c0120: `type in __init__`
+- c0256 ..> c0120: `unlink_memories() calls unlink_memories()`
+- c0256 ..> c0120: `update_memory() calls get_memory_by_id()`
+- c0256 ..> c0120: `update_memory() calls update_memory()`
+- c0256 ..> c0256: `_apply_token_budget() calls truncate_memories_by_budget()`
+- c0256 ..> c0256: `create_memory() calls _emit_event()`
+- c0256 ..> c0256: `get_memory() calls _emit_event()`
+- c0256 ..> c0256: `link_memories() calls _emit_event()`
+- c0256 ..> c0256: `mark_memory_obsolete() calls _emit_event()`
+- c0256 ..> c0256: `query_memory() calls _apply_token_budget()`
+- c0256 ..> c0256: `query_memory() calls _emit_event()`
+- c0256 ..> c0256: `query_memory() calls _fetch_linked_memories()`
+- c0256 ..> c0256: `truncate_memories_by_budget() calls _count_memory_tokens()`
+- c0256 ..> c0256: `unlink_memories() calls _emit_event()`
+- c0256 ..> c0256: `unlink_memories() calls get_memory()`
+- c0256 ..> c0256: `update_memory() calls _emit_event()`
+- c0256 ..> c0266: `create_memory() calls apply_provenance_defaults()`
+- c0256 ..> c0266: `update_memory() calls apply_provenance_defaults_for_update()`
+- c0256 ..> c0267: `update_memory() calls get_changed_fields()`
+- c0256 ..> c0269: `_count_memory_tokens() calls count_tokens()`
+- c0256 ..> c0269: `_count_memory_tokens() constructs TokenCounter`
+- c0257 ..> c0024: `_emit_event() calls emit()`
+- c0257 ..> c0024: `type in __init__`
+- c0257 ..> c0028: `update_plan() constructs InvalidStateTransitionError`
+- c0257 ..> c0029: `get_plan() constructs NotFoundError`
+- c0257 ..> c0031: `update_plan() calls get()`
+- c0257 ..> c0034: `type in _emit_event`
+- c0257 ..> c0035: `_emit_event() constructs ActivityEvent`
+- c0257 ..> c0039: `type in _emit_event`
+- c0257 ..> c0081: `type in create_plan`
+- c0257 ..> c0081: `type in get_plan`
+- c0257 ..> c0081: `type in update_plan`
+- c0257 ..> c0082: `type in create_plan`
+- c0257 ..> c0083: `check_plan_completion() constructs PlanStatus`
+- c0257 ..> c0083: `type in list_plans`
+- c0257 ..> c0083: `update_plan() constructs PlanStatus`
+- c0257 ..> c0084: `type in list_plans`
+- c0257 ..> c0085: `type in update_plan`
+- c0257 ..> c0122: `check_plan_completion() calls get_plan_by_id()`
+- c0257 ..> c0122: `create_plan() calls create_plan()`
+- c0257 ..> c0122: `delete_plan() calls delete_plan()`
+- c0257 ..> c0122: `delete_plan() calls get_plan_by_id()`
+- c0257 ..> c0122: `get_plan() calls get_plan_by_id()`
+- c0257 ..> c0122: `list_plans() calls list_plans()`
 - c0257 ..> c0122: `type in __init__`
-- c0257 ..> c0122: `update_project() calls get_project_by_id()`
-- c0257 ..> c0122: `update_project() calls update_project()`
-- c0257 ..> c0257: `create_project() calls _emit_event()`
-- c0257 ..> c0257: `delete_project() calls _emit_event()`
-- c0257 ..> c0257: `get_project() calls _emit_event()`
-- c0257 ..> c0257: `list_projects() calls _emit_event()`
-- c0257 ..> c0257: `update_project() calls _emit_event()`
-- c0257 ..> c0265: `create_project() calls apply_provenance_defaults()`
-- c0257 ..> c0265: `update_project() calls apply_provenance_defaults_for_update()`
-- c0257 ..> c0266: `update_project() calls get_changed_fields()`
-- c0258 --> c0120: `field validation`
-- c0259 ..> c0119: `_recompute_auto_links() calls create_links_batch()`
-- c0259 ..> c0119: `_recompute_auto_links() calls find_similar_memories()`
-- c0259 ..> c0119: `re_embed_all() calls bulk_update_embeddings()`
-- c0259 ..> c0119: `re_embed_all() calls count_all_memories()`
-- c0259 ..> c0119: `re_embed_all() calls get_memories_for_reembedding()`
-- c0259 ..> c0119: `re_embed_all() calls reset_embedding_storage()`
-- c0259 ..> c0119: `rebuild_targeted() calls count_memories_for_targeted_rebuild()`
-- c0259 ..> c0119: `rebuild_targeted() calls get_memories_for_targeted_rebuild()`
-- c0259 ..> c0119: `rebuild_targeted() calls upsert_targeted_embeddings()`
-- c0259 ..> c0119: `type in __init__`
-- c0259 ..> c0119: `validate() calls validate_embedding_count()`
-- c0259 ..> c0119: `validate() calls validate_embedding_dimensions()`
-- c0259 ..> c0119: `validate() calls validate_search_works()`
-- c0259 ..> c0120: `re_embed_all() constructs ValidationResult`
-- c0259 ..> c0120: `type in validate`
-- c0259 ..> c0120: `validate() constructs ValidationResult`
-- c0259 ..> c0127: `type in __init__`
-- c0259 ..> c0130: `re_embed_all() calls generate_embedding()`
-- c0259 ..> c0130: `rebuild_targeted() calls generate_embedding()`
-- c0259 ..> c0136: `re_embed_all() calls build_embedding_text()`
-- c0259 ..> c0136: `rebuild_targeted() calls build_embedding_text()`
-- c0259 ..> c0258: `re_embed_all() constructs ReEmbedResult`
-- c0259 ..> c0258: `type in re_embed_all`
-- c0259 ..> c0259: `re_embed_all() calls validate()`
-- c0259 ..> c0259: `rebuild_targeted() calls _recompute_auto_links()`
-- c0259 ..> c0259: `rebuild_targeted() calls _record_unresolved_memory_ids()`
-- c0259 ..> c0260: `rebuild_targeted() constructs TargetedRebuildResult`
-- c0259 ..> c0260: `type in _recompute_auto_links`
-- c0259 ..> c0260: `type in _record_unresolved_memory_ids`
-- c0259 ..> c0260: `type in rebuild_targeted`
-- c0261 ..> c0023: `_emit_event() calls emit()`
-- c0261 ..> c0023: `type in __init__`
-- c0261 ..> c0028: `get_skill() constructs NotFoundError`
-- c0261 ..> c0028: `update_skill() constructs NotFoundError`
-- c0261 ..> c0030: `import_skill() calls get()`
-- c0261 ..> c0033: `type in _emit_event`
-- c0261 ..> c0034: `_emit_event() constructs ActivityEvent`
-- c0261 ..> c0038: `type in _emit_event`
-- c0261 ..> c0099: `type in create_skill`
-- c0261 ..> c0099: `type in get_skill`
-- c0261 ..> c0099: `type in import_skill`
-- c0261 ..> c0099: `type in update_skill`
-- c0261 ..> c0100: `import_skill() constructs SkillCreate`
-- c0261 ..> c0100: `type in create_skill`
-- c0261 ..> c0101: `type in get_skill_links`
-- c0261 ..> c0102: `type in list_skills`
-- c0261 ..> c0102: `type in search_skills`
-- c0261 ..> c0103: `type in update_skill`
-- c0261 ..> c0123: `create_skill() calls create_skill()`
-- c0261 ..> c0123: `create_skill() calls skill_name_exists()`
-- c0261 ..> c0123: `delete_skill() calls delete_skill()`
-- c0261 ..> c0123: `delete_skill() calls get_skill_by_id()`
-- c0261 ..> c0123: `get_all_skill_code_artifact_links() calls get_all_skill_code_artifact_links()`
-- c0261 ..> c0123: `get_all_skill_document_links() calls get_all_skill_document_links()`
-- c0261 ..> c0123: `get_all_skill_file_links() calls get_all_skill_file_links()`
-- c0261 ..> c0123: `get_skill() calls get_skill_by_id()`
-- c0261 ..> c0123: `get_skill_links() calls get_skill_links()`
-- c0261 ..> c0123: `import_skill() calls create_skill()`
-- c0261 ..> c0123: `link_skill_to_code_artifact() calls link_skill_to_code_artifact()`
-- c0261 ..> c0123: `link_skill_to_document() calls link_skill_to_document()`
-- c0261 ..> c0123: `link_skill_to_file() calls link_skill_to_file()`
-- c0261 ..> c0123: `link_skill_to_memory() calls link_skill_to_memory()`
-- c0261 ..> c0123: `list_skills() calls list_skills()`
-- c0261 ..> c0123: `search_skills() calls search_skills()`
-- c0261 ..> c0123: `type in __init__`
-- c0261 ..> c0123: `unlink_skill_from_code_artifact() calls unlink_skill_from_code_artifact()`
-- c0261 ..> c0123: `unlink_skill_from_document() calls unlink_skill_from_document()`
-- c0261 ..> c0123: `unlink_skill_from_file() calls unlink_skill_from_file()`
-- c0261 ..> c0123: `unlink_skill_from_memory() calls unlink_skill_from_memory()`
-- c0261 ..> c0123: `update_skill() calls get_skill_by_id()`
-- c0261 ..> c0123: `update_skill() calls update_skill()`
-- c0261 ..> c0261: `create_skill() calls _emit_event()`
-- c0261 ..> c0261: `delete_skill() calls _emit_event()`
-- c0261 ..> c0261: `export_skill() calls get_skill()`
-- c0261 ..> c0261: `get_skill() calls _emit_event()`
-- c0261 ..> c0261: `link_skill_to_code_artifact() calls get_skill()`
-- c0261 ..> c0261: `link_skill_to_document() calls get_skill()`
-- c0261 ..> c0261: `link_skill_to_file() calls get_skill()`
-- c0261 ..> c0261: `link_skill_to_memory() calls get_skill()`
-- c0261 ..> c0261: `list_skills() calls _emit_event()`
-- c0261 ..> c0261: `unlink_skill_from_code_artifact() calls get_skill()`
-- c0261 ..> c0261: `unlink_skill_from_document() calls get_skill()`
-- c0261 ..> c0261: `unlink_skill_from_file() calls get_skill()`
-- c0261 ..> c0261: `unlink_skill_from_memory() calls get_skill()`
-- c0261 ..> c0261: `update_skill() calls _emit_event()`
-- c0261 ..> c0262: `import_skill() calls _quote_unquoted_frontmatter_scalars()`
-- c0261 ..> c0265: `create_skill() calls apply_provenance_defaults()`
-- c0261 ..> c0265: `update_skill() calls apply_provenance_defaults_for_update()`
-- c0261 ..> c0266: `update_skill() calls get_changed_fields()`
-- c0263 ..> c0023: `_emit_event() calls emit()`
-- c0263 ..> c0023: `type in __init__`
-- c0263 ..> c0024: `claim_task() constructs ConflictError`
-- c0263 ..> c0024: `transition_task() constructs ConflictError`
-- c0263 ..> c0025: `_validate_no_cycle() constructs CyclicDependencyError`
-- c0263 ..> c0026: `_validate_dependencies_met() constructs DependencyNotMetError`
-- c0263 ..> c0027: `_validate_all_criteria_met() constructs InvalidStateTransitionError`
-- c0263 ..> c0027: `add_criterion() constructs InvalidStateTransitionError`
-- c0263 ..> c0027: `claim_task() constructs InvalidStateTransitionError`
-- c0263 ..> c0027: `create_task() constructs InvalidStateTransitionError`
-- c0263 ..> c0027: `transition_task() constructs InvalidStateTransitionError`
-- c0263 ..> c0028: `_validate_same_plan() constructs NotFoundError`
-- c0263 ..> c0028: `add_criterion() constructs NotFoundError`
-- c0263 ..> c0028: `add_dependency() constructs NotFoundError`
-- c0263 ..> c0028: `claim_task() constructs NotFoundError`
-- c0263 ..> c0028: `get_task() constructs NotFoundError`
-- c0263 ..> c0028: `transition_task() constructs NotFoundError`
-- c0263 ..> c0030: `transition_task() calls get()`
-- c0263 ..> c0033: `type in _emit_event`
-- c0263 ..> c0034: `_emit_event() constructs ActivityEvent`
-- c0263 ..> c0038: `type in _emit_event`
-- c0263 ..> c0077: `type in add_criterion`
-- c0263 ..> c0077: `type in update_criterion`
-- c0263 ..> c0078: `type in add_criterion`
-- c0263 ..> c0079: `type in update_criterion`
-- c0263 ..> c0082: `_check_plan_auto_completion() constructs PlanStatus`
-- c0263 ..> c0082: `create_task() constructs PlanStatus`
-- c0263 ..> c0084: `_check_plan_auto_completion() constructs PlanUpdate`
-- c0263 ..> c0085: `type in _validate_all_criteria_met`
-- c0263 ..> c0085: `type in _validate_dependencies_met`
-- c0263 ..> c0085: `type in claim_task`
-- c0263 ..> c0085: `type in create_task`
-- c0263 ..> c0085: `type in get_task`
-- c0263 ..> c0085: `type in transition_task`
-- c0263 ..> c0085: `type in update_task`
-- c0263 ..> c0086: `type in create_task`
-- c0263 ..> c0089: `type in list_tasks`
-- c0263 ..> c0090: `_check_plan_auto_completion() constructs TaskState`
-- c0263 ..> c0090: `_validate_dependencies_met() constructs TaskState`
-- c0263 ..> c0090: `add_criterion() constructs TaskState`
-- c0263 ..> c0090: `claim_task() constructs TaskState`
-- c0263 ..> c0090: `transition_task() constructs TaskState`
-- c0263 ..> c0090: `type in list_tasks`
-- c0263 ..> c0090: `type in transition_task`
-- c0263 ..> c0091: `type in list_tasks`
-- c0263 ..> c0091: `type in list_tasks_for_user`
-- c0263 ..> c0092: `type in update_task`
-- c0263 ..> c0124: `_check_plan_auto_completion() calls list_tasks()`
-- c0263 ..> c0124: `_validate_all_criteria_met() calls get_criteria_for_task()`
-- c0263 ..> c0124: `_validate_dependencies_met() calls get_task_by_id()`
-- c0263 ..> c0124: `_validate_no_cycle() calls get_dependencies()`
-- c0263 ..> c0124: `_validate_same_plan() calls get_task_by_id()`
-- c0263 ..> c0124: `add_criterion() calls create_criterion()`
-- c0263 ..> c0124: `add_criterion() calls get_task_by_id()`
-- c0263 ..> c0124: `add_dependency() calls add_dependency()`
-- c0263 ..> c0124: `add_dependency() calls get_task_by_id()`
-- c0263 ..> c0124: `claim_task() calls get_task_by_id()`
-- c0263 ..> c0124: `claim_task() calls transition_task_state()`
-- c0263 ..> c0124: `create_task() calls add_dependency()`
-- c0263 ..> c0124: `create_task() calls create_criterion()`
-- c0263 ..> c0124: `create_task() calls create_task()`
-- c0263 ..> c0124: `create_task() calls get_task_by_id()`
-- c0263 ..> c0124: `delete_criterion() calls delete_criterion()`
-- c0263 ..> c0124: `delete_task() calls delete_task()`
-- c0263 ..> c0124: `delete_task() calls get_task_by_id()`
-- c0263 ..> c0124: `get_task() calls get_task_by_id()`
-- c0263 ..> c0124: `list_tasks() calls list_tasks()`
-- c0263 ..> c0124: `list_tasks_for_user() calls list_tasks_for_user()`
-- c0263 ..> c0124: `remove_dependency() calls remove_dependency()`
-- c0263 ..> c0124: `transition_task() calls get_task_by_id()`
-- c0263 ..> c0124: `transition_task() calls transition_task_state()`
-- c0263 ..> c0124: `type in __init__`
-- c0263 ..> c0124: `update_criterion() calls update_criterion()`
-- c0263 ..> c0124: `update_task() calls get_task_by_id()`
-- c0263 ..> c0124: `update_task() calls update_task()`
-- c0263 ..> c0256: `_check_plan_auto_completion() calls get_plan()`
-- c0263 ..> c0256: `_check_plan_auto_completion() calls update_plan()`
-- c0263 ..> c0256: `claim_task() calls _emit_event()`
-- c0263 ..> c0256: `create_task() calls _emit_event()`
-- c0263 ..> c0256: `create_task() calls get_plan()`
-- c0263 ..> c0256: `delete_task() calls _emit_event()`
-- c0263 ..> c0256: `transition_task() calls _emit_event()`
-- c0263 ..> c0256: `type in __init__`
-- c0263 ..> c0256: `update_task() calls _emit_event()`
-- c0263 ..> c0263: `add_dependency() calls _validate_no_cycle()`
-- c0263 ..> c0263: `add_dependency() calls _validate_same_plan()`
-- c0263 ..> c0263: `claim_task() calls _validate_dependencies_met()`
-- c0263 ..> c0263: `create_task() calls _validate_no_cycle()`
-- c0263 ..> c0263: `create_task() calls _validate_same_plan()`
-- c0263 ..> c0263: `delete_task() calls _check_plan_auto_completion()`
-- c0263 ..> c0263: `transition_task() calls _check_plan_auto_completion()`
-- c0263 ..> c0263: `transition_task() calls _validate_all_criteria_met()`
-- c0263 ..> c0263: `transition_task() calls _validate_dependencies_met()`
-- c0263 ..> c0265: `create_task() calls apply_provenance_defaults()`
-- c0263 ..> c0265: `update_task() calls apply_provenance_defaults_for_update()`
-- c0263 ..> c0266: `update_task() calls get_changed_fields()`
-- c0264 ..> c0109: `type in get_or_create_user`
-- c0264 ..> c0109: `type in get_user_by_id`
-- c0264 ..> c0109: `type in update_user`
-- c0264 ..> c0110: `type in get_or_create_user`
-- c0264 ..> c0110: `update_user() constructs UserCreate`
-- c0264 ..> c0112: `get_or_create_user() constructs UserUpdate`
-- c0264 ..> c0112: `type in update_user`
-- c0264 ..> c0125: `get_or_create_user() calls create_user()`
-- c0264 ..> c0125: `get_or_create_user() calls get_user_by_external_id()`
-- c0264 ..> c0125: `get_or_create_user() calls update_user()`
-- c0264 ..> c0125: `get_user_by_id() calls get_user_by_id()`
+- c0257 ..> c0122: `update_plan() calls get_plan_by_id()`
+- c0257 ..> c0122: `update_plan() calls update_plan()`
+- c0257 ..> c0257: `create_plan() calls _emit_event()`
+- c0257 ..> c0257: `delete_plan() calls _emit_event()`
+- c0257 ..> c0257: `get_plan() calls _emit_event()`
+- c0257 ..> c0257: `update_plan() calls _emit_event()`
+- c0257 ..> c0266: `create_plan() calls apply_provenance_defaults()`
+- c0257 ..> c0266: `update_plan() calls apply_provenance_defaults_for_update()`
+- c0257 ..> c0267: `update_plan() calls get_changed_fields()`
+- c0258 ..> c0024: `_emit_event() calls emit()`
+- c0258 ..> c0024: `type in __init__`
+- c0258 ..> c0029: `get_project() constructs NotFoundError`
+- c0258 ..> c0034: `type in _emit_event`
+- c0258 ..> c0035: `_emit_event() constructs ActivityEvent`
+- c0258 ..> c0039: `type in _emit_event`
+- c0258 ..> c0094: `type in create_project`
+- c0258 ..> c0094: `type in get_project`
+- c0258 ..> c0094: `type in update_project`
+- c0258 ..> c0095: `type in create_project`
+- c0258 ..> c0096: `type in list_projects`
+- c0258 ..> c0097: `type in list_projects`
+- c0258 ..> c0099: `type in update_project`
+- c0258 ..> c0123: `create_project() calls create_project()`
+- c0258 ..> c0123: `delete_project() calls delete_project()`
+- c0258 ..> c0123: `delete_project() calls get_project_by_id()`
+- c0258 ..> c0123: `get_project() calls get_project_by_id()`
+- c0258 ..> c0123: `list_projects() calls list_projects()`
+- c0258 ..> c0123: `type in __init__`
+- c0258 ..> c0123: `update_project() calls get_project_by_id()`
+- c0258 ..> c0123: `update_project() calls update_project()`
+- c0258 ..> c0258: `create_project() calls _emit_event()`
+- c0258 ..> c0258: `delete_project() calls _emit_event()`
+- c0258 ..> c0258: `get_project() calls _emit_event()`
+- c0258 ..> c0258: `list_projects() calls _emit_event()`
+- c0258 ..> c0258: `update_project() calls _emit_event()`
+- c0258 ..> c0266: `create_project() calls apply_provenance_defaults()`
+- c0258 ..> c0266: `update_project() calls apply_provenance_defaults_for_update()`
+- c0258 ..> c0267: `update_project() calls get_changed_fields()`
+- c0259 --> c0121: `field validation`
+- c0260 ..> c0120: `_recompute_auto_links() calls create_links_batch()`
+- c0260 ..> c0120: `_recompute_auto_links() calls find_similar_memories()`
+- c0260 ..> c0120: `re_embed_all() calls bulk_update_embeddings()`
+- c0260 ..> c0120: `re_embed_all() calls count_all_memories()`
+- c0260 ..> c0120: `re_embed_all() calls get_memories_for_reembedding()`
+- c0260 ..> c0120: `re_embed_all() calls reset_embedding_storage()`
+- c0260 ..> c0120: `rebuild_targeted() calls count_memories_for_targeted_rebuild()`
+- c0260 ..> c0120: `rebuild_targeted() calls get_memories_for_targeted_rebuild()`
+- c0260 ..> c0120: `rebuild_targeted() calls upsert_targeted_embeddings()`
+- c0260 ..> c0120: `type in __init__`
+- c0260 ..> c0120: `validate() calls validate_embedding_count()`
+- c0260 ..> c0120: `validate() calls validate_embedding_dimensions()`
+- c0260 ..> c0120: `validate() calls validate_search_works()`
+- c0260 ..> c0121: `re_embed_all() constructs ValidationResult`
+- c0260 ..> c0121: `type in validate`
+- c0260 ..> c0121: `validate() constructs ValidationResult`
+- c0260 ..> c0128: `type in __init__`
+- c0260 ..> c0131: `re_embed_all() calls generate_embedding()`
+- c0260 ..> c0131: `rebuild_targeted() calls generate_embedding()`
+- c0260 ..> c0137: `re_embed_all() calls build_embedding_text()`
+- c0260 ..> c0137: `rebuild_targeted() calls build_embedding_text()`
+- c0260 ..> c0259: `re_embed_all() constructs ReEmbedResult`
+- c0260 ..> c0259: `type in re_embed_all`
+- c0260 ..> c0260: `re_embed_all() calls validate()`
+- c0260 ..> c0260: `rebuild_targeted() calls _recompute_auto_links()`
+- c0260 ..> c0260: `rebuild_targeted() calls _record_unresolved_memory_ids()`
+- c0260 ..> c0261: `rebuild_targeted() constructs TargetedRebuildResult`
+- c0260 ..> c0261: `type in _recompute_auto_links`
+- c0260 ..> c0261: `type in _record_unresolved_memory_ids`
+- c0260 ..> c0261: `type in rebuild_targeted`
+- c0262 ..> c0024: `_emit_event() calls emit()`
+- c0262 ..> c0024: `type in __init__`
+- c0262 ..> c0029: `get_skill() constructs NotFoundError`
+- c0262 ..> c0029: `update_skill() constructs NotFoundError`
+- c0262 ..> c0031: `import_skill() calls get()`
+- c0262 ..> c0034: `type in _emit_event`
+- c0262 ..> c0035: `_emit_event() constructs ActivityEvent`
+- c0262 ..> c0039: `type in _emit_event`
+- c0262 ..> c0100: `type in create_skill`
+- c0262 ..> c0100: `type in get_skill`
+- c0262 ..> c0100: `type in import_skill`
+- c0262 ..> c0100: `type in update_skill`
+- c0262 ..> c0101: `import_skill() constructs SkillCreate`
+- c0262 ..> c0101: `type in create_skill`
+- c0262 ..> c0102: `type in get_skill_links`
+- c0262 ..> c0103: `type in list_skills`
+- c0262 ..> c0103: `type in search_skills`
+- c0262 ..> c0104: `type in update_skill`
+- c0262 ..> c0124: `create_skill() calls create_skill()`
+- c0262 ..> c0124: `create_skill() calls skill_name_exists()`
+- c0262 ..> c0124: `delete_skill() calls delete_skill()`
+- c0262 ..> c0124: `delete_skill() calls get_skill_by_id()`
+- c0262 ..> c0124: `get_all_skill_code_artifact_links() calls get_all_skill_code_artifact_links()`
+- c0262 ..> c0124: `get_all_skill_document_links() calls get_all_skill_document_links()`
+- c0262 ..> c0124: `get_all_skill_file_links() calls get_all_skill_file_links()`
+- c0262 ..> c0124: `get_skill() calls get_skill_by_id()`
+- c0262 ..> c0124: `get_skill_links() calls get_skill_links()`
+- c0262 ..> c0124: `import_skill() calls create_skill()`
+- c0262 ..> c0124: `link_skill_to_code_artifact() calls link_skill_to_code_artifact()`
+- c0262 ..> c0124: `link_skill_to_document() calls link_skill_to_document()`
+- c0262 ..> c0124: `link_skill_to_file() calls link_skill_to_file()`
+- c0262 ..> c0124: `link_skill_to_memory() calls link_skill_to_memory()`
+- c0262 ..> c0124: `list_skills() calls list_skills()`
+- c0262 ..> c0124: `search_skills() calls search_skills()`
+- c0262 ..> c0124: `type in __init__`
+- c0262 ..> c0124: `unlink_skill_from_code_artifact() calls unlink_skill_from_code_artifact()`
+- c0262 ..> c0124: `unlink_skill_from_document() calls unlink_skill_from_document()`
+- c0262 ..> c0124: `unlink_skill_from_file() calls unlink_skill_from_file()`
+- c0262 ..> c0124: `unlink_skill_from_memory() calls unlink_skill_from_memory()`
+- c0262 ..> c0124: `update_skill() calls get_skill_by_id()`
+- c0262 ..> c0124: `update_skill() calls update_skill()`
+- c0262 ..> c0262: `create_skill() calls _emit_event()`
+- c0262 ..> c0262: `delete_skill() calls _emit_event()`
+- c0262 ..> c0262: `export_skill() calls get_skill()`
+- c0262 ..> c0262: `get_skill() calls _emit_event()`
+- c0262 ..> c0262: `link_skill_to_code_artifact() calls get_skill()`
+- c0262 ..> c0262: `link_skill_to_document() calls get_skill()`
+- c0262 ..> c0262: `link_skill_to_file() calls get_skill()`
+- c0262 ..> c0262: `link_skill_to_memory() calls get_skill()`
+- c0262 ..> c0262: `list_skills() calls _emit_event()`
+- c0262 ..> c0262: `unlink_skill_from_code_artifact() calls get_skill()`
+- c0262 ..> c0262: `unlink_skill_from_document() calls get_skill()`
+- c0262 ..> c0262: `unlink_skill_from_file() calls get_skill()`
+- c0262 ..> c0262: `unlink_skill_from_memory() calls get_skill()`
+- c0262 ..> c0262: `update_skill() calls _emit_event()`
+- c0262 ..> c0263: `import_skill() calls _quote_unquoted_frontmatter_scalars()`
+- c0262 ..> c0266: `create_skill() calls apply_provenance_defaults()`
+- c0262 ..> c0266: `update_skill() calls apply_provenance_defaults_for_update()`
+- c0262 ..> c0267: `update_skill() calls get_changed_fields()`
+- c0264 ..> c0024: `_emit_event() calls emit()`
+- c0264 ..> c0024: `type in __init__`
+- c0264 ..> c0025: `claim_task() constructs ConflictError`
+- c0264 ..> c0025: `transition_task() constructs ConflictError`
+- c0264 ..> c0026: `_validate_no_cycle() constructs CyclicDependencyError`
+- c0264 ..> c0027: `_validate_dependencies_met() constructs DependencyNotMetError`
+- c0264 ..> c0028: `_validate_all_criteria_met() constructs InvalidStateTransitionError`
+- c0264 ..> c0028: `add_criterion() constructs InvalidStateTransitionError`
+- c0264 ..> c0028: `claim_task() constructs InvalidStateTransitionError`
+- c0264 ..> c0028: `create_task() constructs InvalidStateTransitionError`
+- c0264 ..> c0028: `transition_task() constructs InvalidStateTransitionError`
+- c0264 ..> c0029: `_validate_same_plan() constructs NotFoundError`
+- c0264 ..> c0029: `add_criterion() constructs NotFoundError`
+- c0264 ..> c0029: `add_dependency() constructs NotFoundError`
+- c0264 ..> c0029: `claim_task() constructs NotFoundError`
+- c0264 ..> c0029: `get_task() constructs NotFoundError`
+- c0264 ..> c0029: `transition_task() constructs NotFoundError`
+- c0264 ..> c0031: `transition_task() calls get()`
+- c0264 ..> c0034: `type in _emit_event`
+- c0264 ..> c0035: `_emit_event() constructs ActivityEvent`
+- c0264 ..> c0039: `type in _emit_event`
+- c0264 ..> c0078: `type in add_criterion`
+- c0264 ..> c0078: `type in update_criterion`
+- c0264 ..> c0079: `type in add_criterion`
+- c0264 ..> c0080: `type in update_criterion`
+- c0264 ..> c0083: `_check_plan_auto_completion() constructs PlanStatus`
+- c0264 ..> c0083: `create_task() constructs PlanStatus`
+- c0264 ..> c0085: `_check_plan_auto_completion() constructs PlanUpdate`
+- c0264 ..> c0086: `type in _validate_all_criteria_met`
+- c0264 ..> c0086: `type in _validate_dependencies_met`
+- c0264 ..> c0086: `type in claim_task`
+- c0264 ..> c0086: `type in create_task`
+- c0264 ..> c0086: `type in get_task`
+- c0264 ..> c0086: `type in transition_task`
+- c0264 ..> c0086: `type in update_task`
+- c0264 ..> c0087: `type in create_task`
+- c0264 ..> c0090: `type in list_tasks`
+- c0264 ..> c0091: `_check_plan_auto_completion() constructs TaskState`
+- c0264 ..> c0091: `_validate_dependencies_met() constructs TaskState`
+- c0264 ..> c0091: `add_criterion() constructs TaskState`
+- c0264 ..> c0091: `claim_task() constructs TaskState`
+- c0264 ..> c0091: `transition_task() constructs TaskState`
+- c0264 ..> c0091: `type in list_tasks`
+- c0264 ..> c0091: `type in transition_task`
+- c0264 ..> c0092: `type in list_tasks`
+- c0264 ..> c0092: `type in list_tasks_for_user`
+- c0264 ..> c0093: `type in update_task`
+- c0264 ..> c0125: `_check_plan_auto_completion() calls list_tasks()`
+- c0264 ..> c0125: `_validate_all_criteria_met() calls get_criteria_for_task()`
+- c0264 ..> c0125: `_validate_dependencies_met() calls get_task_by_id()`
+- c0264 ..> c0125: `_validate_no_cycle() calls get_dependencies()`
+- c0264 ..> c0125: `_validate_same_plan() calls get_task_by_id()`
+- c0264 ..> c0125: `add_criterion() calls create_criterion()`
+- c0264 ..> c0125: `add_criterion() calls get_task_by_id()`
+- c0264 ..> c0125: `add_dependency() calls add_dependency()`
+- c0264 ..> c0125: `add_dependency() calls get_task_by_id()`
+- c0264 ..> c0125: `claim_task() calls get_task_by_id()`
+- c0264 ..> c0125: `claim_task() calls transition_task_state()`
+- c0264 ..> c0125: `create_task() calls add_dependency()`
+- c0264 ..> c0125: `create_task() calls create_criterion()`
+- c0264 ..> c0125: `create_task() calls create_task()`
+- c0264 ..> c0125: `create_task() calls get_task_by_id()`
+- c0264 ..> c0125: `delete_criterion() calls delete_criterion()`
+- c0264 ..> c0125: `delete_task() calls delete_task()`
+- c0264 ..> c0125: `delete_task() calls get_task_by_id()`
+- c0264 ..> c0125: `get_task() calls get_task_by_id()`
+- c0264 ..> c0125: `list_tasks() calls list_tasks()`
+- c0264 ..> c0125: `list_tasks_for_user() calls list_tasks_for_user()`
+- c0264 ..> c0125: `remove_dependency() calls remove_dependency()`
+- c0264 ..> c0125: `transition_task() calls get_task_by_id()`
+- c0264 ..> c0125: `transition_task() calls transition_task_state()`
 - c0264 ..> c0125: `type in __init__`
-- c0264 ..> c0125: `update_user() calls create_user()`
-- c0264 ..> c0125: `update_user() calls get_user_by_external_id()`
-- c0264 ..> c0125: `update_user() calls update_user()`
-- c0264 ..> c0266: `get_or_create_user() calls get_changed_fields()`
-- c0264 ..> c0266: `update_user() calls get_changed_fields()`
-- c0270 ..> c0133: `fast_embed_rank() constructs FastEmbedCrossEncoderAdapter`
-- c0270 ..> c0134: `fast_embed_rank() calls rerank()`
-- c0270 ..> c0134: `http_rank() calls rerank()`
-- c0270 ..> c0134: `http_rank() constructs HttpRerankAdapter`
-- c0271 ..> c0117: `test_sqlite_vec_async() calls close()`
-- c0271 ..> c0117: `test_sqlite_vec_async() calls execute()`
-- c0271 ..> c0117: `test_sqlite_vec_sync() calls close()`
-- c0271 ..> c0117: `test_sqlite_vec_sync() calls execute()`
-- c0272 ..> c0129: `test_embeddings() constructs GoogleEmbeddingsAdapter`
-- c0272 ..> c0130: `test_embeddings() calls generate_embedding()`
-- c0273 ..> c0117: `main() calls list_tools()`
-- c0274 ..> c0117: `test_sqlite_init() calls execute()`
-- c0274 ..> c0174: `test_sqlite_init() calls dispose()`
-- c0274 ..> c0174: `test_sqlite_init() calls init_db()`
-- c0274 ..> c0174: `test_sqlite_init() calls session()`
-- c0274 ..> c0174: `test_sqlite_init() calls system_session()`
-- c0274 ..> c0174: `test_sqlite_init() constructs SqliteDatabaseAdapter`
-- c0275 ..> c0015: `_run_reembed() calls create_db_adapter()`
-- c0275 ..> c0015: `_run_reembed() calls create_repositories()`
-- c0275 ..> c0015: `_run_reembed() calls get_embedding_adapter()`
-- c0275 ..> c0015: `lifespan() calls build_runtime()`
-- c0275 ..> c0015: `lifespan() calls dispose_runtime()`
-- c0275 ..> c0020: `_run_reembed() calls configure_logging()`
-- c0275 ..> c0020: `lifespan() calls configure_logging()`
-- c0275 ..> c0030: `lifespan() constructs TokenCache`
-- c0275 ..> c0119: `_run_reembed() calls count_all_memories()`
-- c0275 ..> c0119: `_run_reembed() calls reset_embedding_storage()`
-- c0275 ..> c0144: `_run_reembed() calls dispose()`
-- c0275 ..> c0144: `_run_reembed() calls init_db()`
-- c0275 ..> c0194: `_run_reembed() calls register()`
-- c0275 ..> c0194: `lifespan() calls register()`
-- c0275 ..> c0211: `cli() calls dispatch()`
-- c0275 ..> c0217: `_legacy_launcher() calls run()`
-- c0275 ..> c0217: `_serve() calls run()`
-- c0275 ..> c0242: `_run_reembed() calls create_backup()`
-- c0275 ..> c0242: `_run_reembed() calls restore_backup()`
-- c0275 ..> c0242: `_run_reembed() constructs BackupService`
-- c0275 ..> c0259: `_run_reembed() calls re_embed_all()`
-- c0275 ..> c0259: `_run_reembed() constructs ReEmbeddingService`
-- c0275 ..> c0269: `_legacy_launcher() calls get_version()`
-- c0275 ..> c0275: `_legacy_launcher() calls _run_reembed()`
-- c0275 ..> c0275: `_legacy_launcher() calls _serve()`
-- c0275 ..> c0275: `cli() calls _legacy_launcher()`
-- c0276 ..> c0276: `_run() calls _print_summary()`
-- c0276 ..> c0276: `main() calls _run()`
-- c0276 ..> c0276: `main() calls config_from_argv()`
-- c0276 ..> c0277: `config_from_argv() constructs HarnessConfig`
-- c0276 ..> c0277: `type in _run`
-- c0276 ..> c0277: `type in config_from_argv`
-- c0276 ..> c0278: `_run() calls start()`
-- c0276 ..> c0278: `_run() calls stop()`
-- c0276 ..> c0278: `_run() constructs AgentContainer`
-- c0276 ..> c0279: `_run() calls ensure_image()`
-- c0276 ..> c0292: `_run() calls seed_skills()`
-- c0276 ..> c0292: `_run() constructs ThrowawayForgetful`
-- c0276 ..> c0296: `type in _print_summary`
-- c0276 ..> c0297: `_run() calls run_skill()`
-- c0276 ..> c0297: `_run() calls write_summary()`
-- c0276 ..> c0297: `_run() constructs Walkthrough`
-- c0276 ..> c0297: `main() calls run()`
-- c0277 ..> c0030: `timeout_for() calls get()`
-- c0278 ..> c0023: `stop() calls clear()`
-- c0278 ..> c0030: `start() calls get()`
-- c0278 ..> c0117: `_exec() calls close()`
-- c0278 ..> c0277: `type in __init__`
-- c0278 ..> c0278: `health_check() calls _exec()`
-- c0278 ..> c0278: `start() calls _exec()`
-- c0278 ..> c0279: `run_session() calls exec_command()`
-- c0278 ..> c0279: `start() calls _docker_client()`
-- c0278 ..> c0279: `start() calls _prepare_harness_mount()`
-- c0278 ..> c0279: `start() calls build_container_env()`
-- c0278 ..> c0279: `start() calls provision_agent()`
-- c0278 ..> c0291: `health_check() constructs HarnessInfraError`
-- c0278 ..> c0291: `run_session() constructs HarnessInfraError`
-- c0278 ..> c0291: `start() constructs HarnessInfraError`
-- c0278 ..> c0292: `stop() calls stop()`
-- c0278 ..> c0294: `run_session() constructs SessionOutcome`
-- c0278 ..> c0294: `type in run_session`
-- c0278 ..> c0297: `start() calls run()`
-- c0279 ..> c0030: `ensure_image() calls get()`
-- c0279 ..> c0279: `ensure_image() calls _docker_client()`
-- c0279 ..> c0279: `ensure_image() calls export_requirements()`
-- c0279 ..> c0279: `ensure_image() calls requirements_hash()`
-- c0279 ..> c0279: `provision_agent() calls staged_mount()`
-- c0279 ..> c0291: `_docker_client() constructs HarnessInfraError`
-- c0279 ..> c0291: `_prepare_harness_mount() constructs HarnessInfraError`
-- c0279 ..> c0291: `ensure_image() constructs HarnessInfraError`
-- c0279 ..> c0291: `provision_agent() constructs HarnessInfraError`
-- c0279 ..> c0297: `_prepare_harness_mount() calls run()`
-- c0279 ..> c0297: `ensure_image() calls run()`
-- c0279 ..> c0297: `export_requirements() calls run()`
-- c0280 ..> c0030: `health() calls get()`
-- c0280 ..> c0030: `run_session() calls get()`
-- c0280 ..> c0217: `main() calls run()`
-- c0280 ..> c0278: `health() calls health_check()`
-- c0280 ..> c0280: `health() calls _shell()`
-- c0280 ..> c0280: `main() calls health()`
-- c0280 ..> c0280: `main() calls run_session()`
-- c0280 ..> c0280: `run_session() calls _attach_debug_log()`
-- c0280 ..> c0280: `run_session() calls _shell()`
-- c0281 ..> c0030: `build_prompt() calls get()`
-- c0281 ..> c0286: `build_prompt() calls report_contract_example()`
-- c0283 --> c0285: `field report`
-- c0285 --> c0282: `field issues`
-- c0285 --> c0284: `field steps`
-- c0286 ..> c0030: `_normalize_severity() calls get()`
-- c0286 ..> c0283: `load_report() constructs ReportLoad`
-- c0286 ..> c0283: `type in load_report`
-- c0286 ..> c0286: `_normalize_report_verdict() calls _lowercase()`
-- c0286 ..> c0286: `_normalize_severity() calls _lowercase()`
-- c0286 ..> c0286: `_normalize_step_verdict() calls _lowercase()`
-- c0292 ..> c0030: `_wait_until_healthy() calls get()`
-- c0292 ..> c0213: `execute() calls close()`
-- c0292 ..> c0213: `execute() calls execute()`
-- c0292 ..> c0213: `execute() constructs RemoteExecutor`
-- c0292 ..> c0213: `seed_skills() calls execute()`
-- c0292 ..> c0213: `stop() calls close()`
-- c0292 ..> c0291: `_wait_until_healthy() constructs HarnessInfraError`
-- c0292 ..> c0291: `seed_skills() constructs HarnessInfraError`
-- c0292 ..> c0291: `start() constructs HarnessInfraError`
-- c0292 ..> c0292: `_wait_until_healthy() calls stop()`
-- c0292 ..> c0292: `start() calls _child_env()`
-- c0292 ..> c0292: `start() calls _wait_until_healthy()`
-- c0292 ..> c0293: `start() calls _ephemeral_port()`
-- c0295 ..> c0294: `type in run_session`
-- c0296 --> c0283: `field report_load`
-- c0297 ..> c0030: `run_skill() calls get()`
-- c0297 ..> c0277: `run_skill() calls timeout_for()`
-- c0297 ..> c0277: `type in __init__`
-- c0297 ..> c0281: `run_skill() calls build_prompt()`
-- c0297 ..> c0286: `run_skill() calls load_report()`
-- c0297 ..> c0295: `run_skill() calls run_session()`
-- c0297 ..> c0295: `type in __init__`
-- c0297 ..> c0296: `run_skill() constructs SkillRunResult`
-- c0297 ..> c0296: `type in _meta`
-- c0297 ..> c0296: `type in run`
-- c0297 ..> c0296: `type in run_skill`
-- c0297 ..> c0296: `type in write_summary`
-- c0297 ..> c0297: `run() calls run_skill()`
-- c0297 ..> c0297: `run() calls write_summary()`
-- c0297 ..> c0297: `run_skill() calls _meta()`
-- c0297 ..> c0298: `run_skill() calls load_events()`
-- c0297 ..> c0298: `run_skill() calls prepare_workspace()`
-- c0297 ..> c0298: `run_skill() calls scan_for_breaches()`
-- c0298 ..> c0030: `scan_for_breaches() calls get()`
-- c0298 ..> c0298: `prepare_workspace() calls _build_fixture_repo()`
+- c0264 ..> c0125: `update_criterion() calls update_criterion()`
+- c0264 ..> c0125: `update_task() calls get_task_by_id()`
+- c0264 ..> c0125: `update_task() calls update_task()`
+- c0264 ..> c0257: `_check_plan_auto_completion() calls get_plan()`
+- c0264 ..> c0257: `_check_plan_auto_completion() calls update_plan()`
+- c0264 ..> c0257: `claim_task() calls _emit_event()`
+- c0264 ..> c0257: `create_task() calls _emit_event()`
+- c0264 ..> c0257: `create_task() calls get_plan()`
+- c0264 ..> c0257: `delete_task() calls _emit_event()`
+- c0264 ..> c0257: `transition_task() calls _emit_event()`
+- c0264 ..> c0257: `type in __init__`
+- c0264 ..> c0257: `update_task() calls _emit_event()`
+- c0264 ..> c0264: `add_dependency() calls _validate_no_cycle()`
+- c0264 ..> c0264: `add_dependency() calls _validate_same_plan()`
+- c0264 ..> c0264: `claim_task() calls _validate_dependencies_met()`
+- c0264 ..> c0264: `create_task() calls _validate_no_cycle()`
+- c0264 ..> c0264: `create_task() calls _validate_same_plan()`
+- c0264 ..> c0264: `delete_task() calls _check_plan_auto_completion()`
+- c0264 ..> c0264: `transition_task() calls _check_plan_auto_completion()`
+- c0264 ..> c0264: `transition_task() calls _validate_all_criteria_met()`
+- c0264 ..> c0264: `transition_task() calls _validate_dependencies_met()`
+- c0264 ..> c0266: `create_task() calls apply_provenance_defaults()`
+- c0264 ..> c0266: `update_task() calls apply_provenance_defaults_for_update()`
+- c0264 ..> c0267: `update_task() calls get_changed_fields()`
+- c0265 ..> c0110: `type in get_or_create_user`
+- c0265 ..> c0110: `type in get_user_by_id`
+- c0265 ..> c0110: `type in update_user`
+- c0265 ..> c0111: `type in get_or_create_user`
+- c0265 ..> c0111: `update_user() constructs UserCreate`
+- c0265 ..> c0113: `get_or_create_user() constructs UserUpdate`
+- c0265 ..> c0113: `type in update_user`
+- c0265 ..> c0126: `get_or_create_user() calls create_user()`
+- c0265 ..> c0126: `get_or_create_user() calls get_user_by_external_id()`
+- c0265 ..> c0126: `get_or_create_user() calls update_user()`
+- c0265 ..> c0126: `get_user_by_id() calls get_user_by_id()`
+- c0265 ..> c0126: `type in __init__`
+- c0265 ..> c0126: `update_user() calls create_user()`
+- c0265 ..> c0126: `update_user() calls get_user_by_external_id()`
+- c0265 ..> c0126: `update_user() calls update_user()`
+- c0265 ..> c0267: `get_or_create_user() calls get_changed_fields()`
+- c0265 ..> c0267: `update_user() calls get_changed_fields()`
+- c0271 ..> c0134: `fast_embed_rank() constructs FastEmbedCrossEncoderAdapter`
+- c0271 ..> c0135: `fast_embed_rank() calls rerank()`
+- c0271 ..> c0135: `http_rank() calls rerank()`
+- c0271 ..> c0135: `http_rank() constructs HttpRerankAdapter`
+- c0272 ..> c0118: `test_sqlite_vec_async() calls close()`
+- c0272 ..> c0118: `test_sqlite_vec_async() calls execute()`
+- c0272 ..> c0118: `test_sqlite_vec_sync() calls close()`
+- c0272 ..> c0118: `test_sqlite_vec_sync() calls execute()`
+- c0273 ..> c0130: `test_embeddings() constructs GoogleEmbeddingsAdapter`
+- c0273 ..> c0131: `test_embeddings() calls generate_embedding()`
+- c0274 ..> c0118: `main() calls list_tools()`
+- c0275 ..> c0118: `test_sqlite_init() calls execute()`
+- c0275 ..> c0175: `test_sqlite_init() calls dispose()`
+- c0275 ..> c0175: `test_sqlite_init() calls init_db()`
+- c0275 ..> c0175: `test_sqlite_init() calls session()`
+- c0275 ..> c0175: `test_sqlite_init() calls system_session()`
+- c0275 ..> c0175: `test_sqlite_init() constructs SqliteDatabaseAdapter`
+- c0276 ..> c0016: `_run_reembed() calls create_db_adapter()`
+- c0276 ..> c0016: `_run_reembed() calls create_repositories()`
+- c0276 ..> c0016: `_run_reembed() calls get_embedding_adapter()`
+- c0276 ..> c0016: `lifespan() calls build_runtime()`
+- c0276 ..> c0016: `lifespan() calls dispose_runtime()`
+- c0276 ..> c0021: `_run_reembed() calls configure_logging()`
+- c0276 ..> c0021: `lifespan() calls configure_logging()`
+- c0276 ..> c0031: `lifespan() constructs TokenCache`
+- c0276 ..> c0120: `_run_reembed() calls count_all_memories()`
+- c0276 ..> c0120: `_run_reembed() calls reset_embedding_storage()`
+- c0276 ..> c0145: `_run_reembed() calls dispose()`
+- c0276 ..> c0145: `_run_reembed() calls init_db()`
+- c0276 ..> c0195: `_run_reembed() calls register()`
+- c0276 ..> c0195: `lifespan() calls register()`
+- c0276 ..> c0212: `cli() calls dispatch()`
+- c0276 ..> c0218: `_legacy_launcher() calls run()`
+- c0276 ..> c0218: `_serve() calls run()`
+- c0276 ..> c0243: `_run_reembed() calls create_backup()`
+- c0276 ..> c0243: `_run_reembed() calls restore_backup()`
+- c0276 ..> c0243: `_run_reembed() constructs BackupService`
+- c0276 ..> c0260: `_run_reembed() calls re_embed_all()`
+- c0276 ..> c0260: `_run_reembed() constructs ReEmbeddingService`
+- c0276 ..> c0270: `_legacy_launcher() calls get_version()`
+- c0276 ..> c0276: `_legacy_launcher() calls _run_reembed()`
+- c0276 ..> c0276: `_legacy_launcher() calls _serve()`
+- c0276 ..> c0276: `cli() calls _legacy_launcher()`
+- c0277 ..> c0277: `_run() calls _print_summary()`
+- c0277 ..> c0277: `main() calls _run()`
+- c0277 ..> c0277: `main() calls config_from_argv()`
+- c0277 ..> c0278: `config_from_argv() constructs HarnessConfig`
+- c0277 ..> c0278: `type in _run`
+- c0277 ..> c0278: `type in config_from_argv`
+- c0277 ..> c0279: `_run() calls start()`
+- c0277 ..> c0279: `_run() calls stop()`
+- c0277 ..> c0279: `_run() constructs AgentContainer`
+- c0277 ..> c0280: `_run() calls ensure_image()`
+- c0277 ..> c0293: `_run() calls seed_skills()`
+- c0277 ..> c0293: `_run() constructs ThrowawayForgetful`
+- c0277 ..> c0297: `type in _print_summary`
+- c0277 ..> c0298: `_run() calls run_skill()`
+- c0277 ..> c0298: `_run() calls write_summary()`
+- c0277 ..> c0298: `_run() constructs Walkthrough`
+- c0277 ..> c0298: `main() calls run()`
+- c0278 ..> c0031: `timeout_for() calls get()`
+- c0279 ..> c0024: `stop() calls clear()`
+- c0279 ..> c0031: `start() calls get()`
+- c0279 ..> c0118: `_exec() calls close()`
+- c0279 ..> c0278: `type in __init__`
+- c0279 ..> c0279: `health_check() calls _exec()`
+- c0279 ..> c0279: `start() calls _exec()`
+- c0279 ..> c0280: `run_session() calls exec_command()`
+- c0279 ..> c0280: `start() calls _docker_client()`
+- c0279 ..> c0280: `start() calls _prepare_harness_mount()`
+- c0279 ..> c0280: `start() calls build_container_env()`
+- c0279 ..> c0280: `start() calls provision_agent()`
+- c0279 ..> c0292: `health_check() constructs HarnessInfraError`
+- c0279 ..> c0292: `run_session() constructs HarnessInfraError`
+- c0279 ..> c0292: `start() constructs HarnessInfraError`
+- c0279 ..> c0293: `stop() calls stop()`
+- c0279 ..> c0295: `run_session() constructs SessionOutcome`
+- c0279 ..> c0295: `type in run_session`
+- c0279 ..> c0298: `start() calls run()`
+- c0280 ..> c0031: `ensure_image() calls get()`
+- c0280 ..> c0280: `ensure_image() calls _docker_client()`
+- c0280 ..> c0280: `ensure_image() calls export_requirements()`
+- c0280 ..> c0280: `ensure_image() calls requirements_hash()`
+- c0280 ..> c0280: `provision_agent() calls staged_mount()`
+- c0280 ..> c0292: `_docker_client() constructs HarnessInfraError`
+- c0280 ..> c0292: `_prepare_harness_mount() constructs HarnessInfraError`
+- c0280 ..> c0292: `ensure_image() constructs HarnessInfraError`
+- c0280 ..> c0292: `provision_agent() constructs HarnessInfraError`
+- c0280 ..> c0298: `_prepare_harness_mount() calls run()`
+- c0280 ..> c0298: `ensure_image() calls run()`
+- c0280 ..> c0298: `export_requirements() calls run()`
+- c0281 ..> c0031: `health() calls get()`
+- c0281 ..> c0031: `run_session() calls get()`
+- c0281 ..> c0218: `main() calls run()`
+- c0281 ..> c0279: `health() calls health_check()`
+- c0281 ..> c0281: `health() calls _shell()`
+- c0281 ..> c0281: `main() calls health()`
+- c0281 ..> c0281: `main() calls run_session()`
+- c0281 ..> c0281: `run_session() calls _attach_debug_log()`
+- c0281 ..> c0281: `run_session() calls _shell()`
+- c0282 ..> c0031: `build_prompt() calls get()`
+- c0282 ..> c0287: `build_prompt() calls report_contract_example()`
+- c0284 --> c0286: `field report`
+- c0286 --> c0283: `field issues`
+- c0286 --> c0285: `field steps`
+- c0287 ..> c0031: `_normalize_severity() calls get()`
+- c0287 ..> c0284: `load_report() constructs ReportLoad`
+- c0287 ..> c0284: `type in load_report`
+- c0287 ..> c0287: `_normalize_report_verdict() calls _lowercase()`
+- c0287 ..> c0287: `_normalize_severity() calls _lowercase()`
+- c0287 ..> c0287: `_normalize_step_verdict() calls _lowercase()`
+- c0293 ..> c0031: `_wait_until_healthy() calls get()`
+- c0293 ..> c0214: `execute() calls close()`
+- c0293 ..> c0214: `execute() calls execute()`
+- c0293 ..> c0214: `execute() constructs RemoteExecutor`
+- c0293 ..> c0214: `seed_skills() calls execute()`
+- c0293 ..> c0214: `stop() calls close()`
+- c0293 ..> c0292: `_wait_until_healthy() constructs HarnessInfraError`
+- c0293 ..> c0292: `seed_skills() constructs HarnessInfraError`
+- c0293 ..> c0292: `start() constructs HarnessInfraError`
+- c0293 ..> c0293: `_wait_until_healthy() calls stop()`
+- c0293 ..> c0293: `start() calls _child_env()`
+- c0293 ..> c0293: `start() calls _wait_until_healthy()`
+- c0293 ..> c0294: `start() calls _ephemeral_port()`
+- c0296 ..> c0295: `type in run_session`
+- c0297 --> c0284: `field report_load`
+- c0298 ..> c0031: `run_skill() calls get()`
+- c0298 ..> c0278: `run_skill() calls timeout_for()`
+- c0298 ..> c0278: `type in __init__`
+- c0298 ..> c0282: `run_skill() calls build_prompt()`
+- c0298 ..> c0287: `run_skill() calls load_report()`
+- c0298 ..> c0296: `run_skill() calls run_session()`
+- c0298 ..> c0296: `type in __init__`
+- c0298 ..> c0297: `run_skill() constructs SkillRunResult`
+- c0298 ..> c0297: `type in _meta`
+- c0298 ..> c0297: `type in run`
+- c0298 ..> c0297: `type in run_skill`
+- c0298 ..> c0297: `type in write_summary`
+- c0298 ..> c0298: `run() calls run_skill()`
+- c0298 ..> c0298: `run() calls write_summary()`
+- c0298 ..> c0298: `run_skill() calls _meta()`
+- c0298 ..> c0299: `run_skill() calls load_events()`
+- c0298 ..> c0299: `run_skill() calls prepare_workspace()`
+- c0298 ..> c0299: `run_skill() calls scan_for_breaches()`
+- c0299 ..> c0031: `scan_for_breaches() calls get()`
+- c0299 ..> c0299: `prepare_workspace() calls _build_fixture_repo()`
 
 ## Type key
 
@@ -7815,102 +7839,104 @@ classDiagram
 - Type19: `datetime | None`
 - Type20: `list[int] |None`
 - Type21: `bool | None`
-- Type22: `PlanStatus | None`
-- Type23: `list[CriterionCreate] | None`
-- Type24: `TaskPriority | None`
-- Type25: `ProjectType | None`
-- Type26: `ProjectStatus | None`
-- Type27: `dict | None`
-- Type28: `Callable[..., Awaitable[Any]]`
-- Type29: `tuple[list[ActivityLogEntry], int]`
-- Type30: `ActionType | None`
-- Type31: `ActorType | None`
-- Type32: `CodeArtifact | None`
-- Type33: `Document | None`
-- Type34: `Entity | None`
-- Type35: `tuple[list[EntitySummary], int]`
-- Type36: `list[tuple[int, int]]`
-- Type37: `list[tuple[int, str]]`
-- Type38: `list[tuple[int, str, str]]`
-- Type39: `File | None`
-- Type40: `list[tuple[Memory, MemoryScore]]`
-- Type41: `Memory | None`
-- Type42: `list[tuple[Memory, float]]`
-- Type43: `tuple[list[Memory], int]`
-- Type44: `tuple[list[dict[str, Any]], bool]`
-- Type45: `list[tuple[int, list[float]]]`
-- Type46: `Plan | None`
-- Type47: `Project | None`
-- Type48: `Skill | None`
-- Type49: `Task | None`
-- Type50: `TaskState | None`
-- Type51: `dict[str, bool]`
-- Type52: `Callable[[dict[str, bool]], T]`
-- Type53: `list[tuple[int, float]]`
-- Type54: `list[tuple[int,float]]`
-- Type55: `RerankAdapter | None`
-- Type56: `Mapped["UsersTable"]`
-- Type57: `Mapped["ProjectsTable"]`
-- Type58: `Mapped[list["MemoryTable"]]`
-- Type59: `Mapped[list["SkillsTable"]]`
-- Type60: `Mapped["TasksTable"]`
-- Type61: `Mapped[list["ProjectsTable"]]`
-- Type62: `Mapped[list["FilesTable"]]`
-- Type63: `Mapped[list["EntityRelationshipsTable"]]`
-- Type64: `Mapped["EntitiesTable"]`
-- Type65: `Mapped[list["EntitiesTable"]]`
-- Type66: `Mapped[list["CodeArtifactsTable"]]`
-- Type67: `Mapped[list["DocumentsTable"]]`
-- Type68: `Mapped[list["TasksTable"]]`
-- Type69: `Mapped[list["PlansTable"]]`
-- Type70: `Mapped["PlansTable"]`
-- Type71: `Mapped[list["CriteriaTable"]]`
-- Type72: `Mapped[list["TaskDependenciesTable"]]`
-- Type73: `Path | None`
-- Type74: `"LocalExecutor"`
-- Type75: `tuple[Any, str]`
-- Type76: `tuple[int, int]`
-- Type77: `tuple[set[str], frozenset[str]]`
-- Type78: `frozenset[str] | None`
-- Type79: `list[int] | int | None`
-- Type80: `list[dict[str, Any]] | None`
-- Type81: `dict[str, ToolImplementation]`
-- Type82: `ToolImplementation | None`
-- Type83: `"EventBus | None"`
-- Type84: `tuple[list[int], int, list[tuple[int, str]]]`
-- Type85: `tuple[list[int], int, list[tuple[int, str, str]]]`
-- Type86: `ProjectServiceProtocol | None`
-- Type87: `DocumentServiceProtocol | None`
-- Type88: `CodeArtifactServiceProtocol | None`
-- Type89: `FileServiceProtocol | None`
-- Type90: `SkillServiceProtocol | None`
-- Type91: `PlanServiceProtocol | None`
-- Type92: `TaskServiceProtocol | None`
-- Type93: `tuple[str, int]`
-- Type94: `list | None`
-- Type95: `"EventBus"`
-- Type96: `tuple[Memory, list[MemorySummary]]`
-- Type97: `tuple[list[Memory], list[LinkedMemory], int, bool]`
-- Type98: `tuple[list[Memory], int, bool]`
-- Type99: `ValidationResult | None`
-- Type100: `Callable[[int, int], None] | None`
-- Type101: `dict[str, tuple]`
-- Type102: `tuple[str, ...]`
-- Type103: `Literal["cli"]`
-- Type104: `dict[str, float]`
-- Type105: `tuple[int, str]`
-- Type106: `dict[str, str]`
-- Type107: `dict[str, dict[str, str]]`
-- Type108: `Literal["blocker", "major", "minor", "nit"]`
-- Type109: `Literal["ok", "missing", "invalid_json", "schema_error"]`
-- Type110: `WalkthroughReport | None`
-- Type111: `Literal["ok", "issue"]`
-- Type112: `Literal["pass", "issues", "blocked"]`
-- Type113: `subprocess.Popen | None`
-- Type114: `Literal["ran", "timeout"]`
-- Type115: `list[dict[str, Any]]`
-- Relation116: `_validate_rebuild_scope() calls count_memories_for_targeted_rebuild()`
-- Relation117: `create_code_artifact_adapters() constructs CodeArtifactToolAdapters`
+- Type22: `ExternalRef | None`
+- Type23: `PlanStatus | None`
+- Type24: `list[CriterionCreate] | None`
+- Type25: `TaskPriority | None`
+- Type26: `ProjectType | None`
+- Type27: `ProjectStatus | None`
+- Type28: `dict | None`
+- Type29: `Callable[..., Awaitable[Any]]`
+- Type30: `tuple[list[ActivityLogEntry], int]`
+- Type31: `ActionType | None`
+- Type32: `ActorType | None`
+- Type33: `CodeArtifact | None`
+- Type34: `Document | None`
+- Type35: `Entity | None`
+- Type36: `tuple[list[EntitySummary], int]`
+- Type37: `list[tuple[int, int]]`
+- Type38: `list[tuple[int, str]]`
+- Type39: `list[tuple[int, str, str]]`
+- Type40: `File | None`
+- Type41: `list[tuple[Memory, MemoryScore]]`
+- Type42: `Memory | None`
+- Type43: `list[tuple[Memory, float]]`
+- Type44: `tuple[list[Memory], int]`
+- Type45: `tuple[list[dict[str, Any]], bool]`
+- Type46: `list[tuple[int, list[float]]]`
+- Type47: `Plan | None`
+- Type48: `Project | None`
+- Type49: `Skill | None`
+- Type50: `Task | None`
+- Type51: `TaskState | None`
+- Type52: `dict[str, bool]`
+- Type53: `Callable[[dict[str, bool]], T]`
+- Type54: `list[tuple[int, float]]`
+- Type55: `list[tuple[int,float]]`
+- Type56: `RerankAdapter | None`
+- Type57: `Mapped["UsersTable"]`
+- Type58: `Mapped["ProjectsTable"]`
+- Type59: `Mapped[list["MemoryTable"]]`
+- Type60: `Mapped[list["SkillsTable"]]`
+- Type61: `Mapped["TasksTable"]`
+- Type62: `Mapped[list["ProjectsTable"]]`
+- Type63: `Mapped[list["FilesTable"]]`
+- Type64: `Mapped[list["EntityRelationshipsTable"]]`
+- Type65: `Mapped["EntitiesTable"]`
+- Type66: `Mapped[list["EntitiesTable"]]`
+- Type67: `Mapped[list["CodeArtifactsTable"]]`
+- Type68: `Mapped[list["DocumentsTable"]]`
+- Type69: `Mapped[str | None]`
+- Type70: `Mapped[list["TasksTable"]]`
+- Type71: `Mapped[list["PlansTable"]]`
+- Type72: `Mapped["PlansTable"]`
+- Type73: `Mapped[list["CriteriaTable"]]`
+- Type74: `Mapped[list["TaskDependenciesTable"]]`
+- Type75: `Path | None`
+- Type76: `"LocalExecutor"`
+- Type77: `tuple[Any, str]`
+- Type78: `tuple[int, int]`
+- Type79: `tuple[set[str], frozenset[str]]`
+- Type80: `frozenset[str] | None`
+- Type81: `list[int] | int | None`
+- Type82: `list[dict[str, Any]] | None`
+- Type83: `dict[str, ToolImplementation]`
+- Type84: `ToolImplementation | None`
+- Type85: `"EventBus | None"`
+- Type86: `tuple[list[int], int, list[tuple[int, str]]]`
+- Type87: `tuple[list[int], int, list[tuple[int, str, str]]]`
+- Type88: `ProjectServiceProtocol | None`
+- Type89: `DocumentServiceProtocol | None`
+- Type90: `CodeArtifactServiceProtocol | None`
+- Type91: `FileServiceProtocol | None`
+- Type92: `SkillServiceProtocol | None`
+- Type93: `PlanServiceProtocol | None`
+- Type94: `TaskServiceProtocol | None`
+- Type95: `tuple[str, int]`
+- Type96: `list | None`
+- Type97: `"EventBus"`
+- Type98: `tuple[Memory, list[MemorySummary]]`
+- Type99: `tuple[list[Memory], list[LinkedMemory], int, bool]`
+- Type100: `tuple[list[Memory], int, bool]`
+- Type101: `ValidationResult | None`
+- Type102: `Callable[[int, int], None] | None`
+- Type103: `dict[str, tuple]`
+- Type104: `tuple[str, ...]`
+- Type105: `Literal["cli"]`
+- Type106: `dict[str, float]`
+- Type107: `tuple[int, str]`
+- Type108: `dict[str, str]`
+- Type109: `dict[str, dict[str, str]]`
+- Type110: `Literal["blocker", "major", "minor", "nit"]`
+- Type111: `Literal["ok", "missing", "invalid_json", "schema_error"]`
+- Type112: `WalkthroughReport | None`
+- Type113: `Literal["ok", "issue"]`
+- Type114: `Literal["pass", "issues", "blocked"]`
+- Type115: `subprocess.Popen | None`
+- Type116: `Literal["ran", "timeout"]`
+- Type117: `list[dict[str, Any]]`
+- Relation118: `_validate_rebuild_scope() calls count_memories_for_targeted_rebuild()`
+- Relation119: `create_code_artifact_adapters() constructs CodeArtifactToolAdapters`
 
 ## Signature key
 
@@ -7960,257 +7986,261 @@ classDiagram
   project_id: int | None) int`
 - Signature21: `+get_memories_for_targeted_rebuild(user_id: UUID, limit: int, after_id: int | None,
   memory_ids: list[int] | None, project_id: int | None) list[Memory]`
-- Signature22: `+list_projects(user_id: UUID, status: ProjectStatus | None, repo_name: str | None,
+- Signature22: `+list_plans(user_id: UUID, project_id: int | None, status: PlanStatus | None,
+  external_ref: str | None) list[PlanSummary]`
+- Signature23: `+list_projects(user_id: UUID, status: ProjectStatus | None, repo_name: str | None,
   name: str | None) list[ProjectSummary]`
-- Signature23: `+list_skills(user_id: UUID, project_id: int | None, tags: list[str] | None,
+- Signature24: `+list_skills(user_id: UUID, project_id: int | None, tags: list[str] | None,
   importance_threshold: int | None) list[SkillSummary]`
-- Signature24: `+unlink_skill_from_code_artifact(user_id: UUID, skill_id: int, code_artifact_id:
+- Signature25: `+unlink_skill_from_code_artifact(user_id: UUID, skill_id: int, code_artifact_id:
   int) dict`
-- Signature25: `+list_tasks(user_id: UUID, plan_id: int, state: TaskState | None, priority:
+- Signature26: `+list_tasks(user_id: UUID, plan_id: int, state: TaskState | None, priority:
   TaskPriority | None, assigned_agent: str | None) list[TaskSummary]`
-- Signature26: `+transition_task_state(user_id: UUID, task_id: int, new_state: TaskState,
+- Signature27: `+transition_task_state(user_id: UUID, task_id: int, new_state: TaskState,
   expected_version: int, assigned_agent: str | None) Task`
-- Signature27: `+create_criterion(user_id: UUID, task_id: int, criterion_data: CriterionCreate)
+- Signature28: `+create_criterion(user_id: UUID, task_id: int, criterion_data: CriterionCreate)
   Criterion`
-- Signature28: `+update_criterion(user_id: UUID, criterion_id: int, criterion_data: CriterionUpdate)
+- Signature29: `+update_criterion(user_id: UUID, criterion_id: int, criterion_data: CriterionUpdate)
   Criterion`
-- Signature29: `+load_fastembed_model(model_role: str, model_name: str, cache_dir: str, factory:
+- Signature30: `+load_fastembed_model(model_role: str, model_name: str, cache_dir: str, factory:
   Callable[[dict[str, bool]], T]) T`
-- Signature30: `-__init__(model: str, threads: int, cache_dir: str | None, workers: int, providers:
+- Signature31: `-__init__(model: str, threads: int, cache_dir: str | None, workers: int, providers:
   list[str] | None) unknown`
-- Signature31: `-_create_text_cross_encoder(model: str, threads: int, cache_dir: str | None,
+- Signature32: `-_create_text_cross_encoder(model: str, threads: int, cache_dir: str | None,
   providers: list[str] | None, fastembed_kwargs: dict[str, bool]) unknown`
-- Signature32: `-__init__(db_adapter: PostgresDatabaseAdapter, embedding_adapter: EmbeddingsAdapter,
+- Signature33: `-__init__(db_adapter: PostgresDatabaseAdapter, embedding_adapter: EmbeddingsAdapter,
   rerank_adapter: RerankAdapter | None) unknown`
-- Signature33: `+semantic_search(user_id: UUID, query: str, k: int, importance_threshold: int |
+- Signature34: `+semantic_search(user_id: UUID, query: str, k: int, importance_threshold: int |
   None, project_ids: list[int] | None, exclude_ids: list[int] | None) list[Memory]`
-- Signature34: `+semantic_search_scored(user_id: UUID, query: str, k: int, importance_threshold: int
+- Signature35: `+semantic_search_scored(user_id: UUID, query: str, k: int, importance_threshold: int
   | None, project_ids: list[int] | None, exclude_ids: list[int] | None) list[tuple[Memory, float]]`
-- Signature35: `+update_memory(user_id: UUID, memory_id: int, updated_memory: MemoryUpdate,
+- Signature36: `+update_memory(user_id: UUID, memory_id: int, updated_memory: MemoryUpdate,
   existing_memory: Memory, search_fields_changed: bool) Memory`
-- Signature36: `-_link_projects(session: unknown, memory: MemoryTable, project_ids: list[int],
+- Signature37: `-_link_projects(session: unknown, memory: MemoryTable, project_ids: list[int],
   user_id: UUID) None`
-- Signature37: `-_link_code_artifacts(session: unknown, memory: MemoryTable, code_artifact_ids:
+- Signature38: `-_link_code_artifacts(session: unknown, memory: MemoryTable, code_artifact_ids:
   list[int], user_id: UUID) None`
-- Signature38: `-_link_documents(session: unknown, memory: MemoryTable, document_ids: list[int],
+- Signature39: `-_link_documents(session: unknown, memory: MemoryTable, document_ids: list[int],
   user_id: UUID) None`
-- Signature39: `-_link_files(session: unknown, memory: MemoryTable, file_ids: list[int], user_id:
+- Signature40: `-_link_files(session: unknown, memory: MemoryTable, file_ids: list[int], user_id:
   UUID) None`
-- Signature40: `-_link_skills(session: unknown, memory: MemoryTable, skill_ids: list[int], user_id:
+- Signature41: `-_link_skills(session: unknown, memory: MemoryTable, skill_ids: list[int], user_id:
   UUID) None`
-- Signature41: `-_build_targeted_rebuild_filter(user_id: UUID, memory_ids: list[int] | None,
+- Signature42: `-_build_targeted_rebuild_filter(user_id: UUID, memory_ids: list[int] | None,
   project_id: int | None) unknown`
-- Signature42: `+get_subgraph_nodes(user_id: UUID, center_type: str, center_id: int, depth: int,
+- Signature43: `+get_subgraph_nodes(user_id: UUID, center_type: str, center_id: int, depth: int,
   include_memories: bool, include_entities: bool, include_projects: bool, include_documents: bool,
   include_code_artifacts: bool, include_files: bool, include_skills: bool, include_plans: bool,
   include_tasks: bool, max_nodes: int) tuple[list[dict[str, Any]], bool]`
-- Signature43: `-__init__(db_adapter: SqliteDatabaseAdapter, embedding_adapter: EmbeddingsAdapter,
-  rerank_adapter: RerankAdapter | None) unknown`
 - Signature44: `-__init__(db_adapter: SqliteDatabaseAdapter, embedding_adapter: EmbeddingsAdapter,
+  rerank_adapter: RerankAdapter | None) unknown`
+- Signature45: `-__init__(db_adapter: SqliteDatabaseAdapter, embedding_adapter: EmbeddingsAdapter,
   rerank_adapter: RerankAdapter | None) None`
-- Signature45: `+create_code_artifact(title: str, description: str, code: str, language: str, ctx:
+- Signature46: `+create_code_artifact(title: str, description: str, code: str, language: str, ctx:
   Context, tags: list[str] | None, project_id: int | None, source_repo: str | None, source_files:
   list[str] | None, source_url: str | None, confidence: float | None, encoding_agent: str | None,
   encoding_version: str | None, agent_id: str | None, agent_version: str | None, agent_model: str |
   None) CodeArtifact`
-- Signature46: `+update_code_artifact(artifact_id: int, ctx: Context, title: str | None,
+- Signature47: `+update_code_artifact(artifact_id: int, ctx: Context, title: str | None,
   description: str | None, code: str | None, language: str | None, tags: list[str] | None,
   project_id: int | None, source_repo: str | None, source_files: list[str] | None, source_url: str |
   None, confidence: float | None, encoding_agent: str | None, encoding_version: str | None,
   agent_id: str | None, agent_version: str | None, agent_model: str | None) CodeArtifact`
-- Signature47: `+create_document(title: str, description: str, content: str, ctx: Context,
+- Signature48: `+create_document(title: str, description: str, content: str, ctx: Context,
   document_type: str, filename: str | None, tags: list[str] | None, project_id: int | None,
   source_repo: str | None, source_files: list[str] | None, source_url: str | None, confidence: float
   | None, encoding_agent: str | None, encoding_version: str | None, agent_id: str | None,
   agent_version: str | None, agent_model: str | None) Document`
-- Signature48: `+update_document(document_id: int, ctx: Context, title: str | None, description: str
+- Signature49: `+update_document(document_id: int, ctx: Context, title: str | None, description: str
   | None, content: str | None, document_type: str | None, filename: str | None, tags: list[str] |
   None, project_id: int | None, source_repo: str | None, source_files: list[str] | None, source_url:
   str | None, confidence: float | None, encoding_agent: str | None, encoding_version: str | None,
   agent_id: str | None, agent_version: str | None, agent_model: str | None) Document`
-- Signature49: `+create_entity(name: str, entity_type: str, ctx: Context, custom_type: str | None,
+- Signature50: `+create_entity(name: str, entity_type: str, ctx: Context, custom_type: str | None,
   notes: str | None, tags: list[str] | None, aka: list[str] | None, project_ids: list[int] | None,
   source_repo: str | None, source_files: list[str] | None, source_url: str | None, confidence: float
   | None, encoding_agent: str | None, encoding_version: str | None, agent_id: str | None,
   agent_version: str | None, agent_model: str | None) Entity`
-- Signature50: `+search_entities(query: str, ctx: Context, entity_type: str | None, tags: list[str]
+- Signature51: `+search_entities(query: str, ctx: Context, entity_type: str | None, tags: list[str]
   | None, limit: int) dict`
-- Signature51: `+update_entity(entity_id: int, ctx: Context, name: str | None, entity_type: str |
+- Signature52: `+update_entity(entity_id: int, ctx: Context, name: str | None, entity_type: str |
   None, custom_type: str | None, notes: str | None, tags: list[str] | None, aka: list[str] | None,
   project_ids: list[int] | None, source_repo: str | None, source_files: list[str] | None,
   source_url: str | None, confidence: float | None, encoding_agent: str | None, encoding_version:
   str | None, agent_id: str | None, agent_version: str | None, agent_model: str | None) Entity`
-- Signature52: `+create_entity_relationship(source_entity_id: int, target_entity_id: int,
+- Signature53: `+create_entity_relationship(source_entity_id: int, target_entity_id: int,
   relationship_type: str, ctx: Context, strength: float | None, confidence: float | None, metadata:
   dict[str, Any] | None, source_repo: str | None, source_files: list[str] | None, source_url: str |
   None, encoding_agent: str | None, encoding_version: str | None, agent_id: str | None,
   agent_version: str | None, agent_model: str | None) EntityRelationship`
-- Signature53: `+get_entity_relationships(entity_id: int, ctx: Context, direction: str | None,
+- Signature54: `+get_entity_relationships(entity_id: int, ctx: Context, direction: str | None,
   relationship_type: str | None) dict`
-- Signature54: `+update_entity_relationship(relationship_id: int, ctx: Context, relationship_type:
+- Signature55: `+update_entity_relationship(relationship_id: int, ctx: Context, relationship_type:
   str | None, strength: float | None, confidence: float | None, metadata: dict[str, Any] | None,
   source_repo: str | None, source_files: list[str] | None, source_url: str | None, encoding_agent:
   str | None, encoding_version: str | None, agent_id: str | None, agent_version: str | None,
   agent_model: str | None) EntityRelationship`
-- Signature55: `+create_file(filename: str, description: str, data: str, mime_type: str, ctx:
+- Signature56: `+create_file(filename: str, description: str, data: str, mime_type: str, ctx:
   Context, tags: list[str] | None, project_id: int | None, source_repo: str | None, source_files:
   list[str] | None, source_url: str | None, confidence: float | None, encoding_agent: str | None,
   encoding_version: str | None, agent_id: str | None, agent_version: str | None, agent_model: str |
   None) unknown`
-- Signature56: `+update_file(file_id: int, ctx: Context, filename: str | None, description: str |
+- Signature57: `+update_file(file_id: int, ctx: Context, filename: str | None, description: str |
   None, data: str | None, mime_type: str | None, tags: list[str] | None, project_id: int | None,
   source_repo: str | None, source_files: list[str] | None, source_url: str | None, confidence: float
   | None, encoding_agent: str | None, encoding_version: str | None, agent_id: str | None,
   agent_version: str | None, agent_model: str | None) unknown`
-- Signature57: `+create_memory(title: str, content: str, context: str, keywords: list[str], tags:
+- Signature58: `+create_memory(title: str, content: str, context: str, keywords: list[str], tags:
   list[str], importance: int, ctx: Context, project_ids: list[int] | None, code_artifact_ids:
   list[int] | None, document_ids: list[int] | None, file_ids: list[int] | None, source_repo: str |
   None, source_files: list[str] | None, source_url: str | None, confidence: float | None,
   encoding_agent: str | None, encoding_version: str | None, agent_id: str | None, agent_version: str
   | None, agent_model: str | None) MemoryCreateResponse`
-- Signature58: `+query_memory(query: str, query_context: str, ctx: Context, k: int, include_links:
+- Signature59: `+query_memory(query: str, query_context: str, ctx: Context, k: int, include_links:
   bool, max_links_per_primary: int, importance_threshold: int | None, project_ids: list[int] | None,
   strict_project_filter: bool) MemoryQueryResult`
-- Signature59: `+update_memory(ctx: Context, memory_id: int | None, id: int | None, title: str |
+- Signature60: `+update_memory(ctx: Context, memory_id: int | None, id: int | None, title: str |
   None, content: str | None, context: str | None, keywords: list[str] | None, tags: list[str] |
   None, importance: int | None, project_ids: list[int] | None, code_artifact_ids: list[int] | None,
   document_ids: list[int] | None, file_ids: list[int] | None, source_repo: str | None, source_files:
   list[str] | None, source_url: str | None, confidence: float | None, encoding_agent: str | None,
   encoding_version: str | None, agent_id: str | None, agent_version: str | None, agent_model: str |
   None, kwargs: unknown) Memory`
-- Signature60: `+link_memories(ctx: Context, memory_id: int | None, related_ids: list[int] | int |
+- Signature61: `+link_memories(ctx: Context, memory_id: int | None, related_ids: list[int] | int |
   None, source_id: int | None, target_id: int | None, target_ids: list[int] | int | None,
   related_id: int | None, memory_id_1: int | None, memory_id_2: int | None, from_id: int | None,
   to_id: int | None, from_memory_id: int | None, to_memory_id: int | None, memory_ids: list[int] |
   None, ids: list[int] | None, id: int | None, linked_ids: list[int] | int | None,
   related_memory_ids: list[int] | int | None, kwargs: unknown) dict`
-- Signature61: `+unlink_memories(ctx: Context, source_id: int | None, target_id: int | None,
+- Signature62: `+unlink_memories(ctx: Context, source_id: int | None, target_id: int | None,
   memory_id: int | None, related_id: int | None, related_ids: list[int] | int | None, target_ids:
   list[int] | int | None, memory_ids: list[int] | None, ids: list[int] | None, memory_id_1: int |
   None, memory_id_2: int | None, from_id: int | None, to_id: int | None, from_memory_id: int | None,
   to_memory_id: int | None, id: int | None, linked_ids: list[int] | int | None, related_memory_ids:
   list[int] | int | None, kwargs: unknown) dict`
-- Signature62: `+mark_memory_obsolete(ctx: Context, memory_id: int | None, id: int | None, reason:
+- Signature63: `+mark_memory_obsolete(ctx: Context, memory_id: int | None, id: int | None, reason:
   str, superseded_by: int | None, kwargs: unknown) dict`
-- Signature63: `+get_recent_memories(ctx: Context, limit: int, offset: int, project_ids: list[int] |
+- Signature64: `+get_recent_memories(ctx: Context, limit: int, offset: int, project_ids: list[int] |
   None, include_obsolete: bool, sort_by: str, sort_order: str, tags: list[str] | None,
   importance_min: int | None, created_since: str | None) dict`
-- Signature64: `+create_plan(title: str, project_id: int, ctx: Context, goal: str | None, context:
-  str | None, status: str, source_repo: str | None, source_files: list[str] | None, source_url: str
-  | None, confidence: float | None, encoding_agent: str | None, encoding_version: str | None,
-  agent_id: str | None, agent_version: str | None, agent_model: str | None) unknown`
-- Signature65: `+update_plan(plan_id: int, ctx: Context, title: str | None, goal: str | None,
-  context: str | None, status: str | None, source_repo: str | None, source_files: list[str] | None,
-  source_url: str | None, confidence: float | None, encoding_agent: str | None, encoding_version:
-  str | None, agent_id: str | None, agent_version: str | None, agent_model: str | None) unknown`
-- Signature66: `+create_project(name: str, description: str, project_type: ProjectType, ctx:
+- Signature65: `+create_plan(title: str, project_id: int, ctx: Context, goal: str | None, context:
+  str | None, status: str, external_ref: str | None, source_repo: str | None, source_files:
+  list[str] | None, source_url: str | None, confidence: float | None, encoding_agent: str | None,
+  encoding_version: str | None, agent_id: str | None, agent_version: str | None, agent_model: str |
+  None) unknown`
+- Signature66: `+update_plan(plan_id: int, ctx: Context, title: str | None, goal: str | None,
+  context: str | None, status: str | None, external_ref: str | None, source_repo: str | None,
+  source_files: list[str] | None, source_url: str | None, confidence: float | None, encoding_agent:
+  str | None, encoding_version: str | None, agent_id: str | None, agent_version: str | None,
+  agent_model: str | None) unknown`
+- Signature67: `+create_project(name: str, description: str, project_type: ProjectType, ctx:
   Context, status: ProjectStatus, repo_name: str | None, last_encoding_point: str | None, notes: str
   | None, source_repo: str | None, source_files: list[str] | None, source_url: str | None,
   confidence: float | None, encoding_agent: str | None, encoding_version: str | None, agent_id: str
   | None, agent_version: str | None, agent_model: str | None) Project`
-- Signature67: `+update_project(project_id: int, ctx: Context, name: str | None, description: str |
+- Signature68: `+update_project(project_id: int, ctx: Context, name: str | None, description: str |
   None, project_type: ProjectType | None, status: ProjectStatus | None, repo_name: str | None,
   last_encoding_point: str | None, notes: str | None, source_repo: str | None, source_files:
   list[str] | None, source_url: str | None, confidence: float | None, encoding_agent: str | None,
   encoding_version: str | None, agent_id: str | None, agent_version: str | None, agent_model: str |
   None) Project`
-- Signature68: `+create_skill(name: str, description: str, content: str, ctx: Context, license: str
+- Signature69: `+create_skill(name: str, description: str, content: str, ctx: Context, license: str
   | None, compatibility: str | None, allowed_tools: list[str] | None, metadata: dict[str, Any] |
   None, tags: list[str] | None, importance: int, project_id: int | None, source_repo: str | None,
   source_files: list[str] | None, source_url: str | None, confidence: float | None, encoding_agent:
   str | None, encoding_version: str | None, agent_id: str | None, agent_version: str | None,
   agent_model: str | None) unknown`
-- Signature69: `+list_skills(ctx: Context, project_id: int | None, tags: list[str] | None,
+- Signature70: `+list_skills(ctx: Context, project_id: int | None, tags: list[str] | None,
   importance_threshold: int | None) dict`
-- Signature70: `+update_skill(skill_id: int, ctx: Context, name: str | None, description: str |
+- Signature71: `+update_skill(skill_id: int, ctx: Context, name: str | None, description: str |
   None, content: str | None, license: str | None, compatibility: str | None, allowed_tools:
   list[str] | None, metadata: dict[str, Any] | None, tags: list[str] | None, importance: int | None,
   project_id: int | None, source_repo: str | None, source_files: list[str] | None, source_url: str |
   None, confidence: float | None, encoding_agent: str | None, encoding_version: str | None,
   agent_id: str | None, agent_version: str | None, agent_model: str | None) unknown`
-- Signature71: `+import_skill(skill_md_content: str, ctx: Context, project_id: int | None,
+- Signature72: `+import_skill(skill_md_content: str, ctx: Context, project_id: int | None,
   importance: int) unknown`
-- Signature72: `+unlink_skill_from_code_artifact(skill_id: int, code_artifact_id: int, ctx: Context)
+- Signature73: `+unlink_skill_from_code_artifact(skill_id: int, code_artifact_id: int, ctx: Context)
   dict`
-- Signature73: `+create_task(title: str, plan_id: int, ctx: Context, description: str | None,
+- Signature74: `+create_task(title: str, plan_id: int, ctx: Context, description: str | None,
   priority: str, assigned_agent: str | None, criteria: list[dict[str, Any]] | None, dependency_ids:
   list[int] | None, source_repo: str | None, source_files: list[str] | None, source_url: str | None,
   confidence: float | None, encoding_agent: str | None, encoding_version: str | None, agent_id: str
   | None, agent_version: str | None, agent_model: str | None) unknown`
-- Signature74: `+update_task(task_id: int, ctx: Context, title: str | None, description: str | None,
+- Signature75: `+update_task(task_id: int, ctx: Context, title: str | None, description: str | None,
   priority: str | None, source_repo: str | None, source_files: list[str] | None, source_url: str |
   None, confidence: float | None, encoding_agent: str | None, encoding_version: str | None,
   agent_id: str | None, agent_version: str | None, agent_model: str | None) unknown`
-- Signature75: `+query_tasks(plan_id: int, ctx: Context, state: str | None, priority: str | None,
+- Signature76: `+query_tasks(plan_id: int, ctx: Context, state: str | None, priority: str | None,
   assigned_agent: str | None) unknown`
-- Signature76: `+create_project_adapters(project_service: ProjectService, user_service: UserService)
+- Signature77: `+create_project_adapters(project_service: ProjectService, user_service: UserService)
   dict[str, Any]`
-- Signature77: `+create_code_artifact_adapters(code_artifact_service: CodeArtifactService,
+- Signature78: `+create_code_artifact_adapters(code_artifact_service: CodeArtifactService,
   user_service: UserService) dict[str, Any]`
-- Signature78: `+create_document_adapters(document_service: DocumentService, user_service:
+- Signature79: `+create_document_adapters(document_service: DocumentService, user_service:
   UserService) dict[str, Any]`
-- Signature79: `+register_simplified_tool(registry: ToolRegistry, name: str, category: ToolCategory,
+- Signature80: `+register_simplified_tool(registry: ToolRegistry, name: str, category: ToolCategory,
   description: str, parameters: list[dict], returns: str, implementation: Any, examples: list[str],
   tags: list[str], mutates: bool) unknown`
-- Signature80: `+register_all_tools_metadata(registry: ToolRegistry, user_service: UserService,
+- Signature81: `+register_all_tools_metadata(registry: ToolRegistry, user_service: UserService,
   memory_service: MemoryService, project_service: unknown, code_artifact_service: unknown,
   document_service: unknown, entity_service: unknown, plan_service: unknown, task_service: unknown,
   file_service: unknown, skill_service: unknown) unknown`
-- Signature81: `+register(name: str, category: ToolCategory, description: str, parameters:
+- Signature82: `+register(name: str, category: ToolCategory, description: str, parameters:
   list[ToolParameter], returns: str, implementation: Any, examples: list[str], tags: list[str],
   mutates: bool) None`
-- Signature82: `+get_activity(user_id: UUID, entity_type: EntityType | None, action: ActionType |
+- Signature83: `+get_activity(user_id: UUID, entity_type: EntityType | None, action: ActionType |
   None, entity_id: int | None, actor: ActorType | None, since: datetime | None, until: datetime |
   None, limit: int, offset: int) ActivityListResponse`
-- Signature83: `+get_entity_history(user_id: UUID, entity_type: EntityType, entity_id: int, limit:
+- Signature84: `+get_entity_history(user_id: UUID, entity_type: EntityType, entity_id: int, limit:
   int, offset: int) ActivityListResponse`
-- Signature84: `-_emit_event(user_id: UUID, entity_type: EntityType, entity_id: int, action:
+- Signature85: `-_emit_event(user_id: UUID, entity_type: EntityType, entity_id: int, action:
   ActionType, snapshot: dict, changes: dict | None, metadata: dict | None) None`
-- Signature85: `-_emit_event(user_id: UUID, entity_type: ActivityEntityType, entity_id: int, action:
+- Signature86: `-_emit_event(user_id: UUID, entity_type: ActivityEntityType, entity_id: int, action:
   ActionType, snapshot: dict, changes: dict | None, metadata: dict | None) None`
-- Signature86: `-__init__(memory_repo: MemoryRepository, entity_repo: EntityRepository,
+- Signature87: `-__init__(memory_repo: MemoryRepository, entity_repo: EntityRepository,
   project_service: ProjectServiceProtocol | None, document_service: DocumentServiceProtocol | None,
   code_artifact_service: CodeArtifactServiceProtocol | None, file_service: FileServiceProtocol |
   None, skill_service: SkillServiceProtocol | None, plan_service: PlanServiceProtocol | None,
   task_service: TaskServiceProtocol | None) unknown`
-- Signature87: `+get_subgraph(user_id: UUID, center_node_id: str, depth: int, node_types: list[str]
+- Signature88: `+get_subgraph(user_id: UUID, center_node_id: str, depth: int, node_types: list[str]
   | None, max_nodes: int) SubgraphResponse`
-- Signature88: `-_fetch_node_data(user_id: UUID, memory_ids: list[int], entity_ids: list[int],
+- Signature89: `-_fetch_node_data(user_id: UUID, memory_ids: list[int], entity_ids: list[int],
   project_ids: list[int], document_ids: list[int], code_artifact_ids: list[int], file_ids:
   list[int], skill_ids: list[int], depth_lookup: dict, plan_ids: list[int] | None, task_ids:
   list[int] | None, task_summaries: list | None) list[SubgraphNode]`
-- Signature89: `-_fetch_edges(user_id: UUID, memory_ids: list[int], entity_ids: list[int],
+- Signature90: `-_fetch_edges(user_id: UUID, memory_ids: list[int], entity_ids: list[int],
   project_ids: list[int], document_ids: list[int], code_artifact_ids: list[int], file_ids: list[int]
   | None, skill_ids: list[int] | None, plan_ids: list[int] | None, task_ids: list[int] | None,
   task_summaries: list | None) list[SubgraphEdge]`
-- Signature90: `+mark_memory_obsolete(user_id: UUID, memory_id: int, reason: str, superseded_by: int
+- Signature91: `+mark_memory_obsolete(user_id: UUID, memory_id: int, reason: str, superseded_by: int
   | None) bool`
-- Signature91: `-_fetch_linked_memories(user_id: unknown, primary_memories: list[Memory],
+- Signature92: `-_fetch_linked_memories(user_id: unknown, primary_memories: list[Memory],
   max_links_per_primary: int, project_ids: list[int] | None) list[LinkedMemory]`
-- Signature92: `-_apply_token_budget(primary_memories: list[Memory], linked_memories:
+- Signature93: `-_apply_token_budget(primary_memories: list[Memory], linked_memories:
   list[LinkedMemory], max_tokens: int, max_memories: int) tuple[list[Memory], list[LinkedMemory],
   int, bool]`
-- Signature93: `+truncate_memories_by_budget(memories: list[Memory], max_tokens: int, max_count:
+- Signature94: `+truncate_memories_by_budget(memories: list[Memory], max_tokens: int, max_count:
   int) tuple[list[Memory], int, bool]`
-- Signature94: `-__init__(memory_repository: MemoryRepository, embedding_adapter: EmbeddingsAdapter,
+- Signature95: `-__init__(memory_repository: MemoryRepository, embedding_adapter: EmbeddingsAdapter,
   batch_size: int) unknown`
-- Signature95: `+rebuild_targeted(user_id: UUID, memory_ids: list[int] | None, project_id: int |
+- Signature96: `+rebuild_targeted(user_id: UUID, memory_ids: list[int] | None, project_id: int |
   None, progress_callback: Callable[[int, int], None] | None) TargetedRebuildResult`
-- Signature96: `-_record_unresolved_memory_ids(memory_ids: list[int] | None, project_id: int | None,
+- Signature97: `-_record_unresolved_memory_ids(memory_ids: list[int] | None, project_id: int | None,
   result: TargetedRebuildResult) None`
-- Signature97: `-_recompute_auto_links(user_id: UUID, memory_ids: list[int], result:
+- Signature98: `-_recompute_auto_links(user_id: UUID, memory_ids: list[int], result:
   TargetedRebuildResult) None`
-- Signature98: `+import_skill(user_id: UUID, skill_md_content: str, project_id: int | None,
+- Signature99: `+import_skill(user_id: UUID, skill_md_content: str, project_id: int | None,
   importance: int) Skill`
-- Signature99: `-__init__(task_repo: TaskRepository, plan_service: PlanService, event_bus: "EventBus
-  | None") unknown`
-- Signature100: `+transition_task(user_id: UUID, task_id: int, new_state: TaskState,
+- Signature100: `-__init__(task_repo: TaskRepository, plan_service: PlanService, event_bus:
+  "EventBus | None") unknown`
+- Signature101: `+transition_task(user_id: UUID, task_id: int, new_state: TaskState,
   expected_version: int) Task`
-- Signature101: `-_validate_same_plan(user_id: UUID, task_id: int, dep_task_id: int,
+- Signature102: `-_validate_same_plan(user_id: UUID, task_id: int, dep_task_id: int,
   expected_plan_id: int) None`
-- Signature102: `+run_session(skill: str, skill_dir: Path, workspace: Path, prompt: str, timeout:
+- Signature103: `+run_session(skill: str, skill_dir: Path, workspace: Path, prompt: str, timeout:
   float) SessionOutcome`
-- Signature103: `-__init__(config: HarnessConfig, runner: SessionRunner, server_url: str, run_dir:
+- Signature104: `-__init__(config: HarnessConfig, runner: SessionRunner, server_url: str, run_dir:
   Path) unknown`
 
 ## Extraction warnings

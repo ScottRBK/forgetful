@@ -7,8 +7,16 @@ These are tightly coupled aggregates forming the hierarchy:
 
 from datetime import datetime
 from enum import StrEnum
+from typing import Annotated, Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    field_validator,
+    model_validator,
+)
 
 from app.config.settings import settings
 
@@ -135,6 +143,11 @@ class TaskDependency(BaseModel):
 # ============================================================================
 
 
+ExternalRef = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255),
+]
+
+
 class PlanCreate(BaseModel):
     """Input model for creating a plan."""
     title: str = Field(..., max_length=settings.PLAN_TITLE_MAX_LENGTH)
@@ -142,6 +155,10 @@ class PlanCreate(BaseModel):
     goal: str | None = Field(None, max_length=settings.PLAN_GOAL_MAX_LENGTH)
     context: str | None = Field(None, max_length=settings.PLAN_CONTEXT_MAX_LENGTH)
     status: PlanStatus = PlanStatus.DRAFT
+    external_ref: ExternalRef | None = Field(
+        default=None,
+        description="Opaque, case-sensitive reference unique per user; whitespace trimmed.",
+    )
 
     # Provenance tracking fields (optional)
     source_repo: str | None = Field(default=None, max_length=200, description="Repository/project source (e.g., 'owner/repo')")
@@ -178,6 +195,10 @@ class PlanUpdate(BaseModel):
     goal: str | None = Field(None, max_length=settings.PLAN_GOAL_MAX_LENGTH)
     context: str | None = Field(None, max_length=settings.PLAN_CONTEXT_MAX_LENGTH)
     status: PlanStatus | None = None
+    external_ref: ExternalRef | None = Field(
+        default=None,
+        description="New external reference. Omitted or null leaves the reference unchanged.",
+    )
 
     # Provenance tracking fields (optional)
     source_repo: str | None = Field(default=None, max_length=200, description="New repository source. Unchanged if null.")
@@ -189,6 +210,14 @@ class PlanUpdate(BaseModel):
     agent_id: str | None = Field(default=None, max_length=100, description="New agent identity. Unchanged if null.")
     agent_version: str | None = Field(default=None, max_length=50, description="New agent version. Unchanged if null.")
     agent_model: str | None = Field(default=None, max_length=100, description="New LLM model. Unchanged if null.")
+
+    @model_validator(mode="before")
+    @classmethod
+    def ignore_null_external_ref(cls, data: Any) -> Any:
+        """Treat null as omitted for every caller, including REST and direct service calls."""
+        if isinstance(data, dict) and data.get("external_ref") is None:
+            return {key: value for key, value in data.items() if key != "external_ref"}
+        return data
 
     @field_validator("source_files")
     @classmethod
@@ -224,6 +253,7 @@ class PlanSummary(BaseModel):
     title: str
     project_id: int
     status: PlanStatus
+    external_ref: str | None = None
     task_count: int = 0
     created_at: datetime
     updated_at: datetime

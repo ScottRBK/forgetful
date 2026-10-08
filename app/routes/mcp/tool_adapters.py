@@ -1804,6 +1804,7 @@ class PlanToolAdapters:
         goal: str | None = None,
         context: str | None = None,
         status: str = "draft",
+        external_ref: str | None = None,
         # Provenance
         source_repo: str | None = None,
         source_files: list[str] | None = None,
@@ -1823,6 +1824,7 @@ class PlanToolAdapters:
             goal=goal,
             context=context,
             status=PlanStatus(status),
+            external_ref=external_ref,
             source_repo=source_repo,
             source_files=source_files,
             source_url=source_url,
@@ -1843,6 +1845,7 @@ class PlanToolAdapters:
         goal: str | None = None,
         context: str | None = None,
         status: str | None = None,
+        external_ref: str | None = None,
         # Provenance
         source_repo: str | None = None,
         source_files: list[str] | None = None,
@@ -1859,6 +1862,7 @@ class PlanToolAdapters:
         updated_dict = filter_none_values(
             title=title, goal=goal, context=context,
             status=PlanStatus(status) if status else None,
+            external_ref=external_ref,
             source_repo=source_repo,
             source_files=source_files,
             source_url=source_url,
@@ -1884,12 +1888,14 @@ class PlanToolAdapters:
         ctx: Context,
         project_id: int | None = None,
         status: str | None = None,
+        external_ref: str | None = None,
     ):
         from app.models.plan_models import PlanStatus
         user = await get_user_from_auth(ctx)
         status_enum = PlanStatus(status) if status else None
         plans = await self.plan_service.list_plans(
             user_id=user.id, project_id=project_id, status=status_enum,
+            external_ref=external_ref,
         )
         return {"plans": plans, "total_count": len(plans)}
 
