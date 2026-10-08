@@ -1003,6 +1003,7 @@ class PlansTable(Base):
     goal: Mapped[str] = mapped_column(Text, nullable=True)
     context: Mapped[str] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="draft", nullable=False)
+    external_ref: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     # Provenance tracking (optional)
     source_repo: Mapped[str] = mapped_column(Text, nullable=True)
@@ -1044,6 +1045,7 @@ class PlansTable(Base):
         Index("ix_plans_user_id", "user_id"),
         Index("ix_plans_project_id", "project_id"),
         Index("ix_plans_status", "status"),
+        Index("ix_plans_user_external_ref", "user_id", "external_ref", unique=True),
     )
 
 

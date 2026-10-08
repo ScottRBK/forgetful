@@ -1187,6 +1187,7 @@ List plans with optional filtering.
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `project_id` | int | Filter by project |
+| `external_ref` | string | Exact, user-scoped reference lookup |
 | `status` | string | Filter by status: `draft`, `active`, `completed`, `archived` |
 
 **Response:**
@@ -1198,6 +1199,7 @@ List plans with optional filtering.
       "title": "Plan Title",
       "project_id": 1,
       "status": "draft",
+      "external_ref": "github:ScottRBK/factory#42",
       "task_count": 3,
       "created_at": "2024-12-05T10:00:00Z",
       "updated_at": "2024-12-05T10:00:00Z"
@@ -1220,7 +1222,7 @@ Get a single plan by ID.
   "goal": "Implement feature X",
   "context": "Background context for the plan",
   "status": "draft",
-  "user_id": "user123",
+  "external_ref": "github:ScottRBK/factory#42",
   "task_count": 3,
   "created_at": "2024-12-05T10:00:00Z",
   "updated_at": "2024-12-05T10:00:00Z"
@@ -1248,9 +1250,27 @@ Create a new plan.
 | `project_id` | int | yes | Parent project ID |
 | `goal` | string | no | Goal or objective |
 | `context` | string | no | Background context |
+| `external_ref` | string | no | Opaque reference unique across your plans; default null |
 | `status` | string | no | Initial status (default: `draft`). Values: `draft`, `active`, `completed`, `archived` |
 
 **Response (201):** Full plan object (see GET response above)
+
+**Reference rules:** `external_ref` is trimmed, case-sensitive, and must contain 1–255 characters
+when supplied. Multiple null references are allowed. Uniqueness covers every project and status
+owned by the authenticated user; other users may reuse the same value. `source_url` remains
+independent provenance, and existing plans receive no automatic reference backfill.
+
+**Errors:** 400 for invalid references; 409 when a reference already belongs to one of your plans.
+Concurrent duplicate requests cannot both succeed. After a conflict, look up the reference alone,
+without project or status filters, to include completed and archived plans. URL-encode the query
+value (especially `#`, which otherwise starts a URL fragment):
+
+```text
+GET /api/v1/plans?external_ref=github%3AScottRBK%2Ffactory%2342
+```
+
+The response contains zero or one summary, including `external_ref`. Blank or overlength lookup
+values return 400. Additional filters are combined with the reference filter.
 
 ### PUT /api/v1/plans/{plan_id}
 
@@ -1271,7 +1291,12 @@ Update an existing plan.
 | `title` | string | Updated title |
 | `goal` | string | Updated goal |
 | `context` | string | Updated context |
+| `external_ref` | string | Replacement reference; omitted or null leaves it unchanged |
 | `status` | string | New status (must be a valid transition) |
+
+References cannot be cleared: empty or whitespace-only values are invalid. Replacing a reference
+or deleting its plan releases the old value. Completing or archiving a plan retains it. Duplicate
+updates return 409 and leave the whole plan unchanged.
 
 **Plan Status Transitions:**
 
@@ -1288,7 +1313,9 @@ Update an existing plan.
 
 | Code | Condition |
 |------|-----------|
+| 400 | Invalid reference |
 | 404 | Plan not found |
+| 409 | External reference already used by one of your plans |
 | 422 | Invalid status transition |
 
 ### DELETE /api/v1/plans/{plan_id}

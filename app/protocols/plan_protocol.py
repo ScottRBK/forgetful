@@ -22,6 +22,7 @@ class PlanRepository(Protocol):
         user_id: UUID,
         project_id: int | None = None,
         status: PlanStatus | None = None,
+        external_ref: str | None = None,
     ) -> list[PlanSummary]: ...
 
     async def update_plan(

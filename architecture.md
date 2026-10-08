@@ -168,7 +168,7 @@ These are explanatory groupings; they do not imply separate subsystems in the so
 | Organization and entities | [ProjectService:33](app/services/project_service.py#L33) manages project metadata; [EntityService:47](app/services/entity_service.py#L47) manages named entities, aliases, typed entity relationships, and links to memories/projects. Memory project membership is represented by `project_ids` associations. |
 | Attached knowledge | [DocumentService:40](app/services/document_service.py#L40), [CodeArtifactService:40](app/services/code_artifact_service.py#L40), and optional [FileService:40](app/services/file_service.py#L40) manage long text, source snippets, and binary content. They use separate repository contracts and can be associated with memories. |
 | Procedural knowledge | Optional [SkillService:72](app/services/skill_service.py#L72) supports CRUD, semantic search, Markdown/frontmatter import/export, and links to memories/files/documents/code artifacts. Skill repositories receive the same provider adapters as memory repositories. |
-| Planning | Optional [PlanService:34](app/services/plan_service.py#L34) and [TaskService:46](app/services/task_service.py#L46) manage plans, task claims, criteria, and dependencies. [transition_task:223](app/services/task_service.py#L223) validates versions, state transitions, dependencies, and completion criteria; task completion can complete the parent plan. |
+| Planning | Optional [PlanService:37](app/services/plan_service.py#L37) and [TaskService:46](app/services/task_service.py#L46) manage plans, task claims, criteria, and dependencies. [transition_task:223](app/services/task_service.py#L223) validates versions, state transitions, dependencies, and completion criteria; task completion can complete the parent plan. |
 | Graph views | [GraphService:73](app/services/graph_service.py#L73) combines repository traversal with domain-service lookups. [get_subgraph:129](app/services/graph_service.py#L129) bounds depth/node count and asks `MemoryRepository.get_subgraph_nodes` for traversal results across supported object types. |
 | Activity and usage | Optional [EventBus:28](app/events/event_bus.py#L28) dispatches background handlers and per-user streams. [ActivityService:24](app/services/activity_service.py#L24) persists and queries events; it remains queryable when event emission is disabled. Memory read/query events optionally update access counters via [memory_service.py:723](app/services/memory_service.py#L723). |
 | Re-embedding | [ReEmbeddingService:40](app/services/re_embedding_service.py#L40) coordinates full storage reset/batch embedding/validation and targeted rebuilds, using a memory contract and embedding adapter. [main.py:152](main.py#L152) is the operational CLI path. |
@@ -204,18 +204,19 @@ reading in full. Do not load the entire file into context by default.
 - Check relevant warnings and filtering notices. Missing edges do not establish independence.
 - Verify important relationships against source; static call edges can be uncertain.
 
-Useful IDs in this snapshot: `c0015` bootstrap, `c0275` main, `c0239` ToolRegistry,
-`c0255` MemoryService, `c0119` MemoryRepository, `c0142` PostgreSQL memory repository,
-`c0170` SQLite memory repository, `c0250` GraphService, and `c0263` TaskService.
-The source index begins at [map line 4904](docs/assets/mycelium_class_diagram.md#L4904);
-relationships at [5214](docs/assets/mycelium_class_diagram.md#L5214), warnings at
-[8216](docs/assets/mycelium_class_diagram.md#L8216). IDs/positions can change on regeneration.
+Useful IDs in this snapshot: `c0016` bootstrap, `c0276` main, `c0240` ToolRegistry,
+`c0256` MemoryService, `c0120` MemoryRepository, `c0143` PostgreSQL memory repository,
+`c0171` SQLite memory repository, `c0251` GraphService, and `c0264` TaskService.
+The source index begins at [map line 4921](docs/assets/mycelium_class_diagram.md#L4921);
+relationships at [5233](docs/assets/mycelium_class_diagram.md#L5233), warnings at
+[8246](docs/assets/mycelium_class_diagram.md#L8246). IDs/positions can change on regeneration.
 
-The map was freshly analyzed and exported using Mycelium commit `96a9361` with
-`--detail full --max-classes 1000 --test-path tests --test-path test_harness/runs`.
-Repeating the export from the same map produced identical bytes; the regenerated file also matches
-the previous full map. It contains 8,323 lines, 295 indexed boxes, one class diagram, 2,574 listed
-relationships, and 106 extraction warnings. Test filtering removed 4,502 calls and 119 type relationships.
+The map was freshly analyzed and exported using Mycelium 1.0.0 with
+`--max-classes 1000 --test-path tests --test-path test_harness/runs`.
+Repeating the export from the same map produced identical bytes. The output is nonempty and
+contains one class diagram; it was checked as Markdown, without a rendered preview.
+It contains 8,353 lines, 296 indexed boxes, 2,579 listed relationships,
+and 106 extraction warnings. Test filtering removed 4,561 calls and 119 type relationships.
 The box count is below the requested cap; full detail is not proof of complete extraction.
 
 Warnings include unresolved or out-of-scope bases (`Protocol`, `BaseModel`, enums) and `EventBus`'s

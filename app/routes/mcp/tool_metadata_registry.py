@@ -1729,6 +1729,16 @@ def register_plan_tools_metadata(
                     "description": "Plan status (draft, active, completed, archived)",
                     "required": False, "default": "draft", "example": "draft",
                 },
+                {
+                    "name": "external_ref", "type": "Optional[str]",
+                    "description": (
+                        "Opaque reference unique across your plans. Case-sensitive, trimmed, "
+                        "1-255 characters. Duplicate writes fail; recover with list_plans "
+                        "using external_ref alone. Omitted/null updates leave it unchanged."
+                    ),
+                    "required": False, "default": None,
+                    "example": "github:ScottRBK/factory#42",
+                },
                 {"name": "source_repo", "type": "Optional[str]", "description": "Repository/project source for provenance tracking", "required": False, "default": None, "example": "owner/repo"},
                 {"name": "source_files", "type": "Optional[List[str]]", "description": "Files that informed this for provenance tracking", "required": False, "default": None, "example": ["src/main.py"]},
                 {"name": "source_url", "type": "Optional[str]", "description": "URL to source material for provenance tracking", "required": False, "default": None, "example": "https://example.com"},
@@ -1739,7 +1749,7 @@ def register_plan_tools_metadata(
                 {"name": "agent_version", "type": "Optional[str]", "description": "Agent version for provenance tracking", "required": False, "default": None, "example": "1.0"},
                 {"name": "agent_model", "type": "Optional[str]", "description": "LLM model used for provenance tracking", "required": False, "default": None, "example": "claude-sonnet-4-6"},
             ],
-            "returns": "Plan object with id, title, project_id, status, and timestamps",
+            "returns": "Plan with id, title, project_id, status, external_ref, and timestamps",
             "examples": [
                 'execute_forgetful_tool("create_plan", {"title": "Auth implementation", "project_id": 1, "goal": "Add JWT auth"})',
             ],
@@ -1759,6 +1769,16 @@ def register_plan_tools_metadata(
                     "name": "status", "type": "Optional[str]",
                     "description": "New status (draft, active, completed, archived)",
                     "required": False, "default": None, "example": "active",
+                },
+                {
+                    "name": "external_ref", "type": "Optional[str]",
+                    "description": (
+                        "Opaque reference unique across your plans. Case-sensitive, trimmed, "
+                        "1-255 characters. Duplicate writes fail; recover with list_plans "
+                        "using external_ref alone. Omitted/null updates leave it unchanged."
+                    ),
+                    "required": False, "default": None,
+                    "example": "github:ScottRBK/factory#42",
                 },
                 {"name": "source_repo", "type": "Optional[str]", "description": "Repository/project source for provenance tracking", "required": False, "default": None, "example": "owner/repo"},
                 {"name": "source_files", "type": "Optional[List[str]]", "description": "Files that informed this for provenance tracking", "required": False, "default": None, "example": ["src/main.py"]},
@@ -1791,7 +1811,7 @@ def register_plan_tools_metadata(
         },
         {
             "name": "list_plans",
-            "description": "List plans with optional project and status filtering",
+            "description": "List plans by optional project, status, and exact external_ref filters",
             "parameters": [
                 {"name": "ctx", "type": "Context", "description": "FastMCP Context (automatically injected)", "required": True},
                 {"name": "project_id", "type": "Optional[int]", "description": "Filter by project ID", "required": False, "default": None, "example": 1},
@@ -1799,6 +1819,15 @@ def register_plan_tools_metadata(
                     "name": "status", "type": "Optional[str]",
                     "description": "Filter by status (draft, active, completed, archived)",
                     "required": False, "default": None, "example": "active",
+                },
+                {
+                    "name": "external_ref", "type": "Optional[str]",
+                    "description": (
+                        "Exact case-sensitive reference, trimmed, 1-255 characters. "
+                        "Use alone after a conflict to search every project and status."
+                    ),
+                    "required": False, "default": None,
+                    "example": "github:ScottRBK/factory#42",
                 },
             ],
             "returns": "Dictionary with plans list and total_count",

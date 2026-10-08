@@ -1,6 +1,8 @@
 from typing import TYPE_CHECKING
 from uuid import UUID
 
+from pydantic import TypeAdapter
+
 from app.config.logging_config import logging
 from app.config.settings import settings
 from app.exceptions import InvalidStateTransitionError, NotFoundError
@@ -12,6 +14,7 @@ from app.models.activity_models import (
 )
 from app.models.plan_models import (
     VALID_PLAN_TRANSITIONS,
+    ExternalRef,
     Plan,
     PlanCreate,
     PlanStatus,
@@ -103,9 +106,14 @@ class PlanService:
         user_id: UUID,
         project_id: int | None = None,
         status: PlanStatus | None = None,
+        external_ref: str | None = None,
     ) -> list[PlanSummary]:
         logger.info("listing plans", extra={"user_id": str(user_id), "project_id": project_id, "status": status.value if status else None})
-        plans = await self.plan_repo.list_plans(user_id=user_id, project_id=project_id, status=status)
+        if external_ref is not None:
+            external_ref = TypeAdapter(ExternalRef).validate_python(external_ref)
+        plans = await self.plan_repo.list_plans(
+            user_id=user_id, project_id=project_id, status=status, external_ref=external_ref,
+        )
         logger.info("plans retrieved", extra={"count": len(plans)})
         return plans
 

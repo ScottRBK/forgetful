@@ -4,6 +4,10 @@
 import pytest
 from fastmcp.exceptions import ToolError
 
+from tests.plan_external_ref_cases import (
+    TestPlanExternalRefMCP as TestPlanExternalRefMCP,
+)
+
 # ---- Helper to create a project (plans require a project_id) ----
 
 async def _create_project(mcp_client, name="test-project"):
