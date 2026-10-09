@@ -37,8 +37,12 @@
   outputs =
     inputs@{ flake-parts, ... }:
     flake-parts.lib.mkFlake { inherit inputs; } {
-      systems = [ "x86_64-linux" ];
-
+      # x86_64-darwin intentionally omitted (deprecated upstream)
+      systems = [
+        "x86_64-linux"
+        "aarch64-linux"
+        "aarch64-darwin"
+      ];
       imports = [ inputs.git-hooks-nix.flakeModule ];
 
       perSystem =
@@ -66,6 +70,13 @@
               e = if r.success then r.value else "";
             in
             if e != "" then e else "0.0.0+dev";
+
+          # Docker tag parity with docker/metadata-action (build.yml):
+          # CI pushes ghcr.io/<owner>/forgetful with semver + major.minor + latest.
+          # buildLayeredImage takes a single tag, so tag the versioned image here
+          # and `docker tag` the extra aliases after load (see docs/nix.md).
+          # Docker tags must match [\w][\w.-]{0,127}; `+` (e.g. 0.0.0+dev) is invalid.
+          dockerTag = builtins.replaceStrings [ "+" ] [ "-" ] version;
 
           myOverrides = _final: prev: {
             "forgetful-ai" = prev."forgetful-ai".overrideAttrs (_old: {
@@ -137,12 +148,14 @@
           '';
 
           # App + Docker (house patterns): stdenv+makeWrapper server + layered OCI image on 8020
+          # Image repo `forgetful` matches CI (ghcr.io/<owner>/forgetful) and
+          # docker-compose default (`forgetful:latest`); pname stays forgetful-ai.
           packages = {
             forgetful-ai = appPkg;
             default = appPkg;
             docker = pkgs.dockerTools.buildLayeredImage {
-              name = "forgetful-ai";
-              tag = "latest";
+              name = "forgetful";
+              tag = dockerTag;
               created = "now";
               contents = [
                 appPkg
@@ -161,6 +174,12 @@
                 ];
                 ExposedPorts = {
                   "8020/tcp" = { };
+                };
+                Labels = {
+                  "org.opencontainers.image.title" = "forgetful";
+                  "org.opencontainers.image.description" = "MCP Server for AI Agent Memory";
+                  "org.opencontainers.image.version" = version;
+                  "org.opencontainers.image.licenses" = "MIT";
                 };
               };
             };
