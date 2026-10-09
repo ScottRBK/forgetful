@@ -168,6 +168,7 @@ class PostgresMemoryRepository:
             )
         )
 
+        # Apply filters first to reduce expensive vector call on all memories unless necessary
         if importance_threshold:
             stmt = stmt.where(MemoryTable.importance >= importance_threshold)
 

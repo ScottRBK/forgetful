@@ -50,11 +50,11 @@ def register(mcp: FastMCP):
 
         WHAT: Stores single concepts (<400 words), auto-links to similar memories.
 
-        WHEN: Store important facts/decisions/observations, architectual patterns, preferences, observations that will be useful
+        WHEN: Store important facts/decisions/observations, architectural patterns, preferences, observations that will be useful
         to recall when performing similar actions in the future.
 
         BEHAVIOR: Generates memories and auto links to similar memories. Returns a list of memories to be reviewed for updating
-        or to be made obsolete as a result of the new memory -> use the get_memory tool to inspect these. It is your responsiblity to actively maintain and
+        or to be made obsolete as a result of the new memory -> use the get_memory tool to inspect these. It is your responsibility to actively maintain and
         curate the memory store.
 
         NOT-USE: Mega-memories > 400 words (use create_document), making notes on temporary or common knowledge
@@ -196,16 +196,16 @@ def register(mcp: FastMCP):
         """Search across memories
 
         WHEN: User asks about past information, wants to recall discussions, needs context from memory system, you are performing a task that you may
-        have performed previously and previous knowledge would be useful (for example implementing planning a new solution and requiring architectual
+        have performed previously and previous knowledge would be useful (for example implementing planning a new solution and requiring architectural
         preferences, or when encountering an issue that you may have previously solved before). Queries: "What did we decide about X?", 
         "Show memories about Y", "Do you remember Z?". Works best for conceptual queries vs exact keywords. Provide query context around the reason for 
         the search to help improve information retrieval ranking results, for example "looking for information on previous implementation of
-        serilog in c#" or "User encountered a bug using pytorch libary". 
+        serilog in c#" or "User encountered a bug using pytorch library". 
 
         BEHAVIOUR: Performs search and returns top-k primary memories ranked by relevance. Along with linked memories (1-hop neighbours), if include_links=True.
         Auto-applies 8000 token budget, truncates if exceeded. 
         When project_id set: strict_project_filter=True limits linked memories to same project only; False (default) allows cross-project pattern discovery.
-        Uses query context to perform additional ranking of initial canidate list of queries. 
+        Uses query context to perform additional ranking of initial candidate list of queries. 
         
         NOT-USE: Creating memories (use create_memory), listing all without search, retrieving specific ID (use get_memory)
         
@@ -217,11 +217,11 @@ def register(mcp: FastMCP):
             max_links_per_primary: int to defined the maximum number of linked memories per primary memory (default: 5)
             importance_threshold: Minimum importance 1-10 (optional)
             project_ids: Filter results to one or more projects (optional). Accepts array of integers or None.
-            strict_project_filter: Set to true when querying for a specifc project and you want linked memories restricted to that project only.
+            strict_project_filter: Set to true when querying for a specific project and you want linked memories restricted to that project only.
             False (default) allows cross-project discovery pattern
             
         Returns:
-            query: origional query text
+            query: original query text
             primary_memories: List of primary related memories
             linked_memories: List of linked memories to each of the primary memories
             scores: one {memory_id, similarity, rerank_score} per primary memory, same order
@@ -501,7 +501,7 @@ def register(mcp: FastMCP):
         memory_id: int,
         ctx: Context,
     ) -> Memory:
-        """Retreive complete memory details by ID
+        """Retrieve complete memory details by ID
 
         WHEN: You require the full details of a specific memory and you already have an ID, for example from receiving a list of linked memories
         from a project, document or code artifact.
@@ -528,7 +528,7 @@ def register(mcp: FastMCP):
 
             memory = await memory_service.get_memory(user_id=user.id, memory_id=memory_id)
 
-            logger.info("MCP Tool - succesfully retrieved memory", extra={
+            logger.info("MCP Tool - successfully retrieved memory", extra={
                 "memory_id": memory.id,
                 "user_id": user.id,
             })
@@ -556,7 +556,7 @@ def register(mcp: FastMCP):
                 "error_type": type(e).__name__,
                 "error_message": str(e),
             })
-            raise ToolError(f"INTERNAL_ERROR: Retreiving memory failed - {type(e).__name__}: {e!s}")
+            raise ToolError(f"INTERNAL_ERROR: Retrieving memory failed - {type(e).__name__}: {e!s}")
 
     @mcp.tool()
     async def get_recent_memories(
@@ -659,8 +659,8 @@ def register(mcp: FastMCP):
         WHEN: Memory is outdated, contradicted by newer information, or replaced by better memory. This is a key
         tool for memory management, outdated memories polluting the memory system will hamper your ability to complete your goals.
 
-        BEHAVIOUR: Soft deletes the memory so that they no longer appear in your query memory results. Optional superseeded by will
-        link to the superseeding memory, this preserve data integrity while hiding obsolete information.
+        BEHAVIOUR: Soft deletes the memory so that they no longer appear in your query memory results. Optional superseded by will
+        link to the superseding memory, this preserve data integrity while hiding obsolete information.
 
         NOT-USE: temporary hiding (no undo - mark as obsolete is permanent soft delete), updating information (use update_memory), or
         hard deleting (not supported for audit compliance).

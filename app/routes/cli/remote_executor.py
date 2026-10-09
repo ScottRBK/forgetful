@@ -11,7 +11,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 # A real scheme is always followed by "://"; "localhost:8020" is NOT a scheme
-# (urlparse mis-reads its scheme as "localhost"), so match on the "://" form.
+# (urlparse misreads its scheme as "localhost"), so match on the "://" form.
 _SCHEME_RE = re.compile(r"^([a-zA-Z][a-zA-Z0-9+.-]*)://")
 _LOOPBACK_HOSTS = {"localhost", "127.0.0.1", "::1"}
 

@@ -244,7 +244,7 @@ class MemoryService:
         Args:
             user_id: user_id 
             memory_id: memory_id of the memory being updated
-            updated_memory: Memory Update object containg the data to be updated
+            updated_memory: Memory Update object containing the data to be updated
         """
         updated_memory = apply_provenance_defaults_for_update(updated_memory)
 
@@ -601,15 +601,15 @@ class MemoryService:
     ) -> tuple[list[Memory], list[LinkedMemory], int, bool]:
         """Apply token budget and count limits to memory results
 
-        Stategy: 
-        1. Priortise primary memories (sorted by importance)
+        Strategy: 
+        1. Prioritise primary memories (sorted by importance)
         2. Add linked memories if space remains
         3. Enforce hard limit of max_total_count memories
 
         Args:
             primary_memories: List of Memory objects of the primary memories
             linked_memories: List of LinkedMemory objects of the linked memories
-            max_tokens: maxium total tokens allowed
+            max_tokens: maximum total tokens allowed
             max_memories: the maximum number of Memory objects to return
 
         Returns:
