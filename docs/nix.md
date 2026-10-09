@@ -47,11 +47,26 @@ nix build .#forgetful-ai -o result-forgetful   # wrapped app package
 nix build .#docker -o forgetful.tar.gz         # OCI image (~195M)
 ```
 
-Load and run the image without a build-time daemon:
+The image repo is `forgetful` — same as `ghcr.io/<owner>/forgetful` in
+`.github/workflows/build.yml` and the `forgetful:latest` default in
+`docker/docker-compose.yml` (package name stays `forgetful-ai`). The tag is the
+sanitized version (`+` → `-`, since `+` is invalid in Docker tags): local builds
+give `forgetful:0.0.0-dev`; release builds inject the real tag:
+
+```bash
+FORGETFUL_VERSION=$(git describe --tags) nix build --impure .#docker
+```
+
+Load and add the CI-equivalent aliases (`buildLayeredImage` carries one tag, so
+`latest` / `major.minor` are plain `docker tag`s after load):
 
 ```bash
 docker image load -i forgetful.tar.gz
-docker run --rm -p 8020:8020 forgetful-ai:latest
+docker tag forgetful:<version> forgetful:latest
+# optional GHCR aliases:
+# docker tag forgetful:<version> ghcr.io/<owner>/forgetful:<version>
+# docker tag forgetful:<version> ghcr.io/<owner>/forgetful:latest
+docker run --rm -p 8020:8020 forgetful:latest
 curl -sf http://localhost:8020/health
 ```
 
