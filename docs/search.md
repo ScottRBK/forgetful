@@ -47,6 +47,6 @@ For local embeddings and re-ranking we support the use of the excellent embeddin
 We also support Google Embedding models available via the Gemini API
 
 ### [Azure](https://learn.microsoft.com/en-us/azure/ai-foundry/openai/tutorials/embeddings?view=foundry-classic&tabs=command-line)
-Support for the Azure Foundary OpenAI embeddings is now added as well. 
+Support for the Azure Foundry OpenAI embeddings is now added as well. 
 ## Configuration
 The following configuration options are available for search

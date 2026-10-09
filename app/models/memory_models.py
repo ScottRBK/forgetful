@@ -14,7 +14,7 @@ class MemoryCreate(BaseModel):
     create a smaller memory linking to the document
 
     Examples:
-        Good (atomic): "TTS engine prefernece: XTTS-v2"
+        Good (atomic): "TTS engine preferences: XTTS-v2"
         Bad (mega): "Complete TTS evaluation with all pros/cons/results" 
     """
     title: str = Field(
@@ -415,7 +415,7 @@ class MemoryQueryRequest(BaseModel):
     )
     strict_project_filter: bool = Field(
         False,
-        description="Opt out flag to exlcude memories from being retrieved from outside of the project",
+        description="Opt out flag to exclude memories from being retrieved from outside of the project",
     )
 
 class LinkedMemory(BaseModel):

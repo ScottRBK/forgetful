@@ -1,4 +1,4 @@
-"""SQLAlchmey ORM Models for Postgres database
+"""SQLAlchemy ORM Models for Postgres database
 """
 from datetime import UTC, datetime
 from uuid import UUID, uuid4

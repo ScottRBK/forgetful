@@ -2,7 +2,7 @@
 
 This module provides:
 - JSONFormatter: Structured JSON logs
-- ConsoleFormatter: Human-readble for development (with pretty colours)
+- ConsoleFormatter: Human-readable for development (with pretty colours)
 - SensitiveDataFilter: Masks passwords, tokens, connection strings
 - configure_logging(): this just sets up the Queue handler for asyncio-safe logging
 """

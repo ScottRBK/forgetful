@@ -1,4 +1,4 @@
-"""User repository for postgres data acess operations
+"""User repository for postgres data access operations
 """
 from datetime import UTC, datetime
 from uuid import UUID

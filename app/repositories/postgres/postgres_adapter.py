@@ -44,7 +44,7 @@ class PostgresDatabaseAdapter:
          await session.commit()
       except Exception as e:
          logger.exception(
-            msg="Database session intialisation failed",
+            msg="Database session initialisation failed",
             extra={"error": str(e)})
          await session.rollback()
          raise
@@ -60,7 +60,7 @@ class PostgresDatabaseAdapter:
            await session.commit()
        except Exception as e:
            logger.exception(
-            msg="Database system session intialisation failed",
+            msg="Database system session initialisation failed",
             extra={"error": str(e)})
            await session.rollback()
            raise

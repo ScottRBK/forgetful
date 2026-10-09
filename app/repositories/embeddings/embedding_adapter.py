@@ -19,7 +19,7 @@ class EmbeddingsAdapter(Protocol):
         ...
 
 class FastEmbeddingAdapter(EmbeddingsAdapter):
-    """Generate embeddings using the fastembed libary"""
+    """Generate embeddings using the fastembed library"""
 
     def __init__(self, providers: list[str] | None = None):
         logger.info("Initialising Fastembed model", extra={
@@ -72,7 +72,7 @@ class AzureOpenAIAdapter(EmbeddingsAdapter):
     """Generate embeddings using Azure Open AI Embeddings Provider"""
 
     def __init__(self):
-        logger.info("Intialising Azure Open AI embeddings adapter", extra={
+        logger.info("Initialising Azure Open AI embeddings adapter", extra={
             "embedding_model": settings.EMBEDDING_MODEL,
         })
         self.client = AzureOpenAI(

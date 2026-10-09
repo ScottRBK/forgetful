@@ -97,7 +97,7 @@ def _build_fixture_repo(root: Path) -> None:
 
 def load_events(path: Path) -> list[dict[str, Any]]:
     """Read the runner-written event log. The timeout kill can land mid-write, so a
-    torn (unparseable) line is dropped rather than failing the whole session read."""
+    torn (unparsable) line is dropped rather than failing the whole session read."""
     if not path.is_file():
         return []
     events = []

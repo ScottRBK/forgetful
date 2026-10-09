@@ -3,7 +3,7 @@
     - [x] Project 
     - [x] Documents
     - [x] Code Artifacts
-    - [x] Entites (Organisations, individuals, team, devices etc)
+    - [x] Entities (Organisations, individuals, team, devices etc)
     - [x] Skills
     - [ ] Audio
     - [ ] Images
@@ -37,7 +37,7 @@
     - [x] Tasks (state machine, optimistic locking)
     - [x] Acceptance Criteria
     - [x] Task Dependencies (with cycle detection)
-- [x] Logging and Telemtry
+- [x] Logging and Telemetry
     - [x] STDIO / JSON log configuration
     - [x] Open Telemetry forwarding
 - [x] API Routes

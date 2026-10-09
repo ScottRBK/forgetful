@@ -1,4 +1,4 @@
-"""Token counting utilies for context budget management
+"""Token counting utilities for context budget management
 """
 import logging
 
@@ -14,7 +14,7 @@ class TokenCounter:
         try:
             self.encoding = tiktoken.encoding_for_model(model)
         except Exception:
-            logger.warning("Coult not intialise titoken, using fallback", exc_info=True, extra={"model": model})
+            logger.warning("Could not initialise titoken, using fallback", exc_info=True, extra={"model": model})
             # Fallback to cl100k_base encoding
             self.encoding = tiktoken.get_encoding("cl100k_base")
 
