@@ -74,3 +74,8 @@ uv tool run ruff check .
 ```
 
 **Note**: Ruff UP006 rule enforces Python 3.12+ built-in generics (`list` instead of `typing.List`, `dict` instead of `typing.Dict`, etc.). This catches legacy type hint syntax automatically.
+
+## Skills 
+The solution has a [catalogue of skills](./skills/) that is used to help drive agent behaviour, 
+whenever adding or modifying behaviour around tools or the system, you should look to review these 
+and consider whether these need updating as part of the changes you have made to the solution as well.
