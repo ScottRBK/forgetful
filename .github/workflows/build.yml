@@ -5,6 +5,11 @@ on:
     tags:
       - 'v*'
 
+# Do not interrupt publication halfway through updating the release tags.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -14,20 +19,34 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # Reviewed 2026-10-10: v5.5.0, 2bf61fb9464cc67f0cbdeabed6aa0380accd1c70.
+      # Public repository security page listed no advisories; future v5 updates may differ.
+      - name: Set up Docker with attestation storage
+        uses: docker/setup-docker-action@v5
+        with:
+          daemon-config: |
+            {"features": {"containerd-snapshotter": true}}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          # The docker driver stores both image and attestations locally without --load.
+          driver: docker
+
+      - name: Install uv for the regression test
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: '3.12'
+          enable-cache: true
 
       - name: Lowercase repository owner
         id: repo
-        run: echo "owner=$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+        env:
+          OWNER: ${{ github.repository_owner }}
+        run: echo "owner=${OWNER,,}" >> "$GITHUB_OUTPUT"
 
       - name: Extract metadata
         id: meta
@@ -39,12 +58,13 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Build and push Docker image
+      - name: Build release candidate locally
         uses: docker/build-push-action@v5
         with:
           context: .
           file: docker/Dockerfile
-          push: true
+          push: false
+          provenance: mode=max
           build-args: |
             VERSION=${{ steps.meta.outputs.version }}
           tags: ${{ steps.meta.outputs.tags }}
@@ -52,13 +72,34 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Verify published image version
+      - name: Record candidate image identity
+        id: candidate
         env:
           IMAGE: ghcr.io/${{ steps.repo.outputs.owner }}/forgetful:${{ steps.meta.outputs.version }}
-          EXPECTED_VERSION: ${{ steps.meta.outputs.version }}
         run: |
-          docker pull "$IMAGE"
-          actual=$(docker run --rm --entrypoint /app/.venv/bin/python "$IMAGE" \
-            -c 'from importlib.metadata import version; print(version("forgetful-ai"))')
-          echo "Installed forgetful-ai version: $actual"
-          test "$actual" = "$EXPECTED_VERSION"
+          image_id=$(docker image inspect --format '{{.Id}}' "$IMAGE")
+          echo "image_id=$image_id" >> "$GITHUB_OUTPUT"
+
+      - name: Verify version and offline startup, search, restart and recreation
+        env:
+          FORGETFUL_TEST_IMAGE: ${{ steps.candidate.outputs.image_id }}
+          FORGETFUL_TEST_VERSION: ${{ steps.meta.outputs.version }}
+        run: uv run --frozen --no-dev pytest tests/docker/ -v
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish the tested image with its attestations
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+          TESTED_IMAGE_ID: ${{ steps.candidate.outputs.image_id }}
+        run: |
+          while IFS= read -r tag; do
+            [ -n "$tag" ] || continue
+            test "$(docker image inspect --format '{{.Id}}' "$tag")" = "$TESTED_IMAGE_ID"
+            docker push "$tag"
+          done <<< "$TAGS"

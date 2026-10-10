@@ -132,6 +132,62 @@ FASTEMBED_CACHE_DIR=/opt/models/fastembed
 FASTEMBED_LOCAL_FILES_ONLY=true
 ```
 
+## Docker startup without internet
+
+The Docker image installs its Python dependencies and Forgetful during the image build.
+Its default command uses `uv run --no-sync`, so starting a locally available image does
+not contact PyPI or rebuild the package. Building or downloading the image still needs
+internet access. Custom commands that use plain `uv run` must also include `--no-sync`.
+
+Embedding and reranking models are downloaded separately. Memory queries also require
+tiktoken's token-counting data, which uses a separate cache. Both caches must survive
+container recreation; restarting the same container alone does not test this.
+
+For the SQLite Compose deployment, `/app/data` is already mounted to `./data`. Set these
+paths in `docker/.env` **before the initial online startup**:
+
+```dotenv
+FASTEMBED_CACHE_DIR=/app/data/models/fastembed
+TIKTOKEN_CACHE_DIR=/app/data/models/tiktoken
+```
+
+Normal startup downloads the configured FastEmbed models. While internet is available,
+populate the token-counting cache too:
+
+```bash
+docker exec forgetful-service /app/.venv/bin/python -c \
+  'from app.utils.token_counter import TokenCounter; TokenCounter()'
+```
+
+After preparation, set `FASTEMBED_LOCAL_FILES_ONLY=true` to require the cached models.
+Keep these directories when recreating the container. For PostgreSQL or custom deployments,
+mount a persistent directory or volume at your chosen cache paths. Changing paths does not
+move existing cached files; copy or download them into the new directories first.
+
+Fully offline operation also requires locally reachable database, embedding/reranking and
+authentication services, as applicable. Configure the container runner to use the local
+image without requiring a registry pull.
+
+### Container regression check
+
+From the repository root, build an image and run the same check used by CI:
+
+```bash
+docker build -f docker/Dockerfile --build-arg VERSION=0.0.0+dev \
+  -t forgetful:offline-test .
+FORGETFUL_TEST_IMAGE=forgetful:offline-test \
+  uv run --frozen --no-dev pytest tests/docker/ -v
+```
+
+The test first downloads models and token-counting data into a disposable volume. It then
+uses the image's default command with networking disabled and an empty uv cache. It checks
+the installed version, health, memory creation and search, restart, and recreation with
+the same persistent data. It removes its containers and volumes afterward.
+
+Release builds use Docker's containerd image store to retain provenance attestations locally.
+Only after this test succeeds are the same local image and its attestations pushed to the
+release tags. No second image build takes place between verification and publication.
+
 ## Verification
 
 To verify models are cached correctly, check for the presence of `.onnx` files:

@@ -6,6 +6,13 @@ on:
   pull_request:
     branches: ["**"]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -13,6 +20,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
@@ -53,6 +62,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Needed for hatch-vcs version detection
+          persist-credentials: false
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
@@ -86,3 +96,45 @@ jobs:
           echo "✓ CLI command works"
 
           echo "✓ Smoke test passed - wheel installs correctly with all dependencies"
+
+  docker-offline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Docker with attestation storage
+        uses: docker/setup-docker-action@v5
+        with:
+          daemon-config: |
+            {"features": {"containerd-snapshotter": true}}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: '3.12'
+          enable-cache: true
+
+      - name: Build candidate image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile
+          push: false
+          provenance: mode=max
+          tags: forgetful:offline-test
+          build-args: VERSION=0.0.0+dev
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Verify offline startup, search, restart and recreation
+        env:
+          FORGETFUL_TEST_IMAGE: forgetful:offline-test
+          FORGETFUL_TEST_VERSION: 0.0.0+dev
+        run: uv run --frozen --no-dev pytest tests/docker/ -v
