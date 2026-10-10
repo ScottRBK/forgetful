@@ -423,9 +423,9 @@ For all 40+ environment variables with detailed explanations, see [Configuration
 
 ### Guides
 
-- **[Core Concepts](docs/concepts.md)** – Memories vs Entities vs Documents explained
-- **[Complete Tool Reference](docs/tool_reference.md)** – Runtime tools and examples
-- **[REST API Reference](docs/api_reference.md)** – HTTP endpoints for web UI integration
+- [Core Concepts](docs/concepts.md) – Memories vs Entities vs Documents explained
+- [Complete Tool Reference](docs/tool_reference.md) – Runtime tools and examples
+- [REST API Reference](docs/api_reference.md) – HTTP endpoints for web UI integration
 - [Configuration Guide](docs/configuration.md) – All environment variables explained
 - [Connectivity Guide](docs/connectivity_guide.md) – Connect Claude and other MCP clients
 - [Self-Hosting Guide](docs/self-hosting-guide.md) – Deploy on a VPS with Docker
