@@ -62,8 +62,14 @@ def http_server_url(cli_remote_env):
         sock.bind(("127.0.0.1", 0))
         port = sock.getsockname()[1]
 
+    # main.mcp is a process-wide singleton: while one server's lifespan is still
+    # entered, FastMCP skips the next server's lifespan and it keeps the previous
+    # test's services and database. On Windows a client RST can leave a transport
+    # attached to the asyncio server (ProactorEventLoop), so wait_closed() never
+    # returns; the graceful timeout bounds it and lets the lifespan exit.
     config = uvicorn.Config(
         main.mcp.http_app(), host="127.0.0.1", port=port, log_level="error",
+        timeout_graceful_shutdown=2,
     )
     server = uvicorn.Server(config)
     thread = threading.Thread(target=server.run, daemon=True)
@@ -79,6 +85,8 @@ def http_server_url(cli_remote_env):
 
     server.should_exit = True
     thread.join(timeout=15)
+    if thread.is_alive():
+        raise RuntimeError("in-process Forgetful server failed to shut down in time")
 
 
 def invoke_cli(monkeypatch, capsys, argv):
