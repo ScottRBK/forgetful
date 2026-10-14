@@ -14,6 +14,7 @@ from uuid import UUID
 
 from app.config.logging_config import logging
 from app.config.settings import settings
+from app.exceptions import InvalidStateTransitionError, NotFoundError
 from app.models.activity_models import ActionType, ActivityEvent, ActorType, EntityType
 from app.models.memory_models import (
     LinkedMemory,
@@ -348,10 +349,6 @@ class MemoryService:
 
     async def unobsolete_memory(self, user_id: UUID, memory_id: int) -> bool:
         """Restore a soft-deleted memory to active search results."""
-        from pydantic import ValidationError
-
-        from app.exceptions import NotFoundError
-
         logger.info(
             "Restoring obsolete memory",
             extra={"memory_id": memory_id, "user_id": user_id},
@@ -363,19 +360,7 @@ class MemoryService:
         if memory is None:
             raise NotFoundError(f"Memory {memory_id} not found")
         if not memory.is_obsolete:
-            msg = f"Memory {memory_id} is not obsolete"
-            raise ValidationError.from_exception_data(
-                "UnobsoleteMemory",
-                [
-                    {
-                        "type": "value_error",
-                        "loc": ("memory_id",),
-                        "msg": msg,
-                        "input": memory_id,
-                        "ctx": {"error": ValueError(msg)},
-                    },
-                ],
-            )
+            raise InvalidStateTransitionError(f"Memory {memory_id} is not obsolete")
         success = await self.memory_repo.restore_obsolete(
             user_id=user_id,
             memory_id=memory_id,

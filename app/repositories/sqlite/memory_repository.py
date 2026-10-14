@@ -508,31 +508,7 @@ class SqliteMemoryRepository:
 
     async def restore_obsolete(self, user_id: UUID, memory_id: int) -> bool:
         """Clear obsolescence and return the memory to active search."""
-        from pydantic import ValidationError
-
         async with self.db_adapter.session(user_id) as session:
-            fetch_stmt = select(MemoryTable).where(
-                MemoryTable.user_id == str(user_id),
-                MemoryTable.id == memory_id,
-            )
-            row = (await session.execute(fetch_stmt)).scalar_one_or_none()
-            if row is None:
-                raise NotFoundError(f"Memory {memory_id} not found")
-            if not row.is_obsolete:
-                msg = f"Memory {memory_id} is not obsolete"
-                raise ValidationError.from_exception_data(
-                    "RestoreObsolete",
-                    [
-                        {
-                            "type": "value_error",
-                            "loc": ("memory_id",),
-                            "msg": msg,
-                            "input": memory_id,
-                            "ctx": {"error": ValueError(msg)},
-                        },
-                    ],
-                )
-
             stmt = (
                 update(MemoryTable)
                 .where(MemoryTable.user_id == str(user_id), MemoryTable.id == memory_id)

@@ -520,25 +520,9 @@ class InMemoryMemoryRepository(MemoryRepository):
         return True
 
     async def restore_obsolete(self, user_id: UUID, memory_id: int) -> bool:
-        from pydantic import ValidationError
-
         memory = await self.get_memory_by_id(user_id, memory_id)
-        if memory is None:
+        if not memory:
             raise NotFoundError(f"Memory {memory_id} not found")
-        if not memory.is_obsolete:
-            msg = f"Memory {memory_id} is not obsolete"
-            raise ValidationError.from_exception_data(
-                "RestoreObsolete",
-                [
-                    {
-                        "type": "value_error",
-                        "loc": ("memory_id",),
-                        "msg": msg,
-                        "input": memory_id,
-                        "ctx": {"error": ValueError(msg)},
-                    },
-                ],
-            )
         memory.is_obsolete = False
         memory.obsolete_reason = None
         memory.superseded_by = None

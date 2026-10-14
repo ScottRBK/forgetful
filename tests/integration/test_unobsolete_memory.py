@@ -2,9 +2,8 @@
 from uuid import uuid4
 
 import pytest
-from pydantic import ValidationError
 
-from app.exceptions import NotFoundError
+from app.exceptions import InvalidStateTransitionError, NotFoundError
 from app.models.activity_models import ActionType, EntityType
 from app.models.memory_models import MemoryCreate, MemoryQueryRequest
 
@@ -99,7 +98,7 @@ async def test_unobsolete_unknown_id_raises_not_found(test_memory_service):
 
 
 @pytest.mark.asyncio
-async def test_unobsolete_active_memory_raises_validation_error(test_memory_service):
+async def test_unobsolete_active_memory_raises_invalid_state_transition(test_memory_service):
     user_id = uuid4()
     mem_data = MemoryCreate(
         title="Still active",
@@ -111,5 +110,5 @@ async def test_unobsolete_active_memory_raises_validation_error(test_memory_serv
     )
     mem, _ = await test_memory_service.create_memory(user_id=user_id, memory_data=mem_data)
 
-    with pytest.raises(ValidationError, match="is not obsolete"):
+    with pytest.raises(InvalidStateTransitionError, match="is not obsolete"):
         await test_memory_service.unobsolete_memory(user_id=user_id, memory_id=mem.id)

@@ -7,7 +7,7 @@ from pydantic import ValidationError
 
 from app.config.logging_config import logging
 from app.config.settings import settings
-from app.exceptions import NotFoundError
+from app.exceptions import InvalidStateTransitionError, NotFoundError
 from app.middleware.auth import get_user_from_auth
 from app.models.memory_models import (
     Memory,
@@ -752,17 +752,16 @@ def register(mcp: FastMCP):
                 },
             )
             raise ToolError(f"VALIDATION_ERROR: {e!s}")
-        except ValidationError as e:
-            error_details = str(e)
+        except InvalidStateTransitionError as e:
             logger.debug(
                 "MCP Tool - unobsolete_memory validation error",
                 extra={
                     "memory_id": memory_id,
-                    "error_type": "ValidationError",
-                    "error_message": error_details,
+                    "error_type": "InvalidStateTransitionError",
+                    "error_message": str(e),
                 },
             )
-            raise ToolError(f"VALIDATION_ERROR: {error_details}")
+            raise ToolError(f"VALIDATION_ERROR: {e!s}")
         except Exception as e:
             logger.error(
                 "MCP Tool -> unobsolete_memory failed",

@@ -86,7 +86,6 @@ class MemoryRepository(Protocol):
             user_id: UUID,
             memory_id: int,
     ) -> bool:
-        """Clear obsolescence fields and return the memory to active search."""
         ...
     async def get_linked_memories(
             self,
