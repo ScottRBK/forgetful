@@ -19,7 +19,6 @@ from fastmcp.exceptions import ToolError
 
 from app.config.logging_config import logging
 from app.config.settings import settings
-from app.exceptions import InvalidStateTransitionError
 from app.models.tool_registry_models import ToolCategory
 from app.routes.mcp.scope_resolver import get_effective_scopes, get_required_scope
 
@@ -570,8 +569,6 @@ def register(mcp: FastMCP):
 
         except ToolError:
             raise
-        except InvalidStateTransitionError as e:
-            raise ToolError(f"VALIDATION_ERROR: {e!s}")
         except Exception as e:
             logger.error(f"execute_forgetful_tool failed for {tool_name}: {e}", exc_info=True)
             raise ToolError(f"Failed to execute '{tool_name}': {e!s}")
