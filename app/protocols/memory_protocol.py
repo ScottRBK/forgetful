@@ -81,6 +81,13 @@ class MemoryRepository(Protocol):
             superseded_by: int,
     ) -> bool:
         ...
+    async def restore_obsolete(
+            self,
+            user_id: UUID,
+            memory_id: int,
+    ) -> bool:
+        """Clear obsolescence fields and return the memory to active search."""
+        ...
     async def get_linked_memories(
             self,
             user_id: UUID,

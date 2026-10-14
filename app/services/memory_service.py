@@ -346,6 +346,55 @@ class MemoryService:
 
         return success
 
+    async def unobsolete_memory(self, user_id: UUID, memory_id: int) -> bool:
+        """Restore a soft-deleted memory to active search results."""
+        from pydantic import ValidationError
+
+        from app.exceptions import NotFoundError
+
+        logger.info(
+            "Restoring obsolete memory",
+            extra={"memory_id": memory_id, "user_id": user_id},
+        )
+        memory = await self.memory_repo.get_memory_by_id(
+            memory_id=memory_id,
+            user_id=user_id,
+        )
+        if memory is None:
+            raise NotFoundError(f"Memory {memory_id} not found")
+        if not memory.is_obsolete:
+            msg = f"Memory {memory_id} is not obsolete"
+            raise ValidationError.from_exception_data(
+                "UnobsoleteMemory",
+                [
+                    {
+                        "type": "value_error",
+                        "loc": ("memory_id",),
+                        "msg": msg,
+                        "input": memory_id,
+                        "ctx": {"error": ValueError(msg)},
+                    },
+                ],
+            )
+        success = await self.memory_repo.restore_obsolete(
+            user_id=user_id,
+            memory_id=memory_id,
+        )
+        if success:
+            restored = await self.memory_repo.get_memory_by_id(
+                memory_id=memory_id,
+                user_id=user_id,
+            )
+            if restored:
+                await self._emit_event(
+                    user_id=user_id,
+                    entity_type=EntityType.MEMORY,
+                    entity_id=memory_id,
+                    action=ActionType.UPDATED,
+                    snapshot=restored.model_dump(mode="json"),
+                )
+        return success
+
     async def get_memory(
             self,
             user_id: UUID,

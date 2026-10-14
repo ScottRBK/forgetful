@@ -357,6 +357,60 @@ async def test_mark_memory_obsolete_basic_e2e(mcp_client):
 
 
 @pytest.mark.asyncio
+async def test_unobsolete_memory_restores_query_visibility_e2e(mcp_client):
+    """Test unobsolete_memory restores a soft-deleted memory to query results"""
+    create_result = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "create_memory",
+        "arguments": {
+            "title": "Unobsolete E2E Memory",
+            "content": "Content to obsolete then restore via unobsolete_memory",
+            "context": "e2e unobsolete restore path",
+            "keywords": ["unobsolete", "e2e", "restore"],
+            "tags": ["test"],
+            "importance": 7,
+        },
+    })
+    memory_id = create_result.data["id"]
+    await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "mark_memory_obsolete",
+        "arguments": {"memory_id": memory_id, "reason": "e2e obsolete step"},
+    })
+    query_obsolete = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "query_memory",
+        "arguments": {
+            "query": "unobsolete e2e restore",
+            "query_context": "verify filtered while obsolete",
+            "k": 10,
+            "include_links": False,
+        },
+    })
+    assert memory_id not in [m["id"] for m in query_obsolete.data["primary_memories"]]
+
+    restore_result = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "unobsolete_memory",
+        "arguments": {"memory_id": memory_id},
+    })
+    assert restore_result.data["success"] is True
+
+    get_result = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "get_memory",
+        "arguments": {"memory_id": memory_id},
+    })
+    assert get_result.data["is_obsolete"] is False
+
+    query_restored = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "query_memory",
+        "arguments": {
+            "query": "unobsolete e2e restore",
+            "query_context": "verify visible after restore",
+            "k": 10,
+            "include_links": False,
+        },
+    })
+    assert memory_id in [m["id"] for m in query_restored.data["primary_memories"]]
+
+
+@pytest.mark.asyncio
 async def test_mark_memory_obsolete_filtered_from_query_e2e(mcp_client):
     """Test that obsolete memories are filtered from query_memory results"""
     result1 = await mcp_client.call_tool("execute_forgetful_tool", {

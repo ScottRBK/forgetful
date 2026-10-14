@@ -711,6 +711,29 @@ class MemoryToolAdapters:
 
         return {"success": success}
 
+    async def unobsolete_memory(
+        self,
+        ctx: Context,
+        memory_id: int | None = None,
+        id: int | None = None,
+        **kwargs,
+    ) -> dict:
+        """Adapter for unobsolete_memory tool"""
+        mid = memory_id if memory_id is not None else id
+        if mid is None:
+            raise ValueError("unobsolete_memory requires memory_id (or id)")
+        mid = _coerce_int_id(mid, "memory_id")
+        logger.info("MCP Tool -> unobsolete_memory", extra={"memory_id": mid})
+
+        user = await get_user_from_auth(ctx)
+
+        success = await self.memory_service.unobsolete_memory(
+            user_id=user.id,
+            memory_id=mid,
+        )
+
+        return {"success": success}
+
     async def get_recent_memories(
         self,
         ctx: Context,
@@ -848,6 +871,7 @@ def create_memory_adapters(
         "unlink_memories": adapters.unlink_memories,
         "get_memory": adapters.get_memory,
         "mark_memory_obsolete": adapters.mark_memory_obsolete,
+        "unobsolete_memory": adapters.unobsolete_memory,
         "get_recent_memories": adapters.get_recent_memories,
         "rebuild_embeddings": adapters.rebuild_embeddings,
     }

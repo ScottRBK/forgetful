@@ -662,7 +662,7 @@ def register(mcp: FastMCP):
         BEHAVIOUR: Soft deletes the memory so that they no longer appear in your query memory results. Optional superseded by will
         link to the superseding memory, this preserve data integrity while hiding obsolete information.
 
-        NOT-USE: temporary hiding (no undo - mark as obsolete is permanent soft delete), updating information (use update_memory), or
+        NOT-USE: temporary hiding (use unobsolete_memory to restore), updating information (use update_memory), or
         hard deleting (not supported for audit compliance).
 
         Args:
@@ -713,6 +713,69 @@ def register(mcp: FastMCP):
                 "error_message": str(e),
             })
             raise ToolError(f"INTERNAL_ERROR: Marking memory obsolete failed - {type(e).__name__}: {e!s}")
+
+    @mcp.tool()
+    async def unobsolete_memory(
+        memory_id: int,
+        ctx: Context,
+    ) -> bool:
+        """Restore a memory previously marked obsolete (undo soft delete)
+
+        WHEN: A memory was marked obsolete by mistake or needs to re-enter search results.
+
+        BEHAVIOUR: Clears is_obsolete, obsolete_reason, superseded_by, and obsoleted_at.
+
+        Args:
+            memory_id: ID of the obsolete memory to restore
+
+        Returns:
+            True when the memory was restored
+        """
+        try:
+            logger.info("MCP Tool -> unobsolete_memory", extra={"memory_id": memory_id})
+
+            user = await get_user_from_auth(ctx)
+            memory_service = ctx.fastmcp.memory_service
+
+            return await memory_service.unobsolete_memory(
+                user_id=user.id,
+                memory_id=memory_id,
+            )
+
+        except NotFoundError as e:
+            logger.debug(
+                "MCP Tool - unobsolete_memory validation error",
+                extra={
+                    "memory_id": memory_id,
+                    "error_type": "NotFoundError",
+                    "error_message": str(e),
+                },
+            )
+            raise ToolError(f"VALIDATION_ERROR: {e!s}")
+        except ValidationError as e:
+            error_details = str(e)
+            logger.debug(
+                "MCP Tool - unobsolete_memory validation error",
+                extra={
+                    "memory_id": memory_id,
+                    "error_type": "ValidationError",
+                    "error_message": error_details,
+                },
+            )
+            raise ToolError(f"VALIDATION_ERROR: {error_details}")
+        except Exception as e:
+            logger.error(
+                "MCP Tool -> unobsolete_memory failed",
+                exc_info=True,
+                extra={
+                    "memory_id": memory_id,
+                    "error_type": type(e).__name__,
+                    "error_message": str(e),
+                },
+            )
+            raise ToolError(
+                f"INTERNAL_ERROR: Restoring memory failed - {type(e).__name__}: {e!s}",
+            )
 
     @mcp.tool()
     async def rebuild_embeddings(

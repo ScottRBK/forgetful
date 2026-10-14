@@ -421,6 +421,24 @@ execute_forgetful_tool(
 )
 ```
 
+### `unobsolete_memory`
+
+Restore a memory previously marked obsolete (undo `mark_memory_obsolete`).
+
+**Parameters:**
+- `memory_id` (required): ID of the obsolete memory to restore
+
+**Returns:**
+- Boolean success flag
+
+**Example:**
+```python
+execute_forgetful_tool(
+    "unobsolete_memory",
+    {"memory_id": 78},
+)
+```
+
 ### `get_recent_memories`
 
 Retrieve most recent memories sorted by creation timestamp.
