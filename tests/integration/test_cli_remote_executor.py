@@ -24,11 +24,12 @@ async def _seed_oauth_token(token_dir: Path, url: str) -> None:
     so pre-create them before the atomic write lands.
     """
     from fastmcp.client.auth import OAuth
-    from key_value.aio.stores.filetree.store import FileTreeStore
     from mcp.shared.auth import OAuthToken
 
+    from app.routes.cli.token_storage import oauth_token_file_tree_store
+
     adapter = OAuth(
-        mcp_url=url, token_storage=FileTreeStore(data_directory=token_dir),
+        mcp_url=url, token_storage=oauth_token_file_tree_store(token_dir),
     ).token_storage_adapter
     token = OAuthToken(access_token="seeded", token_type="Bearer")
     try:

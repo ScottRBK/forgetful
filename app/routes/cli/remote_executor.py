@@ -53,14 +53,14 @@ def _default_client_factory(url: str, token: str | None):
         return Client(url, auth=token)
 
     from fastmcp.client.auth import OAuth
-    from key_value.aio.stores.filetree.store import FileTreeStore
 
     from app.routes.cli.paths import token_cache_dir
+    from app.routes.cli.token_storage import oauth_token_file_tree_store
 
     cache = token_cache_dir()
     cache.mkdir(parents=True, exist_ok=True)
     cache.chmod(0o700)
-    oauth = OAuth(mcp_url=url, token_storage=FileTreeStore(data_directory=cache))
+    oauth = OAuth(mcp_url=url, token_storage=oauth_token_file_tree_store(cache))
     return Client(url, auth=oauth)
 
 

@@ -31,11 +31,12 @@ def _oauth_client_factory(url: str, token_dir: Path):
     """Build an OAuth fastmcp Client with a persistent on-disk token cache."""
     from fastmcp import Client
     from fastmcp.client.auth import OAuth
-    from key_value.aio.stores.filetree.store import FileTreeStore
+
+    from app.routes.cli.token_storage import oauth_token_file_tree_store
 
     token_dir.mkdir(parents=True, exist_ok=True)
     token_dir.chmod(0o700)
-    oauth = OAuth(mcp_url=url, token_storage=FileTreeStore(data_directory=token_dir))
+    oauth = OAuth(mcp_url=url, token_storage=oauth_token_file_tree_store(token_dir))
     return Client(url, auth=oauth)
 
 
@@ -64,9 +65,10 @@ async def _has_cached_credentials(url: str, token_dir: Path) -> bool:
         return False
 
     from fastmcp.client.auth import OAuth
-    from key_value.aio.stores.filetree.store import FileTreeStore
 
-    oauth = OAuth(mcp_url=url, token_storage=FileTreeStore(data_directory=token_dir))
+    from app.routes.cli.token_storage import oauth_token_file_tree_store
+
+    oauth = OAuth(mcp_url=url, token_storage=oauth_token_file_tree_store(token_dir))
     return await oauth.token_storage_adapter.get_tokens() is not None
 
 
