@@ -7,10 +7,10 @@ from pathlib import Path
 
 import pytest
 
+from app.bootstrap import create_backup_service
 from app.config.settings import settings
 from app.models.memory_models import MemoryCreate
 from app.models.user_models import UserCreate
-from app.services.backup_service import BackupService
 
 
 class BackupTestEmbeddings:
@@ -102,7 +102,7 @@ class BackupRestoreCases:
         if settings.DATABASE == "SQLite":
             # Keep SQLite open so the backup must include committed data still in its WAL.
             assert Path(f"{settings.SQLITE_PATH}-wal").stat().st_size > 0
-        backup = BackupService()
+        backup = create_backup_service()
         backup_path = await backup.create_backup()
 
         # Act: change data and reset vector storage, then restore the saved database.

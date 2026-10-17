@@ -62,6 +62,7 @@ async def lifespan(app):
 
     mcp.user_service = services.user
     mcp.memory_service = services.memory
+    mcp.re_embedding_service = services.re_embedding
     mcp.project_service = services.project
     mcp.code_artifact_service = services.code_artifact
     mcp.document_service = services.document
@@ -156,15 +157,15 @@ async def _run_reembed(args):
     atexit.register(shutdown_logging)
 
     from app.bootstrap import (
+        create_backup_service,
         create_db_adapter,
         create_repositories,
         get_embedding_adapter,
     )
-    from app.services.backup_service import BackupService
     from app.services.re_embedding_service import ReEmbeddingService
 
     embeddings_adapter = get_embedding_adapter()
-    backup_service = BackupService()
+    backup_service = create_backup_service()
 
     print("\n[1/5] Validating configuration...")
     model_display = settings.AZURE_DEPLOYMENT if settings.EMBEDDING_PROVIDER == "Azure" else settings.EMBEDDING_MODEL

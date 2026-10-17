@@ -46,6 +46,10 @@ dependencies = [
 ollama = ["ollama>=0.4"]
 
 [dependency-groups]
+dev = [
+    "grimp==3.17",
+    "import-linter==2.15",
+]
 # Dev-only: drives the UAT walkthrough container; agent-shell-py lives in the
 # container image (test_harness/docker/Dockerfile), not on the host.
 harness = ["docker>=7.1.0"]
@@ -78,3 +82,75 @@ packages = ["app", "main.py"]
 
 [tool.hatch.build.targets.sdist]
 include = ["app", "main.py", "alembic.ini", "alembic/", "README.md", "LICENSE"]
+
+[tool.importlinter]
+root_package = "app"
+include_external_packages = true
+exclude_type_checking_imports = false
+
+[[tool.importlinter.contracts]]
+id = "foundation"
+name = "Models, contracts and shared support stay independent"
+type = "forbidden"
+source_modules = [
+    "app.models", "app.protocols", "app.events", "app.utils",
+    "app.config.settings", "app.config.logging_config",
+    "app.middleware.logging_middleware", "app.exceptions", "app.version",
+]
+forbidden_modules = [
+    "app.services", "app.repositories", "app.routes", "app.bootstrap",
+    "app.middleware.auth", "app.config.auth",
+]
+
+[[tool.importlinter.contracts]]
+id = "services"
+name = "Services use contracts instead of integrations or entry points"
+type = "forbidden"
+source_modules = ["app.services"]
+forbidden_modules = [
+    "app.repositories", "app.routes", "app.bootstrap",
+    "app.middleware.auth", "app.config.auth",
+]
+
+[[tool.importlinter.contracts]]
+id = "repositories"
+name = "Repositories stay independent of workflows and entry points"
+type = "forbidden"
+source_modules = ["app.repositories"]
+forbidden_modules = [
+    "app.services", "app.routes", "app.bootstrap",
+    "app.middleware.auth", "app.config.auth",
+]
+
+[[tool.importlinter.contracts]]
+id = "external"
+name = "Core code stays independent of database, provider and backup integrations"
+type = "forbidden"
+source_modules = [
+    "app.models", "app.protocols", "app.services", "app.events", "app.utils",
+    "app.config.settings", "app.config.logging_config",
+    "app.middleware.logging_middleware", "app.exceptions", "app.version",
+]
+forbidden_modules = [
+    "sqlalchemy", "openai", "google", "fastembed", "httpx", "ollama",
+    "subprocess", "shutil",
+]
+
+[[tool.importlinter.contracts]]
+id = "routes"
+name = "HTTP and MCP handlers use services instead of repositories or bootstrap"
+type = "forbidden"
+source_modules = ["app.routes.api", "app.routes.mcp", "app.middleware.auth"]
+forbidden_modules = ["app.repositories", "app.bootstrap"]
+
+# Keep CLI startup exceptions separate so HTTP/MCP cannot use them to reach bootstrap.
+[[tool.importlinter.contracts]]
+id = "cli"
+name = "CLI uses services with explicit startup wiring"
+type = "forbidden"
+source_modules = ["app.routes.cli"]
+forbidden_modules = ["app.repositories", "app.bootstrap"]
+ignore_imports = [
+    "app.routes.cli.local_executor -> app.bootstrap",
+    "app.routes.cli.context -> app.bootstrap",
+]

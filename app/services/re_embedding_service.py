@@ -9,9 +9,9 @@ from dataclasses import dataclass, field
 from uuid import UUID
 
 from app.config.settings import settings
+from app.protocols.embedding_protocol import EmbeddingsAdapter
 from app.protocols.memory_protocol import MemoryRepository, ValidationResult
-from app.repositories.embeddings.embedding_adapter import EmbeddingsAdapter
-from app.repositories.helpers import build_embedding_text
+from app.utils.embedding_helpers import build_embedding_text
 
 logger = logging.getLogger(__name__)
 
@@ -113,6 +113,41 @@ class ReEmbeddingService:
             total_memories=total,
             validation=validation,
         )
+
+    async def validate_targeted_scope(
+        self,
+        user_id: UUID,
+        memory_ids: list[int] | None,
+        project_id: int | None,
+    ) -> None:
+        """Validate rebuild scope before running embedding work."""
+        if memory_ids is not None and len(memory_ids) == 0:
+            raise ValueError(
+                "memory_ids must be non-empty if provided; "
+                "pass null for global scope",
+            )
+
+        if memory_ids is None or project_id is None:
+            return
+
+        requested_count = len(set(memory_ids))
+        repo = self.memory_repository
+        count_with_project = await repo.count_memories_for_targeted_rebuild(
+            user_id=user_id,
+            memory_ids=memory_ids,
+            project_id=project_id,
+        )
+        count_without_project = await repo.count_memories_for_targeted_rebuild(
+            user_id=user_id,
+            memory_ids=memory_ids,
+        )
+        if count_with_project != count_without_project or count_without_project != requested_count:
+            raise ValueError(
+                "memory_ids do not all belong to "
+                f"project_id={project_id} (or some are not owned/obsolete). "
+                f"expected={requested_count}, matched_in_project={count_with_project}, "
+                f"owned_total={count_without_project}",
+            )
 
     async def rebuild_targeted(
         self,

@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-from app.services.backup_service import BackupService
+from app.bootstrap import create_backup_service
 
 
 @pytest.fixture
@@ -22,12 +22,12 @@ def temp_db(tmp_path):
 @pytest.mark.asyncio
 async def test_sqlite_backup_creates_copy(temp_db):
     """Verify backup file is created at expected path"""
-    with patch("app.services.backup_service.settings") as mock_settings:
+    with patch("app.repositories.backup_adapter.settings") as mock_settings:
         mock_settings.DATABASE = "SQLite"
         mock_settings.SQLITE_PATH = str(temp_db)
         mock_settings.SQLITE_MEMORY = False
 
-        service = BackupService(database_type="SQLite")
+        service = create_backup_service(database_type="SQLite")
         backup_path = await service.create_backup()
 
         assert backup_path.exists()
@@ -38,12 +38,12 @@ async def test_sqlite_backup_creates_copy(temp_db):
 @pytest.mark.asyncio
 async def test_sqlite_restore_overwrites_current(temp_db):
     """Verify restore replaces current DB"""
-    with patch("app.services.backup_service.settings") as mock_settings:
+    with patch("app.repositories.backup_adapter.settings") as mock_settings:
         mock_settings.DATABASE = "SQLite"
         mock_settings.SQLITE_PATH = str(temp_db)
         mock_settings.SQLITE_MEMORY = False
 
-        service = BackupService(database_type="SQLite")
+        service = create_backup_service(database_type="SQLite")
 
         # Create backup
         backup_path = await service.create_backup()
@@ -62,12 +62,12 @@ async def test_sqlite_restore_overwrites_current(temp_db):
 @pytest.mark.asyncio
 async def test_backup_path_contains_timestamp(temp_db):
     """Naming convention check"""
-    with patch("app.services.backup_service.settings") as mock_settings:
+    with patch("app.repositories.backup_adapter.settings") as mock_settings:
         mock_settings.DATABASE = "SQLite"
         mock_settings.SQLITE_PATH = str(temp_db)
         mock_settings.SQLITE_MEMORY = False
 
-        service = BackupService(database_type="SQLite")
+        service = create_backup_service(database_type="SQLite")
         backup_path = await service.create_backup()
 
         # Should contain .bak- and a timestamp-like pattern
@@ -88,12 +88,12 @@ async def test_sqlite_backup_copies_wal_files(temp_db):
     wal_path.write_text("wal content")
     shm_path.write_text("shm content")
 
-    with patch("app.services.backup_service.settings") as mock_settings:
+    with patch("app.repositories.backup_adapter.settings") as mock_settings:
         mock_settings.DATABASE = "SQLite"
         mock_settings.SQLITE_PATH = str(temp_db)
         mock_settings.SQLITE_MEMORY = False
 
-        service = BackupService(database_type="SQLite")
+        service = create_backup_service(database_type="SQLite")
         backup_path = await service.create_backup()
 
         backup_wal = Path(str(backup_path) + "-wal")
@@ -107,7 +107,7 @@ async def test_sqlite_backup_copies_wal_files(temp_db):
 @pytest.mark.asyncio
 async def test_restore_nonexistent_backup_raises():
     """Restoring a nonexistent backup should raise FileNotFoundError"""
-    service = BackupService(database_type="SQLite")
+    service = create_backup_service(database_type="SQLite")
 
     with pytest.raises(FileNotFoundError):
         await service.restore_backup(Path("/nonexistent/backup.db"))
@@ -116,12 +116,12 @@ async def test_restore_nonexistent_backup_raises():
 @pytest.mark.asyncio
 async def test_backup_missing_db_raises(tmp_path):
     """Backing up a nonexistent database should raise FileNotFoundError"""
-    with patch("app.services.backup_service.settings") as mock_settings:
+    with patch("app.repositories.backup_adapter.settings") as mock_settings:
         mock_settings.DATABASE = "SQLite"
         mock_settings.SQLITE_PATH = str(tmp_path / "nonexistent.db")
         mock_settings.SQLITE_MEMORY = False
 
-        service = BackupService(database_type="SQLite")
+        service = create_backup_service(database_type="SQLite")
 
         with pytest.raises(FileNotFoundError):
             await service.create_backup()

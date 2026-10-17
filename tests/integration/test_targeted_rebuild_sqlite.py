@@ -352,7 +352,8 @@ async def test_rebuild_embeddings_rejects_empty_memory_ids(sqlite_repo):
     user_id = uuid4()
     ctx, user_service = _make_ctx(user_id)
     adapters = MemoryToolAdapters(
-        memory_service=SimpleNamespace(memory_repo=repo),
+        memory_service=SimpleNamespace(),
+        re_embedding_service=ReEmbeddingService(repo, _embedding_adapter),
         user_service=user_service,
     )
 
@@ -381,7 +382,8 @@ async def test_rebuild_embeddings_rejects_mismatched_memory_ids_and_project_id(s
     )
     ctx, user_service = _make_ctx(user_id)
     adapters = MemoryToolAdapters(
-        memory_service=SimpleNamespace(memory_repo=repo),
+        memory_service=SimpleNamespace(),
+        re_embedding_service=ReEmbeddingService(repo, _embedding_adapter),
         user_service=user_service,
     )
 

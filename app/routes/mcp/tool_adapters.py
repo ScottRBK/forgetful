@@ -145,56 +145,13 @@ def create_user_adapters(user_service: UserService) -> dict[str, Any]:
 class MemoryToolAdapters:
     """Wraps memory service methods as registry-compatible callables"""
 
-    def __init__(self, memory_service: MemoryService, user_service: UserService):
+    def __init__(
+        self, memory_service: MemoryService, user_service: UserService,
+        re_embedding_service: ReEmbeddingService,
+    ):
         self.memory_service = memory_service
         self.user_service = user_service
-
-    def _build_re_embedding_service(self) -> ReEmbeddingService:
-        """Build a ReEmbeddingService bound to the current memory repository.
-
-        Lazy-built per-call so we always pick up the current embedding adapter
-        and avoid keeping process-wide migration state in this thin adapter.
-        """
-        repo = self.memory_service.memory_repo
-        return ReEmbeddingService(
-            memory_repository=repo,
-            embedding_adapter=repo.embedding_adapter,
-        )
-
-    async def _validate_rebuild_scope(
-        self,
-        user_id,
-        memory_ids: list[int] | None,
-        project_id: int | None,
-    ) -> None:
-        """Validate rebuild scope before running embedding work."""
-        if memory_ids is not None and len(memory_ids) == 0:
-            raise ToolError(
-                "VALIDATION_ERROR: memory_ids must be non-empty if provided; "
-                "pass null for global scope",
-            )
-
-        if memory_ids is None or project_id is None:
-            return
-
-        requested_count = len(set(memory_ids))
-        repo = self.memory_service.memory_repo
-        count_with_project = await repo.count_memories_for_targeted_rebuild(
-            user_id=user_id,
-            memory_ids=memory_ids,
-            project_id=project_id,
-        )
-        count_without_project = await repo.count_memories_for_targeted_rebuild(
-            user_id=user_id,
-            memory_ids=memory_ids,
-        )
-        if count_with_project != count_without_project or count_without_project != requested_count:
-            raise ToolError(
-                "VALIDATION_ERROR: memory_ids do not all belong to "
-                f"project_id={project_id} (or some are not owned/obsolete). "
-                f"expected={requested_count}, matched_in_project={count_with_project}, "
-                f"owned_total={count_without_project}",
-            )
+        self.re_embedding_service = re_embedding_service
 
     async def create_memory(
         self,
@@ -816,13 +773,12 @@ class MemoryToolAdapters:
         )
 
         user = await get_user_from_auth(ctx)
-        await self._validate_rebuild_scope(
-            user_id=user.id,
-            memory_ids=memory_ids,
-            project_id=project_id,
-        )
+        service = self.re_embedding_service
+        try:
+            await service.validate_targeted_scope(user.id, memory_ids, project_id)
+        except ValueError as exc:
+            raise ToolError(f"VALIDATION_ERROR: {exc}") from exc
 
-        service = self._build_re_embedding_service()
         result = await service.rebuild_targeted(
             user_id=user.id,
             memory_ids=memory_ids,
@@ -837,9 +793,10 @@ class MemoryToolAdapters:
 
 def create_memory_adapters(
     memory_service: MemoryService, user_service: UserService,
+    re_embedding_service: ReEmbeddingService,
 ) -> dict[str, Any]:
     """Create all memory tool adapters and return as dict"""
-    adapters = MemoryToolAdapters(memory_service, user_service)
+    adapters = MemoryToolAdapters(memory_service, user_service, re_embedding_service)
     return {
         "create_memory": adapters.create_memory,
         "query_memory": adapters.query_memory,

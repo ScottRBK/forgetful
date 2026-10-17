@@ -2,21 +2,16 @@
 import asyncio
 import logging
 import time
-from typing import Protocol
 
 from google import genai
 from google.genai import types
 from openai import AzureOpenAI, OpenAI
 
 from app.config.settings import settings
+from app.protocols.embedding_protocol import EmbeddingsAdapter
 from app.repositories.embeddings.fastembed_offline import load_fastembed_model
 
 logger = logging.getLogger(__name__)
-
-class EmbeddingsAdapter(Protocol):
-    """Contract for an Embeddings Adapter"""
-    async def generate_embedding(self, text: str) -> list[float]:
-        ...
 
 class FastEmbeddingAdapter(EmbeddingsAdapter):
     """Generate embeddings using the fastembed library"""

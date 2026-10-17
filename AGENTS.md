@@ -29,6 +29,8 @@ Layered architecture:
  routes -> services -> protocols -> repositories/adapters 
 No pollution of service layer with integration/implementation details
 
+Run `uv run pytest tests/architecture/` to check and prove the agreed import boundaries.
+
 ## Testing Philosophy
 We focus on **integration and E2E tests** over unit tests. Tests should cover critical workflows without exhaustive edge case coverage.
 

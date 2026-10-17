@@ -11,10 +11,10 @@ import pytest_asyncio
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
+from app.bootstrap import create_backup_service
 from app.config.settings import settings
 from app.models.memory_models import MemoryCreate
 from app.repositories.postgres.memory_repository import PostgresMemoryRepository
-from app.services.backup_service import BackupService
 from tests.backup_restore_cases import BackupTestEmbeddings
 
 pytestmark = [
@@ -136,7 +136,7 @@ async def test_backup_and_restore_after_schema_modification(memory_repo, db_adap
         assert result.scalar() == 3
 
     # Create backup
-    backup_service = BackupService(database_type="Postgres")
+    backup_service = create_backup_service(database_type="Postgres")
     backup_path = await backup_service.create_backup()
     assert backup_path.exists()
 
@@ -188,7 +188,7 @@ async def test_backup_and_restore_with_data_changes(memory_repo, db_adapter, emb
     user_id, original_memories = await _create_test_memories(memory_repo, db_adapter, count=2)
 
     # Create backup with 2 memories
-    backup_service = BackupService(database_type="Postgres")
+    backup_service = create_backup_service(database_type="Postgres")
     backup_path = await backup_service.create_backup()
 
     try:

@@ -16,6 +16,14 @@ from app.routes.mcp.tool_registry import ToolRegistry
 logger = logging.getLogger(__name__)
 
 
+def create_backup_service(database_type: str | None = None):
+    """Wire the backup workflow to the configured database implementation."""
+    from app.repositories.backup_adapter import DatabaseBackupAdapter
+    from app.services.backup_service import BackupService
+
+    return BackupService(DatabaseBackupAdapter(database_type))
+
+
 def get_embedding_adapter():
     """Create embedding adapter based on settings."""
     from app.repositories.embeddings.embedding_adapter import (
@@ -193,6 +201,7 @@ class Services:
     entity: Any
     graph: Any
     activity: Any
+    re_embedding: Any
     file: Any | None = None
     skill: Any | None = None
     plan: Any | None = None
@@ -240,6 +249,7 @@ async def build_runtime() -> Runtime:
     from app.services.graph_service import GraphService
     from app.services.memory_service import MemoryService
     from app.services.project_service import ProjectService
+    from app.services.re_embedding_service import ReEmbeddingService
     from app.services.user_service import UserService
 
     # Create activity service (always available for API queries)
@@ -256,6 +266,7 @@ async def build_runtime() -> Runtime:
 
     user_service = UserService(repos["user"])
     memory_service = MemoryService(repos["memory"], event_bus=event_bus)
+    re_embedding_service = ReEmbeddingService(repos["memory"], embeddings_adapter)
     if event_bus is not None:
         memory_service.register_access_tracking_handlers(event_bus)
     project_service = ProjectService(repos["project"], event_bus=event_bus)
@@ -314,6 +325,7 @@ async def build_runtime() -> Runtime:
         registry=registry,
         user_service=user_service,
         memory_service=memory_service,
+        re_embedding_service=re_embedding_service,
         project_service=project_service,
         code_artifact_service=code_artifact_service,
         document_service=document_service,
@@ -344,6 +356,7 @@ async def build_runtime() -> Runtime:
         entity=entity_service,
         graph=graph_service,
         activity=activity_service,
+        re_embedding=re_embedding_service,
         file=file_service,
         skill=skill_service,
         plan=plan_service,

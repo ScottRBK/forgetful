@@ -12,13 +12,8 @@ from app.config.logging_config import logging
 from app.config.settings import settings
 from app.exceptions import NotFoundError
 from app.models.memory_models import Memory, MemoryCreate, MemoryScore, MemoryUpdate
-from app.repositories.embeddings.embedding_adapter import EmbeddingsAdapter
+from app.protocols.embedding_protocol import EmbeddingsAdapter
 from app.repositories.embeddings.reranker_adapter import RerankAdapter
-from app.repositories.helpers import (
-    build_contextual_query,
-    build_embedding_text,
-    build_memory_text,
-)
 from app.repositories.postgres.postgres_adapter import PostgresDatabaseAdapter
 from app.repositories.postgres.postgres_tables import (
     CodeArtifactsTable,
@@ -29,6 +24,11 @@ from app.repositories.postgres.postgres_tables import (
     ProjectsTable,
     SkillsTable,
     memory_project_association,
+)
+from app.utils.embedding_helpers import (
+    build_contextual_query,
+    build_embedding_text,
+    build_memory_text,
 )
 
 logger = logging.getLogger(__name__)

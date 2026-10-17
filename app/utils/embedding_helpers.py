@@ -1,4 +1,4 @@
-"""Helper methods for the repository layer"""
+"""Text preparation shared by embedding workflows and repositories"""
 
 import logging
 

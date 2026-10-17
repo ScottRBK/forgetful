@@ -5,8 +5,8 @@ Tests critical workflows without real PostgreSQL dependency
 from unittest.mock import patch
 
 import pytest
-from sqlalchemy.exc import IntegrityError
 
+from app.exceptions import ConflictError
 from app.models.user_models import UserCreate, UserUpdate
 
 
@@ -99,7 +99,7 @@ async def test_user_isolation(test_user_service):
 
 @pytest.mark.asyncio
 async def test_get_or_create_user_handles_race_condition(test_user_service):
-    """IntegrityError on INSERT falls back to SELECT (concurrent upsert race)"""
+    """ConflictError on INSERT falls back to SELECT (concurrent upsert race)"""
     # Pre-create the user so the fallback SELECT succeeds
     user_create = UserCreate(
         external_id="race-user",
@@ -108,7 +108,7 @@ async def test_get_or_create_user_handles_race_condition(test_user_service):
     )
     existing = await test_user_service.get_or_create_user(user_create)
 
-    # Now simulate the race: first SELECT returns None, INSERT raises IntegrityError,
+    # Now simulate the race: first SELECT returns None, INSERT raises ConflictError,
     # fallback SELECT returns the existing user
     repo = test_user_service.user_repo
     original_get = repo.get_user_by_external_id
@@ -122,7 +122,7 @@ async def test_get_or_create_user_handles_race_condition(test_user_service):
         return await original_get(external_id)
 
     async def create_raises(user):
-        raise IntegrityError("duplicate key", params=None, orig=Exception())
+        raise ConflictError("duplicate key")
 
     with patch.object(repo, "get_user_by_external_id", side_effect=get_none_then_real):
         with patch.object(repo, "create_user", side_effect=create_raises):
@@ -135,7 +135,7 @@ async def test_get_or_create_user_handles_race_condition(test_user_service):
 
 @pytest.mark.asyncio
 async def test_update_user_handles_race_condition(test_user_service):
-    """IntegrityError on INSERT in update_user falls back to SELECT"""
+    """ConflictError on INSERT in update_user falls back to SELECT"""
     # Pre-create the user so the fallback SELECT succeeds
     user_create = UserCreate(
         external_id="race-update-user",
@@ -162,7 +162,7 @@ async def test_update_user_handles_race_condition(test_user_service):
         return await original_get(external_id)
 
     async def create_raises(user):
-        raise IntegrityError("duplicate key", params=None, orig=Exception())
+        raise ConflictError("duplicate key")
 
     with patch.object(repo, "get_user_by_external_id", side_effect=get_none_then_real):
         with patch.object(repo, "create_user", side_effect=create_raises):

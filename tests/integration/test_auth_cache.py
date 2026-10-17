@@ -2,7 +2,6 @@
 
 Tests token caching functionality with mock auth providers
 """
-import asyncio
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -78,7 +77,6 @@ async def test_token_cache_miss():
 @pytest.mark.asyncio
 async def test_token_cache_expiration():
     """Test that expired entries are not returned"""
-    # Create cache with very short TTL
     cache = TokenCache(ttl_seconds=1, max_size=100)
 
     user = User(
@@ -87,17 +85,16 @@ async def test_token_cache_expiration():
         email="expire@example.com",
     )
 
-    await cache.set("expiring-token", user)
+    # Control the wall clock used by the cache rather than relying on a real sleep.
+    with patch("app.middleware.auth.time") as clock:
+        clock.time.return_value = 1000.0
+        await cache.set("expiring-token", user)
 
-    # Should be cached initially
-    assert await cache.get("expiring-token") is not None
+        clock.time.return_value = 1000.999
+        assert await cache.get("expiring-token") == user
 
-    # Wait for expiration (use asyncio.sleep to avoid blocking the event loop)
-    await asyncio.sleep(1.5)
-
-    # Should be expired now
-    result = await cache.get("expiring-token")
-    assert result is None
+        clock.time.return_value = 1001.0
+        assert await cache.get("expiring-token") is None
 
 
 @pytest.mark.asyncio

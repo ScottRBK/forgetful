@@ -8,6 +8,10 @@ Before changing code, read the [architecture overview](../architecture.md).
 The [detailed class map](assets/mycelium_class_diagram.md) is supporting material;
 use the overview's advisories to read relevant sections rather than the whole file.
 
+Run `uv run pytest tests/architecture/` before submitting code changes; CI runs the same check.
+It checks imports, verifies that every `app` module is scanned, and proves each rule rejects
+forbidden dependencies; see [the rules and validation notes](dev/architecture-tests.md).
+
 After major code changes, check whether the architecture diagram or explanations need updating.
 Update them when the architecture has changed; small changes do not require regeneration.
 Preserve reviewed explanations that remain accurate. Keep the overview at most 500 lines,
@@ -107,6 +111,12 @@ pytest -m e2e
 These tests are marked with `@pytest.mark.e2e` and validate the full application stack with
 PostgreSQL. Use a disposable database: the E2E fixtures clear its application tables.
 
+#### User creation tests
+
+`test_user_creation_sqlite.py` and `test_user_creation_e2e.py` share cases that check real duplicate
+inserts, preservation of the existing user, recovery when another request creates the user first,
+and propagation of unrelated database errors; only the timing of the competing lookup is arranged.
+
 #### Backup and recovery tests
 
 These tests use a temporary SQLite file or the PostgreSQL E2E database. They check that a
@@ -147,11 +157,13 @@ uv tool run ruff check .
 **Purpose**: Fast feedback for contributors
 
 **Steps**:
-1. Run integration tests (stubbed, no Docker)
-2. Run SQLite E2E tests (in-memory SQLite, full stack)
-3. Run linting
+1. Check architecture boundaries and rule proofs (no database or provider calls).
+2. Run integration tests (stubbed, no Docker).
+3. Run SQLite E2E tests (real SQLite, full stack).
+4. Run linting.
 
-**Status**: Blocks PR merge if fails ✅
+**Merge requirements**: Configure branch rules to require this workflow's `test` check.
+The workflow alone does not make it mandatory for merging.
 
 **Test Coverage**: Integration tests validate business logic with stubs. SQLite E2E tests validate the complete application stack including real database interactions, all without Docker dependencies.
 

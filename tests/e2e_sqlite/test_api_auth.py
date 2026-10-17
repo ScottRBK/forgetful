@@ -30,6 +30,7 @@ from app.services.document_service import DocumentService
 from app.services.entity_service import EntityService
 from app.services.memory_service import MemoryService
 from app.services.project_service import ProjectService
+from app.services.re_embedding_service import ReEmbeddingService
 from app.services.user_service import UserService
 
 # Test tokens for StaticTokenVerifier
@@ -111,6 +112,7 @@ async def sqlite_app_with_auth(embedding_adapter):
                 registry=registry,
                 user_service=user_service,
                 memory_service=memory_service,
+                re_embedding_service=ReEmbeddingService(memory_repository, embedding_adapter),
                 project_service=project_service,
                 code_artifact_service=code_artifact_service,
                 document_service=document_service,

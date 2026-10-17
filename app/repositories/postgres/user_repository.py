@@ -4,9 +4,9 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import select, update
-from sqlalchemy.exc import NoResultFound
+from sqlalchemy.exc import IntegrityError, NoResultFound
 
-from app.exceptions import NotFoundError
+from app.exceptions import ConflictError, NotFoundError
 from app.models.user_models import User, UserCreate, UserUpdate
 from app.repositories.postgres.postgres_adapter import PostgresDatabaseAdapter
 from app.repositories.postgres.postgres_tables import UsersTable
@@ -62,12 +62,17 @@ class PostgresUserRepository:
         Returns:
             User object
         """
-        async with self.db_adapter.system_session() as session:
-            new_user = UsersTable(**user.model_dump())
-            session.add(new_user)
-            await session.flush()
-            await session.refresh(new_user)
-            return User.model_validate(new_user)
+        try:
+            async with self.db_adapter.system_session() as session:
+                new_user = UsersTable(**user.model_dump())
+                session.add(new_user)
+                await session.flush()
+                await session.refresh(new_user)
+                return User.model_validate(new_user)
+        except IntegrityError as exc:
+            if getattr(exc.orig.__cause__, "constraint_name", None) == "ix_users_external_id":
+                raise ConflictError("A user with this external_id already exists") from exc
+            raise
 
     async def update_user(self, user_id: UUID, updated_user: UserUpdate) -> User:
         """Updates the user entity with the incoming UserUpdate object

@@ -3,8 +3,7 @@
 import logging
 from uuid import UUID
 
-from sqlalchemy.exc import IntegrityError
-
+from app.exceptions import ConflictError
 from app.models.user_models import User, UserCreate, UserUpdate
 from app.protocols.user_protocol import UserRepository
 from app.utils.pydantic_helper import get_changed_fields
@@ -62,7 +61,7 @@ class UserService:
             new_user = await self.user_repo.create_user(user=user)
             logger.info("User created")
             return new_user
-        except IntegrityError:
+        except ConflictError:
             # Race condition: another request created this user between our
             # SELECT and INSERT. Re-fetch the winner's row.
             logger.info("User creation race condition, fetching existing user",
@@ -103,7 +102,7 @@ class UserService:
             new_user = await self.user_repo.create_user(user=create_user)
             logger.info("User created")
             return new_user
-        except IntegrityError:
+        except ConflictError:
             logger.info("User creation race condition, fetching existing user",
                         extra={"external_id": user_update.external_id})
             return await self.user_repo.get_user_by_external_id(

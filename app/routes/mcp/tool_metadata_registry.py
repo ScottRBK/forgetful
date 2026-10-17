@@ -879,6 +879,7 @@ def register_all_tools_metadata(
     code_artifact_service,
     document_service,
     entity_service,
+    re_embedding_service,
     plan_service=None,
     task_service=None,
     file_service=None,
@@ -894,6 +895,7 @@ def register_all_tools_metadata(
         code_artifact_service: CodeArtifactService instance
         document_service: DocumentService instance
         entity_service: EntityService instance
+        re_embedding_service: ReEmbeddingService instance created at startup
         plan_service: PlanService instance (optional, behind PLANNING_ENABLED)
         task_service: TaskService instance (optional, behind PLANNING_ENABLED)
         file_service: FileService instance (optional, behind FILES_ENABLED)
@@ -911,7 +913,7 @@ def register_all_tools_metadata(
 
     # Create adapters for all categories
     user_adapters = create_user_adapters(user_service)
-    memory_adapters = create_memory_adapters(memory_service, user_service)
+    memory_adapters = create_memory_adapters(memory_service, user_service, re_embedding_service)
     project_adapters = create_project_adapters(project_service, user_service)
     code_artifact_adapters = create_code_artifact_adapters(code_artifact_service, user_service)
     document_adapters = create_document_adapters(document_service, user_service)

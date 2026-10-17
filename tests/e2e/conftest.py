@@ -69,6 +69,7 @@ from app.services.graph_service import GraphService
 from app.services.memory_service import MemoryService
 from app.services.plan_service import PlanService
 from app.services.project_service import ProjectService
+from app.services.re_embedding_service import ReEmbeddingService
 from app.services.skill_service import SkillService
 from app.services.task_service import TaskService
 from app.services.user_service import UserService
@@ -469,6 +470,7 @@ async def postgres_app(
             registry=registry,
             user_service=user_service,
             memory_service=memory_service,
+            re_embedding_service=ReEmbeddingService(repos["memory"], embedding_adapter),
             project_service=project_service,
             code_artifact_service=code_artifact_service,
             document_service=document_service,

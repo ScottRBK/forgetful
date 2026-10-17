@@ -1,6 +1,6 @@
 # Forgetful architecture
 
-Reviewable, agent-authored overview, checked against the working tree on 2026-10-08.
+Reviewable, agent-authored overview, checked against source on 2026-10-08, with boundary changes checked on 2026-10-17.
 This is a selective interpretation, not an exhaustive dependency inventory.
 The component groupings below are inferred for readability; the described execution paths
 and wiring were verified against source. Line numbers are inspection starting points and may drift.
@@ -49,17 +49,17 @@ commands have additional paths omitted here; the diagram does not assert univers
 | Inspection point | Responsibility |
 | --- | --- |
 | [main.py:46](main.py#L46) | Server lifespan configures logging, calls `build_runtime`, attaches services/registry/scopes to the FastMCP instance, then disposes the runtime on normal shutdown. Logging is deferred to protect STDIO transport. |
-| [main.py:111](main.py#L111), [main.py:305](main.py#L305) | Construct FastMCP with configured authentication; serve over STDIO or HTTP. The CORS branch wraps the HTTP app with Starlette middleware and runs Uvicorn. |
-| [bootstrap.py:215](app/bootstrap.py#L215) | Composition root: choose providers and database, initialize schema, construct repositories, services, optional events, tool registry, and instance scope ceiling. |
-| [bootstrap.py:185](app/bootstrap.py#L185) | `Services` and `Runtime` collect the instances for front doors; optional services are `None` when disabled. This is explicit constructor injection, not a DI container. |
-| [bootstrap.py:364](app/bootstrap.py#L364) | Drain pending event handlers before closing the database; especially relevant to one-shot CLI execution. |
+| [main.py:112](main.py#L112), [main.py:306](main.py#L306) | Construct FastMCP with configured authentication; serve over STDIO or HTTP. The CORS branch wraps the HTTP app with Starlette middleware and runs Uvicorn. |
+| [bootstrap.py:224](app/bootstrap.py#L224) | Composition root: choose providers and database, initialize schema, construct repositories, services, optional events, tool registry, and instance scope ceiling. |
+| [bootstrap.py:193](app/bootstrap.py#L193) | `Services` and `Runtime` collect the instances for front doors; optional services are `None` when disabled. This is explicit constructor injection, not a DI container. |
+| [bootstrap.py:377](app/bootstrap.py#L377) | Drain pending event handlers before closing the database; especially relevant to one-shot CLI execution. |
 | [parser.py:258](app/routes/cli/parser.py#L258) | Dispatch CLI serve, re-embed, tool discovery/calls, memory/project verbs, and authentication commands. |
 
 The bootstrap factories select PostgreSQL or SQLite repositories at
-[bootstrap.py:83](app/bootstrap.py#L83), passing embedding and rerank adapters to memory/skill repositories.
+[bootstrap.py:91](app/bootstrap.py#L91), passing embedding and rerank adapters to memory/skill repositories.
 `FILES_ENABLED`, `SKILLS_ENABLED`, and `PLANNING_ENABLED` control matching repositories, services,
 metadata registration, and HTTP route registration. `GraphService` receives memory/entity repositories
-plus the other services, including optional ones ([bootstrap.py:300](app/bootstrap.py#L300)).
+plus the other services, including optional ones ([bootstrap.py:311](app/bootstrap.py#L311)).
 Settings and validation live in [settings.py:33](app/config/settings.py#L33).
 
 The [local executor:18](app/routes/cli/local_executor.py#L18) builds the same runtime, supplies a
@@ -84,13 +84,13 @@ of registration helpers, not a second `ToolMetadataRegistry` class.
 [MemoryToolAdapters.create_memory:199](app/routes/mcp/tool_adapters.py#L199) illustrates identity
 resolution, argument conversion, model construction, service delegation, and response formatting.
 The older category `*_tools.py` registration functions also appear in the map; their presence does
-not mean they are mounted by `main.py`, which registers `meta_tools` at [line 149](main.py#L149).
+not mean they are mounted by `main.py`, which registers `meta_tools` at [line 150](main.py#L150).
 
 HTTP endpoints are FastMCP custom routes accepting Starlette requests, rather than a separate
 FastAPI application despite the opening docstring in `main.py`.
-[main.py:129](main.py#L129) mounts health, auth info, domain CRUD, graph, and activity routes;
+[main.py:130](main.py#L130) mounts health, auth info, domain CRUD, graph, and activity routes;
 files, skills, plans, and tasks are conditional. The root service-info route starts at
-[main.py:114](main.py#L114). Examples:
+[main.py:115](main.py#L115). Examples:
 
 | Surface | Source and path |
 | --- | --- |
@@ -152,8 +152,8 @@ When reranking is enabled, they retrieve a larger candidate set and rerank when 
 | PostgreSQL | [PostgresDatabaseAdapter:18](app/repositories/postgres/postgres_adapter.py#L18) owns async sessions, commit/rollback, initialization, and disposal. User sessions set `app.current_user_id`; repositories also apply user filters. Backend table definitions start at [postgres_tables.py:26](app/repositories/postgres/postgres_tables.py#L26). |
 | SQLite | [SqliteDatabaseAdapter:46](app/repositories/sqlite/sqlite_adapter.py#L46) owns file/in-memory connections and sessions, loads sqlite-vec, and creates vector virtual tables. Repository queries enforce user ownership. Relational tables start at [sqlite_tables.py:31](app/repositories/sqlite/sqlite_tables.py#L31). |
 | Schema lifecycle | Both database adapters run Alembic during `init_db`; backend selection and migration execution live in [alembic/env.py:1](alembic/env.py#L1), with revisions in [alembic/versions](alembic/versions). Vector-storage initialization also has adapter-specific work. |
-| Embeddings | [EmbeddingsAdapter:16](app/repositories/embeddings/embedding_adapter.py#L16) defines `generate_embedding`. Implementations: local FastEmbed, Azure OpenAI, Google, OpenAI, and Ollama. Selection is explicit in [bootstrap.py:19](app/bootstrap.py#L19). |
-| Reranking | [RerankAdapter:13](app/repositories/embeddings/reranker_adapter.py#L13) has local FastEmbed cross-encoder and HTTP implementations. [bootstrap.py:40](app/bootstrap.py#L40) selects one or disables reranking. |
+| Embeddings | [EmbeddingsAdapter:6](app/protocols/embedding_protocol.py#L6) defines `generate_embedding`. Implementations: local FastEmbed, Azure OpenAI, Google, OpenAI, and Ollama. Selection is explicit in [bootstrap.py:27](app/bootstrap.py#L27). |
+| Reranking | [RerankAdapter:13](app/repositories/embeddings/reranker_adapter.py#L13) has local FastEmbed cross-encoder and HTTP implementations. [bootstrap.py:48](app/bootstrap.py#L48) selects one or disables reranking. |
 
 The two persistence backends implement the same broad contracts but use different SQL/vector
 mechanisms. This source review does not establish complete behavioral parity or transaction equivalence.
@@ -171,14 +171,50 @@ These are explanatory groupings; they do not imply separate subsystems in the so
 | Planning | Optional [PlanService:37](app/services/plan_service.py#L37) and [TaskService:46](app/services/task_service.py#L46) manage plans, task claims, criteria, and dependencies. [transition_task:223](app/services/task_service.py#L223) validates versions, state transitions, dependencies, and completion criteria; task completion can complete the parent plan. |
 | Graph views | [GraphService:73](app/services/graph_service.py#L73) combines repository traversal with domain-service lookups. [get_subgraph:129](app/services/graph_service.py#L129) bounds depth/node count and asks `MemoryRepository.get_subgraph_nodes` for traversal results across supported object types. |
 | Activity and usage | Optional [EventBus:28](app/events/event_bus.py#L28) dispatches background handlers and per-user streams. [ActivityService:24](app/services/activity_service.py#L24) persists and queries events; it remains queryable when event emission is disabled. Memory read/query events optionally update access counters via [memory_service.py:723](app/services/memory_service.py#L723). |
-| Re-embedding | [ReEmbeddingService:40](app/services/re_embedding_service.py#L40) coordinates full storage reset/batch embedding/validation and targeted rebuilds, using a memory contract and embedding adapter. [main.py:152](main.py#L152) is the operational CLI path. |
-| Backup | [BackupService:16](app/services/backup_service.py#L16) selects SQLite file copying or PostgreSQL `pg_dump`/`psql`. This service contains implementation details, an exception to the intended service boundary. |
+| Re-embedding | [ReEmbeddingService:40](app/services/re_embedding_service.py#L40) coordinates full storage reset/batch embedding/validation and targeted rebuilds, using a memory contract and embedding adapter. [main.py:153](main.py#L153) is the operational CLI path. |
+| Backup | [BackupService:9](app/services/backup_service.py#L9) supplies the timestamp and delegates through `BackupAdapter`; [DatabaseBackupAdapter:15](app/repositories/backup_adapter.py#L15) owns SQLite file copying and PostgreSQL `pg_dump`/`psql`. [create_backup_service:19](app/bootstrap.py#L19) connects them. |
 
-Additional boundary caveats: [tool_adapters.py:152](app/routes/mcp/tool_adapters.py#L152) constructs
-the rebuild service by reaching through `MemoryService` to its concrete repository's embedding
-adapter; this property is not the normal route-to-service contract. Re-embedding also imports text
-helpers from the repositories package. These are verified coupling points, not proposed patterns.
+Startup constructs `ReEmbeddingService` and supplies it to MCP handlers; handlers call its
+validation and rebuild methods without accessing `MemoryService.memory_repo`.
+Embedding interfaces live in `app/protocols`; shared text preparation lives in `app/utils`.
+User repositories translate duplicate external IDs to `ConflictError`, which `UserService`
+handles by fetching the existing user after the failed transaction has rolled back.
 Activity handling is asynchronous and not part of the domain write transaction; it is not a durable queue.
+
+## Enforced import boundaries
+
+The six contracts in `pyproject.toml` enforce these rules, including indirect imports:
+
+| Source | Must not import |
+| --- | --- |
+| Models, protocols, events, utilities, settings, logging support, exceptions, version | Services, repositories, routes, bootstrap, authentication middleware/configuration |
+| Services | Repositories, routes, bootstrap, authentication middleware/configuration |
+| Repositories | Services, routes, bootstrap, authentication middleware/configuration |
+| Shared code above and services | `sqlalchemy`, `openai`, `google`, `fastembed`, `httpx`, `ollama`, `subprocess`, `shutil` |
+| API/MCP routes and authentication middleware | Repositories or bootstrap |
+| CLI | Repositories or bootstrap, except the two startup imports below |
+
+All Python files under `app` must be visible to the checker; a regression test verifies this.
+Package markers are required, including for SQLite repositories, middleware, and utilities.
+Bootstrap constructs implementations. The CLI has its own checked rule: only
+`app.routes.cli.local_executor` and `app.routes.cli.context` may import bootstrap directly.
+Other CLI modules may reach bootstrap through those startup imports, but may not import
+repositories or bootstrap themselves. These exceptions belong only to the CLI rule;
+API/MCP handlers still cannot reach bootstrap through CLI code.
+Logging configuration may use `app.middleware.logging_middleware` as shared support.
+Package initializers and generated version metadata are scanned; they are not extra application layers.
+New source areas need an explicit decision about which rules apply.
+
+`main.py` is a standalone startup/operational module, reviewed manually rather than scanned by
+Import Linter; tests, migrations, and the evaluation harness are outside the production rules.
+Static imports in functions, re-exports, and `TYPE_CHECKING` blocks are checked.
+Dynamic imports, runtime attribute access, and arbitrary file/network operations are not checked;
+review those in code review and cover behaviour with integration/E2E tests.
+The external-library list is explicit, not a complete ban on every possible integration.
+
+Run `uv run lint-imports --no-cache` for the rules alone, or
+`uv run pytest tests/architecture/` for the rules, source coverage, and deliberate-violation proofs.
+The CI test job runs the latter; [validation notes](docs/dev/architecture-tests.md) describe the proofs.
 
 ## Tests and validation entry points
 
@@ -191,12 +227,14 @@ Activity handling is asynchronous and not part of the domain write transaction; 
 
 Backend-sensitive changes should exercise both relevant E2E suites; contract/business-rule changes
 should first use the focused integration tests. Source links identify tests, not evidence that those
-suites were run for this documentation-only change. Repository lint command: `uv tool run ruff check .`.
+suites have passed for any particular revision. Repository lint command: `uv tool run ruff check .`.
 
 ## Using the detailed map
 
 The [Mycelium map](docs/assets/mycelium_class_diagram.md) is supporting detail, not required
 reading in full. Do not load the entire file into context by default.
+It is a historical snapshot: the October 17 boundary changes moved embedding/backup types and
+rebuild wiring; use this overview and current source for those components.
 
 - Find the relevant declaration in the source index, reading that index in chunks if needed.
 - Search its diagram identifier for connections and read the relevant line ranges.

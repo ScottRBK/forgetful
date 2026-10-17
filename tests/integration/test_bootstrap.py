@@ -5,6 +5,7 @@ from main.lifespan() into build_runtime()/dispose_runtime() so the CLI and the s
 share one composition root. These tests exercise the factory against in-memory SQLite.
 """
 import asyncio
+from types import SimpleNamespace
 
 from app.bootstrap import Runtime, build_runtime, dispose_runtime
 from app.config.settings import settings
@@ -41,6 +42,13 @@ async def test_build_runtime_wires_registry_and_memory_service(sqlite_runtime_se
         )
         assert memory.id is not None
         assert memory.title == "Bootstrap smoke memory"
+        ctx = SimpleNamespace(
+            fastmcp=SimpleNamespace(auth=None, user_service=runtime.services.user),
+        )
+        rebuilt = await runtime.registry.execute(
+            "rebuild_embeddings", {"memory_ids": [memory.id]}, ctx=ctx,
+        )
+        assert rebuilt == {"rebuilt_ids": [memory.id], "skipped_ids": [], "failed": []}
     finally:
         await dispose_runtime(runtime)
 

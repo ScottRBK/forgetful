@@ -15,9 +15,8 @@ from app.models.skill_models import (
     SkillSummary,
     SkillUpdate,
 )
-from app.repositories.embeddings.embedding_adapter import EmbeddingsAdapter
+from app.protocols.embedding_protocol import EmbeddingsAdapter
 from app.repositories.embeddings.reranker_adapter import RerankAdapter
-from app.repositories.helpers import build_skill_embedding_text
 from app.repositories.sqlite.sqlite_adapter import SqliteDatabaseAdapter
 from app.repositories.sqlite.sqlite_tables import (
     CodeArtifactsTable,
@@ -30,6 +29,7 @@ from app.repositories.sqlite.sqlite_tables import (
     skill_document_association,
     skill_file_association,
 )
+from app.utils.embedding_helpers import build_skill_embedding_text
 
 logger = logging.getLogger(__name__)
 
