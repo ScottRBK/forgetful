@@ -365,20 +365,19 @@ class MemoryService:
             if memory is None:
                 raise NotFoundError(f"Memory {memory_id} not found")
             raise InvalidStateTransitionError(f"Memory {memory_id} is not obsolete")
-        if success:
-            restored = await self.memory_repo.get_memory_by_id(
-                memory_id=memory_id,
+        restored = await self.memory_repo.get_memory_by_id(
+            memory_id=memory_id,
+            user_id=user_id,
+        )
+        if restored:
+            await self._emit_event(
                 user_id=user_id,
+                entity_type=EntityType.MEMORY,
+                entity_id=memory_id,
+                action=ActionType.UPDATED,
+                snapshot=restored.model_dump(mode="json"),
             )
-            if restored:
-                await self._emit_event(
-                    user_id=user_id,
-                    entity_type=EntityType.MEMORY,
-                    entity_id=memory_id,
-                    action=ActionType.UPDATED,
-                    snapshot=restored.model_dump(mode="json"),
-                )
-        return success
+        return True
 
     async def get_memory(
             self,
