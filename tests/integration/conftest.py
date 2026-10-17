@@ -521,8 +521,8 @@ class InMemoryMemoryRepository(MemoryRepository):
 
     async def restore_obsolete(self, user_id: UUID, memory_id: int) -> bool:
         memory = await self.get_memory_by_id(user_id, memory_id)
-        if not memory:
-            raise NotFoundError(f"Memory {memory_id} not found")
+        if not memory or not memory.is_obsolete:
+            return False
         memory.is_obsolete = False
         memory.obsolete_reason = None
         memory.superseded_by = None

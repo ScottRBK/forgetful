@@ -353,18 +353,18 @@ class MemoryService:
             "Restoring obsolete memory",
             extra={"memory_id": memory_id, "user_id": user_id},
         )
-        memory = await self.memory_repo.get_memory_by_id(
-            memory_id=memory_id,
-            user_id=user_id,
-        )
-        if memory is None:
-            raise NotFoundError(f"Memory {memory_id} not found")
-        if not memory.is_obsolete:
-            raise InvalidStateTransitionError(f"Memory {memory_id} is not obsolete")
         success = await self.memory_repo.restore_obsolete(
             user_id=user_id,
             memory_id=memory_id,
         )
+        if not success:
+            memory = await self.memory_repo.get_memory_by_id(
+                memory_id=memory_id,
+                user_id=user_id,
+            )
+            if memory is None:
+                raise NotFoundError(f"Memory {memory_id} not found")
+            raise InvalidStateTransitionError(f"Memory {memory_id} is not obsolete")
         if success:
             restored = await self.memory_repo.get_memory_by_id(
                 memory_id=memory_id,

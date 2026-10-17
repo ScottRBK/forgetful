@@ -441,13 +441,17 @@ class PostgresMemoryRepository:
             return True
 
     async def restore_obsolete(self, user_id: UUID, memory_id: int) -> bool:
-        """Clear obsolescence and return the memory to active search."""
+        """Clear obsolescence and return the memory to active search.
+
+        Returns True only when exactly one obsolete row was updated.
+        """
         async with self.db_adapter.session(user_id) as session:
             stmt = (
                 update(MemoryTable)
                 .where(
                     MemoryTable.user_id == user_id,
                     MemoryTable.id == memory_id,
+                    MemoryTable.is_obsolete.is_(True),
                 )
                 .values(
                     is_obsolete=False,
@@ -459,9 +463,7 @@ class PostgresMemoryRepository:
             )
             result = await session.execute(stmt)
             restored = result.scalar_one_or_none()
-            if not restored:
-                raise NotFoundError(f"Memory {memory_id} not found")
-            return True
+            return restored is not None
 
     async def find_similar_memories(
             self,
