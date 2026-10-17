@@ -43,6 +43,7 @@ _DISCOVER_CORE_SECTIONS = """\
     - link_memories: Manually connect related memories bidirectionally
     - unlink_memories: Remove link between memories
     - mark_memory_obsolete: Soft-delete with audit trail and optional superseded_by
+    - unobsolete_memory: Restore a memory previously marked obsolete
     - get_recent_memories: Get newest memories (timeline view)
 
     **Provenance Tracking** (optional fields for create_memory/update_memory):

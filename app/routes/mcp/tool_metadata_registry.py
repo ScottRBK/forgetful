@@ -672,7 +672,10 @@ def register_memory_tools_metadata(
         {
             "name": "mark_memory_obsolete",
             "mutates": True,
-            "description": "Mark a memory as obsolete (soft delete with audit trail)",
+            "description": (
+                "Mark a memory as obsolete (soft delete with audit trail). "
+                "Restore with unobsolete_memory."
+            ),
             "parameters": [
                 {
                     "name": "memory_id",
@@ -708,6 +711,31 @@ def register_memory_tools_metadata(
                 'execute_forgetful_tool("mark_memory_obsolete", {"memory_id": 42, "reason": "Outdated approach", "superseded_by": 100})',
             ],
             "tags": ["memory", "delete", "obsolete", "lifecycle"],
+        },
+        {
+            "name": "unobsolete_memory",
+            "mutates": True,
+            "description": "Restore a memory previously marked obsolete (undo soft delete)",
+            "parameters": [
+                {
+                    "name": "memory_id",
+                    "type": "int",
+                    "description": "ID of the obsolete memory to restore",
+                    "required": True,
+                    "example": 42,
+                },
+                {
+                    "name": "ctx",
+                    "type": "Context",
+                    "description": "FastMCP Context (automatically injected)",
+                    "required": True,
+                },
+            ],
+            "returns": "Boolean indicating success",
+            "examples": [
+                'execute_forgetful_tool("unobsolete_memory", {"memory_id": 42})',
+            ],
+            "tags": ["memory", "obsolete", "lifecycle"],
         },
         {
             "name": "get_recent_memories",

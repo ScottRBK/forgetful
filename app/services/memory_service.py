@@ -14,6 +14,7 @@ from uuid import UUID
 
 from app.config.logging_config import logging
 from app.config.settings import settings
+from app.exceptions import InvalidStateTransitionError, NotFoundError
 from app.models.activity_models import ActionType, ActivityEvent, ActorType, EntityType
 from app.models.memory_models import (
     LinkedMemory,
@@ -344,6 +345,39 @@ class MemoryService:
                 snapshot=snapshot,
             )
 
+        return success
+
+    async def unobsolete_memory(self, user_id: UUID, memory_id: int) -> bool:
+        """Restore a soft-deleted memory to active search results."""
+        logger.info(
+            "Restoring obsolete memory",
+            extra={"memory_id": memory_id, "user_id": user_id},
+        )
+        memory = await self.memory_repo.get_memory_by_id(
+            memory_id=memory_id,
+            user_id=user_id,
+        )
+        if memory is None:
+            raise NotFoundError(f"Memory {memory_id} not found")
+        if not memory.is_obsolete:
+            raise InvalidStateTransitionError(f"Memory {memory_id} is not obsolete")
+        success = await self.memory_repo.restore_obsolete(
+            user_id=user_id,
+            memory_id=memory_id,
+        )
+        if success:
+            restored = await self.memory_repo.get_memory_by_id(
+                memory_id=memory_id,
+                user_id=user_id,
+            )
+            if restored:
+                await self._emit_event(
+                    user_id=user_id,
+                    entity_type=EntityType.MEMORY,
+                    entity_id=memory_id,
+                    action=ActionType.UPDATED,
+                    snapshot=restored.model_dump(mode="json"),
+                )
         return success
 
     async def get_memory(
