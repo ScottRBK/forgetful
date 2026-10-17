@@ -7,6 +7,7 @@ walkthrough itself.
 """
 import json
 import shutil
+import sys
 from pathlib import Path
 
 import pytest
@@ -84,8 +85,9 @@ def test_staged_mount_copies_and_opens_permissions(tmp_path, staged):
     copy = host_dir / "auth.json"
     assert copy.read_text() == '{"token": "real"}'
     assert copy != secret
-    assert host_dir.stat().st_mode & 0o777 == 0o777
-    assert copy.stat().st_mode & 0o777 == 0o644
+    if sys.platform != "win32":
+        assert host_dir.stat().st_mode & 0o777 == 0o777
+        assert copy.stat().st_mode & 0o777 == 0o644
 
 
 def test_provision_opencode_stages_auth_and_config(tmp_path, staged):

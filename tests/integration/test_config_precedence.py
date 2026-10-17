@@ -35,9 +35,11 @@ def _resolve_forgetful_server(tmp_path, *, cwd_env, user_config_env, shell_env=N
         cwd_env_file.write_text(f"FORGETFUL_SERVER={cwd_env}\n")
 
     config_home = tmp_path / "config"
-    (config_home / "forgetful").mkdir(parents=True)
+    user_config_dir = config_home / "forgetful"
+    user_env_path = user_config_dir / ".env"
     if user_config_env is not None:
-        (config_home / "forgetful" / ".env").write_text(
+        user_env_path.parent.mkdir(parents=True, exist_ok=True)
+        user_env_path.write_text(
             f"FORGETFUL_SERVER={user_config_env}\n",
         )
 
@@ -57,6 +59,10 @@ def _resolve_forgetful_server(tmp_path, *, cwd_env, user_config_env, shell_env=N
         f"""
         import dotenv.main
         dotenv.main.find_dotenv = lambda *a, **k: {discovered!r}
+        import platformdirs
+        from pathlib import Path
+        _user_config_dir = Path({str(user_config_dir)!r})
+        platformdirs.user_config_dir = lambda *a, **k: str(_user_config_dir)
         from app.config.settings import settings
         print(settings.FORGETFUL_SERVER)
         """,

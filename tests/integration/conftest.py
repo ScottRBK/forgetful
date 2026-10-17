@@ -3,7 +3,7 @@
 
 import hashlib
 import random
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 import pytest
@@ -205,7 +205,7 @@ class InMemoryMemoryRepository(MemoryRepository):
         memory_id = self._next_id
         self._next_id += 1
 
-        now = datetime.now(UTC)
+        now = datetime.now(UTC) + timedelta(microseconds=memory_id)
 
         new_memory = Memory(
             id=memory_id,
@@ -746,7 +746,7 @@ class InMemoryProjectRepository(ProjectRepository):
             projects = [p for p in projects if name_lower in p.name.lower()]
 
         # Sort by creation date (newest first)
-        projects.sort(key=lambda p: p.created_at, reverse=True)
+        projects.sort(key=lambda p: (p.created_at, p.id), reverse=True)
 
         # Convert to ProjectSummary
         summaries = [
@@ -778,7 +778,7 @@ class InMemoryProjectRepository(ProjectRepository):
         project_id = self._next_id
         self._next_id += 1
 
-        now = datetime.now(UTC)
+        now = datetime.now(UTC) + timedelta(microseconds=project_id)
 
         new_project = Project(
             id=project_id,
