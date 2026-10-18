@@ -31,6 +31,7 @@ _OPENCODE_AUTH = Path("~/.local/share/opencode/auth.json")
 _INSTALL_TIMEOUT = 300
 _HEALTH_TIMEOUT = 180
 _HOST_EXEC_GRACE = 120
+_MISSING_SDK = "docker SDK (docker-py) is not installed - run `uv sync --group harness`"
 
 IMAGE = "forgetful-test-harness:latest"
 SKILLS_MOUNT = "/skills"
@@ -101,8 +102,27 @@ def provision_agent(
     return volumes
 
 
+def _run_tool(cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
+    """`subprocess.run` that reports a tool failing to run as a harness infra failure.
+
+    A missing binary or a `check=True` non-zero exit would otherwise escape `main()` as
+    a traceback with exit code 1, which the CLI reserves for "partial UAT".
+    """
+    try:
+        return subprocess.run(cmd, **kwargs)
+    except subprocess.CalledProcessError as exc:
+        detail = (exc.stderr or "").strip()
+        raise HarnessInfraError(
+            f"`{' '.join(cmd[:2])}` failed (exit {exc.returncode}):\n{detail}",
+        ) from exc
+    except OSError as exc:
+        raise HarnessInfraError(
+            f"could not run `{cmd[0]}` ({exc}) - is it installed and on PATH?",
+        ) from exc
+
+
 def export_requirements() -> str:
-    result = subprocess.run(
+    result = _run_tool(
         [
             "uv", "export", "--frozen", "--no-dev", "--no-emit-project",
             "--format", "requirements-txt",
@@ -116,8 +136,24 @@ def requirements_hash(requirements: str) -> str:
     return hashlib.sha256(requirements.encode()).hexdigest()[:16]
 
 
+def docker_sdk():
+    """Import docker-py, or fail as an infra error naming the missing dependency group.
+
+    Without the SDK, `import docker` can still succeed: the repo's top-level `docker/`
+    directory (compose files, no __init__.py) resolves as an empty namespace package
+    that has no `errors` or `from_env`.
+    """
+    try:
+        import docker
+    except ImportError as exc:
+        raise HarnessInfraError(_MISSING_SDK) from exc
+    if not hasattr(docker, "errors"):
+        raise HarnessInfraError(_MISSING_SDK)
+    return docker
+
+
 def _docker_client():
-    import docker
+    docker = docker_sdk()
 
     try:
         return docker.from_env()
@@ -131,11 +167,10 @@ def ensure_image(rebuild: bool = False, log=print) -> None:
     """Build the harness image when it is absent or its baked dependency tree no
     longer matches the lock file - stale images have burned real runs before
     (eval-harness mem 1622), so the lock hash is checked, not assumed."""
-    import docker
-
     requirements = export_requirements()
     digest = requirements_hash(requirements)
     if not rebuild:
+        docker = docker_sdk()
         try:
             image = _docker_client().images.get(IMAGE)
             if image.labels.get(_HASH_LABEL) == digest:
@@ -146,7 +181,7 @@ def ensure_image(rebuild: bool = False, log=print) -> None:
 
     (_DOCKER_DIR / "requirements.lock").write_text(requirements)
     log(f"building {IMAGE} ...")
-    build = subprocess.run(
+    build = _run_tool(
         [
             "docker", "build", "-t", IMAGE,
             "--label", f"{_HASH_LABEL}={digest}", str(_DOCKER_DIR),
@@ -162,7 +197,7 @@ def _prepare_harness_mount(run_dir: Path) -> Path:
     # absolute: `uv build` runs with cwd=_REPO_ROOT, so a relative -o would land there
     harness_dir = run_dir.resolve() / "harness"
     harness_dir.mkdir(exist_ok=True)
-    build = subprocess.run(
+    build = _run_tool(
         ["uv", "build", "--wheel", "-o", str(harness_dir)],
         cwd=_REPO_ROOT, capture_output=True, text=True, check=False,
     )
@@ -190,7 +225,7 @@ class AgentContainer:
         self._container = None
 
     def start(self) -> None:
-        import docker
+        docker = docker_sdk()
 
         self._client = _docker_client()
         volumes = provision_agent(self.config.agent_type, self._staged)
@@ -294,9 +329,8 @@ class AgentContainer:
         return self._client.api.exec_inspect(exec_id)["ExitCode"], buffer
 
     def stop(self) -> None:
-        import docker
-
         if self._container is not None:
+            docker = docker_sdk()
             try:
                 self._container.stop(timeout=5)
                 self._container.remove()
