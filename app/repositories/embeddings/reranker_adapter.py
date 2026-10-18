@@ -49,7 +49,7 @@ class FastEmbedCrossEncoderAdapter:
             factory=lambda fastembed_kwargs: self._create_text_cross_encoder(
                 model=model,
                 threads=threads,
-                cache_dir=cache_dir,
+                cache_dir=effective_cache_dir,
                 providers=providers,
                 fastembed_kwargs=fastembed_kwargs,
             ),
