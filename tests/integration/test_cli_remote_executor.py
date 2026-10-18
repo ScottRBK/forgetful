@@ -420,12 +420,13 @@ async def test_auth_status_no_credentials_verifies_without_touching_cache(
     assert not empty_cache.exists()  # status wrote nothing to disk
 
 
-async def test_auth_status_with_cached_tokens_reuses_oauth_client(
+async def test_auth_status_with_cached_tokens_sends_cached_token_as_bearer(
     monkeypatch, tmp_path, capsys,
 ):
-    """A URL-scoped token for the current server means we're logged in: status reads it
-    via the default OAuth client and must NOT downgrade to the no-auth client (which
-    can't authenticate against a secured server)."""
+    """A URL-scoped token for the current server means we're logged in: status sends
+    that cached access token as a plain bearer. It must NOT downgrade to the no-auth
+    client (which can't authenticate against a secured server) nor use the interactive
+    OAuth client (which registers, opens a browser and rewrites the cache on a 401)."""
     monkeypatch.delenv("FORGETFUL_TOKEN", raising=False)
     cache = tmp_path / "tokens"
     cache.mkdir()
@@ -438,8 +439,8 @@ async def test_auth_status_with_cached_tokens_reuses_oauth_client(
     code = await auth_commands.status(server="http://remote:8020/mcp")
 
     assert code == 0
-    assert _RecordingExecutor.built["token"] is None
-    assert _RecordingExecutor.built["client_factory"] is None  # default OAuth path
+    assert _RecordingExecutor.built["token"] == "seeded"
+    assert _RecordingExecutor.built["client_factory"] is None  # default factory, bearer auth
     out = capsys.readouterr().out
     assert "Cached credentials: yes" in out
 

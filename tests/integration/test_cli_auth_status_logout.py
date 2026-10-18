@@ -5,6 +5,11 @@ External boundaries are faked: a loopback HTTP server stands in for a secured re
 and RemoteExecutor is swapped for a recording stub where only the wiring matters.
 The token cache itself is the real on-disk FileTreeStore under tmp_path.
 """
+import asyncio
+import json
+import threading
+import webbrowser
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
@@ -173,3 +178,120 @@ def test_bearer_token_env_helper_is_shared():
         with pytest.raises(ValueError) as excinfo:
             remote_executor.bearer_token_from_env()
         assert "bad" not in str(excinfo.value)
+
+
+# =============================================================================
+# auth status never runs the interactive OAuth flow
+# =============================================================================
+
+
+async def test_auth_status_sends_cached_access_token_as_plain_bearer(
+    token_cache, stub_executor, capsys,
+):
+    await _seed_cache(token_cache, "http://remote:8020/mcp", access_token="cached-access")
+
+    code = await auth_commands.status(server="http://remote:8020/mcp")
+
+    assert code == 0
+    # A plain bearer client: no OAuth provider (so no registration/browser/cache writes)
+    assert stub_executor.built == {"token": "cached-access", "client_factory": None}
+    assert "Cached credentials: yes" in capsys.readouterr().out
+
+
+async def test_auth_status_env_token_beats_cached_token(
+    monkeypatch, token_cache, stub_executor,
+):
+    await _seed_cache(token_cache, "http://remote:8020/mcp", access_token="cached-access")
+    monkeypatch.setenv("FORGETFUL_TOKEN", SECRET)
+
+    await auth_commands.status(server="http://remote:8020/mcp")
+
+    assert stub_executor.built["token"] == SECRET
+
+
+class _FakeSecuredServer:
+    """Loopback server: 401 on /mcp; the OAuth endpoints a login flow would hit."""
+
+    def __init__(self):
+        self.requests: list[tuple[str, str, str | None]] = []
+        self._lock = threading.Lock()
+        self._authorize_hits = 0
+        outer = self
+
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *args, **kwargs):
+                pass
+
+            def _respond(self):
+                length = int(self.headers.get("Content-Length") or 0)
+                if length:
+                    self.rfile.read(length)
+                path = self.path.split("?")[0]
+                with outer._lock:
+                    outer.requests.append((self.command, path, self.headers.get("Authorization")))
+                    if path == "/authorize":
+                        outer._authorize_hits += 1
+                status, body, headers = outer._answer(self.command, path)
+                self.send_response(status)
+                for name, value in headers.items():
+                    self.send_header(name, value)
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            do_GET = do_POST = do_DELETE = _respond
+
+        self._server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self.url = f"http://127.0.0.1:{self._server.server_address[1]}/mcp"
+
+    def _answer(self, method, path):
+        if path == "/mcp":
+            return 401, b"unauthorized", {"WWW-Authenticate": "Bearer"}
+        if path == "/authorize":
+            return (400 if self._authorize_hits == 1 else 200), b"x", {}
+        if path == "/register" and method == "POST":
+            body = json.dumps({
+                "client_id": "newly-registered-client",
+                "redirect_uris": ["http://localhost:1/callback"],
+                "token_endpoint_auth_method": "none",
+                "grant_types": ["authorization_code", "refresh_token"],
+                "response_types": ["code"],
+            }).encode()
+            return 201, body, {"Content-Type": "application/json"}
+        return 404, b"not found", {}
+
+    def __enter__(self):
+        threading.Thread(target=self._server.serve_forever, daemon=True).start()
+        return self
+
+    def __exit__(self, *exc_info):
+        self._server.shutdown()
+        self._server.server_close()
+
+
+async def test_auth_status_with_rejected_cached_token_stays_read_only(
+    monkeypatch, token_cache, capsys,
+):
+    """A stale/revoked cached token makes the server answer 401. status must report it
+    and exit 1 - not register a client, open a browser, wait for a callback, or
+    delete/replace the cached credentials."""
+    opened: list[str] = []
+    monkeypatch.setattr(webbrowser, "open", lambda url, *a, **k: opened.append(url) or True)
+
+    with _FakeSecuredServer() as server:
+        await _seed_cache(token_cache, server.url, access_token="stale-token")
+        before = _snapshot(token_cache)
+        assert any(b"cached-client-id" in blob for blob in before.values())
+
+        code = await asyncio.wait_for(auth_commands.status(server=server.url), timeout=20)
+
+    err = capsys.readouterr().err
+    seen = [(method, path) for method, path, _ in server.requests]
+    assert code == 1
+    assert "not authenticated" in err
+    assert ("POST", "/register") not in seen
+    assert not any(path == "/authorize" for _, path in seen)
+    assert opened == []
+    assert _snapshot(token_cache) == before
+    # The cached token was what got sent
+    assert {auth for _, path, auth in server.requests if path == "/mcp"} == {"Bearer stale-token"}

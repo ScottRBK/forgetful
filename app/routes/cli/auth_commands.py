@@ -52,24 +52,24 @@ def _plain_client_factory(url: str, _token: str | None = None):
     return Client(url)
 
 
-async def _has_cached_credentials(url: str, token_dir: Path) -> bool:
-    """True only when the OAuth cache holds tokens for exactly this server URL.
+async def _cached_access_token(url: str, token_dir: Path) -> str | None:
+    """The access token the OAuth cache holds for exactly this server URL, or None.
 
     fastmcp's FileTreeStore scopes token entries per server URL, so a bare "is the
-    cache non-empty" test would treat server A's tokens as valid for server B and push
-    status onto the OAuth path (dynamic client registration + browser) for a server we
-    never logged into. Short-circuit an empty cache so a read-only status check writes
-    nothing, then ask fastmcp's own token store whether it holds tokens for this URL.
+    cache non-empty" test would treat server A's tokens as valid for server B. Short-
+    circuit an empty cache so a read-only status check writes nothing, then ask
+    fastmcp's own token store for this URL's tokens.
     """
     if not (token_dir.exists() and any(token_dir.iterdir())):
-        return False
+        return None
 
     from fastmcp.client.auth import OAuth
 
     from app.routes.cli.token_storage import oauth_token_file_tree_store
 
     oauth = OAuth(mcp_url=url, token_storage=oauth_token_file_tree_store(token_dir))
-    return await oauth.token_storage_adapter.get_tokens() is not None
+    tokens = await oauth.token_storage_adapter.get_tokens()
+    return tokens.access_token if tokens else None
 
 
 async def login(
@@ -100,11 +100,13 @@ async def login(
 async def status(*, server: str | None = None) -> int:
     """Report the active mode; in remote mode prove the credentials work.
 
-    A status check must never mint credentials. We pick the client by what we already
-    hold: a bearer token, or an existing OAuth cache to read; with neither we verify
-    through a plain (no-OAuth) client so we never register a client or resurrect the
-    cache logout cleared (nor pop a browser). A no-auth server still answers, so the
-    User line is preserved; a secured server errors cleanly.
+    A status check must never mint credentials or change state, so it never runs the
+    interactive OAuth flow (no client registration, no browser, no callback wait, no
+    cache clearing). It sends what we already hold as a plain bearer token - the
+    FORGETFUL_TOKEN env var, else the access token cached by `auth login` - and with
+    neither it verifies through a plain (no-auth) client. A rejected or expired token
+    therefore fails fast as "not authenticated"; a no-auth server still answers, so
+    the User line is preserved.
     """
     from app.config.settings import settings
 
@@ -118,12 +120,12 @@ async def status(*, server: str | None = None) -> int:
 
     token = bearer_token_from_env()
     cache = token_cache_dir()
-    cached = await _has_cached_credentials(normalize_server_url(url), cache)
+    normalized_url = normalize_server_url(url)
+    cached_token = await _cached_access_token(normalized_url, cache)
 
-    if token:
-        executor = RemoteExecutor(url, token=token)
-    elif cached:
-        executor = RemoteExecutor(url)
+    bearer = token or cached_token
+    if bearer:
+        executor = RemoteExecutor(url, token=bearer)
     else:
         executor = RemoteExecutor(url, client_factory=_plain_client_factory)
 
@@ -132,6 +134,12 @@ async def status(*, server: str | None = None) -> int:
     except Exception as exc:
         print(f"Server: {executor.server_url}", file=sys.stderr)
         print(f"Error: not authenticated: {exc}", file=sys.stderr)
+        if cached_token and not token:
+            print(
+                f"If the cached login has expired, run `forgetful auth login "
+                f"--server {executor.server_url}`.",
+                file=sys.stderr,
+            )
         return 1
     finally:
         await executor.close()
@@ -139,7 +147,7 @@ async def status(*, server: str | None = None) -> int:
     name = user.get("name") if isinstance(user, dict) else str(user)
     print(f"Server: {executor.server_url}")
     print(f"User: {name}")
-    print(f"Cached credentials: {'yes' if cached else 'no'}")
+    print(f"Cached credentials: {'yes' if cached_token else 'no'}")
     return 0
 
 
