@@ -48,7 +48,7 @@ class UserService:
                                 "external_id": user.external_id,
                                 "changed_fields": list(changed_fields.keys()),
                             })
-                update_data = UserUpdate(**user.model_dump())
+                update_data = UserUpdate(**user.model_dump(exclude_unset=True))
                 return await self.user_repo.update_user(
                     user_id=existing_user.id,
                     updated_user=update_data)
