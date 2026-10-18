@@ -14,7 +14,12 @@ from pathlib import Path
 from test_harness.config import HarnessConfig
 from test_harness.container import AgentContainer, ensure_image
 from test_harness.server import HarnessInfraError, ThrowawayForgetful
-from test_harness.walkthrough import SkillRunResult, Walkthrough
+from test_harness.walkthrough import (
+    FIXTURE_SKILL,
+    SkillRunResult,
+    Walkthrough,
+    preflight_fixture_repo,
+)
 
 
 def config_from_argv(argv: list[str]) -> HarnessConfig:
@@ -64,6 +69,8 @@ def _print_summary(results: list[SkillRunResult], run_dir: Path) -> None:
 
 
 async def _run(config: HarnessConfig) -> int:
+    if FIXTURE_SKILL in config.skills:
+        preflight_fixture_repo()
     run_dir = config.output_dir / f"{time.strftime('%Y%m%d-%H%M%S')}-{config.agent_type}"
     run_dir.mkdir(parents=True, exist_ok=False)
 

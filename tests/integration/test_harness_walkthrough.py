@@ -7,6 +7,7 @@ prompt hand-off, status derivation from the event file, breach scan, report coll
 meta — with no docker and no model calls.
 """
 import json
+import os
 import subprocess
 from dataclasses import dataclass, field
 
@@ -242,17 +243,20 @@ def test_encode_repo_workspace_gets_fixture_repo(tmp_path):
     workspace = prepare_workspace(tmp_path / "forgetful-encode-repo", "forgetful-encode-repo",
                                   config.skills_dir)
 
-    # Assert: a tiny committed git repo with a fake origin for project resolution
+    # Assert: a tiny committed git repo with a fake origin for project resolution.
+    # Inspect it without inherited GIT_* (a pre-commit hook in a linked worktree exports
+    # GIT_DIR, which would point these commands at the caller's repo instead)
     fixture = workspace / "fixture-repo"
     assert (fixture / ".git").is_dir()
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
     remote = subprocess.run(
         ["git", "remote", "get-url", "origin"],
-        cwd=fixture, capture_output=True, text=True, check=True,
+        cwd=fixture, env=env, capture_output=True, text=True, check=True,
     ).stdout.strip()
     assert remote.endswith("uat-fixture-calc.git")
     log = subprocess.run(
         ["git", "log", "--oneline"],
-        cwd=fixture, capture_output=True, text=True, check=True,
+        cwd=fixture, env=env, capture_output=True, text=True, check=True,
     ).stdout
     assert log.strip()
 

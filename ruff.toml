@@ -74,6 +74,7 @@ select = [
 "test_harness/container.py" = ["S603", "S607"]  # Trusted subprocess: uv/docker build plumbing
 "test_harness/docker/runner.py" = ["S108"]  # Container-side /tmp, dies with the container
 "tests/integration/test_harness_walkthrough.py" = ["S607"]  # Trusted subprocess: git inspection
+"tests/integration/test_harness_fixture_and_report.py" = ["S603", "S607"]  # Trusted subprocess: git inspection
 
 [lint.pydocstyle]
 convention = "google"

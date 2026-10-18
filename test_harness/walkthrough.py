@@ -10,8 +10,10 @@ Trust boundary: harness defects raise; agent-side anomalies (timeout, no result 
 missing/malformed report) become recorded findings in meta.json.
 """
 import json
+import os
 import shutil
 import subprocess
+import tempfile
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -20,7 +22,9 @@ from typing import Any, Literal, Protocol
 from test_harness.config import HarnessConfig
 from test_harness.prompts import build_prompt
 from test_harness.report import ReportLoad, load_report
+from test_harness.server import HarnessInfraError
 
+FIXTURE_SKILL = "forgetful-encode-repo"  # the one skill that works on a git repo
 _FIXTURE_ORIGIN = "https://github.com/scottrbk/uat-fixture-calc.git"
 _FIXTURE_FILES = {
     "README.md": "# uat-fixture-calc\n\nA tiny calculator used as an encoding target.\n",
@@ -73,9 +77,28 @@ def prepare_workspace(skill_dir: Path, skill: str, skills_dir: Path) -> Path:
     workspace = skill_dir / "workspace"
     workspace.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(skills_dir / skill / "SKILL.md", workspace / "SKILL.md")
-    if skill == "forgetful-encode-repo":
+    if skill == FIXTURE_SKILL:
         _build_fixture_repo(workspace / "fixture-repo")
     return workspace
+
+
+def _hermetic_git_env(home: Path) -> dict[str, str]:
+    """Environment for the fixture's git calls: nothing inherited that could redirect
+    them. Git exports GIT_DIR/GIT_INDEX_FILE to hooks (absolute, inside a linked
+    worktree), which would otherwise point every command at the *caller's* repository;
+    the developer's own config (signing, hooks, excludes, templates) must not apply to
+    a throwaway repo either."""
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    env.update(
+        GIT_CONFIG_GLOBAL=os.devnull,
+        GIT_CONFIG_NOSYSTEM="1",
+        GIT_TERMINAL_PROMPT="0",
+        # Older git ignores GIT_CONFIG_GLOBAL and falls back to these
+        HOME=str(home),
+        XDG_CONFIG_HOME=str(home),
+        USERPROFILE=str(home),
+    )
+    return env
 
 
 def _build_fixture_repo(root: Path) -> None:
@@ -84,15 +107,43 @@ def _build_fixture_repo(root: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content)
 
-    def git(*args: str) -> None:
-        subprocess.run(["git", *args], cwd=root, check=True, capture_output=True)
+    with tempfile.TemporaryDirectory(prefix="uat-fixture-git-") as home:
+        env = _hermetic_git_env(Path(home))
+        # The empty home doubles as the hooks dir: no hook can fire on the fixture commit
+        overrides = [
+            "-c", f"core.hooksPath={home}",
+            "-c", "commit.gpgsign=false",
+            "-c", "tag.gpgsign=false",
+            "-c", "init.defaultBranch=main",
+        ]
 
-    git("init", "-q")
-    git("config", "user.email", "uat-fixture@localhost")
-    git("config", "user.name", "UAT Fixture")
-    git("add", "-A")
-    git("commit", "-q", "-m", "Initial fixture")
-    git("remote", "add", "origin", _FIXTURE_ORIGIN)
+        def git(*args: str) -> None:
+            try:
+                subprocess.run(
+                    ["git", *overrides, *args], cwd=root, env=env, check=True,
+                    capture_output=True, text=True, encoding="utf-8", errors="replace",
+                )
+            except subprocess.CalledProcessError as exc:
+                raise HarnessInfraError(
+                    f"fixture repo: `git {' '.join(args)}` failed "
+                    f"(exit {exc.returncode}): {exc.stderr.strip()}",
+                ) from exc
+            except OSError as exc:
+                raise HarnessInfraError(f"fixture repo: cannot run git: {exc}") from exc
+
+        git("init", "-q")
+        git("config", "user.email", "uat-fixture@localhost")
+        git("config", "user.name", "UAT Fixture")
+        git("add", "-A")
+        git("commit", "-q", "-m", "Initial fixture")
+        git("remote", "add", "origin", _FIXTURE_ORIGIN)
+
+
+def preflight_fixture_repo() -> None:
+    """Build the fixture once in a throwaway dir so a broken git setup fails the run up
+    front as an infra error, not at the last skill after every paid session finished."""
+    with tempfile.TemporaryDirectory(prefix="uat-fixture-preflight-") as scratch:
+        _build_fixture_repo(Path(scratch) / "fixture-repo")
 
 
 def load_events(path: Path) -> list[dict[str, Any]]:

@@ -10,22 +10,28 @@ plays the agent by writing (or sabotaging) the files the real one would.
 """
 import json
 import os
+import stat
+import subprocess
 import sys
 from dataclasses import dataclass, field
 
 import pytest
 
+from test_harness.__main__ import main
 from test_harness.config import HarnessConfig
 from test_harness.report import load_report
+from test_harness.server import HarnessInfraError
 from test_harness.walkthrough import (
     SessionOutcome,
     Walkthrough,
     load_events,
+    prepare_workspace,
     scan_for_breaches,
 )
 
 THROWAWAY_URL = "http://127.0.0.1:59999"
 SKILL = "forgetful-recall"
+FIXTURE_SKILL = "forgetful-encode-repo"
 
 OK_RESULT = {
     "type": "result", "content": "ok", "cost": 0.01, "duration": 2.5,
@@ -225,3 +231,164 @@ async def test_non_string_error_event_content_is_recorded(tmp_path):
     # Assert
     assert result.status == "error"
     assert "code" in result.error
+
+
+# --------------------------------------------------------------------------------------
+# Hermetic fixture repo: the developer's git setup must not change how it is built
+# --------------------------------------------------------------------------------------
+
+posix_only = pytest.mark.skipif(sys.platform == "win32", reason="needs a POSIX shell")
+
+
+def clean_git_env():
+    """Environment for inspecting repos from the tests, free of any inherited GIT_*."""
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    env.update(GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1")
+    return env
+
+
+def git(*args, cwd):
+    return subprocess.run(
+        ["git", *args], cwd=cwd, env=clean_git_env(), check=True,
+        capture_output=True, text=True, encoding="utf-8",
+    ).stdout.strip()
+
+
+def build_fixture(tmp_path):
+    workspace = prepare_workspace(
+        tmp_path / "skills" / FIXTURE_SKILL, FIXTURE_SKILL, HarnessConfig().skills_dir,
+    )
+    return workspace / "fixture-repo"
+
+
+def assert_committed_fixture(fixture):
+    assert (fixture / ".git").is_dir()
+    assert git("log", "--format=%s", cwd=fixture) == "Initial fixture"
+    assert git("ls-files", cwd=fixture).splitlines() == [
+        "README.md", "pyproject.toml", "src/calc.py",
+    ]
+    assert git("remote", "get-url", "origin", cwd=fixture).endswith("uat-fixture-calc.git")
+
+
+def use_global_git_config(monkeypatch, tmp_path, text):
+    """Make `text` the developer's global git config for everything the test spawns."""
+    config = tmp_path / "global-gitconfig"
+    config.write_text(text)
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(config))
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+
+
+def test_fixture_commit_ignores_a_signer_that_cannot_sign(tmp_path, monkeypatch):
+    # Arrange: commit.gpgsign=true with a signer that always fails (locked key, no agent)
+    use_global_git_config(
+        monkeypatch, tmp_path,
+        "[commit]\n\tgpgsign = true\n[gpg]\n\tformat = ssh\n"
+        '[gpg "ssh"]\n\tprogram = /nonexistent/signer\n'
+        "[user]\n\tsigningkey = /nonexistent/key.pub\n",
+    )
+
+    # Act
+    fixture = build_fixture(tmp_path)
+
+    # Assert
+    assert_committed_fixture(fixture)
+
+
+@posix_only
+def test_fixture_commit_ignores_global_hooks_and_excludes(tmp_path, monkeypatch):
+    # Arrange: a global rejecting pre-commit hook, and a global ignore-everything file
+    hooks = tmp_path / "global-hooks"
+    hooks.mkdir()
+    hook = hooks / "pre-commit"
+    hook.write_text("#!/bin/sh\necho 'policy: rejected' >&2\nexit 1\n")
+    hook.chmod(hook.stat().st_mode | stat.S_IEXEC)
+    ignore_all = tmp_path / "ignore-all"
+    ignore_all.write_text("*\n")
+    use_global_git_config(
+        monkeypatch, tmp_path,
+        f"[core]\n\thooksPath = {hooks}\n\texcludesFile = {ignore_all}\n",
+    )
+
+    # Act
+    fixture = build_fixture(tmp_path)
+
+    # Assert
+    assert_committed_fixture(fixture)
+
+
+def test_fixture_repo_survives_the_env_git_gives_a_linked_worktree_hook(
+    tmp_path, monkeypatch,
+):
+    # Arrange: a real repo with a linked worktree; inside a hook git exports an
+    # absolute GIT_DIR and GIT_INDEX_FILE (plus GIT_AUTHOR_*) that win over cwd
+    main_repo = tmp_path / "main"
+    main_repo.mkdir()
+    git("init", "-q", cwd=main_repo)
+    git("config", "user.email", "dev@example.com", cwd=main_repo)
+    git("config", "user.name", "Developer", cwd=main_repo)
+    (main_repo / "app.py").write_text("print('real code')\n")
+    git("add", "-A", cwd=main_repo)
+    git("commit", "-q", "-m", "real commit", cwd=main_repo)
+    worktree = tmp_path / "wt"
+    git("worktree", "add", "-q", str(worktree), "-b", "feature", cwd=main_repo)
+    head_before = git("rev-parse", "HEAD", cwd=worktree)
+    config_before = (main_repo / ".git" / "config").read_text()
+    gitdir = git("rev-parse", "--absolute-git-dir", cwd=worktree)
+    monkeypatch.setenv("GIT_DIR", gitdir)
+    monkeypatch.setenv("GIT_INDEX_FILE", os.path.join(gitdir, "index"))
+    monkeypatch.setenv("GIT_AUTHOR_NAME", "Someone Else")
+
+    # Act
+    fixture = build_fixture(tmp_path)
+
+    # Assert: the fixture is self-contained and the caller's repository is untouched
+    assert_committed_fixture(fixture)
+    assert git("log", "--format=%an", cwd=fixture) == "UAT Fixture"
+    assert git("rev-parse", "HEAD", cwd=worktree) == head_before
+    assert git("ls-files", cwd=worktree) == "app.py"
+    assert (main_repo / ".git" / "config").read_text() == config_before
+
+
+@posix_only
+def test_git_failure_is_an_infra_error_carrying_gits_stderr(tmp_path, monkeypatch):
+    # Arrange: a git that always fails
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    fake = bin_dir / "git"
+    fake.write_text("#!/bin/sh\necho 'fatal: boom from fake git' >&2\nexit 3\n")
+    fake.chmod(fake.stat().st_mode | stat.S_IEXEC)
+    monkeypatch.setenv("PATH", str(bin_dir))
+
+    # Act / Assert: harness defect (exit 2), with git's own message, not a bare traceback
+    with pytest.raises(HarnessInfraError, match="boom from fake git"):
+        build_fixture(tmp_path)
+
+
+def test_missing_git_is_an_infra_error(tmp_path, monkeypatch):
+    # Arrange
+    monkeypatch.setenv("PATH", str(tmp_path / "no-such-dir"))
+
+    # Act / Assert
+    with pytest.raises(HarnessInfraError, match="cannot run git"):
+        build_fixture(tmp_path)
+
+
+def test_broken_git_fails_the_run_up_front_with_exit_code_2(tmp_path, monkeypatch, capsys):
+    # Arrange: no git, and docker must never be reached
+    monkeypatch.setenv("PATH", str(tmp_path / "no-such-dir"))
+
+    def docker_must_not_be_touched(*args, **kwargs):
+        raise AssertionError("preflight should have failed before the image check")
+
+    monkeypatch.setattr("test_harness.__main__.ensure_image", docker_must_not_be_touched)
+    output = tmp_path / "runs"
+    output.mkdir()
+
+    # Act
+    exit_code = main(["--output", str(output), "--skills", FIXTURE_SKILL])
+
+    # Assert: infra failure, and no half-created run directory
+    assert exit_code == 2
+    assert "cannot run git" in capsys.readouterr().err
+    assert list(output.iterdir()) == []
