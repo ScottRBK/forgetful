@@ -342,7 +342,7 @@ Manually create bidirectional links between memories.
 - `memory_ids` (optional, List[int]): Pair/list of memory IDs `[src, target1, target2, ...]`
 
 **Returns:**
-- Dict with `linked_memory_ids` (list of target IDs newly linked)
+- Dict with `linked_memory_ids` (list of target IDs newly linked). Target IDs that do not exist, belong to another user, or are already linked are skipped.
 
 **Examples:**
 ```python
