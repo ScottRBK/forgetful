@@ -159,7 +159,8 @@ def ensure_image(rebuild: bool = False, log=print) -> None:
 
 def _prepare_harness_mount(run_dir: Path) -> Path:
     """Stage the read-only /harness mount: the working-tree wheel plus the runner."""
-    harness_dir = run_dir / "harness"
+    # absolute: `uv build` runs with cwd=_REPO_ROOT, so a relative -o would land there
+    harness_dir = run_dir.resolve() / "harness"
     harness_dir.mkdir(exist_ok=True)
     build = subprocess.run(
         ["uv", "build", "--wheel", "-o", str(harness_dir)],
@@ -182,7 +183,7 @@ class AgentContainer:
 
     def __init__(self, config: HarnessConfig, run_dir: Path, server_url: str):
         self.config = config
-        self.run_dir = run_dir
+        self.run_dir = run_dir.resolve()  # bind sources must be absolute host paths
         self.server_url = server_url
         self._staged: list[Path] = []
         self._client = None

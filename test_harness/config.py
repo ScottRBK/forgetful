@@ -40,6 +40,14 @@ class HarnessConfig(BaseSettings):
     output_dir: Path = _REPO_ROOT / "test_harness" / "runs"
     rebuild_image: bool = False
 
+    @field_validator("skills_dir", "output_dir")
+    @classmethod
+    def _absolute(cls, value: Path) -> Path:
+        # Bind-mount sources and the `uv build -o` target are handed to other processes
+        # (dockerd, a subprocess with another cwd): dockerd reads a source that does not
+        # start with "/" as a named volume, so a relative path must be pinned down here.
+        return value.expanduser().resolve()
+
     @field_validator("surface", mode="before")
     @classmethod
     def _only_cli_is_implemented(cls, value: str) -> str:
