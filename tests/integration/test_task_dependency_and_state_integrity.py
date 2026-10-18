@@ -9,7 +9,7 @@ from uuid import uuid4
 
 import pytest
 
-from app.exceptions import NotFoundError
+from app.exceptions import ConflictError, NotFoundError
 from app.models.plan_models import (
     CriterionCreate,
     PlanCreate,
@@ -125,3 +125,23 @@ async def test_create_task_rolls_back_when_a_later_step_fails(test_task_service)
 
     assert [t.title for t in await task_service.list_tasks(user_id=user_id, plan_id=plan.id)] == ["prereq"]
     assert task_service.task_repo._criteria.get(user_id, {}) == {}
+
+
+# ---------------------------------------------------------------------------
+# Duplicate dependency edges are a clean conflict
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_add_dependency_twice_is_a_conflict(test_task_service):
+    task_service, plan_service = test_task_service
+    user_id = uuid4()
+    plan = await _active_plan(plan_service, user_id)
+    a = await _task(task_service, user_id, plan.id, "a")
+    b = await _task(task_service, user_id, plan.id, "b")
+    await task_service.add_dependency(user_id=user_id, task_id=a.id, depends_on_task_id=b.id)
+
+    with pytest.raises(ConflictError, match="already depends"):
+        await task_service.add_dependency(user_id=user_id, task_id=a.id, depends_on_task_id=b.id)
+
+    assert (await task_service.get_task(user_id=user_id, task_id=a.id)).dependency_ids == [b.id]

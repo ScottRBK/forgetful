@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import delete, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
 from app.config.logging_config import logging
@@ -351,15 +352,22 @@ class SqliteTaskRepository:
     async def add_dependency(
         self, user_id: UUID, task_id: int, depends_on_task_id: int,
     ) -> TaskDependency:
-        async with self.db_adapter.session(user_id) as session:
-            dep = TaskDependenciesTable(
-                user_id=str(user_id),
-                task_id=task_id,
-                depends_on_task_id=depends_on_task_id,
-            )
-            session.add(dep)
-            await session.flush()
-            return TaskDependency.model_validate(dep)
+        try:
+            async with self.db_adapter.session(user_id) as session:
+                dep = TaskDependenciesTable(
+                    user_id=str(user_id),
+                    task_id=task_id,
+                    depends_on_task_id=depends_on_task_id,
+                )
+                session.add(dep)
+                await session.flush()
+                return TaskDependency.model_validate(dep)
+        except IntegrityError as exc:
+            if "UNIQUE constraint failed: task_dependencies" in str(exc.orig):
+                raise ConflictError(
+                    f"Task {task_id} already depends on task {depends_on_task_id}",
+                ) from exc
+            raise
 
     async def remove_dependency(
         self, user_id: UUID, task_id: int, depends_on_task_id: int,

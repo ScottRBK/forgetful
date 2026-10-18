@@ -403,6 +403,9 @@ class TaskService:
         # Validate same plan
         await self._validate_same_plan(user_id, depends_on_task_id, task.plan_id)
 
+        if depends_on_task_id in task.dependency_ids:
+            raise ConflictError(f"Task {task_id} already depends on task {depends_on_task_id}")
+
         # Cycle detection
         await self._validate_no_cycle(user_id, task_id, depends_on_task_id)
 

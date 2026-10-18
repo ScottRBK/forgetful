@@ -302,6 +302,8 @@ def register(mcp: FastMCP):
             return JSONResponse({"error": str(e)}, status_code=404)
         except CyclicDependencyError as e:
             return JSONResponse({"error": str(e)}, status_code=400)
+        except ConflictError as e:
+            return JSONResponse({"error": str(e)}, status_code=409)
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=400)
 
