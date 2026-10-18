@@ -200,16 +200,23 @@ class SqliteEntityRepository:
                     ]
                     conditions.append(or_(*tag_conditions))
 
+                if project_ids:
+                    # Filter entities that have any of the specified project IDs.
+                    # A semi-join (IN subquery) keeps one row per entity, so LIMIT/OFFSET
+                    # paginate over distinct entities even when an entity is linked to
+                    # several of the requested projects. An empty list means no filter.
+                    conditions.append(
+                        EntitiesTable.id.in_(
+                            select(entity_project_association.c.entity_id).where(
+                                entity_project_association.c.project_id.in_(project_ids),
+                            ),
+                        ),
+                    )
+
                 # Build main query with filters and eager load projects
                 stmt = select(EntitiesTable).options(
                     selectinload(EntitiesTable.projects),
                 ).where(*conditions)
-
-                if project_ids is not None:
-                    # Filter entities that have any of the specified project IDs
-                    stmt = stmt.join(EntitiesTable.projects).where(
-                        ProjectsTable.id.in_(project_ids),
-                    )
 
                 # Order by creation date (newest first), then by ID for deterministic ordering
                 stmt = stmt.order_by(
@@ -222,10 +229,6 @@ class SqliteEntityRepository:
 
                 # Build count query with same conditions
                 count_stmt = select(sql_func.count(sql_func.distinct(EntitiesTable.id))).where(*conditions)
-                if project_ids is not None:
-                    count_stmt = count_stmt.join(EntitiesTable.projects).where(
-                        ProjectsTable.id.in_(project_ids),
-                    )
 
                 # Execute count query first
                 total = await session.scalar(count_stmt)
@@ -242,7 +245,7 @@ class SqliteEntityRepository:
                         "total": total,
                         "limit": limit,
                         "offset": offset,
-                        "project_filtered": project_ids is not None,
+                        "project_filtered": bool(project_ids),
                         "entity_type": entity_type.value if entity_type else None,
                         "tags_filter": tags,
                     },
