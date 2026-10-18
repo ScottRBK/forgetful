@@ -106,8 +106,6 @@ async def status(*, server: str | None = None) -> int:
     cache logout cleared (nor pop a browser). A no-auth server still answers, so the
     User line is preserved; a secured server errors cleanly.
     """
-    import os
-
     from app.config.settings import settings
 
     url = server or settings.FORGETFUL_SERVER
@@ -116,9 +114,9 @@ async def status(*, server: str | None = None) -> int:
         print(f"Database: {settings.DATABASE}")
         return 0
 
-    from app.routes.cli.remote_executor import RemoteExecutor
+    from app.routes.cli.remote_executor import RemoteExecutor, bearer_token_from_env
 
-    token = os.environ.get("FORGETFUL_TOKEN") or None
+    token = bearer_token_from_env()
     cache = token_cache_dir()
     cached = await _has_cached_credentials(normalize_server_url(url), cache)
 

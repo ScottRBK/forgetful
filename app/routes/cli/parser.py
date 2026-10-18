@@ -206,16 +206,17 @@ async def _build_executor(args):
     precedence via pydantic-settings; FORGETFUL_TOKEN (headless/CI bearer) is shell
     env only, deliberately kept out of config files.
     """
-    import os
-
     from app.config.settings import settings
 
     if not getattr(args, "local", False):
         server_url = getattr(args, "server", None) or settings.FORGETFUL_SERVER
         if server_url:
-            from app.routes.cli.remote_executor import RemoteExecutor
+            from app.routes.cli.remote_executor import (
+                RemoteExecutor,
+                bearer_token_from_env,
+            )
 
-            return RemoteExecutor(server_url, token=os.environ.get("FORGETFUL_TOKEN") or None)
+            return RemoteExecutor(server_url, token=bearer_token_from_env())
 
     from app.routes.cli.local_executor import LocalExecutor
 

@@ -6,6 +6,7 @@ server's version (no doc skew).
 """
 import contextlib
 import json
+import os
 import re
 from typing import Any
 from urllib.parse import urlparse
@@ -39,6 +40,27 @@ def normalize_server_url(url: str) -> str:
     if urlparse(url).path in ("", "/"):
         return f"{url}/mcp"
     return url
+
+
+def bearer_token_from_env() -> str | None:
+    """The headless/CI bearer token from FORGETFUL_TOKEN, normalised, or None.
+
+    Secrets pasted into env files, CI variables or k8s mounts often carry a trailing
+    newline or spaces; sent as-is they make the HTTP layer reject the header with an
+    error that embeds the whole token. Surrounding whitespace is therefore stripped and
+    a blank value counts as unset, so the OAuth fallback applies. A token that still
+    holds control or non-ASCII characters can never be a valid header value: reject it
+    with a fixed message that does not repeat the secret.
+    """
+    token = (os.environ.get("FORGETFUL_TOKEN") or "").strip()
+    if not token:
+        return None
+    if not (token.isascii() and token.isprintable()):
+        raise ValueError(
+            "FORGETFUL_TOKEN contains control or non-ASCII characters; "
+            "fix the value or unset it",
+        )
+    return token
 
 
 def _default_client_factory(url: str, token: str | None):

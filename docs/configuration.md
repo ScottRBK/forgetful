@@ -431,6 +431,9 @@ default, or against a remote deployment.
 - **Purpose**: Bearer token for headless/CI use of the CLI against an authenticated
   deployment. Read from the shell environment only - deliberately never stored in
   `.env` files or the token cache. When unset, the CLI uses the browser OAuth flow.
+  Surrounding whitespace (such as a trailing newline from an env file or CI secret) is
+  stripped and a blank value counts as unset. A value that still contains control or
+  non-ASCII characters is rejected with an error that does not repeat the token.
 
 ### Configuration precedence (highest wins)
 
