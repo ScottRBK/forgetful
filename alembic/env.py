@@ -17,6 +17,7 @@ from alembic import context
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from app.config.settings import settings
+from app.repositories.postgres.postgres_adapter import build_postgres_url
 from app.repositories.postgres.postgres_tables import Base as PostgresBase
 from app.repositories.sqlite.sqlite_tables import Base as SqliteBase
 
@@ -45,11 +46,7 @@ def run_migrations_offline() -> None:
     script output.
     """
     if settings.DATABASE == "Postgres":
-        sqlalchemy_url = (
-            f"postgresql+asyncpg://{settings.POSTGRES_USER}:"
-            f"{settings.POSTGRES_PASSWORD}@{settings.POSTGRES_HOST}:"
-            f"{settings.PGPORT}/{settings.POSTGRES_DB}"
-        )
+        sqlalchemy_url = build_postgres_url().render_as_string(hide_password=False)
     else:  # SQLite
         sqlalchemy_url = f"sqlite+aiosqlite:///{settings.SQLITE_PATH}"
 
@@ -87,11 +84,7 @@ async def run_async_migrations() -> None:
     """
     # Build database URL based on settings
     if settings.DATABASE == "Postgres":
-        sqlalchemy_url = (
-            f"postgresql+asyncpg://{settings.POSTGRES_USER}:"
-            f"{settings.POSTGRES_PASSWORD}@{settings.POSTGRES_HOST}:"
-            f"{settings.PGPORT}/{settings.POSTGRES_DB}"
-        )
+        sqlalchemy_url = build_postgres_url().render_as_string(hide_password=False)
     else:  # SQLite
         sqlalchemy_url = f"sqlite+aiosqlite:///{settings.SQLITE_PATH}"
 

@@ -194,10 +194,11 @@ class SqliteDatabaseAdapter:
         # Create Alembic config
         alembic_cfg = Config(str(alembic_ini))
 
-        # Override database URL in config
+        # Override database URL in config. Config options are %-interpolated, so any
+        # literal % in the path has to be doubled.
         alembic_cfg.set_main_option(
             "sqlalchemy.url",
-            self._construct_connection_string(),
+            self._construct_connection_string().replace("%", "%%"),
         )
 
         # Configure to use existing connection
