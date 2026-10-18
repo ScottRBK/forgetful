@@ -1145,15 +1145,23 @@ class PostgresMemoryRepository:
         self,
         user_id: UUID,
         updates: list[tuple[int, list[float]]],
+        expected_updated_at: dict[int, datetime] | None = None,
     ) -> list[int]:
         """Idempotently set embeddings for memories owned by `user_id`.
 
         Postgres stores embeddings inline on `memories.embedding`, so an UPDATE
         is naturally idempotent. We still verify ownership server-side instead
         of trusting the input list.
+
+        `expected_updated_at` maps a memory id to the `updated_at` observed when
+        its embedding input was read. The UPDATE only matches while the row still
+        carries that value, so a memory edited (and re-embedded) in the meantime
+        keeps its newer vector and its id is omitted from the result. `updated_at`
+        itself is never changed by this method.
         """
         if not updates:
             return []
+        expected_updated_at = expected_updated_at or {}
         ids = [mid for mid, _ in updates]
         async with self.db_adapter.system_session() as session:
             owned_rows = await session.execute(
@@ -1168,16 +1176,18 @@ class PostgresMemoryRepository:
             for memory_id, embedding in updates:
                 if memory_id not in owned_ids:
                     continue
-                await session.execute(
-                    update(MemoryTable)
-                    .where(
-                        MemoryTable.id == memory_id,
-                        MemoryTable.user_id == user_id,
-                    )
-                    # Explicit value: suppresses the column `onupdate`, a re-embed is not an edit.
-                    .values(embedding=embedding, updated_at=MemoryTable.updated_at),
+                stmt = update(MemoryTable).where(
+                    MemoryTable.id == memory_id,
+                    MemoryTable.user_id == user_id,
                 )
-                written.append(memory_id)
+                if memory_id in expected_updated_at:
+                    stmt = stmt.where(MemoryTable.updated_at == expected_updated_at[memory_id])
+                # Explicit `updated_at` value: suppresses the column `onupdate`.
+                result = await session.execute(
+                    stmt.values(embedding=embedding, updated_at=MemoryTable.updated_at),
+                )
+                if result.rowcount:
+                    written.append(memory_id)
             return written
 
     async def validate_embedding_count(self) -> bool:

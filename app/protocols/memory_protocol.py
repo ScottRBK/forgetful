@@ -266,6 +266,7 @@ class MemoryRepository(Protocol):
             self,
             user_id: UUID,
             updates: list[tuple[int, list[float]]],
+            expected_updated_at: dict[int, datetime] | None = None,
     ) -> list[int]:
         """Idempotently write a batch of new embeddings for `user_id`.
 
@@ -278,6 +279,10 @@ class MemoryRepository(Protocol):
         Args:
             user_id: Authenticated user id; ownership filter, never optional.
             updates: list of (memory_id, embedding) tuples.
+            expected_updated_at: Optional memory id -> `updated_at` observed when the
+                embedding input was read. A memory whose `updated_at` no longer matches
+                was edited (and re-embedded) meanwhile: its stored vector is left alone
+                and its id is not returned. Ids without an entry are written unconditionally.
 
         Returns:
             list of memory ids whose embedding was actually written.

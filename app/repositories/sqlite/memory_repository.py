@@ -5,7 +5,7 @@ from typing import Any
 from uuid import UUID
 
 import sqlite_vec
-from sqlalchemy import or_, select, text, update
+from sqlalchemy import and_, or_, select, text, update
 from sqlalchemy.exc import IntegrityError, NoResultFound
 from sqlalchemy.orm import selectinload
 
@@ -1204,6 +1204,7 @@ class SqliteMemoryRepository:
         self,
         user_id: UUID,
         updates: list[tuple[int, list[float]]],
+        expected_updated_at: dict[int, datetime] | None = None,
     ) -> list[int]:
         """Idempotently write embeddings for memories owned by `user_id`.
 
@@ -1212,18 +1213,32 @@ class SqliteMemoryRepository:
         existing row (if any) before inserting the new embedding. We also
         verify ownership of every memory id against the canonical `memories`
         table so a malicious caller cannot poison another user's vector.
+
+        `expected_updated_at` maps a memory id to the `updated_at` observed when
+        its embedding input was read. A memory whose row no longer carries that
+        value was edited (and re-embedded) in the meantime, so its vector is left
+        alone and its id is omitted from the result.
         """
         if not updates:
             return []
         ids = [mid for mid, _ in updates]
-        async with self.db_adapter.system_session() as session:
-            owned_rows = await session.execute(
-                select(MemoryTable.id).where(
-                    MemoryTable.user_id == str(user_id),
-                    MemoryTable.is_obsolete.is_(False),
-                    MemoryTable.id.in_(ids),
+        conditions = [
+            MemoryTable.user_id == str(user_id),
+            MemoryTable.is_obsolete.is_(False),
+            MemoryTable.id.in_(ids),
+        ]
+        if expected_updated_at:
+            conditions.append(
+                or_(
+                    MemoryTable.id.not_in(list(expected_updated_at)),
+                    *(
+                        and_(MemoryTable.id == memory_id, MemoryTable.updated_at == updated_at)
+                        for memory_id, updated_at in expected_updated_at.items()
+                    ),
                 ),
             )
+        async with self.db_adapter.system_session() as session:
+            owned_rows = await session.execute(select(MemoryTable.id).where(*conditions))
             owned_ids = {row[0] for row in owned_rows}
             written: list[int] = []
             for memory_id, embedding in updates:

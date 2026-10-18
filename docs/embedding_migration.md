@@ -158,8 +158,12 @@ Obsolete memories remain excluded from normal queries and automatic links. The t
 `rebuild_embeddings` tool still processes active memories only; use the full CLI rebuild for
 recovery.
 
-`rebuild_embeddings` rejects a `project_id` that does not exist or is not owned by the caller with a
-validation error instead of returning an empty result.
+Embedding refreshes (both the CLI rebuild and `rebuild_embeddings`) never change a memory's
+`updated_at`. The targeted tool also never overwrites a newer vector: a memory edited while the
+rebuild is running is reported in `skipped_ids` and keeps the embedding generated for its new
+content. `failed` entries carry a short reason code (`embedding_failed`, `persistence_failed`,
+`auto_link_failed`, `not_found_or_not_owned`); the underlying error is written to the server log.
+An unknown or foreign `project_id` is rejected with a validation error.
 
 ---
 

@@ -2,7 +2,8 @@
 
 On PostgreSQL the vector lives in `memories.embedding`, so a Core `UPDATE memories SET embedding=...`
 fires the `updated_at` column `onupdate` default unless the statement pins the column. These tests
-backdate `updated_at` through raw SQL and assert the repository writes leave it untouched.
+backdate `updated_at` through raw SQL and assert the repository writes leave it untouched, and that a
+targeted rebuild does not overwrite a vector computed from older content.
 
 Uses a deterministic embedding adapter so no model is needed.
 """
@@ -87,6 +88,16 @@ async def _updated_at(repo, user_id, ids):
     }
 
 
+async def _embedding_text(db_adapter, memory_id):
+    async with db_adapter.system_session() as session:
+        return (
+            await session.execute(
+                text("SELECT embedding::text FROM memories WHERE id = :id"),
+                {"id": memory_id},
+            )
+        ).scalar_one()
+
+
 @pytest.mark.e2e
 async def test_record_memory_access_keeps_updated_at(memory_repo, db_adapter):
     user_id, backdated = await _seed(memory_repo, db_adapter)
@@ -122,6 +133,41 @@ async def test_rebuild_targeted_keeps_updated_at(memory_repo, db_adapter):
 
     assert sorted(result.rebuilt_ids) == sorted(backdated)
     assert result.failed == []
+    assert await _updated_at(memory_repo, user_id, backdated) == backdated
+
+
+@pytest.mark.e2e
+async def test_upsert_targeted_embeddings_only_writes_rows_unchanged_since_read(memory_repo, db_adapter):
+    user_id, backdated = await _seed(memory_repo, db_adapter, count=2)
+    changed_id, unchanged_id = list(backdated)
+    expected = dict(backdated)
+    expected[changed_id] = backdated[changed_id] - timedelta(days=1)  # row was edited after the batch was read
+    original = {memory_id: await _embedding_text(db_adapter, memory_id) for memory_id in backdated}
+    vector = [0.0] * settings.EMBEDDING_DIMENSIONS
+    vector[7] = 1.0
+
+    written = await memory_repo.upsert_targeted_embeddings(
+        user_id=user_id,
+        updates=[(changed_id, vector), (unchanged_id, vector)],
+        expected_updated_at=expected,
+    )
+
+    assert written == [unchanged_id]
+    assert await _embedding_text(db_adapter, changed_id) == original[changed_id]
+    assert await _embedding_text(db_adapter, unchanged_id) != original[unchanged_id]
+    assert await _updated_at(memory_repo, user_id, backdated) == backdated
+
+
+@pytest.mark.e2e
+async def test_upsert_targeted_embeddings_without_expectation_still_writes(memory_repo, db_adapter):
+    user_id, backdated = await _seed(memory_repo, db_adapter, count=1)
+    (memory_id,) = backdated
+    vector = [0.0] * settings.EMBEDDING_DIMENSIONS
+    vector[3] = 1.0
+
+    written = await memory_repo.upsert_targeted_embeddings(user_id=user_id, updates=[(memory_id, vector)])
+
+    assert written == [memory_id]
     assert await _updated_at(memory_repo, user_id, backdated) == backdated
 
 

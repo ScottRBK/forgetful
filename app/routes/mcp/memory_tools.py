@@ -804,9 +804,11 @@ def register(mcp: FastMCP):
             project_id: Restrict to a single project owned by the caller.
 
         Returns:
-            Dict with keys: rebuilt_ids (list[int]), skipped_ids (list[int]),
-            failed (list of {memory_id, reason}). An unknown or foreign
-            project_id raises VALIDATION_ERROR.
+            Dict with keys: rebuilt_ids (list[int]), skipped_ids (list[int]; not
+            owned, or edited while the rebuild ran so the newer embedding was kept),
+            failed (list of {memory_id, reason}; reason is a code such as
+            embedding_failed, persistence_failed or not_found_or_not_owned).
+            An unknown or foreign project_id raises VALIDATION_ERROR.
         """
         try:
             logger.info("MCP Tool -> rebuild_embeddings", extra={

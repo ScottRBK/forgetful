@@ -874,8 +874,10 @@ def register_memory_tools_metadata(
                 },
             ],
             "returns": (
-                "Dict with rebuilt_ids (List[int]), skipped_ids (List[int]), "
-                "failed (List[Dict[memory_id, reason]]). "
+                "Dict with rebuilt_ids (List[int]), skipped_ids (List[int]; not owned, or edited "
+                "while the rebuild ran so a newer embedding was kept), "
+                "failed (List[Dict[memory_id, reason]]; reason is a code such as embedding_failed, "
+                "persistence_failed or not_found_or_not_owned). "
                 "An unknown or foreign project_id is rejected with VALIDATION_ERROR"
             ),
             "examples": [

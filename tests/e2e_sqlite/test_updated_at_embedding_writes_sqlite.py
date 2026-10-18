@@ -1,8 +1,12 @@
-"""Real-SQL regression tests (in-memory SQLite) for read telemetry and targeted embedding rebuilds.
+"""Real-SQL regression tests (in-memory SQLite) for read telemetry and embedding writes.
 
-`record_memory_access` must not advance `updated_at` (the column `onupdate` used to fire), a targeted
-rebuild must leave it alone too, and `rebuild_embeddings(project_id=...)` must reject unknown or
-foreign projects. Uses a deterministic offline embedding adapter.
+Covers:
+- `record_memory_access` must not advance `updated_at` (column `onupdate` used to fire).
+- A targeted rebuild must not overwrite a vector regenerated for newer content.
+- `rebuild_embeddings` failures return stable reason codes and blame only the failing memory.
+- `rebuild_embeddings(project_id=...)` rejects unknown or foreign projects.
+
+Uses a deterministic offline embedding adapter, so no model download is needed.
 """
 import asyncio
 import hashlib
@@ -12,32 +16,50 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
+import sqlite_vec
 from fastmcp.exceptions import ToolError
 from sqlalchemy import text
 
 from app.config.settings import settings
-from app.models.memory_models import MemoryCreate
+from app.models.memory_models import MemoryCreate, MemoryUpdate
 from app.models.user_models import User, UserCreate
 from app.repositories.sqlite.memory_repository import SqliteMemoryRepository
 from app.repositories.sqlite.sqlite_adapter import SqliteDatabaseAdapter
 from app.repositories.sqlite.user_repository import SqliteUserRepository
 from app.routes.mcp.tool_adapters import MemoryToolAdapters
+from app.services.memory_service import MemoryService
 from app.services.re_embedding_service import ReEmbeddingService
 
 DIMS = 384
+LEAK_MARKERS = ("[SQL:", "INSERT INTO", "[parameters:", "vec_memories", "\\x00", "b'", "Dimension mismatch")
 
 
-class StaticEmbeddingAdapter:
-    """Deterministic, offline embedding adapter."""
+class GatedEmbeddingAdapter:
+    """Deterministic adapter; can hold calls whose text contains `gate_marker`.
+
+    `wrong_dimension_marker` makes texts containing it return a vector of the wrong length,
+    which the vec0 table rejects at write time (like a misconfigured provider would).
+    """
+
+    def __init__(self) -> None:
+        self.gate_marker: str | None = None
+        self.wrong_dimension_marker: str | None = None
+        self.reached = asyncio.Event()
+        self.release = asyncio.Event()
 
     @staticmethod
-    def vector(text_: str) -> list[float]:
+    def vector(text_: str, dims: int = DIMS) -> list[float]:
         rng = random.Random(int(hashlib.md5(text_.encode()).hexdigest()[:8], 16))
-        vec = [rng.random() for _ in range(DIMS)]
+        vec = [rng.random() for _ in range(dims)]
         magnitude = sum(x * x for x in vec) ** 0.5 or 1.0
         return [x / magnitude for x in vec]
 
     async def generate_embedding(self, text: str) -> list[float]:
+        if self.gate_marker and self.gate_marker in text:
+            self.reached.set()
+            await self.release.wait()
+        if self.wrong_dimension_marker and self.wrong_dimension_marker in text:
+            return self.vector(text, DIMS + 1)
         return self.vector(text)
 
 
@@ -56,7 +78,7 @@ async def stack():
 
     db_adapter = SqliteDatabaseAdapter()
     await db_adapter.init_db()
-    embedder = StaticEmbeddingAdapter()
+    embedder = GatedEmbeddingAdapter()
     repo = SqliteMemoryRepository(db_adapter=db_adapter, embedding_adapter=embedder, rerank_adapter=None)
     users = SqliteUserRepository(db_adapter=db_adapter)
     user = await users.create_user(UserCreate(external_id=f"ext-{uuid4()}", name="u", email="u@example.com"))
@@ -161,6 +183,122 @@ async def test_targeted_rebuild_does_not_change_updated_at(stack):
 
     assert result.rebuilt_ids == [memory.id]
     assert (await repo.get_memory_by_id(user_id, memory.id)).updated_at == before.updated_at
+
+
+# ---------------------------------------------------------------------------
+# rebuild must not overwrite a vector computed for newer content
+# ---------------------------------------------------------------------------
+
+
+async def test_rebuild_does_not_clobber_embedding_of_concurrent_update(stack):
+    repo, db_adapter, embedder, user_id = stack
+    memory_service = MemoryService(memory_repo=repo)
+    re_service = ReEmbeddingService(repo, embedder, batch_size=20)
+    memory, _ = await memory_service.create_memory(user_id=user_id, memory_data=_memory("OLD-CONTENT"))
+
+    # Hold the rebuild inside generate_embedding(OLD text) ...
+    embedder.gate_marker = "OLD-CONTENT"
+    rebuild = asyncio.create_task(re_service.rebuild_targeted(user_id=user_id, memory_ids=[memory.id]))
+    await asyncio.wait_for(embedder.reached.wait(), timeout=10)
+
+    # ... while update_memory commits NEW content together with its fresh vector.
+    embedder.gate_marker = None
+    updated = await memory_service.update_memory(
+        user_id=user_id, memory_id=memory.id, updated_memory=MemoryUpdate(content="NEW-CONTENT"),
+    )
+    assert updated.content == "NEW-CONTENT"
+    new_vector = sqlite_vec.serialize_float32(embedder.vector("T NEW-CONTENT c k t"))
+    assert await _vec_blob(db_adapter, memory.id) == new_vector
+
+    embedder.release.set()
+    result = await asyncio.wait_for(rebuild, timeout=10)
+
+    assert await _vec_blob(db_adapter, memory.id) == new_vector
+    assert result.rebuilt_ids == []
+    assert result.skipped_ids == [memory.id]
+    assert result.failed == []
+
+
+async def test_upsert_targeted_embeddings_only_writes_rows_unchanged_since_read(stack):
+    repo, db_adapter, embedder, user_id = stack
+    first = await repo.create_memory(user_id, _memory("first"))
+    second = await repo.create_memory(user_id, _memory("second"))
+    first_read = await repo.get_memory_by_id(user_id, first.id)
+    second_read = await repo.get_memory_by_id(user_id, second.id)
+    original = {
+        first.id: await _vec_blob(db_adapter, first.id),
+        second.id: await _vec_blob(db_adapter, second.id),
+    }
+    new_vector = embedder.vector("refreshed")
+
+    await asyncio.sleep(0.05)
+    await repo.update_memory(
+        user_id=user_id,
+        memory_id=first.id,
+        updated_memory=MemoryUpdate(content="edited after the read"),
+        existing_memory=first_read,
+        search_fields_changed=False,
+    )
+
+    written = await repo.upsert_targeted_embeddings(
+        user_id=user_id,
+        updates=[(first.id, new_vector), (second.id, new_vector)],
+        expected_updated_at={first.id: first_read.updated_at, second.id: second_read.updated_at},
+    )
+
+    assert written == [second.id]
+    assert await _vec_blob(db_adapter, first.id) == original[first.id]
+    assert await _vec_blob(db_adapter, second.id) == sqlite_vec.serialize_float32(new_vector)
+
+
+async def test_upsert_targeted_embeddings_without_expectation_still_writes(stack):
+    repo, db_adapter, embedder, user_id = stack
+    memory = await repo.create_memory(user_id, _memory("content"))
+    new_vector = embedder.vector("refreshed")
+
+    written = await repo.upsert_targeted_embeddings(user_id=user_id, updates=[(memory.id, new_vector)])
+
+    assert written == [memory.id]
+    assert await _vec_blob(db_adapter, memory.id) == sqlite_vec.serialize_float32(new_vector)
+
+
+# ---------------------------------------------------------------------------
+# failure reporting
+# ---------------------------------------------------------------------------
+
+
+async def test_failed_reasons_are_stable_codes_without_sql_or_vector_bytes(stack):
+    repo, _db, embedder, user_id = stack
+    for index in range(3):
+        await repo.create_memory(user_id, _memory(f"content {index}"))
+    embedder.wrong_dimension_marker = "content"
+
+    ctx, adapters = _tool_adapters(repo, embedder, user_id)
+    out = await adapters.rebuild_embeddings(ctx)
+
+    assert out["rebuilt_ids"] == []
+    assert len(out["failed"]) == 3
+    for failure in out["failed"]:
+        assert failure["reason"] == "persistence_failed"
+        for marker in LEAK_MARKERS:
+            assert marker not in failure["reason"]
+
+
+async def test_batch_write_failure_blames_only_the_failing_memory(stack):
+    repo, db_adapter, embedder, user_id = stack
+    memories = [await repo.create_memory(user_id, _memory(f"content {index}")) for index in range(3)]
+    embedder.wrong_dimension_marker = "content 1"
+    original = {memory.id: await _vec_blob(db_adapter, memory.id) for memory in memories}
+
+    result = await ReEmbeddingService(repo, embedder, batch_size=10).rebuild_targeted(user_id=user_id)
+
+    assert result.failed == [{"memory_id": memories[1].id, "reason": "persistence_failed"}]
+    assert sorted(result.rebuilt_ids) == [memories[0].id, memories[2].id]
+    assert result.skipped_ids == []
+    assert await _vec_blob(db_adapter, memories[1].id) == original[memories[1].id]
+    for memory in (memories[0], memories[2]):
+        expected = embedder.vector(f"T content {memory.id - memories[0].id} c k t")
+        assert await _vec_blob(db_adapter, memory.id) == sqlite_vec.serialize_float32(expected)
 
 
 # ---------------------------------------------------------------------------

@@ -222,7 +222,7 @@ def _make_targeted_repo(memories: list[Memory], owned_by_user: bool = True):
             eligible = [memory for memory in eligible if memory.id > after_id]
         return eligible[:limit]
 
-    async def upsert_targeted(user_id, updates):
+    async def upsert_targeted(user_id, updates, expected_updated_at=None):
         return [mid for mid, _ in updates] if owned_by_user else []
 
     repo.get_memories_for_targeted_rebuild.side_effect = get_batch
@@ -282,7 +282,7 @@ async def test_rebuild_targeted_skips_unowned_ids():
             eligible = [memory for memory in eligible if memory.id > after_id]
         return eligible[:limit]
 
-    async def partial_upsert(user_id, updates):
+    async def partial_upsert(user_id, updates, expected_updated_at=None):
         return [updates[0][0]]  # Only the first id is owned
 
     repo.get_memories_for_targeted_rebuild.side_effect = get_batch
@@ -324,7 +324,7 @@ async def test_rebuild_targeted_records_embedding_failures():
     assert sorted(result.rebuilt_ids) == [1, 3]
     assert len(result.failed) == 1
     assert result.failed[0]["memory_id"] == 2
-    assert "transient API failure" in result.failed[0]["reason"]
+    assert result.failed[0]["reason"] == "embedding_failed"
 
 
 @pytest.mark.asyncio
