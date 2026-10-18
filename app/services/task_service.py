@@ -94,25 +94,33 @@ class TaskService:
                 f"Cannot add tasks to plan in {plan_status.value} status",
             )
 
+        # Validate every dependency before anything is persisted so a bad id cannot
+        # leave a half-built task behind. A brand new task cannot be part of a cycle.
+        dependency_ids = task_data.dependency_ids or []
+        duplicates = sorted({dep_id for dep_id in dependency_ids if dependency_ids.count(dep_id) > 1})
+        if duplicates:
+            raise ValueError(f"dependency_ids lists the same task more than once: {duplicates}")
+        for dep_id in dependency_ids:
+            await self._validate_same_plan(user_id, dep_id, task_data.plan_id)
+
         # Create the task (without criteria/deps - repo handles basic creation)
         task_data = apply_provenance_defaults(task_data)
         task = await self.task_repo.create_task(user_id=user_id, task_data=task_data)
 
-        # Create inline criteria
-        if task_data.criteria:
-            for criterion_data in task_data.criteria:
+        try:
+            # Create inline criteria
+            for criterion_data in task_data.criteria or []:
                 await self.task_repo.create_criterion(
                     user_id=user_id, task_id=task.id, criterion_data=criterion_data,
                 )
 
-        # Add dependencies with cycle detection
-        if task_data.dependency_ids:
-            for dep_id in task_data.dependency_ids:
-                await self._validate_same_plan(user_id, task.id, dep_id, task.plan_id)
-                await self._validate_no_cycle(user_id, task.id, dep_id)
+            for dep_id in dependency_ids:
                 await self.task_repo.add_dependency(
                     user_id=user_id, task_id=task.id, depends_on_task_id=dep_id,
                 )
+        except Exception:
+            await self._discard_partial_task(user_id, task.id)
+            raise
 
         # Re-fetch to get full task with criteria and deps
         task = await self.task_repo.get_task_by_id(user_id=user_id, task_id=task.id)
@@ -393,7 +401,7 @@ class TaskService:
             raise NotFoundError(f"Task with id {depends_on_task_id} not found")
 
         # Validate same plan
-        await self._validate_same_plan(user_id, task_id, depends_on_task_id, task.plan_id)
+        await self._validate_same_plan(user_id, depends_on_task_id, task.plan_id)
 
         # Cycle detection
         await self._validate_no_cycle(user_id, task_id, depends_on_task_id)
@@ -468,8 +476,15 @@ class TaskService:
                     )
                 queue.append(dep_id)
 
+    async def _discard_partial_task(self, user_id: UUID, task_id: int) -> None:
+        """Remove a task whose creation failed part-way (criteria and edges cascade)."""
+        try:
+            await self.task_repo.delete_task(user_id=user_id, task_id=task_id)
+        except Exception:
+            logger.exception("failed to roll back partially created task", extra={"task_id": task_id})
+
     async def _validate_same_plan(
-        self, user_id: UUID, task_id: int, dep_task_id: int, expected_plan_id: int,
+        self, user_id: UUID, dep_task_id: int, expected_plan_id: int,
     ) -> None:
         """Validate that the dependency task belongs to the same plan."""
         dep_task = await self.task_repo.get_task_by_id(user_id=user_id, task_id=dep_task_id)

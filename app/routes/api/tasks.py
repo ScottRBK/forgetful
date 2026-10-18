@@ -98,6 +98,8 @@ def register(mcp: FastMCP):
             return JSONResponse({"error": str(e)}, status_code=422)
         except CyclicDependencyError as e:
             return JSONResponse({"error": str(e)}, status_code=400)
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         return JSONResponse(task.model_dump(mode="json"), status_code=201)
 

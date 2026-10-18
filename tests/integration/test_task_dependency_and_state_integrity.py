@@ -1,0 +1,127 @@
+"""Integration tests for task dependency, criteria and plan-state invariants.
+
+Drives TaskService against the in-memory stub repositories. Every test asserts the
+invariant that must hold regardless of the storage backend; backend-specific atomicity
+(SQL guards, locking) is covered by the SQLite and PostgreSQL end-to-end suites.
+"""
+
+from uuid import uuid4
+
+import pytest
+
+from app.exceptions import NotFoundError
+from app.models.plan_models import (
+    CriterionCreate,
+    PlanCreate,
+    PlanStatus,
+    PlanUpdate,
+    TaskCreate,
+)
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+async def _active_plan(plan_service, user_id, title="Plan"):
+    plan = await plan_service.create_plan(
+        user_id=user_id,
+        plan_data=PlanCreate(title=title, project_id=1, goal="test"),
+    )
+    return await plan_service.update_plan(
+        user_id=user_id, plan_id=plan.id, plan_data=PlanUpdate(status=PlanStatus.ACTIVE),
+    )
+
+
+async def _task(task_service, user_id, plan_id, title="task", **extra):
+    return await task_service.create_task(
+        user_id=user_id, task_data=TaskCreate(title=title, plan_id=plan_id, **extra),
+    )
+
+
+# ---------------------------------------------------------------------------
+# create_task is all-or-nothing
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_create_task_with_cross_plan_dependency_persists_nothing(test_task_service):
+    task_service, plan_service = test_task_service
+    user_id = uuid4()
+    plan_a = await _active_plan(plan_service, user_id, "A")
+    plan_b = await _active_plan(plan_service, user_id, "B")
+    foreign = await _task(task_service, user_id, plan_b.id, "foreign")
+
+    with pytest.raises(ValueError, match="same plan"):
+        await _task(
+            task_service, user_id, plan_a.id, "X",
+            dependency_ids=[foreign.id],
+            criteria=[CriterionCreate(description="c")],
+        )
+
+    assert await task_service.list_tasks(user_id=user_id, plan_id=plan_a.id) == []
+    assert task_service.task_repo._criteria.get(user_id, {}) == {}
+
+
+@pytest.mark.asyncio
+async def test_create_task_with_unknown_dependency_persists_nothing(test_task_service):
+    task_service, plan_service = test_task_service
+    user_id = uuid4()
+    plan = await _active_plan(plan_service, user_id)
+
+    with pytest.raises(NotFoundError):
+        await _task(task_service, user_id, plan.id, "X", dependency_ids=[999])
+
+    assert await task_service.list_tasks(user_id=user_id, plan_id=plan.id) == []
+
+
+@pytest.mark.asyncio
+async def test_create_task_validates_every_dependency_before_persisting(test_task_service):
+    """A valid first dependency must not leave an edge or task behind when a later one fails."""
+    task_service, plan_service = test_task_service
+    user_id = uuid4()
+    plan = await _active_plan(plan_service, user_id)
+    good = await _task(task_service, user_id, plan.id, "good")
+
+    with pytest.raises(NotFoundError):
+        await _task(task_service, user_id, plan.id, "X", dependency_ids=[good.id, 999])
+
+    assert [t.title for t in await task_service.list_tasks(user_id=user_id, plan_id=plan.id)] == ["good"]
+    assert task_service.task_repo._dependencies.get(user_id, {}) == {}
+
+
+@pytest.mark.asyncio
+async def test_create_task_rejects_duplicate_dependency_ids_without_persisting(test_task_service):
+    task_service, plan_service = test_task_service
+    user_id = uuid4()
+    plan = await _active_plan(plan_service, user_id)
+    prereq = await _task(task_service, user_id, plan.id, "prereq")
+
+    with pytest.raises(ValueError, match="more than once"):
+        await _task(task_service, user_id, plan.id, "X", dependency_ids=[prereq.id, prereq.id])
+
+    assert [t.title for t in await task_service.list_tasks(user_id=user_id, plan_id=plan.id)] == ["prereq"]
+
+
+@pytest.mark.asyncio
+async def test_create_task_rolls_back_when_a_later_step_fails(test_task_service):
+    """An unexpected repository failure after the task row exists must not leave an orphan."""
+    task_service, plan_service = test_task_service
+    user_id = uuid4()
+    plan = await _active_plan(plan_service, user_id)
+    prereq = await _task(task_service, user_id, plan.id, "prereq")
+
+    async def boom(*args, **kwargs):
+        raise RuntimeError("database went away")
+
+    task_service.task_repo.add_dependency = boom
+
+    with pytest.raises(RuntimeError, match="database went away"):
+        await _task(
+            task_service, user_id, plan.id, "X",
+            dependency_ids=[prereq.id],
+            criteria=[CriterionCreate(description="c")],
+        )
+
+    assert [t.title for t in await task_service.list_tasks(user_id=user_id, plan_id=plan.id)] == ["prereq"]
+    assert task_service.task_repo._criteria.get(user_id, {}) == {}
