@@ -452,8 +452,8 @@ async def test_import_keeps_timestamps_as_text(test_skill_service):
 
 @pytest.mark.parametrize(
     "value",
-    ["!!set {a, b}", "!!binary aGVsbG8="],
-    ids=["set", "binary"],
+    ["!!set {a, b}", "!!binary aGVsbG8=", ".nan", ".inf", "-.inf", "[1, .nan]", "{n: .Inf}"],
+    ids=["set", "binary", "nan", "inf", "neg-inf", "nan-in-list", "inf-in-mapping"],
 )
 async def test_import_rejects_non_json_metadata(test_skill_service, value):
     skill_md = _md(f"name: odd-meta\ndescription: d\nmetadata:\n  k: {value}")

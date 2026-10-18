@@ -184,9 +184,14 @@ def _parse_frontmatter(raw: str) -> object:
 
 
 def _ensure_json_compatible_metadata(metadata: object) -> None:
-    """Reject metadata the JSON column cannot store (for example a YAML !!set)."""
+    """Reject metadata the JSON column cannot store.
+
+    Covers YAML-only types such as ``!!set`` and non-finite floats (``.nan``,
+    ``.inf``): the standard encoder would emit ``NaN``/``Infinity``, which is
+    not valid JSON and which a PostgreSQL JSONB column refuses.
+    """
     try:
-        json.dumps(metadata)
+        json.dumps(metadata, allow_nan=False)
     except (TypeError, ValueError) as exc:
         raise ValueError(
             "Invalid YAML frontmatter: metadata must contain only strings, numbers, "

@@ -74,8 +74,9 @@ async def test_rest_import_unquoted_date_metadata_is_stored_as_text(http_client)
     }
 
 
-async def test_rest_import_non_json_metadata_returns_400(http_client):
-    skill_md = "---\nname: odd-meta\ndescription: d\nmetadata:\n  k: !!set {a, b}\n---\nbody\n"
+@pytest.mark.parametrize("value", ["!!set {a, b}", ".nan", ".inf", "-.inf"], ids=["set", "nan", "inf", "neg-inf"])
+async def test_rest_import_non_json_metadata_returns_400(http_client, value):
+    skill_md = f"---\nname: odd-meta\ndescription: d\nmetadata:\n  k: {value}\n---\nbody\n"
 
     response = await _import(http_client, skill_md)
 

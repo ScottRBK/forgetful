@@ -1052,7 +1052,7 @@ Import a skill from Agent Skills markdown format (SKILL.md).
 - `project_id` (optional): Project association
 - `importance` (optional): Importance level (default: 7)
 
-The frontmatter sits between two lines that contain only `---`; a `---` inside a value or a horizontal rule in the body does not end it. Valid YAML is parsed as written. If it is not valid, scalar values with unquoted colons (for example `Keywords:` in a description) are quoted and parsing is retried; otherwise the import fails with `Invalid YAML frontmatter`. `allowed-tools` may be a list or a space or comma separated string (`Bash(git commit:*) Read`). Dates in frontmatter stay text, YAML aliases are rejected, and the frontmatter is limited to 16,384 characters. The body is stored exactly as written, minus the line break that separates it from the frontmatter and the final line break.
+The frontmatter sits between two lines that contain only `---`; a `---` inside a value or a horizontal rule in the body does not end it. Valid YAML is parsed as written. If it is not valid, scalar values with unquoted colons (for example `Keywords:` in a description) are quoted and parsing is retried; otherwise the import fails with `Invalid YAML frontmatter`. `allowed-tools` may be a list or a space or comma separated string (`Bash(git commit:*) Read`). Dates in frontmatter stay text, `metadata` must be JSON compatible (`.nan`, `.inf`, `!!set` and similar are rejected), YAML aliases are rejected, and the frontmatter is limited to 16,384 characters. The body is stored exactly as written, minus the line break that separates it from the frontmatter and the final line break.
 
 **Returns:**
 - Created Skill with generated ID
