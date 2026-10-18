@@ -515,8 +515,8 @@ before provenance enforcement and change detection. Null fields remain in the ra
 snapshot when supplied there, but are omitted from the effective patch and `proposed` merge.
 Null relationship lists leave associations unchanged; empty lists still clear them, and zero
 confidence is preserved. A null-only update is a no-op and skips the plugin. An invalid candidate
-uses normal validation handling before the plugin. Non-null skill-link update limitations (#96)
-remain; dropping null `skill_ids` does not implement skill association updates.
+uses normal validation handling before the plugin. The repositories persist `skill_ids` on update
+(an empty list clears the links); the live MCP update adapter still does not forward it (#96).
 The candidate does not guarantee referenced IDs exist or that a later database write will succeed.
 No database transaction is held across the plugin await. After a successful update decision,
 MemoryService re-reads the user-owned memory and applies the submitted patch to that current state

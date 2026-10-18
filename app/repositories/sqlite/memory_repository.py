@@ -240,6 +240,7 @@ class SqliteMemoryRepository:
                     selectinload(MemoryTable.code_artifacts),
                     selectinload(MemoryTable.documents),
                     selectinload(MemoryTable.files),
+                    selectinload(MemoryTable.skills),
                 )
             )
 
@@ -339,7 +340,8 @@ class SqliteMemoryRepository:
         async with self.db_adapter.session(user_id) as session:
 
             update_data = updated_memory.model_dump(
-                exclude_unset=True, exclude={"project_ids", "code_artifact_ids", "document_ids", "file_ids"},
+                exclude_unset=True,
+                exclude={"project_ids", "code_artifact_ids", "document_ids", "file_ids", "skill_ids"},
             )
 
             update_data["updated_at"] = datetime.now(UTC)
@@ -393,6 +395,12 @@ class SqliteMemoryRepository:
                     if updated_memory.file_ids:
                         await self._link_files(session, memory_orm, updated_memory.file_ids, user_id)
 
+                if updated_memory.skill_ids is not None:
+                    await session.refresh(memory_orm, attribute_names=["id", "skills"])
+                    memory_orm.skills.clear()
+                    if updated_memory.skill_ids:
+                        await self._link_skills(session, memory_orm, updated_memory.skill_ids, user_id)
+
                 # Re-query with selectinload to ensure all relationships are properly loaded
                 stmt = (
                     select(MemoryTable)
@@ -402,6 +410,7 @@ class SqliteMemoryRepository:
                         selectinload(MemoryTable.code_artifacts),
                         selectinload(MemoryTable.documents),
                         selectinload(MemoryTable.files),
+                        selectinload(MemoryTable.skills),
                         selectinload(MemoryTable.linked_memories),
                         selectinload(MemoryTable.linking_memories),
                     )
@@ -450,6 +459,7 @@ class SqliteMemoryRepository:
                 selectinload(MemoryTable.code_artifacts),
                 selectinload(MemoryTable.documents),
                 selectinload(MemoryTable.files),
+                selectinload(MemoryTable.skills),
             )
         )
 
@@ -595,6 +605,7 @@ class SqliteMemoryRepository:
                     selectinload(MemoryTable.code_artifacts),
                     selectinload(MemoryTable.documents),
                     selectinload(MemoryTable.files),
+                    selectinload(MemoryTable.skills),
                 )
             )
 
@@ -663,6 +674,7 @@ class SqliteMemoryRepository:
                     selectinload(MemoryTable.code_artifacts),
                     selectinload(MemoryTable.documents),
                     selectinload(MemoryTable.files),
+                    selectinload(MemoryTable.skills),
                 )
             )
             result = await session.execute(stmt)
@@ -709,6 +721,7 @@ class SqliteMemoryRepository:
                 selectinload(MemoryTable.code_artifacts),
                 selectinload(MemoryTable.documents),
                 selectinload(MemoryTable.files),
+                selectinload(MemoryTable.skills),
             )
             .where(
                 MemoryTable.user_id == str(user_id),
@@ -1083,6 +1096,7 @@ class SqliteMemoryRepository:
                     selectinload(MemoryTable.code_artifacts),
                     selectinload(MemoryTable.documents),
                     selectinload(MemoryTable.files),
+                    selectinload(MemoryTable.skills),
                 )
                 .order_by(MemoryTable.id.asc())
                 .offset(offset)
@@ -1182,6 +1196,7 @@ class SqliteMemoryRepository:
                     selectinload(MemoryTable.code_artifacts),
                     selectinload(MemoryTable.documents),
                     selectinload(MemoryTable.files),
+                    selectinload(MemoryTable.skills),
                 )
                 .order_by(MemoryTable.id.asc())
                 .limit(limit)

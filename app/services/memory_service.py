@@ -300,7 +300,7 @@ class MemoryService:
             proposed_data = existing_memory.model_dump(include=set(MemoryCreate.model_fields))
             updates = updated_memory.model_dump(exclude_unset=True)
             # Explicit nulls were removed before provenance and change detection.
-            # skill_ids retains its existing repository limitation (issue #96).
+            # skill_ids is a persisted relationship on update, like the other id lists.
             relationships = {"project_ids", "code_artifact_ids", "document_ids", "file_ids"}
             proposed_data.update({
                 key: value for key, value in updates.items()
