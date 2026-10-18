@@ -182,6 +182,8 @@ def register(mcp: FastMCP):
             )
         except NotFoundError:
             return JSONResponse({"error": "Entity not found"}, status_code=404)
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         return JSONResponse(entity.model_dump(mode="json"))
 

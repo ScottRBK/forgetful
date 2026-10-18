@@ -361,6 +361,18 @@ class EntitySummary(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+    @model_validator(mode="after")
+    def hide_stale_custom_type(self):
+        """Only 'Other' entities carry a custom_type (same rule as Entity)
+
+        Rows written before updates cleared custom_type can still hold a stale
+        value, so summaries drop it the way full entities already do.
+        """
+        if self.entity_type != EntityType.OTHER:
+            self.custom_type = None
+
+        return self
+
 
 class EntityListResponse(BaseModel):
     """Paginated list of entities for REST API

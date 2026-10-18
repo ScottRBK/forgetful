@@ -352,6 +352,43 @@ class EntityService:
 
         return entities
 
+    @staticmethod
+    def _resolve_custom_type_update(
+        entity_data: EntityUpdate,
+        existing_entity: Entity,
+    ) -> EntityUpdate:
+        """Validate the entity_type/custom_type pair an update would store
+
+        EntityUpdate can only check the fields it carries, so the check against
+        the stored entity happens here, before anything is written:
+        - an 'Other' entity must keep a custom_type
+        - any other type stores no custom_type (as on create), so a type change
+          or a stray custom_type in the payload results in custom_type being cleared
+
+        Returns:
+            EntityUpdate to persist (a copy when custom_type has to be cleared)
+
+        Raises:
+            ValueError: If the update would leave an 'Other' entity without custom_type
+        """
+        fields_set = entity_data.model_fields_set
+        effective_type = entity_data.entity_type or existing_entity.entity_type
+
+        if effective_type == EntityType.OTHER:
+            custom_type = (
+                entity_data.custom_type
+                if "custom_type" in fields_set
+                else existing_entity.custom_type
+            )
+            if not custom_type:
+                raise ValueError("custom_type is required when entity_type is 'Other'")
+            return entity_data
+
+        if "custom_type" in fields_set or "entity_type" in fields_set:
+            return entity_data.model_copy(update={"custom_type": None})
+
+        return entity_data
+
     async def update_entity(
         self,
         user_id: UUID,
@@ -372,6 +409,7 @@ class EntityService:
 
         Raises:
             NotFoundError: If entity not found or not owned by user
+            ValueError: If the update would leave an 'Other' entity without custom_type
         """
         logger.info(
             "updating entity",
@@ -391,6 +429,9 @@ class EntityService:
 
         if not existing_entity:
             raise NotFoundError(f"Entity {entity_id} not found")
+
+        # Validate the entity_type/custom_type pair the update would store
+        entity_data = self._resolve_custom_type_update(entity_data, existing_entity)
 
         # Detect changes
         changed_fields = get_changed_fields(
