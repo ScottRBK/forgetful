@@ -6,7 +6,6 @@ Includes SSE streaming endpoint for real-time event updates.
 
 import json
 import logging
-from datetime import datetime
 
 from fastmcp import FastMCP
 from sse_starlette.sse import EventSourceResponse
@@ -15,31 +14,26 @@ from starlette.responses import JSONResponse
 
 from app.middleware.auth import get_user_from_request
 from app.models.activity_models import ActionType, ActorType, EntityType
+from app.routes.api.query_params import parse_datetime_param, parse_int_param
 
 logger = logging.getLogger(__name__)
 
 
-def parse_int_param(params, key: str, default: int) -> int:
-    """Parse integer query parameter with default."""
-    value = params.get(key)
-    if value is None:
-        return default
-    try:
-        return int(value)
-    except ValueError:
-        return default
+def parse_pagination(params) -> tuple[int, int]:
+    """Parse and validate the limit/offset query parameters of the activity routes.
 
+    Raises:
+        ValueError: If either value is malformed or out of range
+    """
+    limit = parse_int_param(params, "limit", 50)
+    offset = parse_int_param(params, "offset", 0)
 
-def parse_datetime_param(params, key: str) -> datetime | None:
-    """Parse ISO 8601 datetime query parameter."""
-    value = params.get(key)
-    if value is None:
-        return None
-    try:
-        # Handle both with and without timezone
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError:
-        return None
+    if limit < 1 or limit > 100:
+        raise ValueError("limit must be between 1 and 100")
+    if offset < 0:
+        raise ValueError("offset must be >= 0")
+
+    return limit, offset
 
 
 def register(mcp: FastMCP):
@@ -74,40 +68,18 @@ def register(mcp: FastMCP):
 
         params = request.query_params
 
-        # Parse query parameters
+        # Parse query parameters; a malformed value is rejected, never ignored
         entity_type = params.get("entity_type")
         action = params.get("action")
-        entity_id_str = params.get("entity_id")
         actor = params.get("actor")
-        since = parse_datetime_param(params, "since")
-        until = parse_datetime_param(params, "until")
-        limit = parse_int_param(params, "limit", 50)
-        offset = parse_int_param(params, "offset", 0)
-
-        # Validate limit
-        if limit < 1 or limit > 100:
-            return JSONResponse(
-                {"error": "limit must be between 1 and 100"},
-                status_code=400,
-            )
-
-        # Validate offset
-        if offset < 0:
-            return JSONResponse(
-                {"error": "offset must be >= 0"},
-                status_code=400,
-            )
-
-        # Parse entity_id if provided
-        entity_id = None
-        if entity_id_str:
-            try:
-                entity_id = int(entity_id_str)
-            except ValueError:
-                return JSONResponse(
-                    {"error": "entity_id must be an integer"},
-                    status_code=400,
-                )
+        try:
+            since = parse_datetime_param(params, "since")
+            until = parse_datetime_param(params, "until")
+            limit, offset = parse_pagination(params)
+            # An empty entity_id means "no filter"
+            entity_id = parse_int_param(params, "entity_id") if params.get("entity_id") else None
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         # Convert and validate action if provided
         action_enum = None
@@ -210,16 +182,10 @@ def register(mcp: FastMCP):
                 status_code=400,
             )
 
-        params = request.query_params
-        limit = parse_int_param(params, "limit", 50)
-        offset = parse_int_param(params, "offset", 0)
-
-        # Validate limit
-        if limit < 1 or limit > 100:
-            return JSONResponse(
-                {"error": "limit must be between 1 and 100"},
-                status_code=400,
-            )
+        try:
+            limit, offset = parse_pagination(request.query_params)
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         response = await mcp.activity_service.get_entity_history(
             user_id=user.id,

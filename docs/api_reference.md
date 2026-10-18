@@ -833,7 +833,7 @@ Get full knowledge graph for visualization. Returns all nodes and edges for the 
 | `node_types` | string | `memory,entity,project,document,code_artifact` | Comma-separated list of node types to include |
 | `project_id` | int | - | Filter to specific project |
 | `include_entities` | bool | true | Include entity nodes (deprecated, use `node_types`) |
-| `limit` | int | 100 | Max memories to include (max 500) |
+| `limit` | int | 100 | Max memories to include (max 500, at least 1; below 1 returns 400) |
 | `offset` | int | 0 | Number of memories to skip for pagination |
 | `sort_by` | string | `created_at` | Sort field: `created_at`, `updated_at`, or `importance` |
 | `sort_order` | string | `desc` | Sort direction: `asc` or `desc` |
@@ -1011,7 +1011,7 @@ Get subgraph centered on a specific memory.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `depth` | int | 1 | Link traversal depth (1-3) |
+| `depth` | int | 1 | Link traversal depth (1-3; below 1 returns 400, above 3 is clamped) |
 
 **Response:**
 ```json
@@ -1068,6 +1068,11 @@ List activity events with filtering and pagination.
 | `until` | datetime | - | Only events before this timestamp (ISO 8601) |
 | `limit` | int | 50 | Results per page (1-100) |
 | `offset` | int | 0 | Skip N results |
+
+`since` and `until` are compared in UTC: a value without an offset is read as UTC and a value with an
+offset (`+02:00`) is converted to UTC. Encode a `+` in the offset as `%2B`, since a raw `+` reaches the
+server as a space. A malformed `since`, `until`, `limit`, `offset` or `entity_id` (or an integer outside
+the 64-bit range) returns 400 instead of being ignored.
 
 **Response:**
 ```json

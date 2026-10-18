@@ -13,6 +13,7 @@ from starlette.responses import JSONResponse
 from app.config.settings import settings
 from app.exceptions import NotFoundError
 from app.middleware.auth import get_user_from_request
+from app.routes.api.query_params import INT64_MAX, INT64_MIN
 
 logger = logging.getLogger(__name__)
 
@@ -119,6 +120,11 @@ def register(mcp: FastMCP):
                 {"error": f"Invalid limit: {limit_str}. Must be an integer."},
                 status_code=400,
             )
+        if limit < 1:
+            return JSONResponse(
+                {"error": "limit must be at least 1"},
+                status_code=400,
+            )
 
         # Validate offset parameter
         try:
@@ -126,6 +132,11 @@ def register(mcp: FastMCP):
             if offset < 0:
                 return JSONResponse(
                     {"error": "offset must be non-negative"},
+                    status_code=400,
+                )
+            if offset > INT64_MAX:
+                return JSONResponse(
+                    {"error": f"Invalid offset: {offset_str}. Out of range."},
                     status_code=400,
                 )
         except ValueError:
@@ -158,6 +169,11 @@ def register(mcp: FastMCP):
             except ValueError:
                 return JSONResponse(
                     {"error": f"Invalid project_id: {project_id_str}. Must be an integer."},
+                    status_code=400,
+                )
+            if not INT64_MIN <= project_ids[0] <= INT64_MAX:
+                return JSONResponse(
+                    {"error": f"Invalid project_id: {project_id_str}. Out of range."},
                     status_code=400,
                 )
 
@@ -794,6 +810,11 @@ def register(mcp: FastMCP):
         except ValueError:
             return JSONResponse(
                 {"error": f"Invalid depth: {depth_str}. Must be an integer."},
+                status_code=400,
+            )
+        if depth < 1:
+            return JSONResponse(
+                {"error": f"Invalid depth: {depth}. Must be at least 1."},
                 status_code=400,
             )
 
