@@ -16,6 +16,10 @@ from app.config.settings import settings
 
 logger = logging.getLogger(__name__)
 
+# Arbitrary application-wide key for the advisory lock that serialises schema setup.
+MIGRATION_LOCK_KEY = 0x666F72676574
+
+
 def build_postgres_url() -> URL:
     """Build the asyncpg URL from settings, escaping any special characters."""
     return URL.create(
@@ -88,6 +92,15 @@ class PostgresDatabaseAdapter:
         - Existing database: Runs pending migrations
         """
         async with self._engine.begin() as conn:
+            # Concurrent first starts (server plus CLI, several replicas) would otherwise
+            # collide on CREATE EXTENSION and the table creates. The transaction-scoped
+            # lock is released on commit or rollback, so losers then find the schema
+            # already migrated and Alembic has nothing left to do.
+            await conn.execute(
+                text("SELECT pg_advisory_xact_lock(:key)"),
+                {"key": MIGRATION_LOCK_KEY},
+            )
+
             # Enable pg_vector extension
             await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
             logger.info("Initializing Database")

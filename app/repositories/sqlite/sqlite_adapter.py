@@ -1,4 +1,6 @@
 import logging
+import sqlite3
+import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from uuid import UUID
@@ -15,6 +17,29 @@ from sqlalchemy.ext.asyncio import (
 from app.config.settings import settings
 
 logger = logging.getLogger(__name__)
+
+# Another process may be mid-migration; wait for it rather than failing start-up.
+_MIGRATION_LOCK_TIMEOUT_MS = 60000
+_WAL_SWITCH_RETRY_SECONDS = 30
+
+
+def _enable_wal(raw_conn) -> None:
+    """Switch the database file to WAL mode, riding out a concurrent switch.
+
+    Converting a fresh file needs an exclusive lock, and when two connections ask for
+    it at once SQLite fails one immediately with "database is locked" without waiting
+    for busy_timeout. The other connection finishes the conversion within moments, after
+    which this is a no-op, so retrying briefly is enough.
+    """
+    deadline = time.monotonic() + _WAL_SWITCH_RETRY_SECONDS
+    while True:
+        try:
+            raw_conn.execute("PRAGMA journal_mode=WAL")
+            return
+        except sqlite3.OperationalError as error:
+            if "locked" not in str(error) or time.monotonic() >= deadline:
+                raise
+            time.sleep(0.05)
 
 
 def _sqlite_connection_creator():
@@ -94,7 +119,7 @@ class SqliteDatabaseAdapter:
                     raw_conn.load_extension(sqlite_vec.loadable_path())
                     raw_conn.enable_load_extension(False)
                     # Set pragmas
-                    raw_conn.execute("PRAGMA journal_mode=WAL")
+                    _enable_wal(raw_conn)
                     raw_conn.execute("PRAGMA synchronous=NORMAL")
                     raw_conn.execute("PRAGMA foreign_keys=ON")
                     raw_conn.execute("PRAGMA busy_timeout=5000")
@@ -154,6 +179,19 @@ class SqliteDatabaseAdapter:
         """
         async with self._engine.begin() as conn:
             logger.info("Initializing SQLite database")
+
+            # Open a real SQLite transaction and take the write lock before touching the
+            # schema. The driver only starts one at the first INSERT/UPDATE, so without
+            # this the first migration's CREATE TABLEs autocommit one by one: a later
+            # failure then leaves tables behind that alembic_version does not know about
+            # and every restart dies on "table already exists". The lock also makes
+            # concurrent first starts wait for each other (the winner migrates, the
+            # others find nothing left to do) instead of racing on CREATE TABLE.
+            await conn.exec_driver_sql(f"PRAGMA busy_timeout={_MIGRATION_LOCK_TIMEOUT_MS}")
+            try:
+                await conn.exec_driver_sql("BEGIN IMMEDIATE")
+            finally:
+                await conn.exec_driver_sql("PRAGMA busy_timeout=5000")  # regular value
 
             # Run migrations (Alembic handles fresh vs existing database)
             await conn.run_sync(self._run_migrations)

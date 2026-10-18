@@ -1,6 +1,9 @@
 """Migration runner behaviour against a real SQLite file.
 
+Covers the start-up path (`init_db` -> Alembic -> `alembic/env.py`):
 - application logging survives the migration step
+- a failed first start leaves the database untouched, so the next start works
+- concurrent first starts wait for each other instead of crashing
 - a `%` in SQLITE_PATH no longer aborts start-up
 - the working directory is never put on sys.path
 """
@@ -13,6 +16,7 @@ import sqlite3
 import subprocess
 import sys
 import textwrap
+import time
 from pathlib import Path
 
 import pytest
@@ -136,6 +140,84 @@ class TestApplicationLoggingSurvivesMigrations:
 
         assert app_logger.disabled is False
         assert snapshot(file_db)[1], "the command line run should have stamped the database"
+
+
+class TestFailedFirstStartDoesNotBrickTheDatabase:
+    async def test_failure_after_migrations_rolls_everything_back(self, file_db, monkeypatch):
+        # The migrations succeed, then vec0 rejects zero dimensions inside init_db.
+        monkeypatch.setattr(settings, "EMBEDDING_DIMENSIONS", 0)
+        with pytest.raises(Exception):
+            await init_and_dispose(SqliteDatabaseAdapter())
+
+        tables, versions = snapshot(file_db)
+        assert tables == set(), f"half-migrated database left behind: {sorted(tables)} {versions}"
+
+        # The operator fixes the configuration and restarts.
+        monkeypatch.setattr(settings, "EMBEDDING_DIMENSIONS", 384)
+        await init_and_dispose(SqliteDatabaseAdapter())
+
+        tables, versions = snapshot(file_db)
+        assert versions, "the database must be stamped after a successful start"
+        assert {"users", "vec_memories", "vec_skills"} <= tables
+
+    async def test_second_start_on_a_migrated_database_is_a_no_op(self, file_db):
+        await init_and_dispose(SqliteDatabaseAdapter())
+        first = snapshot(file_db)
+
+        await init_and_dispose(SqliteDatabaseAdapter())
+
+        assert snapshot(file_db) == first
+
+
+class TestConcurrentFirstStart:
+    def test_simultaneous_processes_all_succeed(self, tmp_path):
+        """Alembic keeps process-global state, so the race has to be run across processes."""
+        runner = tmp_path / "run_init_db.py"
+        runner.write_text(textwrap.dedent(f"""
+            import asyncio
+            import sys
+            import time
+
+            sys.path.insert(0, {str(PROJECT_ROOT)!r})
+            from app.repositories.sqlite.sqlite_adapter import SqliteDatabaseAdapter
+
+
+            async def main():
+                adapter = SqliteDatabaseAdapter()
+                while time.time() < float(sys.argv[1]):  # release every process together
+                    await asyncio.sleep(0.0005)
+                try:
+                    await adapter.init_db()
+                    print("OK")
+                except Exception as error:
+                    print("FAIL", type(error).__name__, str(error)[:200])
+                    sys.exit(1)
+                finally:
+                    await adapter.dispose()
+
+
+            asyncio.run(main())
+        """))
+        database = tmp_path / "forgetful.db"
+        env = {key: value for key, value in os.environ.items() if key != "PYTHONPATH"}
+        env.update(
+            DATABASE="SQLite", SQLITE_PATH=str(database), SQLITE_MEMORY="false", LOG_LEVEL="ERROR",
+        )
+        start = time.time() + 6  # imports take a few seconds; start only once all are ready
+        processes = [
+            subprocess.Popen(  # noqa: S603 - test-controlled arguments, no shell
+                [sys.executable, str(runner), str(start)],
+                env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+            )
+            for _ in range(3)
+        ]
+
+        outputs = [process.communicate(timeout=120)[0] for process in processes]
+
+        assert [process.returncode for process in processes] == [0, 0, 0], outputs
+        tables, versions = snapshot(database)
+        assert len(versions) == 1
+        assert {"users", "vec_memories", "vec_skills"} <= tables
 
 
 class TestPercentSignInDatabasePath:
