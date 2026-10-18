@@ -196,7 +196,7 @@ def register(mcp: FastMCP):
 
         try:
             body = await read_json_object(request)
-            agent_id = str(body["agent_id"])
+            agent_id = body["agent_id"]
             version = body_int(body["version"], "version")
         except (KeyError, ValueError) as e:
             return JSONResponse({"error": f"Invalid body: {e}"}, status_code=400)
@@ -206,6 +206,8 @@ def register(mcp: FastMCP):
                 user_id=user.id, task_id=task_id,
                 agent_id=agent_id, expected_version=version,
             )
+        except ValidationError as e:
+            return JSONResponse({"error": e.errors()}, status_code=400)
         except NotFoundError as e:
             return JSONResponse({"error": str(e)}, status_code=404)
         except ConflictError as e:

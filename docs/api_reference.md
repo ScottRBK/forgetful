@@ -1602,7 +1602,7 @@ Claim a task by assigning an agent and transitioning it to `doing`. Uses optimis
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `agent_id` | string | yes | Identifier of the claiming agent |
+| `agent_id` | string | yes | Identifier of the claiming agent: 1 to 200 characters (`TASK_AGENT_MAX_LENGTH`), surrounding whitespace is trimmed |
 | `version` | int | yes | Current version for optimistic concurrency |
 
 **Response:** Updated task object (state set to `doing`, `assigned_agent` set, version incremented)
@@ -1611,7 +1611,7 @@ Claim a task by assigning an agent and transitioning it to `doing`. Uses optimis
 
 | Code | Condition |
 |------|-----------|
-| 400 | Invalid body: missing `agent_id`, or a missing or non-integer `version` |
+| 400 | Invalid body: missing, non-string, empty or over-long `agent_id`, or a missing or non-integer `version` |
 | 404 | Task not found |
 | 409 | Version mismatch (optimistic concurrency conflict) |
 | 422 | Invalid state transition, or unmet dependencies block the claim |

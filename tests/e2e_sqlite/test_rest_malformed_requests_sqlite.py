@@ -10,6 +10,7 @@ import re
 
 import pytest
 from fastmcp import Client, FastMCP
+from fastmcp.exceptions import ToolError
 from httpx import ASGITransport, AsyncClient
 
 from app.routes.api import (
@@ -264,3 +265,66 @@ class TestTaskBodies:
             json={"state": "done", "version": str(claimed.json()["version"])},
         )
         assert done.status_code == 200
+
+
+class TestClaimAgentId:
+    """agent_id must be a real string of 1..TASK_AGENT_MAX_LENGTH characters."""
+
+    async def test_invalid_agent_id_is_rejected_and_task_untouched(self, client, todo_task):
+        url = f"/api/v1/tasks/{todo_task['id']}"
+        for agent_id in (None, "", "   ", 123, ["a"], {"x": 1}, True, "a" * 201):
+            response = await client.post(
+                f"{url}/claim", json={"agent_id": agent_id, "version": todo_task["version"]},
+            )
+            assert response.status_code == 400, (agent_id, response.text[:200])
+            assert "error" in response.json()
+
+            task = (await client.get(url)).json()
+            assert task["state"] == "todo", agent_id
+            assert task["assigned_agent"] is None, agent_id
+            assert task["version"] == todo_task["version"], agent_id
+
+    async def test_missing_agent_id_is_rejected(self, client, todo_task):
+        response = await client.post(
+            f"/api/v1/tasks/{todo_task['id']}/claim", json={"version": todo_task["version"]},
+        )
+        assert response.status_code == 400
+
+    async def test_max_length_agent_id_is_accepted(self, client, todo_task):
+        response = await client.post(
+            f"/api/v1/tasks/{todo_task['id']}/claim",
+            json={"agent_id": "a" * 200, "version": todo_task["version"]},
+        )
+        assert response.status_code == 200
+        assert response.json()["assigned_agent"] == "a" * 200
+
+    async def test_valid_agent_id_is_trimmed(self, client, todo_task):
+        response = await client.post(
+            f"/api/v1/tasks/{todo_task['id']}/claim",
+            json={"agent_id": " agent-1 ", "version": todo_task["version"]},
+        )
+        assert response.status_code == 200
+        assert response.json()["assigned_agent"] == "agent-1"
+
+    async def test_mcp_claim_task_shares_the_validation(self, mcp_client):
+        async def call(tool, args):
+            return await mcp_client.call_tool(
+                "execute_forgetful_tool", {"tool_name": tool, "arguments": args},
+            )
+
+        project = (await call("create_project", {
+            "name": "mcp-claim", "description": "p", "project_type": "development",
+        })).data["id"]
+        plan = (await call("create_plan", {"project_id": project, "title": "p"})).data["id"]
+        await call("update_plan", {"plan_id": plan, "status": "active"})
+        task = (await call("create_task", {"plan_id": plan, "title": "t"})).data
+
+        for agent_id in ("", "   ", "a" * 201):
+            with pytest.raises(ToolError):
+                await call("claim_task", {
+                    "task_id": task["id"], "agent_id": agent_id, "version": task["version"],
+                })
+
+        stored = (await call("get_task", {"task_id": task["id"]})).data
+        assert stored["state"] == "todo"
+        assert stored["assigned_agent"] is None

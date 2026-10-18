@@ -266,6 +266,14 @@ class PlanSummary(BaseModel):
 # ============================================================================
 
 
+TaskAgentId = Annotated[
+    str,
+    StringConstraints(
+        strip_whitespace=True, min_length=1, max_length=settings.TASK_AGENT_MAX_LENGTH,
+    ),
+]
+
+
 class TaskCreate(BaseModel):
     """Input model for creating a task."""
     title: str = Field(..., max_length=settings.TASK_TITLE_MAX_LENGTH)

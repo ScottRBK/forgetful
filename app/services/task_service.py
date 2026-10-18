@@ -1,6 +1,8 @@
 from typing import TYPE_CHECKING
 from uuid import UUID
 
+from pydantic import TypeAdapter
+
 from app.config.logging_config import logging
 from app.exceptions import (
     ConflictError,
@@ -23,6 +25,7 @@ from app.models.plan_models import (
     PlanStatus,
     PlanUpdate,
     Task,
+    TaskAgentId,
     TaskCreate,
     TaskPriority,
     TaskState,
@@ -41,6 +44,8 @@ if TYPE_CHECKING:
     from app.events import EventBus
 
 logger = logging.getLogger(__name__)
+
+_AGENT_ID_ADAPTER = TypeAdapter(TaskAgentId)
 
 
 class TaskService:
@@ -297,7 +302,12 @@ class TaskService:
         agent_id: str,
         expected_version: int,
     ) -> Task:
-        """Convenience wrapper: claim task by setting agent and transitioning to doing."""
+        """Convenience wrapper: claim task by setting agent and transitioning to doing.
+
+        Raises pydantic.ValidationError if agent_id is not a non-empty string of at most
+        TASK_AGENT_MAX_LENGTH characters (surrounding whitespace is trimmed).
+        """
+        agent_id = _AGENT_ID_ADAPTER.validate_python(agent_id)
         logger.info(
             "claiming task",
             extra={"task_id": task_id, "agent_id": agent_id, "expected_version": expected_version},
