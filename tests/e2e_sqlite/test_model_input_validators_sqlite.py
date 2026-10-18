@@ -10,10 +10,11 @@ import pytest
 from fastmcp.exceptions import ToolError
 from sqlalchemy import update
 
-from app.repositories.sqlite.sqlite_tables import FilesTable
+from app.repositories.sqlite.sqlite_tables import FilesTable, PlansTable
 
 GOOD_DATA = base64.b64encode(b"hello world").decode()
 GARBAGE_DATA = ["!!!!", "====", "    "]
+BLANKS = ["", "   ", " \t\n "]
 INDENTED_CODE = "    def foo():\n        return 1\n"
 
 
@@ -24,6 +25,32 @@ def _file_payload(data: str = GOOD_DATA) -> dict:
         "data": data,
         "mime_type": "application/octet-stream",
     }
+
+
+async def _create_project(http_client) -> int:
+    response = await http_client.post("/api/v1/projects", json={
+        "name": "p", "description": "d", "project_type": "development",
+    })
+    assert response.status_code == 201, response.text
+    return response.json()["id"]
+
+
+async def _create_plan(http_client) -> int:
+    project_id = await _create_project(http_client)
+    response = await http_client.post(
+        "/api/v1/plans", json={"title": "plan", "project_id": project_id},
+    )
+    assert response.status_code == 201, response.text
+    return response.json()["id"]
+
+
+async def _create_task(http_client) -> int:
+    plan_id = await _create_plan(http_client)
+    response = await http_client.post(
+        "/api/v1/tasks", json={"title": "task", "plan_id": plan_id},
+    )
+    assert response.status_code == 201, response.text
+    return response.json()["id"]
 
 
 # ============================================================================
@@ -134,5 +161,134 @@ class TestCodeArtifactVerbatimApi:
         )
         assert updated.status_code == 200, updated.text
         assert updated.json()["code"] == new_code
+
+
+# ============================================================================
+# Plans, tasks, criteria: blank text
+
+
+# ============================================================================
+
+
+class TestBlankPlanningTextApi:
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("blank", BLANKS)
+    async def test_create_plan_with_blank_title_is_rejected(self, http_client, blank):
+        project_id = await _create_project(http_client)
+
+        response = await http_client.post(
+            "/api/v1/plans", json={"title": blank, "project_id": project_id},
+        )
+
+        assert response.status_code == 400, response.text
+        assert "cannot be empty or whitespace only" in response.text
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("blank", BLANKS)
+    async def test_update_plan_with_blank_title_is_rejected(self, http_client, blank):
+        plan_id = await _create_plan(http_client)
+
+        response = await http_client.put(f"/api/v1/plans/{plan_id}", json={"title": blank})
+
+        assert response.status_code == 400, response.text
+        assert (await http_client.get(f"/api/v1/plans/{plan_id}")).json()["title"] == "plan"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("blank", BLANKS)
+    async def test_create_task_with_blank_title_is_rejected(self, http_client, blank):
+        plan_id = await _create_plan(http_client)
+
+        response = await http_client.post("/api/v1/tasks", json={"title": blank, "plan_id": plan_id})
+
+        assert response.status_code == 400, response.text
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("blank", BLANKS)
+    async def test_update_task_with_blank_title_is_rejected(self, http_client, blank):
+        task_id = await _create_task(http_client)
+
+        response = await http_client.put(f"/api/v1/tasks/{task_id}", json={"title": blank})
+
+        assert response.status_code == 400, response.text
+        assert (await http_client.get(f"/api/v1/tasks/{task_id}")).json()["title"] == "task"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("blank", BLANKS)
+    async def test_add_criterion_with_blank_description_is_rejected(self, http_client, blank):
+        task_id = await _create_task(http_client)
+
+        response = await http_client.post(
+            f"/api/v1/tasks/{task_id}/criteria", json={"description": blank},
+        )
+
+        assert response.status_code == 400, response.text
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("blank", BLANKS)
+    async def test_update_criterion_with_blank_description_is_rejected(self, http_client, blank):
+        task_id = await _create_task(http_client)
+        created = await http_client.post(
+            f"/api/v1/tasks/{task_id}/criteria", json={"description": "real"},
+        )
+        criterion_id = created.json()["id"]
+
+        response = await http_client.put(
+            f"/api/v1/criteria/{criterion_id}", json={"description": blank},
+        )
+
+        assert response.status_code == 400, response.text
+
+    @pytest.mark.asyncio
+    async def test_padded_titles_are_trimmed_and_met_only_update_still_works(self, http_client):
+        project_id = await _create_project(http_client)
+        plan = await http_client.post(
+            "/api/v1/plans", json={"title": "  padded  ", "project_id": project_id},
+        )
+        assert plan.json()["title"] == "padded"
+
+        task = await http_client.post(
+            "/api/v1/tasks", json={"title": "  task  ", "plan_id": plan.json()["id"]},
+        )
+        assert task.json()["title"] == "task"
+
+        criterion = await http_client.post(
+            f"/api/v1/tasks/{task.json()['id']}/criteria", json={"description": "  done  "},
+        )
+        assert criterion.json()["description"] == "done"
+        met_only = await http_client.put(
+            f"/api/v1/criteria/{criterion.json()['id']}", json={"met": True},
+        )
+        assert met_only.status_code == 200, met_only.text
+        assert met_only.json()["description"] == "done"
+
+    @pytest.mark.asyncio
+    async def test_mcp_create_plan_with_blank_title_is_rejected(self, mcp_client):
+        project = await mcp_client.call_tool("execute_forgetful_tool", {
+            "tool_name": "create_project",
+            "arguments": {"name": "p", "description": "d", "project_type": "development"},
+        })
+        project_id = project.data["id"]
+
+        with pytest.raises(ToolError):
+            await mcp_client.call_tool("execute_forgetful_tool", {
+                "tool_name": "create_plan",
+                "arguments": {"title": "   ", "project_id": project_id},
+            })
+
+    @pytest.mark.asyncio
+    async def test_plan_stored_with_blank_title_earlier_stays_readable_and_deletable(
+        self, sqlite_app, http_client,
+    ):
+        plan_id = await _create_plan(http_client)
+        db_adapter = sqlite_app.plan_service.plan_repo.db_adapter
+        async with db_adapter.system_session() as session:
+            await session.execute(update(PlansTable).where(PlansTable.id == plan_id).values(title=""))
+
+        fetched = await http_client.get(f"/api/v1/plans/{plan_id}")
+        assert fetched.status_code == 200, fetched.text
+        assert fetched.json()["title"] == ""
+
+        deleted = await http_client.delete(f"/api/v1/plans/{plan_id}")
+        assert deleted.status_code == 200, deleted.text
 
 

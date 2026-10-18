@@ -17,6 +17,7 @@ from pydantic import (
     field_validator,
     model_validator,
 )
+from pydantic_core import PydanticCustomError
 
 from app.config.settings import settings
 
@@ -72,6 +73,27 @@ VALID_PLAN_TRANSITIONS: dict[PlanStatus, set[PlanStatus]] = {
 
 
 # ============================================================================
+# Validation helpers
+# ============================================================================
+
+
+def _require_text(value: str, field_name: str) -> str:
+    """Trim required text and reject blank values.
+
+    Raises PydanticCustomError rather than ValueError so the error context stays JSON
+    serialisable for the REST routes that return ``ValidationError.errors()``.
+    """
+    stripped = value.strip()
+    if not stripped:
+        raise PydanticCustomError(
+            "blank_text",
+            "{field} cannot be empty or whitespace only",
+            {"field": field_name},
+        )
+    return stripped
+
+
+# ============================================================================
 # Criterion Models
 # ============================================================================
 
@@ -83,7 +105,7 @@ class CriterionCreate(BaseModel):
     @field_validator("description")
     @classmethod
     def strip_description(cls, v: str) -> str:
-        return v.strip()
+        return _require_text(v, "description")
 
 
 class CriterionUpdate(BaseModel):
@@ -94,7 +116,7 @@ class CriterionUpdate(BaseModel):
     @field_validator("description")
     @classmethod
     def strip_description(cls, v: str | None) -> str | None:
-        return v.strip() if v else v
+        return None if v is None else _require_text(v, "description")
 
 
 class Criterion(BaseModel):
@@ -181,7 +203,7 @@ class PlanCreate(BaseModel):
     @field_validator("title")
     @classmethod
     def strip_title(cls, v: str) -> str:
-        return v.strip()
+        return _require_text(v, "title")
 
     @field_validator("goal", "context")
     @classmethod
@@ -229,7 +251,7 @@ class PlanUpdate(BaseModel):
     @field_validator("title")
     @classmethod
     def strip_title(cls, v: str | None) -> str | None:
-        return v.strip() if v else v
+        return None if v is None else _require_text(v, "title")
 
     @field_validator("goal", "context")
     @classmethod
@@ -245,6 +267,13 @@ class Plan(PlanCreate):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("title")
+    @classmethod
+    def strip_title(cls, v: str) -> str:
+        # Overrides PlanCreate.strip_title: plans stored before blank titles were
+        # rejected must stay readable and deletable.
+        return v.strip()
 
 
 class PlanSummary(BaseModel):
@@ -297,7 +326,7 @@ class TaskCreate(BaseModel):
     @field_validator("title")
     @classmethod
     def strip_title(cls, v: str) -> str:
-        return v.strip()
+        return _require_text(v, "title")
 
     @field_validator("description")
     @classmethod
@@ -332,7 +361,7 @@ class TaskUpdate(BaseModel):
     @field_validator("title")
     @classmethod
     def strip_title(cls, v: str | None) -> str | None:
-        return v.strip() if v else v
+        return None if v is None else _require_text(v, "title")
 
     @field_validator("description")
     @classmethod
