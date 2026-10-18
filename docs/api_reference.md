@@ -1538,6 +1538,12 @@ Fields that are omitted or sent as `null` are left unchanged.
 
 **Response:** Updated task object
 
+**Error Responses:**
+
+| Code | Condition |
+|------|-----------|
+| 404 | Task not found |
+
 ### DELETE /api/v1/tasks/{task_id}
 
 Delete a task.

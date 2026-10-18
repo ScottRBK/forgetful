@@ -11,6 +11,7 @@ depends on the PostgreSQL repositories:
 
 
 import pytest
+from fastmcp.exceptions import ToolError
 
 pytestmark = [
     pytest.mark.e2e,
@@ -100,3 +101,21 @@ async def test_put_task_with_null_fields_leaves_it_unchanged_e2e(mcp_client, htt
     assert body["description"] == "Original description"
 
 
+# ---- Missing plan or task is a not-found error ----
+
+async def test_update_plan_tool_for_missing_plan_is_a_tool_error_e2e(mcp_client):
+    with pytest.raises(ToolError, match="not found"):
+        await _call(mcp_client, "update_plan", {"plan_id": MISSING_ID, "title": "x"})
+
+
+async def test_update_task_tool_for_missing_task_is_a_tool_error_e2e(mcp_client):
+    with pytest.raises(ToolError, match="not found"):
+        await _call(mcp_client, "update_task", {"task_id": MISSING_ID, "title": "x"})
+
+
+async def test_put_missing_plan_and_task_return_404_e2e(http_client):
+    plan_response = await http_client.put(f"/api/v1/plans/{MISSING_ID}", json={"title": "x"})
+    task_response = await http_client.put(f"/api/v1/tasks/{MISSING_ID}", json={"title": "x"})
+
+    assert plan_response.status_code == 404
+    assert task_response.status_code == 404

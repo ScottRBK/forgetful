@@ -9,6 +9,7 @@ Covers PATCH-style updates over REST and MCP:
 
 
 import pytest
+from fastmcp.exceptions import ToolError
 
 MISSING_ID = 999999
 
@@ -199,5 +200,35 @@ async def test_put_criterion_null_does_not_clear_met_state(http_client):
     assert body["description"] == "renamed"
     assert body["met"] is True
     assert body["met_at"] == met.json()["met_at"]
+
+
+# ---- Missing plan or task is a not-found error ----
+
+@pytest.mark.asyncio
+async def test_put_missing_plan_returns_404(http_client):
+    response = await http_client.put(f"/api/v1/plans/{MISSING_ID}", json={"title": "x"})
+
+    assert response.status_code == 404
+    assert response.json()["error"] == "Plan not found"
+
+
+@pytest.mark.asyncio
+async def test_put_missing_task_returns_404(http_client):
+    response = await http_client.put(f"/api/v1/tasks/{MISSING_ID}", json={"title": "x"})
+
+    assert response.status_code == 404
+    assert response.json()["error"] == "Task not found"
+
+
+@pytest.mark.asyncio
+async def test_update_plan_tool_for_missing_plan_is_a_tool_error(mcp_client):
+    with pytest.raises(ToolError, match="not found"):
+        await _call(mcp_client, "update_plan", {"plan_id": MISSING_ID, "title": "x"})
+
+
+@pytest.mark.asyncio
+async def test_update_task_tool_for_missing_task_is_a_tool_error(mcp_client):
+    with pytest.raises(ToolError, match="not found"):
+        await _call(mcp_client, "update_task", {"task_id": MISSING_ID, "title": "x"})
 
 

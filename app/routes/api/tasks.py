@@ -117,11 +117,13 @@ def register(mcp: FastMCP):
         except ValidationError as e:
             return JSONResponse({"error": e.errors()}, status_code=400)
 
-        task = await mcp.task_service.update_task(
-            user_id=user.id, task_id=task_id, task_data=update_data,
-        )
-        if not task:
+        try:
+            task = await mcp.task_service.update_task(
+                user_id=user.id, task_id=task_id, task_data=update_data,
+            )
+        except NotFoundError:
             return JSONResponse({"error": "Task not found"}, status_code=404)
+
         return JSONResponse(task.model_dump(mode="json"))
 
     @mcp.custom_route("/api/v1/tasks/{task_id}", methods=["DELETE"])

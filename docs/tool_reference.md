@@ -1610,6 +1610,9 @@ Update plan metadata (PATCH semantics - only provided fields changed).
 **Returns:**
 - Updated plan object
 
+**Errors:**
+- Raises an error (not `null`) when `plan_id` does not exist or is not visible to the caller
+
 **Example:**
 ```python
 # Move plan from draft to active
@@ -1783,6 +1786,9 @@ Update task metadata (not state - use `transition_task` for state changes).
 
 **Returns:**
 - Updated task object
+
+**Errors:**
+- Raises an error (not `null`) when `task_id` does not exist or is not visible to the caller
 
 **Example:**
 ```python

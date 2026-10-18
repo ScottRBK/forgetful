@@ -119,7 +119,7 @@ class PlanService:
 
     async def update_plan(
         self, user_id: UUID, plan_id: int, plan_data: PlanUpdate,
-    ) -> Plan | None:
+    ) -> Plan:
         logger.info("updating plan", extra={"user_id": str(user_id), "plan_id": plan_id})
 
         plan_data = apply_provenance_defaults_for_update(plan_data)
@@ -127,7 +127,7 @@ class PlanService:
         existing = await self.plan_repo.get_plan_by_id(user_id=user_id, plan_id=plan_id)
         if not existing:
             logger.info("plan not found for update", extra={"plan_id": plan_id})
-            return None
+            raise NotFoundError(f"Plan with id {plan_id} not found")
 
         # Validate status transitions
         if plan_data.status is not None and plan_data.status != existing.status:

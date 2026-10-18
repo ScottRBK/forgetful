@@ -167,7 +167,7 @@ class TaskService:
 
     async def update_task(
         self, user_id: UUID, task_id: int, task_data: TaskUpdate,
-    ) -> Task | None:
+    ) -> Task:
         """PATCH for metadata only (title, description, priority). NOT for state changes."""
         logger.info("updating task", extra={"user_id": str(user_id), "task_id": task_id})
 
@@ -175,7 +175,7 @@ class TaskService:
 
         existing = await self.task_repo.get_task_by_id(user_id=user_id, task_id=task_id)
         if not existing:
-            return None
+            raise NotFoundError(f"Task with id {task_id} not found")
 
         changed_fields = get_changed_fields(input_model=task_data, existing_model=existing)
         if not changed_fields:

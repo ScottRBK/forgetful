@@ -114,8 +114,6 @@ def register(mcp: FastMCP):
         except NotFoundError:
             return JSONResponse({"error": "Plan not found"}, status_code=404)
 
-        if not plan:
-            return JSONResponse({"error": "Plan not found"}, status_code=404)
         return JSONResponse(plan.model_dump(mode="json"))
 
     @mcp.custom_route("/api/v1/plans/{plan_id}", methods=["DELETE"])

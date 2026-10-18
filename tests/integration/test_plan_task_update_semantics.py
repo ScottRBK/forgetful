@@ -8,6 +8,7 @@ from uuid import uuid4
 
 import pytest
 
+from app.exceptions import NotFoundError
 from app.models.plan_models import (
     PlanCreate,
     PlanStatus,
@@ -104,3 +105,53 @@ async def test_update_task_with_only_nulls_changes_nothing(test_task_service):
     assert updated.priority == TaskPriority.P1
 
 
+# ---- Updating a missing plan or task is a not-found error ----
+
+@pytest.mark.asyncio
+async def test_update_plan_missing_raises_not_found(test_plan_service):
+    with pytest.raises(NotFoundError, match="Plan with id 999999 not found"):
+        await test_plan_service.update_plan(
+            user_id=uuid4(), plan_id=MISSING_ID, plan_data=PlanUpdate(title="x"),
+        )
+
+
+@pytest.mark.asyncio
+async def test_update_plan_of_another_user_raises_not_found(test_plan_service):
+    owner_id = uuid4()
+    plan = await test_plan_service.create_plan(
+        user_id=owner_id, plan_data=PlanCreate(title="Private", project_id=1),
+    )
+
+    with pytest.raises(NotFoundError):
+        await test_plan_service.update_plan(
+            user_id=uuid4(), plan_id=plan.id, plan_data=PlanUpdate(title="Hijacked"),
+        )
+
+    assert (await test_plan_service.get_plan(user_id=owner_id, plan_id=plan.id)).title == "Private"
+
+
+@pytest.mark.asyncio
+async def test_update_task_missing_raises_not_found(test_task_service):
+    task_service, _ = test_task_service
+
+    with pytest.raises(NotFoundError, match="Task with id 999999 not found"):
+        await task_service.update_task(
+            user_id=uuid4(), task_id=MISSING_ID, task_data=TaskUpdate(title="x"),
+        )
+
+
+@pytest.mark.asyncio
+async def test_update_task_of_another_user_raises_not_found(test_task_service):
+    task_service, plan_service = test_task_service
+    owner_id = uuid4()
+    plan = await _create_active_plan(plan_service, owner_id)
+    task = await task_service.create_task(
+        user_id=owner_id, task_data=TaskCreate(title="Private", plan_id=plan.id),
+    )
+
+    with pytest.raises(NotFoundError):
+        await task_service.update_task(
+            user_id=uuid4(), task_id=task.id, task_data=TaskUpdate(title="Hijacked"),
+        )
+
+    assert (await task_service.get_task(user_id=owner_id, task_id=task.id)).title == "Private"
