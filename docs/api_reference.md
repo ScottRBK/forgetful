@@ -334,6 +334,9 @@ Link memories together (bidirectional).
 }
 ```
 
+`related_ids` must be a non-empty list of integers and must not contain the memory's own id;
+anything else returns `400`.
+
 **Response:**
 ```json
 {
@@ -346,7 +349,8 @@ Link memories together (bidirectional).
 Get memories linked to this memory.
 
 **Query Parameters:**
-- `limit` (int, default 20): Max linked memories to return
+- `limit` (int, default 20): Max linked memories to return. Must be at least 1 (`400` otherwise); values above 100 are capped at 100
+- `include_obsolete` (bool, default false): Include linked memories that have been marked obsolete
 
 **Response:**
 ```json
