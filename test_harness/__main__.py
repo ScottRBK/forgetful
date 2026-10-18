@@ -3,13 +3,16 @@
 Exit codes: 0 = every session completed (issues found are the product's problem, not the
 harness's); 1 = one or more sessions did not complete (timeout/error) so the UAT is
 partial; 2 = harness infrastructure failure (docker/image/container problem, server
-boot/seed failed, agent unhealthy).
+boot/seed failed, agent unhealthy) or invalid usage/configuration (nothing was started).
 """
 import argparse
 import asyncio
 import sys
 import time
 from pathlib import Path
+
+from pydantic import ValidationError
+from pydantic_settings import SettingsError
 
 from test_harness.config import HarnessConfig
 from test_harness.container import AgentContainer, ensure_image
@@ -107,8 +110,22 @@ async def _run(config: HarnessConfig) -> int:
     return 0 if all(result.status == "completed" for result in results) else 1
 
 
+def _usage_error_text(exc: ValidationError | SettingsError) -> str:
+    if isinstance(exc, SettingsError):
+        return str(exc)
+    return "; ".join(
+        f"{'.'.join(str(part) for part in error['loc'])}: "
+        f"{error['msg'].removeprefix('Value error, ')}"
+        for error in exc.errors()
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
-    config = config_from_argv(sys.argv[1:] if argv is None else argv)
+    try:
+        config = config_from_argv(sys.argv[1:] if argv is None else argv)
+    except (ValidationError, SettingsError) as exc:
+        print(f"usage error: {_usage_error_text(exc)}", file=sys.stderr)
+        return 2
     try:
         return asyncio.run(_run(config))
     except HarnessInfraError as exc:

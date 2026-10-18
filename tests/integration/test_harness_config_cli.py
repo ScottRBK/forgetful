@@ -1,15 +1,24 @@
 """Integration tests for harness argument and config parsing.
 
 An explicit timeout must win over built-in per-skill defaults and must never reach the
-in-container `timeout` as 0 (GNU `timeout 0` means no limit). The skills filter is spelled the same way on the flag
-and in TEST_HARNESS_SKILLS, and an explicitly empty filter is an error instead of "all skills".
+in-container `timeout` as 0 (GNU `timeout 0` means no limit). The skills filter is spelled
+the same way on the flag and in TEST_HARNESS_SKILLS, an explicitly empty filter is an
+error instead of "all skills", and bad configuration exits with the usage code (2) and a
+one-line message instead of a traceback with exit code 1 ("partial UAT").
 """
+import subprocess
+import sys
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 
-from test_harness.__main__ import config_from_argv
+from test_harness import __main__ as harness_main
+from test_harness.__main__ import config_from_argv, main
 from test_harness.config import SKILL_ORDER, HarnessConfig
 from test_harness.container import exec_command
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 @pytest.fixture(autouse=True)
@@ -188,3 +197,82 @@ def test_omitted_skills_flag_still_selects_the_full_walkthrough():
 
     # Assert
     assert config.skills == list(SKILL_ORDER)
+
+
+# --- invalid configuration is a usage error, not a partial UAT --------------------
+
+
+@pytest.fixture
+def never_runs_walkthrough(monkeypatch):
+    async def _fail(config):
+        raise AssertionError("the walkthrough must not start with an invalid configuration")
+
+    monkeypatch.setattr(harness_main, "_run", _fail)
+
+
+@pytest.mark.usefixtures("never_runs_walkthrough")
+@pytest.mark.parametrize(
+    ("argv", "fragment"),
+    [
+        (["--skills", "forgetful-teleport"], "forgetful-teleport"),
+        (["--skills", ""], "no skills selected"),
+        (["--timeout", "0"], "skill_timeout"),
+    ],
+)
+def test_invalid_flags_exit_with_usage_code_and_a_clean_message(argv, fragment, capsys):
+    # Act
+    exit_code = main(argv)
+
+    # Assert
+    captured = capsys.readouterr()
+    assert exit_code == 2
+    assert fragment in captured.err
+    assert "Traceback" not in captured.err
+    assert captured.err.startswith("usage error:")
+
+
+@pytest.mark.usefixtures("never_runs_walkthrough")
+def test_unparseable_env_exits_with_usage_code_and_a_clean_message(monkeypatch, capsys):
+    # Arrange: a field pydantic-settings still decodes as JSON
+    monkeypatch.setenv("TEST_HARNESS_SKILL_TIMEOUTS", "not-json")
+
+    # Act
+    exit_code = main([])
+
+    # Assert
+    captured = capsys.readouterr()
+    assert exit_code == 2
+    assert "skill_timeouts" in captured.err
+    assert "Traceback" not in captured.err
+
+
+def test_valid_configuration_still_runs_and_returns_the_walkthrough_exit_code(monkeypatch):
+    # Arrange
+    seen = []
+
+    async def _fake_run(config):
+        seen.append(config)
+        return 1
+
+    monkeypatch.setattr(harness_main, "_run", _fake_run)
+
+    # Act
+    exit_code = main(["--skills", "forgetful-recall, forgetful-explore", "--timeout", "120"])
+
+    # Assert: 1 is still "partial UAT", passed through untouched
+    assert exit_code == 1
+    assert seen[0].skills == ["forgetful-recall", "forgetful-explore"]
+    assert seen[0].timeout_for("forgetful-encode-repo") == 120
+
+
+def test_module_entrypoint_exits_2_without_traceback_for_unknown_skill():
+    # Act: only an invalid config, so nothing is booted (no docker, no server)
+    proc = subprocess.run(
+        [sys.executable, "-m", "test_harness", "--skills", "forgetful-teleport"],
+        cwd=_REPO_ROOT, capture_output=True, text=True, timeout=60, check=False,
+    )
+
+    # Assert
+    assert proc.returncode == 2
+    assert "forgetful-teleport" in proc.stderr
+    assert "Traceback" not in proc.stderr

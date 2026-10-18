@@ -44,7 +44,8 @@ surface pass is a reserved axis (`--surface` accepts only `cli` in v1). `--agent
 only `opencode` in v1 — other agents need provisioning ported in `container.py`.
 
 Exit codes: `0` every session completed (issues found are findings, not failures),
-`1` some session timed out or errored (partial UAT), `2` harness infrastructure failure.
+`1` some session timed out or errored (partial UAT), `2` harness infrastructure failure
+or invalid usage/configuration (a one-line `usage error: ...` on stderr, nothing started).
 
 ## The image
 
