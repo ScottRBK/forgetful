@@ -1,13 +1,16 @@
 """Configuration Management For the Service
 """
+import logging
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Self
 
 from platformdirs import user_config_dir, user_data_dir
-from pydantic import ConfigDict, Field, field_validator
+from pydantic import ConfigDict, Field, ValidationInfo, field_validator, model_validator
 from pydantic_settings import BaseSettings
 
 from app.version import get_version
+
+logger = logging.getLogger(__name__)
 
 # NOTE: We deliberately do NOT call dotenv.load_dotenv() here. It promotes a
 # discovered .env into os.environ, which pydantic-settings ranks above every
@@ -19,6 +22,62 @@ from app.version import get_version
 # Platform-specific default paths
 _default_data_dir = Path(user_data_dir("forgetful", ensure_exists=False))
 _default_config_dir = Path(user_config_dir("forgetful", ensure_exists=False))
+
+
+# Accepted values of the enumerated settings; the first entry is the default. Matching is
+# case-insensitive and the spelling below is the canonical one the rest of the code compares to.
+EMBEDDING_PROVIDERS = ("FastEmbed", "Azure", "Google", "OpenAI", "Ollama")
+RERANKING_PROVIDERS = ("FastEmbed", "HTTP")
+LOG_FORMATS = ("console", "json")
+_CHOICES = {
+    "EMBEDDING_PROVIDER": EMBEDDING_PROVIDERS,
+    "RERANKING_PROVIDER": RERANKING_PROVIDERS,
+    "LOG_FORMAT": LOG_FORMATS,
+}
+
+# ENCODING_* / AGENT_* defaults are copied into the Create/Update models of every object type,
+# whose provenance fields enforce these maximum lengths.
+PROVENANCE_MAX_LENGTHS = {
+    "ENCODING_AGENT": 100,
+    "ENCODING_VERSION": 50,
+    "AGENT_ID": 100,
+    "AGENT_VERSION": 50,
+    "AGENT_MODEL": 100,
+}
+
+# Tunable *_MAX_LENGTH settings that feed fixed-width PostgreSQL VARCHAR columns
+# (postgres_tables.py). PostgreSQL rejects longer values; SQLite does not enforce VARCHAR length.
+POSTGRES_COLUMN_WIDTHS = {
+    "PLAN_TITLE_MAX_LENGTH": 500,
+    "TASK_TITLE_MAX_LENGTH": 500,
+    "TASK_AGENT_MAX_LENGTH": 200,
+    "SKILL_NAME_MAX_LENGTH": 64,
+    "SKILL_DESCRIPTION_MAX_LENGTH": 1024,
+    "SKILL_LICENSE_MAX_LENGTH": 100,
+    "SKILL_COMPATIBILITY_MAX_LENGTH": 500,
+    "CODE_ARTIFACT_TITLE_MAX_LENGTH": 500,
+    "DOCUMENT_TITLE_MAX_LENGTH": 500,
+    "FILE_FILENAME_MAX_LENGTH": 255,
+    "ENTITY_NAME_MAX_LENGTH": 200,
+    "ENTITY_TYPE_MAX_LENGTH": 100,
+    "ENTITY_RELATIONSHIP_TYPE_MAX_LENGTH": 100,
+}
+
+
+def canonical_choice(setting: str, value: str, choices: tuple[str, ...]) -> str:
+    """Resolve ``value`` to its canonical spelling in ``choices``, ignoring case and padding.
+
+    A blank value means "not set" and resolves to the default (the first choice). Anything
+    else that is not a choice raises, so a typo fails fast instead of silently selecting a
+    different provider or format.
+    """
+    wanted = (value or "").strip().lower()
+    if not wanted:
+        return choices[0]
+    for choice in choices:
+        if choice.lower() == wanted:
+            return choice
+    raise ValueError(f"Unsupported {setting} setting: {value!r}. Must be one of: {', '.join(choices)}")
 
 
 def parse_onnx_providers(value: str | None) -> list[str] | None:
@@ -257,6 +316,41 @@ class Settings(BaseSettings):
         if not 0.0 < value <= 1.0:
             raise ValueError("OBSOLETE_WARNING_THRESHOLD must be in (0, 1]")
         return value
+
+    @field_validator("EMBEDDING_PROVIDER", "RERANKING_PROVIDER", "LOG_FORMAT")
+    @classmethod
+    def _validate_choice_setting(cls, value: str, info: ValidationInfo) -> str:
+        return canonical_choice(info.field_name, value, _CHOICES[info.field_name])
+
+    @field_validator("ACTIVITY_RETENTION_DAYS", mode="before")
+    @classmethod
+    def _blank_retention_means_keep_forever(cls, value):
+        # Documented spellings of "keep events forever" that env sources deliver as strings.
+        if isinstance(value, str) and value.strip().lower() in ("", "null", "none"):
+            return None
+        return value
+
+    @field_validator(*PROVENANCE_MAX_LENGTHS)
+    @classmethod
+    def _validate_provenance_length(cls, value: str, info: ValidationInfo) -> str:
+        limit = PROVENANCE_MAX_LENGTHS[info.field_name]
+        if len(value) > limit:
+            raise ValueError(f"{info.field_name} must be at most {limit} characters (got {len(value)})")
+        return value
+
+    @model_validator(mode="after")
+    def _clamp_max_lengths_to_postgres_columns(self) -> Self:
+        if self.DATABASE != "Postgres":
+            return self
+        for name, width in POSTGRES_COLUMN_WIDTHS.items():
+            configured = getattr(self, name)
+            if configured > width:
+                logger.warning(
+                    "%s=%d exceeds the PostgreSQL column width; using %d instead",
+                    name, configured, width,
+                )
+                setattr(self, name, width)
+        return self
 
     @field_validator("RERANKING_ONNX_PROVIDERS", "EMBEDDING_ONNX_PROVIDERS")
     @classmethod

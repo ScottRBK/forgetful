@@ -9,7 +9,12 @@ from pathlib import Path
 from typing import Any
 
 from app.config.logging_config import logging
-from app.config.settings import settings
+from app.config.settings import (
+    EMBEDDING_PROVIDERS,
+    RERANKING_PROVIDERS,
+    canonical_choice,
+    settings,
+)
 from app.routes.mcp.tool_metadata_registry import register_all_tools_metadata
 from app.routes.mcp.tool_registry import ToolRegistry
 
@@ -34,13 +39,14 @@ def get_embedding_adapter():
         OpenAIEmbeddingsAdapter,
     )
 
-    if settings.EMBEDDING_PROVIDER == "Azure":
+    provider = canonical_choice("EMBEDDING_PROVIDER", settings.EMBEDDING_PROVIDER, EMBEDDING_PROVIDERS)
+    if provider == "Azure":
         return AzureOpenAIAdapter()
-    if settings.EMBEDDING_PROVIDER == "Google":
+    if provider == "Google":
         return GoogleEmbeddingsAdapter()
-    if settings.EMBEDDING_PROVIDER == "OpenAI":
+    if provider == "OpenAI":
         return OpenAIEmbeddingsAdapter()
-    if settings.EMBEDDING_PROVIDER == "Ollama":
+    if provider == "Ollama":
         return OllamaEmbeddingsAdapter()
     return FastEmbeddingAdapter(providers=settings.embedding_onnx_providers)
 
@@ -49,7 +55,8 @@ def get_reranker_adapter():
     """Create reranker adapter if enabled."""
     if not settings.RERANKING_ENABLED:
         return None
-    if settings.RERANKING_PROVIDER == "HTTP":
+    provider = canonical_choice("RERANKING_PROVIDER", settings.RERANKING_PROVIDER, RERANKING_PROVIDERS)
+    if provider == "HTTP":
         from app.repositories.embeddings.reranker_adapter import HttpRerankAdapter
         return HttpRerankAdapter()
     # Default: FastEmbed
@@ -281,7 +288,7 @@ async def build_runtime() -> Runtime:
     event_bus = None
 
     if settings.ACTIVITY_ENABLED:
-        event_bus = EventBus()
+        event_bus = EventBus(max_queue_size=settings.SSE_MAX_QUEUE_SIZE)
         event_bus.subscribe("*.*", activity_service.handle_event)
         logger.info("Activity tracking enabled - event bus initialized")
     else:
