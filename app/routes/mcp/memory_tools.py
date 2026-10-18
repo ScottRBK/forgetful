@@ -228,7 +228,7 @@ def register(mcp: FastMCP):
             scores: one {memory_id, similarity, rerank_score} per primary memory, same order
             total_count: int total count of memories
             token_count: token count of retrieved memories
-            truncated: boolean to indicate if the memories have been truncated as a result of the token budget
+            truncated: boolean to indicate if memories were dropped as a result of the token budget or the maximum memory count
         """
         try:
             logger.info("MCP Tool -> query_memory", extra={

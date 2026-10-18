@@ -778,9 +778,12 @@ class MemoryService:
         Args:
             memories: List of Memory Objects
             max_tokens: Maximum allowed tokens
+            max_count: Maximum number of memories to return
 
         Returns:
-            Tuple of (truncated memories, actual_token_count, was_truncated)
+            Tuple of (truncated memories, actual_token_count, was_truncated), where
+            was_truncated is set when memories were dropped by either the token budget
+            or the max_count limit
         """
         if not memories:
             return [], 0, False
@@ -794,6 +797,7 @@ class MemoryService:
             reverse=True,
         )
 
+        count_truncated = len(sorted_memories) > max_count
         sorted_memories = sorted_memories[:max_count]
 
         selected = []
@@ -817,7 +821,7 @@ class MemoryService:
             selected.append(memory)
             running_total += memory_tokens
 
-        return selected, running_total, False
+        return selected, running_total, count_truncated
 
     async def handle_memory_access_event(self, event: ActivityEvent) -> None:
         """Record memory access from memory.read / memory.queried events."""

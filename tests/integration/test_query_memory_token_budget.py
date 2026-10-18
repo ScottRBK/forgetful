@@ -213,3 +213,58 @@ class TestTokenContextThreshold:
 
     def test_threshold_defaults_to_unset(self):
         assert _query().token_context_threshold is None
+
+
+class TestTruncatedFlagForCountLimit:
+    @staticmethod
+    async def _seed_linked_pairs(repo, user_id, count: int):
+        """`count` high importance primaries, each linked to one low importance memory."""
+        primaries = [await repo.create_memory(user_id, _memory(f"primary {i}", importance=9)) for i in range(count)]
+        others = [await repo.create_memory(user_id, _memory(f"linked {i}", importance=3)) for i in range(count)]
+        for primary, other in zip(primaries, others, strict=True):
+            await repo.create_links_batch(user_id, primary.id, [other.id])
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("k", [20, 15])
+    async def test_linked_memories_dropped_by_memory_cap_set_truncated(
+        self, test_memory_service, mock_memory_repository, monkeypatch, k,
+    ):
+        monkeypatch.setattr(settings, "MEMORY_MAX_MEMORIES", 20)
+        user_id = uuid4()
+        await self._seed_linked_pairs(mock_memory_repository, user_id, 20)
+
+        result = await test_memory_service.query_memory(user_id, _query(k=k, include_links=True))
+
+        assert result.token_count < settings.MEMORY_TOKEN_BUDGET / 4  # the token budget is not the cause
+        assert len(result.primary_memories) == k
+        assert len(result.linked_memories) == 20 - k  # one linked memory was available per primary
+        assert len(result.primary_memories) + len(result.linked_memories) == 20
+        assert result.truncated is True
+
+    @pytest.mark.asyncio
+    async def test_primaries_dropped_by_memory_cap_set_truncated(
+        self, test_memory_service, mock_memory_repository, monkeypatch,
+    ):
+        monkeypatch.setattr(settings, "MEMORY_MAX_MEMORIES", 2)
+        user_id = uuid4()
+        for i in range(3):
+            await mock_memory_repository.create_memory(user_id, _memory(f"Memory {i}"))
+
+        result = await test_memory_service.query_memory(user_id, _query(k=3))
+
+        assert len(result.primary_memories) == 2
+        assert result.truncated is True
+
+    @pytest.mark.asyncio
+    async def test_nothing_dropped_is_not_truncated(
+        self, test_memory_service, mock_memory_repository, monkeypatch,
+    ):
+        monkeypatch.setattr(settings, "MEMORY_MAX_MEMORIES", 20)
+        user_id = uuid4()
+        await self._seed_linked_pairs(mock_memory_repository, user_id, 5)
+
+        result = await test_memory_service.query_memory(user_id, _query(k=5, include_links=True))
+
+        assert len(result.primary_memories) == 5
+        assert len(result.linked_memories) == 5
+        assert result.truncated is False

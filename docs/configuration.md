@@ -603,7 +603,7 @@ These settings control the atomic memory system's behavior and constraints.
 ### `MEMORY_MAX_MEMORIES`
 - **Default**: `20`
 - **Description**: Maximum number of memories returned per query
-- **Behavior**: Hard limit regardless of token budget
+- **Behavior**: Hard limit regardless of token budget; memories dropped by this limit are reported with `truncated: true`
 - **Example**: `MEMORY_MAX_MEMORIES=20`
 
 ### `MEMORY_NUM_AUTO_LINK`

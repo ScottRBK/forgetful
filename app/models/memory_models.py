@@ -439,7 +439,10 @@ class MemoryQueryResult(BaseModel):
     )
     total_count: int
     token_count: int
-    truncated: bool = Field(False, description="Whether the results were truncated due to token budget")
+    truncated: bool = Field(
+        False,
+        description="Whether results were dropped due to the token budget or the maximum memory count",
+    )
 
 class MemoryLinkRequest(BaseModel):
     """Request model for linking memories"""

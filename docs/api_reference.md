@@ -327,6 +327,8 @@ never exceed the server's `MEMORY_TOKEN_BUDGET`, which applies when the field is
 }
 ```
 
+`truncated` is `true` when memories were dropped because of the token budget or `MEMORY_MAX_MEMORIES`.
+
 ### POST /api/v1/memories/{id}/links
 
 Link memories together (bidirectional).
