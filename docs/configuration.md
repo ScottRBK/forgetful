@@ -519,6 +519,12 @@ The timeout is a cooperative asyncio deadline, not a sandbox or hard kill. Block
 handlers that suppress cancellation can exceed it. Request cancellation propagates. Keep handlers
 asynchronous and make any downstream network calls with their own appropriate timeouts.
 
+The callable signature, documented request/decision fields, and their import paths form the public
+v1 plugin contract. The reused memory schemas are part of that contract too. Optional fields may be
+added compatibly; removing fields or changing their meaning requires a documented deprecation or
+versioned replacement. Internal service result and transport response classes are not plugin APIs.
+A compatible interface does not guarantee that custom rules cover every future memory feature.
+
 Successful responses add `plugin_warnings` only when nonempty. Each entry has `outcome="warn"`,
 `message`, and optional `code` (serialized as null when absent). Existing empty lists and
 `obsolete_matches` are preserved. Reads, queries, and event snapshots have no transient warnings.
