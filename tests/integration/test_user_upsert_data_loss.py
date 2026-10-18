@@ -123,10 +123,8 @@ def test_identity_fields_accept_values_exactly_at_the_column_limit(model, field)
 
 
 @pytest.mark.asyncio
-async def test_oversize_identity_is_rejected_before_reaching_the_repository(
-    test_user_service,
-):
-    """Provisioning never reaches the database with a value that cannot fit."""
+async def test_oversize_identity_never_creates_a_user_row(test_user_service):
+    """An oversize claim is rejected while the request model is built, so no row is stored."""
     with pytest.raises(ValueError):
         await test_user_service.get_or_create_user(
             UserCreate(external_id="sub-long", name="n" * 300, email="a@example.com"),
