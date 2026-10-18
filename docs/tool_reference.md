@@ -238,7 +238,7 @@ memory = execute_forgetful_tool(
 Semantic search across all memories with context-aware ranking.
 
 **Parameters:**
-- `query` (required): Natural language search query
+- `query` (required): Natural language search query (must not be blank)
 - `query_context` (required): Why the search is being performed
 - `k` (optional): Number of primary results (default: 3, maximum: 20)
 - `include_links` (optional): Include linked memories (default: true)
@@ -1031,7 +1031,7 @@ execute_forgetful_tool("delete_skill", {"skill_id": 5})
 Semantic search across skills by description similarity.
 
 **Parameters:**
-- `query` (required): Search query string (semantic, not keyword-only)
+- `query` (required): Search query string (semantic, not keyword-only; must not be blank)
 - `k` (optional): Number of results (default: 5)
 - `project_id` (optional): Filter by project
 

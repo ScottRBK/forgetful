@@ -308,7 +308,7 @@ Mark a memory as obsolete (soft delete).
 
 ### POST /api/v1/memories/search
 
-Semantic search across memories.
+Semantic search across memories. A blank (whitespace-only) `query` is rejected with `400`.
 
 **Request Body:**
 ```json
@@ -765,7 +765,7 @@ Semantic search for skills by description similarity.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `query` | string | (required) | Search query |
+| `query` | string | (required) | Search query; blank (whitespace-only) values return `400` |
 | `k` | int | 5 | Number of results |
 | `project_id` | int | - | Filter by project |
 

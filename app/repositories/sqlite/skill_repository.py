@@ -438,6 +438,10 @@ class SqliteSkillRepository:
         """
         try:
             query_text = query.strip()
+            if not query_text:
+                # Nothing to embed: providers either return a constant vector (arbitrary
+                # hits with real-looking scores) or reject empty input
+                return []
             embeddings = (
                 await self.embedding_adapter.generate_embedding(
                     text=query_text,

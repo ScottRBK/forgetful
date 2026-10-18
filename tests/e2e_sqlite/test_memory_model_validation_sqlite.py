@@ -236,3 +236,107 @@ class TestStoredRowsStayReadable:
 
         assert updated.status_code == 200
         assert updated.json()["content"] == "Fixed content"
+
+
+class TestBlankSearchQuery:
+    """A blank query is rejected instead of returning arbitrary neighbours."""
+
+    @pytest.mark.parametrize("blank", ["   ", "\n\t "])
+    async def test_rest_search_rejects_blank_query(self, http_client, blank):
+        await _create(http_client)
+
+        response = await http_client.post(
+            "/api/v1/memories/search",
+            json={"query": blank, "query_context": "looking for something", "k": 3},
+        )
+
+        assert response.status_code == 400
+        assert response.json()["error"][0]["loc"] == ["query"]
+
+    async def test_mcp_query_memory_rejects_blank_query(self, mcp_client):
+        await _call(mcp_client, "create_memory", _payload())
+
+        with pytest.raises(ToolError, match="whitespace only"):
+            await _call(
+                mcp_client,
+                "query_memory",
+                {"query": "   ", "query_context": "looking for something", "include_links": False},
+            )
+
+    async def test_blank_query_never_reaches_the_embedding_adapter(self, http_client, sqlite_app):
+        await _create(http_client)
+        adapter = sqlite_app.memory_service.memory_repo.embedding_adapter
+        original = adapter.generate_embedding
+        seen: list[str] = []
+
+        async def spy(*args, **kwargs):
+            seen.extend(str(value) for value in (*args, *kwargs.values()))
+            return await original(*args, **kwargs)
+
+        adapter.generate_embedding = spy
+        try:
+            response = await http_client.post(
+                "/api/v1/memories/search",
+                json={"query": "   ", "query_context": "ctx", "k": 3},
+            )
+        finally:
+            adapter.generate_embedding = original
+
+        assert response.status_code == 400
+        assert [t for t in seen if not t.strip()] == []
+
+    async def test_repositories_return_nothing_for_blank_query_without_embedding(self, http_client, sqlite_app):
+        """Direct repository callers get no hits instead of neighbours of the empty vector."""
+        from uuid import uuid4
+
+        await _create(http_client)
+        memory_repo = sqlite_app.memory_service.memory_repo
+        skill_repo = sqlite_app.skill_service.skill_repo
+        seen: list[str] = []
+        originals = {}
+        for repo in (memory_repo, skill_repo):
+            adapter = repo.embedding_adapter
+            originals[repo] = adapter.generate_embedding
+
+            async def spy(*args, _original=adapter.generate_embedding, **kwargs):
+                seen.extend(list(args) + list(kwargs.values()))
+                return await _original(*args, **kwargs)
+
+            adapter.generate_embedding = spy
+
+        try:
+            scored = await memory_repo.search_scored(
+                user_id=uuid4(), query="   ", query_context="ctx", k=3,
+                importance_threshold=None, project_ids=None, exclude_ids=None,
+            )
+            semantic = await memory_repo.semantic_search_scored(
+                user_id=uuid4(), query="\n\t ", k=3,
+                importance_threshold=None, project_ids=None, exclude_ids=None,
+            )
+            skills = await skill_repo.search_skills(user_id=uuid4(), query="   ")
+        finally:
+            for repo, original in originals.items():
+                repo.embedding_adapter.generate_embedding = original
+
+        assert (scored, semantic, skills) == ([], [], [])
+        assert seen == []
+
+    async def test_rest_skill_search_rejects_blank_query(self, http_client):
+        response = await http_client.get("/api/v1/skills/search", params={"query": "   "})
+
+        assert response.status_code == 400
+
+    async def test_mcp_search_skills_rejects_blank_query(self, mcp_client):
+        with pytest.raises(ToolError, match="whitespace only"):
+            await _call(mcp_client, "search_skills", {"query": "   "})
+
+    async def test_normal_queries_still_return_hits(self, http_client):
+        memory_id = await _create(http_client)
+
+        response = await http_client.post(
+            "/api/v1/memories/search",
+            json={"query": "python logging", "query_context": "testing", "k": 3},
+        )
+
+        assert response.status_code == 200
+        assert [m["id"] for m in response.json()["primary_memories"]] == [memory_id]

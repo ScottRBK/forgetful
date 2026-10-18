@@ -149,6 +149,10 @@ class PostgresMemoryRepository:
             exclude_ids: list[int] | None,
     ) -> list[tuple[Memory, float]]:
         query_text = query.strip()
+        if not query_text:
+            # Nothing to embed: providers either return a constant vector (arbitrary hits
+            # with real-looking scores) or reject empty input
+            return []
         embeddings = await self._generate_embeddings(query_text)
         distance_expr = MemoryTable.embedding.cosine_distance(embeddings)
 

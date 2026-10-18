@@ -7,6 +7,7 @@ stay readable after a limit is lowered.
 """
 
 import json
+from uuid import uuid4
 
 import pytest
 from pydantic import ValidationError
@@ -16,8 +17,10 @@ from app.models.memory_models import (
     LinkedMemory,
     Memory,
     MemoryCreate,
+    MemoryQueryRequest,
     MemoryUpdate,
 )
+from app.models.skill_models import SkillCreate
 
 BLANKS = ["   ", "\n\n", "\t \n"]
 LONE_SURROGATE = "bad\ud83dtext"
@@ -273,3 +276,49 @@ def test_memory_keeps_the_field_order_of_the_api_response():
 
 def test_memory_is_still_a_memory_create_for_embedding_helpers():
     assert issubclass(Memory, MemoryCreate)
+
+
+# ============================================================================
+# Search query
+# ============================================================================
+
+
+def _query(**overrides) -> MemoryQueryRequest:
+    data = {"query": "python logging", "query_context": "why I am searching"}
+    data.update(overrides)
+    return MemoryQueryRequest(**data)
+
+
+@pytest.mark.parametrize("blank", BLANKS)
+def test_query_rejects_whitespace_only(blank):
+    with pytest.raises(ValidationError) as exc_info:
+        _query(query=blank)
+
+    assert exc_info.value.errors()[0]["loc"] == ("query",)
+    assert "cannot be empty or whitespace only" in exc_info.value.errors()[0]["msg"]
+    json.dumps(exc_info.value.errors())
+
+
+def test_query_rejects_lone_surrogates():
+    with pytest.raises(ValidationError):
+        _query(query=LONE_SURROGATE)
+    with pytest.raises(ValidationError):
+        _query(query_context=LONE_SURROGATE)
+
+
+def test_query_accepts_normal_text_verbatim():
+    assert _query(query="  python logging  ").query == "  python logging  "
+
+
+async def test_skill_search_rejects_blank_query(test_skill_service):
+    user_id = uuid4()
+    await test_skill_service.create_skill(
+        user_id,
+        SkillCreate(name="pdf-extract", description="Extract text from PDF", content="body", tags=["pdf"]),
+    )
+
+    for blank in BLANKS:
+        with pytest.raises(ValueError, match="cannot be empty or whitespace only"):
+            await test_skill_service.search_skills(user_id, query=blank)
+
+    assert [s.name for s in await test_skill_service.search_skills(user_id, query="PDF")] == ["pdf-extract"]

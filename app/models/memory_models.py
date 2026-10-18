@@ -15,7 +15,7 @@ from pydantic_core import PydanticCustomError
 
 from app.config.settings import settings
 
-# Write-time rules for request models (MemoryCreate, MemoryUpdate).
+# Write-time rules for request models (MemoryCreate, MemoryUpdate, MemoryQueryRequest).
 #
 # They are attached to the *types* of the request fields rather than to validators so
 # that the Memory response model, which re-declares those fields as plain types, never
@@ -77,6 +77,12 @@ _Content = Annotated[
 _Context = Annotated[
     str,
     StringConstraints(min_length=1, max_length=settings.MEMORY_CONTEXT_MAX_LENGTH),
+    BeforeValidator(_reject_unencodable),
+    AfterValidator(_reject_blank),
+]
+_Query = Annotated[
+    str,
+    StringConstraints(min_length=1),
     BeforeValidator(_reject_unencodable),
     AfterValidator(_reject_blank),
 ]
@@ -458,9 +464,8 @@ class MemoryListResponse(BaseModel):
 
 class MemoryQueryRequest(BaseModel):
     """Request model for querying memories"""
-    query: str = Field(
+    query: _Query = Field(
         ...,
-        min_length=1,
         description="Natural language query for semantic search (e.g., 'Python logging best practices')",
     )
     query_context: str = Field(

@@ -121,7 +121,7 @@ def register(mcp: FastMCP):
 
         params = request.query_params
         query = params.get("query")
-        if not query:
+        if not query or not query.strip():
             return JSONResponse(
                 {"error": "query parameter is required"},
                 status_code=400,

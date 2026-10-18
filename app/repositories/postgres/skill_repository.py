@@ -366,6 +366,11 @@ class PostgresSkillRepository:
         Returns:
             List of SkillSummary ranked by relevance
         """
+        if not query.strip():
+            # Nothing to embed: providers either return a constant vector (arbitrary hits
+            # with real-looking scores) or reject empty input
+            return []
+
         try:
             query_embedding = await self.embedding_adapter.generate_embedding(query)
 
