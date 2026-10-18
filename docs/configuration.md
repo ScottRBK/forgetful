@@ -995,6 +995,7 @@ ACTIVITY_TRACK_READS=false
 - **Default**: `50`
 - **Description**: Number of candidates to retrieve from dense (embedding) search before re-ranking
 - **Performance**: Higher values = better recall, slower queries
+- **Note**: A search for `k` results always fetches at least `k` candidates, so values below `k` never reduce the number of results. Reranking only reorders candidates when there are more of them than `k`
 - **Example**: `DENSE_SEARCH_CANDIDATES=100`
 
 ### Azure Embedding Provider Configuration

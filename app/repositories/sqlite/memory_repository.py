@@ -87,7 +87,8 @@ class SqliteMemoryRepository:
     ) -> list[tuple[Memory, MemoryScore]]:
         """Search by vector similarity, then optionally rerank candidates (with scores)."""
         if settings.RERANKING_ENABLED:
-            candidates_to_return = settings.DENSE_SEARCH_CANDIDATES
+            # Never fetch fewer candidates than the caller asked for.
+            candidates_to_return = max(k, settings.DENSE_SEARCH_CANDIDATES)
         else:
             candidates_to_return = k
 

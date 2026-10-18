@@ -78,7 +78,8 @@ class PostgresMemoryRepository:
             exclude_ids: list[int] | None,
     ) -> list[tuple[Memory, MemoryScore]]:
         if settings.RERANKING_ENABLED:
-            candidates_to_return = settings.DENSE_SEARCH_CANDIDATES
+            # Never fetch fewer candidates than the caller asked for.
+            candidates_to_return = max(k, settings.DENSE_SEARCH_CANDIDATES)
         else:
             candidates_to_return = k
 
