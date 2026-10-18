@@ -54,7 +54,11 @@ rebuilds automatically when the lock drifts (stale images have burned runs befor
 
 1. Build/verify the sandbox image, boot `forgetful serve` as a host subprocess:
    file-backed SQLite in the run dir, all feature flags on, no auth, FastEmbed
-   embeddings (warm default cache), `/health` polled to 200.
+   embeddings (warm default cache), `/health` polled to 200. Every other Forgetful
+   setting is pinned to its default, so shell variables and
+   `~/.config/forgetful` cannot leak into the instance under review; the server is the
+   `forgetful` next to the interpreter running the harness, and the harness reaches it
+   directly (no `HTTP(S)_PROXY`).
 2. Seed every `skills/*/SKILL.md` into the instance via `import_skill` (the store under
    review holds the docs under review).
 3. Start one container for the run — fenced env baked in (`FORGETFUL_SERVER` →
