@@ -372,3 +372,67 @@ def test_main_exits_2_with_install_hint_when_sdk_is_missing(no_docker_sdk, tmp_p
     assert "--group harness" in capsys.readouterr().err
 
 
+# --- --rebuild-image really rebuilds -------------------------------------------------
+
+
+@pytest.fixture
+def build_calls(tmp_path, monkeypatch):
+    """Capture the `docker build` argv; the build context is a throwaway dir."""
+    monkeypatch.setattr(container_mod, "_DOCKER_DIR", tmp_path)
+    monkeypatch.setattr(container_mod, "export_requirements", lambda: "pkg==1\n")
+    calls: list[list[str]] = []
+
+    def fake_run(cmd, *args, **kwargs):
+        calls.append(cmd)
+        return subprocess.CompletedProcess(cmd, 0)
+
+    monkeypatch.setattr(container_mod.subprocess, "run", fake_run)
+    return calls
+
+
+def test_forced_rebuild_bypasses_the_layer_cache(build_calls, fake_docker):
+    # Arrange: floating steps (opencode-ai@latest, agent-shell-py>=) have unchanged
+    # instruction text, so a cached build would keep serving the old versions
+
+    # Act
+    ensure_image(rebuild=True, log=lambda *_: None)
+
+    # Assert
+    (cmd,) = build_calls
+    assert cmd[:2] == ["docker", "build"]
+    assert "--no-cache" in cmd
+
+
+def test_forced_rebuild_does_not_need_the_sdk(no_docker_sdk, build_calls):
+    # Act: the image build shells out to the docker CLI; only the label check uses the SDK
+    ensure_image(rebuild=True, log=lambda *_: None)
+
+    # Assert
+    assert "--no-cache" in build_calls[0]
+
+
+def test_automatic_rebuilds_keep_using_the_layer_cache(build_calls, fake_docker):
+    # Arrange: image absent (first build) and image baked against an older lock
+    for labels in (None, {container_mod._HASH_LABEL: "stale"}):
+        fake_docker.image_labels = labels
+
+        # Act
+        ensure_image(log=lambda *_: None)
+
+    # Assert: the lock hash already invalidates the dependency layers
+    assert len(build_calls) == 2
+    assert all("--no-cache" not in cmd for cmd in build_calls)
+
+
+def test_matching_image_is_not_rebuilt(build_calls, fake_docker):
+    # Arrange
+    digest = container_mod.requirements_hash("pkg==1\n")
+    fake_docker.image_labels = {container_mod._HASH_LABEL: digest}
+
+    # Act
+    ensure_image(log=lambda *_: None)
+
+    # Assert
+    assert build_calls == []
+
+

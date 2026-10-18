@@ -32,8 +32,9 @@ def config_from_argv(argv: list[str]) -> HarnessConfig:
     parser.add_argument("--output", type=Path, help="artifacts root (default: test_harness/runs)")
     parser.add_argument(
         "--rebuild-image", action="store_true",
-        help="force a rebuild of the sandbox image (it also rebuilds itself when "
-        "locked dependencies change)",
+        help="force a rebuild of the sandbox image without the layer cache, e.g. to pick "
+        "up a new opencode release (it also rebuilds itself when locked dependencies "
+        "change)",
     )
     args = parser.parse_args(argv)
 

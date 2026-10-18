@@ -166,7 +166,10 @@ def _docker_client():
 def ensure_image(rebuild: bool = False, log=print) -> None:
     """Build the harness image when it is absent or its baked dependency tree no
     longer matches the lock file - stale images have burned real runs before
-    (eval-harness mem 1622), so the lock hash is checked, not assumed."""
+    (eval-harness mem 1622), so the lock hash is checked, not assumed. A forced rebuild
+    also bypasses the layer cache: the image's floating installs (opencode-ai@latest,
+    agent-shell-py>=) keep their instruction text, so a cached build would re-stamp the
+    label and keep the old versions."""
     requirements = export_requirements()
     digest = requirements_hash(requirements)
     if not rebuild:
@@ -181,13 +184,10 @@ def ensure_image(rebuild: bool = False, log=print) -> None:
 
     (_DOCKER_DIR / "requirements.lock").write_text(requirements)
     log(f"building {IMAGE} ...")
-    build = _run_tool(
-        [
-            "docker", "build", "-t", IMAGE,
-            "--label", f"{_HASH_LABEL}={digest}", str(_DOCKER_DIR),
-        ],
-        check=False,
-    )
+    build_cmd = ["docker", "build", "-t", IMAGE, "--label", f"{_HASH_LABEL}={digest}"]
+    if rebuild:
+        build_cmd.append("--no-cache")
+    build = _run_tool([*build_cmd, str(_DOCKER_DIR)], check=False)
     if build.returncode != 0:
         raise HarnessInfraError(f"docker build failed (exit {build.returncode})")
 

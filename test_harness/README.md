@@ -48,7 +48,8 @@ cached layers. The working tree itself is built as a wheel on the host and insta
 `--no-deps` at container start, so every run walks the current checkout without an
 image rebuild. `ensure_image()` hashes `uv export --frozen` into an image label and
 rebuilds automatically when the lock drifts (stale images have burned runs before);
-`--rebuild-image` forces it, e.g. after an opencode release.
+`--rebuild-image` forces it without the layer cache (`docker build --no-cache`), so the
+floating installs (`opencode-ai@latest`, `agent-shell-py`) really pick up a new release.
 
 ## What a run does
 
