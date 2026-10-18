@@ -66,6 +66,7 @@ async def make_memory(client):
     return result.data["id"]
 
 
+# (create helper, get tool, id parameter, [(tool, extra arguments)])
 ID_TOOL_CASES = [
     pytest.param(
         make_document, "get_document", "document_id",
@@ -93,7 +94,6 @@ ID_TOOL_CASES = [
         id="file",
     ),
 ]
-
 
 INVALID_IDS = [True, 1.9, "not-an-id", [1], {"id": 1}, None]
 
@@ -283,6 +283,29 @@ async def test_list_filters_validate_project_ids_and_project_id(mcp_client):
 
     by_project = await call(mcp_client, "list_documents", project_id=str(project_id))
     assert by_project.data["total_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_search_entities_limit_is_clamped_to_documented_range(mcp_client):
+    """limit is 1-100: negative and zero give one result, large values stop at 100."""
+    for number in range(105):
+        await make_entity(mcp_client, name=f"Acme Widget {number:03d}")
+
+    async def search(**arguments):
+        result = await call(mcp_client, "search_entities", query="Acme", **arguments)
+        return len(result.data["entities"]), result.data["filters"]["limit"]
+
+    assert await search(limit=-1) == (1, 1)
+    assert await search(limit=0) == (1, 1)
+    assert await search(limit=5) == (5, 5)
+    assert await search(limit=100) == (100, 100)
+    assert await search(limit=150) == (100, 100)
+    assert await search(limit=100000) == (100, 100)
+    assert await search(limit="7") == (7, 7)
+    assert await search() == (20, 20)
+
+    with pytest.raises(ToolError, match="limit (must|cannot)"):
+        await call(mcp_client, "search_entities", query="Acme", limit=True)
 
 
 @pytest.mark.asyncio

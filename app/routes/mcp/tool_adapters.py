@@ -1533,6 +1533,8 @@ class EntityToolAdapters:
     ) -> dict:
         """Adapter for search_entities tool"""
         tags = _coerce_str_list(tags, "tags")
+        limit = 20 if limit is None else _coerce_int_id(limit, "limit")
+        limit = max(1, min(limit, 100))
         user = await get_user_from_auth(ctx)
 
         # Convert string to enum if provided
