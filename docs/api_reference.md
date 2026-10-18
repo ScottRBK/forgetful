@@ -64,8 +64,12 @@ See [FastMCP Auth Documentation](https://fastmcp.wiki/en/servers/auth/authentica
 `PUT` endpoints for projects, entities, entity relationships, documents, code artifacts, files and skills
 use PATCH semantics: send only the fields you want to change.
 
-- A field that is omitted or sent as `null` is left unchanged. A body that changes nothing returns the
-  current record and does not modify `updated_at`.
+- A field that is omitted or sent as `null` is left unchanged. For projects, entities, documents, code
+  artifacts, files and skills, a body that changes nothing returns the current record and does not modify
+  `updated_at`. Entity relationships have no change detection: a body that changes nothing still refreshes
+  `updated_at` and records an update event.
+- `null` never clears a field. Fields such as `project_id`, `source_url` and `confidence` therefore cannot
+  be reset through a `PUT`.
 - Optional text fields that can be cleared, such as a project's `notes`, are cleared by sending an empty
   string. Lists (`tags`, `aka`) are replaced by what you send, so `[]` clears them.
 
