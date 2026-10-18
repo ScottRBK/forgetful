@@ -15,6 +15,7 @@ import pytest
 from fastmcp.server.dependencies import AccessToken
 from starlette.requests import Request
 
+from app.config.auth import build_auth_provider
 from app.config.settings import settings
 from app.middleware.auth import TokenCache, get_user_from_request
 from app.models.user_models import User
@@ -182,5 +183,45 @@ async def test_refreshed_key_becomes_most_recently_used():
     assert await cache.get("b") is None
     assert await cache.get("a") is not None
     assert await cache.get("c") is not None
+
+
+# ============================================
+# Introspection verifier honours TOKEN_CACHE_ENABLED
+# ============================================
+
+
+def _introspection_settings(mock_settings, enabled: bool) -> None:
+    mock_settings.FASTMCP_SERVER_AUTH = INTROSPECTION_CLASS
+    mock_settings.FASTMCP_SERVER_AUTH_INTROSPECTION_URL = "https://auth.example.com/introspect"
+    mock_settings.FASTMCP_SERVER_AUTH_INTROSPECTION_CLIENT_ID = "intro-client"
+    mock_settings.FASTMCP_SERVER_AUTH_INTROSPECTION_CLIENT_SECRET = "intro-secret"
+    mock_settings.FASTMCP_SERVER_AUTH_INTROSPECTION_REQUIRED_SCOPES = ""
+    mock_settings.TOKEN_CACHE_ENABLED = enabled
+    mock_settings.TOKEN_CACHE_TTL_SECONDS = 600
+    mock_settings.TOKEN_CACHE_MAX_SIZE = 2000
+
+
+@patch("app.config.auth.settings")
+@patch(INTROSPECTION_CLASS)
+def test_introspection_cache_disabled_when_token_cache_disabled(MockIntrospection, mock_settings):
+    _introspection_settings(mock_settings, enabled=False)
+
+    build_auth_provider()
+
+    kwargs = MockIntrospection.call_args.kwargs
+    assert kwargs["cache_ttl_seconds"] is None
+    assert kwargs["max_cache_size"] is None
+
+
+@patch("app.config.auth.settings")
+@patch(INTROSPECTION_CLASS)
+def test_introspection_cache_configured_when_token_cache_enabled(MockIntrospection, mock_settings):
+    _introspection_settings(mock_settings, enabled=True)
+
+    build_auth_provider()
+
+    kwargs = MockIntrospection.call_args.kwargs
+    assert kwargs["cache_ttl_seconds"] == 600
+    assert kwargs["max_cache_size"] == 2000
 
 
