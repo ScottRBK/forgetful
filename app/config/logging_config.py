@@ -174,6 +174,7 @@ _queue_listener: logging.handlers.QueueListener | None = None
 def configure_logging(
     log_level: str = "INFO",
     log_format: str = "console",
+    db_logging: bool = False,
 ) -> logging.handlers.QueueListener:
     """Configure centralized logging with QueueHandler for asyncio.
 
@@ -187,6 +188,9 @@ def configure_logging(
     Args:
         log_level: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
         log_format: "json" for production, "console" for development
+        db_logging: Log SQL statements (DB_LOGGING). Goes through this pipeline (stderr, masked)
+            because SQLAlchemy's own ``echo`` would write to stdout, which carries the stdio
+            MCP stream. Parameter values stay hidden (``hide_parameters`` on the engines).
 
     Returns:
         QueueListener instance (must be stopped during shutdown)
@@ -238,8 +242,8 @@ def configure_logging(
     # Reduce noise from uvicorn access logs (keep only warnings+)
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
 
-    # Reduce sqlalchemy engine logs (only show warnings+)
-    logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
+    # SQL statements are INFO on sqlalchemy.engine: only show them when DB_LOGGING is on
+    logging.getLogger("sqlalchemy.engine").setLevel(logging.INFO if db_logging else logging.WARNING)
 
     # Keep FastAPI at INFO
     logging.getLogger("fastapi").setLevel(logging.INFO)

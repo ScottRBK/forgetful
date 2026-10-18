@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from app.config.settings import settings
+from app.repositories.session_logging import log_session_failure
 
 logger = logging.getLogger(__name__)
 
@@ -20,9 +21,10 @@ class PostgresDatabaseAdapter:
     def __init__(self):
         self._engine: AsyncEngine = create_async_engine(
          url=self.construct_postgres_connection_string(),
-         echo=settings.DB_LOGGING,
          future=True,
          pool_pre_ping=True,
+         # Never echo SQL via SQLAlchemy (it writes to stdout); DB_LOGGING drives the logging pipeline
+         hide_parameters=True,
         )
 
         self._session_factory: async_sessionmaker[AsyncSession] = async_sessionmaker(
@@ -43,9 +45,7 @@ class PostgresDatabaseAdapter:
          yield session
          await session.commit()
       except Exception as e:
-         logger.exception(
-            msg="Database session initialisation failed",
-            extra={"error": str(e)})
+         log_session_failure(logger, e, "session")
          await session.rollback()
          raise
       finally:
@@ -59,9 +59,7 @@ class PostgresDatabaseAdapter:
            yield session
            await session.commit()
        except Exception as e:
-           logger.exception(
-            msg="Database system session initialisation failed",
-            extra={"error": str(e)})
+           log_session_failure(logger, e, "system session")
            await session.rollback()
            raise
        finally:

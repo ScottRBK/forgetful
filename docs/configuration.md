@@ -201,7 +201,7 @@ Forgetful provides three Docker Compose configurations:
 - **Default**: `false`
 - **Description**: Enable SQL query logging for debugging (applies to both SQLite and PostgreSQL)
 - **Values**: `true`, `false`
-- **Note**: Very verbose - use only for troubleshooting
+- **Note**: Very verbose - use only for troubleshooting. Statements are logged at INFO through the normal logging pipeline (stderr, honouring `LOG_FORMAT`), so the STDIO transport's stdout stays clean. Bound parameter values are never logged.
 - **Example**: `DB_LOGGING=true`
 
 ---
