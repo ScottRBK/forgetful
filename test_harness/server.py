@@ -3,7 +3,8 @@
 File-backed SQLite (in-memory dies at the process boundary), all feature flags on, no
 auth, FastEmbed with the default (warm) model cache. Env is injected at launch because
 settings freeze at import time in the child; cwd is the run directory so no repo-local
-.env leaks in. Readiness = GET /health -> 200 (503 while initialising).
+.env leaks in. The server is the `forgetful` of the interpreter running the harness.
+Readiness = GET /health -> 200 (503 while initialising).
 
 Everything here is harness-side infrastructure: failures raise (trust boundary — never
 misreported as agent findings). Seeding and state inspection reuse the CLI's own
@@ -14,6 +15,7 @@ import os
 import shutil
 import socket
 import subprocess
+import sys
 import time
 from collections.abc import Iterable
 from pathlib import Path
@@ -32,6 +34,25 @@ def _plain_client_factory(url: str, token: str | None):
     from fastmcp import Client
 
     return Client(url)
+
+
+def _server_executable() -> str:
+    """The `forgetful` console script of the environment running the harness.
+
+    PATH is only the fallback (a system python with a globally installed forgetful):
+    a different venv's `forgetful` earlier on PATH must not silently stand in for the
+    interpreter under test, and the harness must also work from an un-activated venv.
+    """
+    own = Path(sys.executable).with_name("forgetful" + (".exe" if os.name == "nt" else ""))
+    if own.is_file():
+        return str(own)
+    on_path = shutil.which("forgetful")
+    if on_path is None:
+        raise HarnessInfraError(
+            f"forgetful console script is neither next to {sys.executable} nor on PATH "
+            "- run the harness via `uv run`",
+        )
+    return on_path
 
 
 def _ephemeral_port() -> int:
@@ -78,11 +99,7 @@ class ThrowawayForgetful:
         return env
 
     def start(self) -> None:
-        binary = shutil.which("forgetful")
-        if binary is None:
-            raise HarnessInfraError(
-                "forgetful console script not on PATH - run the harness via `uv run`",
-            )
+        binary = _server_executable()
         self.port = _ephemeral_port()
         self._log_file = (self.run_dir / "server.log").open("w")
         self.process = subprocess.Popen(
