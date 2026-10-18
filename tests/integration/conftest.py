@@ -1403,10 +1403,11 @@ class InMemoryEntityRepository(EntityRepository):
 
             raise NotFoundError(f"Entity {entity_id} not found")
 
-        # Add link
-        if entity_id not in self._entity_memory_links:
-            self._entity_memory_links[entity_id] = set()
-        self._entity_memory_links[entity_id].add(memory_id)
+        # Add link; report whether it was newly created (False if already linked)
+        links = self._entity_memory_links.setdefault(entity_id, set())
+        if memory_id in links:
+            return False
+        links.add(memory_id)
         return True
 
     async def unlink_entity_from_memory(
@@ -1428,10 +1429,12 @@ class InMemoryEntityRepository(EntityRepository):
 
             raise NotFoundError(f"Entity {entity_id} not found")
 
-        # Add link (mock repo doesn't verify project exists)
-        if entity_id not in self._entity_project_links:
-            self._entity_project_links[entity_id] = set()
-        self._entity_project_links[entity_id].add(project_id)
+        # Add link (mock repo doesn't verify project exists); report whether it was
+        # newly created (False if already linked)
+        links = self._entity_project_links.setdefault(entity_id, set())
+        if project_id in links:
+            return False
+        links.add(project_id)
         return True
 
     async def unlink_entity_from_project(

@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import and_, func, or_, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import selectinload
 
 from app.config.logging_config import logging
@@ -468,7 +469,8 @@ class PostgresEntityRepository:
             memory_id: Memory ID to link
 
         Returns:
-            True if linked (or already linked), False if entity or memory not found
+            True if a new link was created, False if the entity was already
+            linked to the memory
 
         Raises:
             NotFoundError: If entity or memory not found or not owned by user
@@ -497,15 +499,16 @@ class PostgresEntityRepository:
                 if not memory_table:
                     raise NotFoundError(f"Memory {memory_id} not found")
 
-                # Load the entities relationship on the memory
-                await session.refresh(memory_table, ["entities"])
+                # Insert atomically: concurrent identical requests must not race
+                # a check-then-insert into the association primary key
+                result = await session.execute(
+                    pg_insert(memory_entity_association)
+                    .values(memory_id=memory_id, entity_id=entity_id)
+                    .on_conflict_do_nothing(),
+                )
+                await session.commit()
 
-                # Add entity to memory's entities (if not already linked)
-                if entity_table not in memory_table.entities:
-                    memory_table.entities.append(entity_table)
-                    await session.commit()
-
-                return True
+                return result.rowcount > 0
 
         except NotFoundError:
             raise
@@ -602,7 +605,8 @@ class PostgresEntityRepository:
             project_id: Project ID to link
 
         Returns:
-            True if linked (or already linked)
+            True if a new link was created, False if the entity was already
+            linked to the project
 
         Raises:
             NotFoundError: If entity or project not found or not owned by user
@@ -631,15 +635,16 @@ class PostgresEntityRepository:
                 if not project_table:
                     raise NotFoundError(f"Project {project_id} not found")
 
-                # Load the projects relationship on the entity
-                await session.refresh(entity_table, ["projects"])
+                # Insert atomically: concurrent identical requests must not race
+                # a check-then-insert into the association primary key
+                result = await session.execute(
+                    pg_insert(entity_project_association)
+                    .values(entity_id=entity_id, project_id=project_id)
+                    .on_conflict_do_nothing(),
+                )
+                await session.commit()
 
-                # Add project to entity's projects (if not already linked)
-                if project_table not in entity_table.projects:
-                    entity_table.projects.append(project_table)
-                    await session.commit()
-
-                return True
+                return result.rowcount > 0
 
         except NotFoundError:
             raise

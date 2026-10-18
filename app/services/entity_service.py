@@ -506,7 +506,8 @@ class EntityService:
             memory_id: Memory ID to link
 
         Returns:
-            True if linked (or already linked)
+            True if linked (or already linked). The CREATED activity event is
+            only emitted when a new link was actually created.
 
         Raises:
             NotFoundError: If entity or memory not found or not owned by user
@@ -520,7 +521,7 @@ class EntityService:
             },
         )
 
-        success = await self.entity_repo.link_entity_to_memory(
+        created = await self.entity_repo.link_entity_to_memory(
             user_id=user_id,
             entity_id=entity_id,
             memory_id=memory_id,
@@ -535,8 +536,8 @@ class EntityService:
             },
         )
 
-        # Emit entity-memory link created event
-        if success:
+        # Emit entity-memory link created event only for a newly created link
+        if created:
             await self._emit_event(
                 user_id=user_id,
                 entity_type=ActivityEntityType.ENTITY_MEMORY_LINK,
@@ -546,7 +547,7 @@ class EntityService:
                 metadata={"entity_id": entity_id, "memory_id": memory_id},
             )
 
-        return success
+        return True
 
     async def unlink_entity_from_memory(
         self,
@@ -626,7 +627,8 @@ class EntityService:
             project_id: Project ID to link
 
         Returns:
-            True if linked (or already linked)
+            True if linked (or already linked). The CREATED activity event is
+            only emitted when a new link was actually created.
 
         Raises:
             NotFoundError: If entity or project not found or not owned by user
@@ -640,7 +642,7 @@ class EntityService:
             },
         )
 
-        success = await self.entity_repo.link_entity_to_project(
+        created = await self.entity_repo.link_entity_to_project(
             user_id=user_id,
             entity_id=entity_id,
             project_id=project_id,
@@ -655,8 +657,8 @@ class EntityService:
             },
         )
 
-        # Emit entity-project link created event
-        if success:
+        # Emit entity-project link created event only for a newly created link
+        if created:
             await self._emit_event(
                 user_id=user_id,
                 entity_type=ActivityEntityType.ENTITY_PROJECT_LINK,
@@ -666,7 +668,7 @@ class EntityService:
                 metadata={"entity_id": entity_id, "project_id": project_id},
             )
 
-        return success
+        return True
 
     async def unlink_entity_from_project(
         self,

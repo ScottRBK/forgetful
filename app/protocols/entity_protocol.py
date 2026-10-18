@@ -170,7 +170,8 @@ class EntityRepository(Protocol):
             memory_id: Memory ID to link
 
         Returns:
-            True if linked (or already linked), False if entity or memory not found
+            True if a new link was created, False if the entity was already
+            linked to the memory (the call is idempotent and race-safe)
 
         Raises:
             NotFoundError: If entity or memory not found or not owned by user
@@ -211,7 +212,8 @@ class EntityRepository(Protocol):
             project_id: Project ID to link
 
         Returns:
-            True if linked (or already linked)
+            True if a new link was created, False if the entity was already
+            linked to the project (the call is idempotent and race-safe)
 
         Raises:
             NotFoundError: If entity or project not found or not owned by user
