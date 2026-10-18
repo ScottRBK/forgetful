@@ -104,6 +104,54 @@ def test_blank_text_errors_are_json_serialisable():
     json.dumps(exc_info.value.errors())
 
 
+# ============================================================================
+# Per-item length of keywords, tags and source_files
+# ============================================================================
+
+ITEM_LIMITS = [
+    ("keywords", settings.MEMORY_KEYWORD_MAX_LENGTH),
+    ("tags", settings.MEMORY_TAG_MAX_LENGTH),
+    ("source_files", settings.MEMORY_SOURCE_FILE_MAX_LENGTH),
+]
+
+
+@pytest.mark.parametrize(("field", "limit"), ITEM_LIMITS)
+def test_create_rejects_item_over_limit(field, limit):
+    oversized = "a" * (limit + 1)
+
+    with pytest.raises(ValidationError) as exc_info:
+        _create(**{field: [oversized]})
+
+    assert exc_info.value.errors()[0]["loc"][0] == field
+    assert oversized not in str(exc_info.value)
+
+
+@pytest.mark.parametrize(("field", "limit"), ITEM_LIMITS)
+def test_update_rejects_item_over_limit(field, limit):
+    with pytest.raises(ValidationError) as exc_info:
+        MemoryUpdate(**{field: ["a" * (limit + 1)]})
+
+    assert exc_info.value.errors()[0]["loc"][0] == field
+
+
+@pytest.mark.parametrize(("field", "limit"), ITEM_LIMITS)
+def test_item_at_limit_is_accepted_and_padding_does_not_count(field, limit):
+    exact = "a" * limit
+    padded = f"  {exact}\n"
+
+    assert getattr(_create(**{field: [exact]}), field) == [exact]
+    assert getattr(_create(**{field: [padded]}), field) == [exact]
+    assert getattr(MemoryUpdate(**{field: [padded]}), field) == [exact]
+
+
+def test_huge_keyword_is_rejected_before_any_token_counting():
+    """A 1 MB keyword used to be accepted and later stalled query_memory."""
+    with pytest.raises(ValidationError) as exc_info:
+        _create(keywords=["a" * 1_000_000])
+
+    json.dumps(exc_info.value.errors())
+
+
 def test_list_cleaning_is_unchanged():
     memory = _create(keywords=[" python ", "", "   ", "asyncio"], tags=[" t "], source_files=[" a.py ", " "])
 

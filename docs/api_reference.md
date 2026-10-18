@@ -235,15 +235,17 @@ returns **400** with `{"error": "<plugin message>"}`; failure/timeout returns **
 | Field | Type | Description |
 |-------|------|-------------|
 | `source_repo` | string | Repository source (e.g., 'owner/repo', max 200 chars) |
-| `source_files` | string[] | List of file paths that informed this memory |
+| `source_files` | string[] | List of file paths that informed this memory (each max 4096 chars) |
 | `source_url` | string | URL to original source material (max 2048 chars) |
 | `confidence` | float | Encoding confidence score (0.0-1.0) |
 | `encoding_agent` | string | Agent/process that created this memory (max 100 chars) |
 | `encoding_version` | string | Version of encoding process/prompt (max 50 chars) |
 
-**Validation:** `title` and `content` must not be blank (whitespace only). Invalid requests return
-`400` with a list of errors (`loc`, `msg`, `type`). `PUT /api/v1/memories/{id}` applies the same
-rules to the fields it receives, and also rejects a blank `context`.
+**Validation:** `title` and `content` must not be blank (whitespace only); each `keywords` and
+`tags` item is limited to 100 characters (`MEMORY_KEYWORD_MAX_LENGTH`, `MEMORY_TAG_MAX_LENGTH`).
+Invalid requests return `400` with a list of errors (`loc`, `msg`, `type`).
+`PUT /api/v1/memories/{id}` applies the same rules to the fields it receives, and also rejects a
+blank `context`.
 
 **Response (201):**
 ```json

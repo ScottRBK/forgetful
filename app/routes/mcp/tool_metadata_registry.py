@@ -183,14 +183,14 @@ def register_memory_tools_metadata(
                 {
                     "name": "keywords",
                     "type": "List[str]",
-                    "description": "Search keywords for semantic matching (max 10)",
+                    "description": "Search keywords for semantic matching (max 10, each max 100 characters)",
                     "required": True,
                     "example": ["tts", "voice-cloning", "xtts"],
                 },
                 {
                     "name": "tags",
                     "type": "List[str]",
-                    "description": "Categorization tags (max 10)",
+                    "description": "Categorization tags (max 10, each max 100 characters)",
                     "required": True,
                     "example": ["decision", "preference", "audio"],
                 },

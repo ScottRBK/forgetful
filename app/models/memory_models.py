@@ -57,6 +57,21 @@ _Context = Annotated[
     AfterValidator(_reject_blank),
 ]
 
+# List items are trimmed before the cap is checked so that padding does not count towards
+# it. The cap also bounds the text that query_memory token-counts for every search hit.
+_Keyword = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, max_length=settings.MEMORY_KEYWORD_MAX_LENGTH),
+]
+_Tag = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, max_length=settings.MEMORY_TAG_MAX_LENGTH),
+]
+_SourceFile = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, max_length=settings.MEMORY_SOURCE_FILE_MAX_LENGTH),
+]
+
 
 class MemoryCreate(BaseModel):
     """Request model for creating a memory
@@ -83,12 +98,12 @@ class MemoryCreate(BaseModel):
         max_length=settings.MEMORY_CONTEXT_MAX_LENGTH,
         description="WHY this matters, HOW it relates to other concepts, WHAT implications. Enables intelligent auto-linking and semantic retrieval.",
     )
-    keywords: list[str] = Field(
+    keywords: list[_Keyword] = Field(
         ...,
         max_length=settings.MEMORY_KEYWORDS_MAX_COUNT,
         description="Search terms for semantic discovery (e.g., 'python', 'asyncio', 'logging'). Max 10.",
     )
-    tags: list[str] = Field(
+    tags: list[_Tag] = Field(
         ...,
         max_length=settings.MEMORY_TAGS_MAX_COUNT,
         description="Categories for grouping memories (e.g., 'pattern', 'decision', 'bug-fix'). Max 10.",
@@ -126,7 +141,7 @@ class MemoryCreate(BaseModel):
         max_length=200,
         description="Repository/project source (e.g., 'owner/repo')",
     )
-    source_files: list[str] | None = Field(
+    source_files: list[_SourceFile] | None = Field(
         default=None,
         description="Files that informed this memory (JSON list of paths)",
     )
@@ -198,12 +213,12 @@ class MemoryUpdate(BaseModel):
         None,
         description="New context (WHY/HOW/WHAT for auto-linking). Unchanged if null.",
     )
-    keywords: list[str] | None = Field(
+    keywords: list[_Keyword] | None = Field(
         None,
         max_length=settings.MEMORY_KEYWORDS_MAX_COUNT,
         description="New search terms (max 10). Replaces existing if provided, unchanged if null.",
     )
-    tags: list[str] | None = Field(
+    tags: list[_Tag] | None = Field(
         None,
         max_length=settings.MEMORY_TAGS_MAX_COUNT,
         description="New categories (max 10). Replaces existing if provided, unchanged if null.",
@@ -241,7 +256,7 @@ class MemoryUpdate(BaseModel):
         max_length=200,
         description="New repository/project source. Unchanged if null.",
     )
-    source_files: list[str] | None = Field(
+    source_files: list[_SourceFile] | None = Field(
         None,
         description="New source files list. Replaces existing if provided, unchanged if null.",
     )

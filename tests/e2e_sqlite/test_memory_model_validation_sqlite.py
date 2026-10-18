@@ -89,6 +89,53 @@ class TestBlankMemoryText:
             await _call(mcp_client, "update_memory", {"memory_id": memory_id, "content": "   "})
 
 
+class TestOversizedListItems:
+    """Per-item length bounds keep one memory from dominating query_memory."""
+
+    @pytest.mark.parametrize(("field", "limit"), [
+        ("keywords", settings.MEMORY_KEYWORD_MAX_LENGTH),
+        ("tags", settings.MEMORY_TAG_MAX_LENGTH),
+        ("source_files", settings.MEMORY_SOURCE_FILE_MAX_LENGTH),
+    ])
+    async def test_create_and_update_reject_oversized_item(self, http_client, field, limit):
+        oversized = "a" * (limit + 1)
+
+        created = await http_client.post("/api/v1/memories", json=_payload(**{field: [oversized]}))
+        assert created.status_code == 400
+        assert created.json()["error"][0]["loc"][0] == field
+        assert await _total(http_client) == 0
+
+        memory_id = await _create(http_client)
+        updated = await http_client.put(f"/api/v1/memories/{memory_id}", json={field: [oversized]})
+        assert updated.status_code == 400
+
+    async def test_item_at_the_limit_is_stored(self, http_client):
+        keyword = "k" * settings.MEMORY_KEYWORD_MAX_LENGTH
+
+        memory_id = await _create(http_client, keywords=[keyword])
+
+        stored = (await http_client.get(f"/api/v1/memories/{memory_id}")).json()
+        assert stored["keywords"] == [keyword]
+
+    async def test_oversized_memory_can_no_longer_blank_search_results(self, http_client):
+        """An importance-10 memory with a huge keyword used to empty the whole result."""
+        for index in range(3):
+            await _create(http_client, title=f"python logging tip {index}", importance=5)
+        huge = await http_client.post(
+            "/api/v1/memories",
+            json=_payload(title="python logging huge", keywords=["a" * 70_000], importance=10),
+        )
+        assert huge.status_code == 400
+
+        response = await http_client.post(
+            "/api/v1/memories/search",
+            json={"query": "python logging", "query_context": "testing", "k": 5},
+        )
+
+        assert response.status_code == 200
+        assert len(response.json()["primary_memories"]) == 3
+
+
 class TestStoredRowsStayReadable:
     """The Memory response model must not enforce write-time rules."""
 

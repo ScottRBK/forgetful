@@ -125,6 +125,9 @@ class Settings(BaseSettings):
     MEMORY_CONTEXT_MAX_LENGTH: int = 500    # Brief contextual description
     MEMORY_KEYWORDS_MAX_COUNT: int = 10     # For semantic clustering
     MEMORY_TAGS_MAX_COUNT: int = 10         # For categorization
+    MEMORY_KEYWORD_MAX_LENGTH: int = 100    # Characters per keyword - search terms, not sentences
+    MEMORY_TAG_MAX_LENGTH: int = 100        # Characters per tag - short category labels
+    MEMORY_SOURCE_FILE_MAX_LENGTH: int = 4096  # Characters per source file path (Linux PATH_MAX)
     MEMORY_TOKEN_BUDGET: int = 8000         # token budget for retrieved memories (to protect context window)
     MEMORY_MAX_MEMORIES: int = 20           # maximum number of memories that can be retrieved from a query
     MEMORY_NUM_AUTO_LINK: int = 3           # number of memories to automatically link

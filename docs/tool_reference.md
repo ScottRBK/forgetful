@@ -169,8 +169,8 @@ Create an atomic memory with automatic linking to related memories.
 - `content` (required): Memory content - ONE concept (max 2000 chars, ~300-400 words)
 - `importance` (required): Importance score 1-10 (9-10 = foundational, 7-8 = patterns, 5-6 = context)
 - `context` (required): Why the memory matters (max 500 chars)
-- `keywords` (required): Search keywords (max 10)
-- `tags` (required): Categorization tags (max 10)
+- `keywords` (required): Search keywords (max 10, each max 100 chars)
+- `tags` (required): Categorization tags (max 10, each max 100 chars)
 - `project_ids` (optional): Project IDs to link
 - `document_ids` (optional): Document IDs to link
 - `file_ids` (optional): Existing file IDs to link (files must belong to the current user; unknown IDs fail)
@@ -178,7 +178,7 @@ Create an atomic memory with automatic linking to related memories.
 
 **Provenance Tracking (optional):**
 - `source_repo` (optional): Repository source (e.g., 'owner/repo', max 200 chars)
-- `source_files` (optional): List of file paths that informed this memory
+- `source_files` (optional): List of file paths that informed this memory (each max 4096 chars)
 - `source_url` (optional): URL to original source material (max 2048 chars)
 - `confidence` (optional): Encoding confidence score (0.0-1.0)
 - `encoding_agent` (optional): Agent/process that created this memory (max 100 chars)
@@ -293,8 +293,8 @@ Update existing memory fields (PATCH semantics - only updates provided fields).
 - `content` (optional): Updated content (must not be blank)
 - `importance` (optional): Updated importance score
 - `context` (optional): Updated context (must not be blank)
-- `keywords` (optional): Updated keywords
-- `tags` (optional): Updated tags
+- `keywords` (optional): Updated keywords (each max 100 chars)
+- `tags` (optional): Updated tags (each max 100 chars)
 - `file_ids` (optional): Replaces existing file links; `[]` clears them; omit to leave them unchanged
 
 **Provenance Tracking (optional):**

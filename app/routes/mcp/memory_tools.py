@@ -73,8 +73,8 @@ def register(mcp: FastMCP):
             title: Memory title (max 200 characters)
             content: Memory context (max 2000 characters, ~300-400 words) - single concept
             context: WHY this memory matters, HOW it relates, WHAT implications (required, max 500 characters)
-            keywords: Search Keywords. Accepts array ["key1", "key2"] (max 10)
-            tags: Categorisation tags. Accepts array ["tag1", "tag2"] (max 10)
+            keywords: Search Keywords. Accepts array ["key1", "key2"] (max 10, each max 100 characters)
+            tags: Categorisation tags. Accepts array ["tag1", "tag2"] (max 10, each max 100 characters)
             importance: Score 1-10 (defaults to 7). scoring guide -> 9-10: Personal/foundational, 8-9: Critical solutions,
             7-8: Useful Patterns, 6-7: Milestones, <6 Storing Discouraged. You should auto create memories where importance
             is above >7.
@@ -334,8 +334,8 @@ def register(mcp: FastMCP):
             title: New Title (optional)
             content: New content (optional)
             context: New context (optional)
-            keywords: New keywords (optional - replaces existing). Accepts array ["key1", "key2"] (max 10),
-            tags: New tags (optional - replaces existing). Accepts array ["tag1", "tag2"] (max 10),
+            keywords: New keywords (optional - replaces existing). Accepts array ["key1", "key2"] (max 10, each max 100 characters),
+            tags: New tags (optional - replaces existing). Accepts array ["tag1", "tag2"] (max 10, each max 100 characters),
             importance: New scoire 1-10 (optional)
             project_ids: New project ids to link to (optional - replaces existing links). Accepts array [1] or [1, 3] for multiple
             code_artifact_ids: New code artifact ids to link to (optional - replaces existing links). Accepts array [1] or [1, 3] for multiple
