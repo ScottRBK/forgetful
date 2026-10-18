@@ -121,7 +121,6 @@ async def root(request: Request) -> JSONResponse:
         "service": settings.SERVICE_NAME,
         "version": settings.SERVICE_VERSION,
         "status": "running",
-        "docs": "/docs",
         "endpoints": {
             "health": "/health",
         },
@@ -314,8 +313,24 @@ def _serve(transport, host, port):
         warnings.filterwarnings("ignore", category=DeprecationWarning)
         mcp.run(show_banner=False)
     elif not settings.CORS_ENABLED:
-        # No CORS - use existing code path (zero behavioral change)
-        mcp.run(transport="http", host=host, port=port, show_banner=False)
+        # Serve the app through uvicorn directly instead of mcp.run(): FastMCP would wrap
+        # serve() in its own lifespan, deferring dispose_runtime() until uvicorn has already
+        # re-raised SIGTERM/SIGINT, so shutdown cleanup never ran. With uvicorn as the only
+        # lifespan owner, teardown completes inside its shutdown phase. The uvicorn options
+        # below are the ones mcp.run(transport="http") applied.
+        import fastmcp
+        import uvicorn
+
+        app = mcp.http_app()
+        uvicorn.run(
+            app,
+            host=host,
+            port=port,
+            timeout_graceful_shutdown=2,
+            lifespan="on",
+            ws="websockets-sansio",
+            log_level=fastmcp.settings.log_level.lower(),
+        )
     else:
         # CORS enabled - use http_app with middleware
         from starlette.middleware import Middleware

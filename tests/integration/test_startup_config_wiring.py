@@ -9,6 +9,7 @@ silently ignored or fail later with an opaque error:
 - SSE_MAX_QUEUE_SIZE reaches the EventBus built by the composition root.
 - ENCODING_* / AGENT_* provenance defaults are length-checked against the model caps.
 - On PostgreSQL, *_MAX_LENGTH settings are bounded by the fixed VARCHAR column widths.
+- The root service-info document only advertises endpoints that exist.
 
 Settings are built from environment variables with Settings(_env_file=None), which is what
 startup does, so no database or network is needed.
@@ -23,10 +24,12 @@ import subprocess
 import sys
 from pathlib import Path
 
+import httpx
 import pytest
 from pydantic import BaseModel, ValidationError
 
 import app.models as models_package
+import main
 from app import bootstrap
 from app.bootstrap import build_runtime, dispose_runtime
 from app.config import logging_config
@@ -408,3 +411,21 @@ def test_sqlite_does_not_clamp_max_lengths(monkeypatch):
     loaded = _settings(monkeypatch, DATABASE="SQLite", PLAN_TITLE_MAX_LENGTH="1000")
 
     assert loaded.PLAN_TITLE_MAX_LENGTH == 1000
+
+
+# ============================================================================
+# Root service-info document
+# ============================================================================
+
+async def test_root_endpoint_only_advertises_routes_that_exist():
+    transport = httpx.ASGITransport(app=main.mcp.http_app())
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        info = (await client.get("/")).json()
+        advertised = [info["endpoints"][name] for name in info["endpoints"]]
+        advertised += [value for value in info.values() if isinstance(value, str) and value.startswith("/")]
+        statuses = {path: (await client.get(path)).status_code for path in advertised}
+
+    assert "/docs" not in advertised
+    assert "docs" not in info
+    assert statuses
+    assert all(status != 404 for status in statuses.values()), statuses
