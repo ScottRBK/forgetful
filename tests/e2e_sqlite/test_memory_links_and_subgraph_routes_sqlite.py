@@ -171,6 +171,30 @@ class TestPostMemoryLinksValidation:
 
         assert response.status_code == 400, response.text
 
+    @pytest.mark.parametrize(
+        "raw_body",
+        [
+            b'{"related_ids":[NaN]}',
+            b'{"related_ids":[Infinity]}',
+            b'{"related_ids":[-Infinity, 1]}',
+            b'{"related_ids":NaN}',
+            b'{"related_ids":{"a":NaN}}',
+        ],
+    )
+    async def test_non_finite_related_ids_are_rejected_not_a_server_error(self, http_client, raw_body):
+        """Python's JSON parser accepts NaN/Infinity; the 400 body must stay serialisable."""
+        first, second = await _create_memories(http_client, 2)
+
+        response = await http_client.post(
+            f"/api/v1/memories/{second}/links",
+            content=raw_body,
+            headers={"Content-Type": "application/json"},
+        )
+
+        assert response.status_code == 400, response.text
+        assert await _linked_ids(http_client, second) == []
+        assert await _linked_ids(http_client, first) == []
+
     @pytest.mark.parametrize("body", [{}, {"related_ids": []}, {"related_ids": None}])
     async def test_missing_or_empty_related_ids_are_rejected(self, http_client, body):
         (memory_id,) = await _create_memories(http_client, 1)

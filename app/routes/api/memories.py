@@ -18,6 +18,7 @@ from app.exceptions import (
 )
 from app.middleware.auth import get_user_from_request
 from app.models.memory_models import (
+    Memory,
     MemoryCreate,
     MemoryLinkRequest,
     MemoryListResponse,
@@ -349,7 +350,7 @@ def register(mcp: FastMCP):
             link_request = MemoryLinkRequest(memory_id=memory_id, related_ids=related_ids)
         except ValidationError as e:
             return JSONResponse(
-                {"error": e.errors(include_url=False, include_context=False)},
+                {"error": e.errors(include_url=False, include_context=False, include_input=False)},
                 status_code=400,
             )
 
@@ -381,10 +382,11 @@ def register(mcp: FastMCP):
 
         params = request.query_params
         try:
-            limit = parse_int_param(params, "limit", 20)
+            parsed_limit = parse_int_param(params, "limit", 20)
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=400)
 
+        limit = 20 if parsed_limit is None else parsed_limit
         if limit < 1:
             return JSONResponse({"error": "limit must be at least 1"}, status_code=400)
         limit = min(limit, 100)
@@ -405,7 +407,7 @@ def register(mcp: FastMCP):
 
         # Fetch linked memories, skipping missing and (by default) obsolete ones
         # so that `limit` counts only the memories actually returned
-        linked_memories = []
+        linked_memories: list[Memory] = []
         for linked_id in memory.linked_memory_ids:
             if len(linked_memories) >= limit:
                 break
