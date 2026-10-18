@@ -41,6 +41,10 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+_FRONTMATTER_OPEN_RE = re.compile(r"---[ \t]*\r?\n")
+_FRONTMATTER_CLOSE_RE = re.compile(r"^---[ \t]*(?:\r?\n|\Z)", re.MULTILINE)
+
+
 def _quote_unquoted_frontmatter_scalars(raw: str) -> str:
     """Quote scalar frontmatter values that contain unescaped colons."""
     quoted_lines: list[str] = []
@@ -67,6 +71,29 @@ def _quote_unquoted_frontmatter_scalars(raw: str) -> str:
             quoted_lines.append(line)
 
     return "\n".join(quoted_lines)
+
+
+def _split_frontmatter(skill_md: str) -> tuple[str, str]:
+    """Split SKILL.md text into raw YAML frontmatter and markdown body.
+
+    The delimiters are lines made only of ``---``, so a ``---`` inside a value
+    or a horizontal rule in the body never ends the frontmatter. Only the line
+    breaks that separate the frontmatter from the body are removed from the body.
+    """
+    text = skill_md.lstrip("\ufeff").lstrip()
+    opening = _FRONTMATTER_OPEN_RE.match(text)
+    closing = _FRONTMATTER_CLOSE_RE.search(text, opening.end()) if opening else None
+    if opening is None or closing is None:
+        raise ValueError(
+            "Invalid skill markdown: expected YAML frontmatter between --- delimiters",
+        )
+
+    body = text[closing.end():]
+    body = re.sub(r"\A\r?\n", "", body, count=1)
+    body = re.sub(r"\r?\n\Z", "", body, count=1)
+    if not body.strip():
+        body = ""
+    return text[opening.end():closing.start()].rstrip(" \t\r\n"), body
 
 
 class SkillService:
@@ -510,15 +537,7 @@ class SkillService:
             extra={"user_id": str(user_id)},
         )
 
-        # Parse YAML frontmatter between --- delimiters
-        parts = skill_md_content.split("---", 2)
-        if len(parts) < 3:
-            raise ValueError(
-                "Invalid skill markdown: expected YAML frontmatter between --- delimiters",
-            )
-
-        frontmatter_raw = parts[1].strip()
-        body = parts[2].strip()
+        frontmatter_raw, body = _split_frontmatter(skill_md_content)
 
         frontmatter = yaml.safe_load(_quote_unquoted_frontmatter_scalars(frontmatter_raw))
         if not isinstance(frontmatter, dict):
