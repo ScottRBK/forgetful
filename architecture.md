@@ -144,7 +144,9 @@ for embeddings and event differences. A resulting no-op preserves the current ti
 plugin warning without emitting an update event. The original plugin snapshots are not re-evaluated.
 This removes the new plugin-wait stale-state window; it does not prevent later concurrent changes,
 including the pre-existing embedding-provider await race, or promise atomic global checks.
-Explicit-null adapter differences (#95) and skill update limitations (#96) are unchanged.
+MemoryService normalizes explicit-null update fields to unchanged before provenance enforcement
+and change detection (#95), preserving raw submitted snapshots. Non-null skill update limitations
+(#96) remain; null normalization does not implement skill association updates.
 
 `app/routes/write_plugin_responses.py` adds nonempty-only warnings to write responses; update remains
 flat. Stored/read `Memory` and event snapshots are unchanged. The live MCP adapter maps plugin errors

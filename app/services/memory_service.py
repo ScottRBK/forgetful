@@ -37,7 +37,7 @@ from app.utils.provenance import (
     apply_provenance_defaults,
     apply_provenance_defaults_for_update,
 )
-from app.utils.pydantic_helper import get_changed_fields
+from app.utils.pydantic_helper import filter_none_values, get_changed_fields
 from app.utils.token_counter import TokenCounter
 
 if TYPE_CHECKING:
@@ -269,6 +269,9 @@ class MemoryService:
             updated_memory: Memory Update object containing the data to be updated
         """
         submitted = updated_memory.model_copy(deep=True)
+        updated_memory = MemoryUpdate.model_validate(
+            filter_none_values(**updated_memory.model_dump(exclude_unset=True)),
+        )
         updated_memory = apply_provenance_defaults_for_update(updated_memory)
 
         existing_memory = await self.memory_repo.get_memory_by_id(
@@ -296,7 +299,7 @@ class MemoryService:
         if self._write_plugin:
             proposed_data = existing_memory.model_dump(include=set(MemoryCreate.model_fields))
             updates = updated_memory.model_dump(exclude_unset=True)
-            # These relationships ignore null; scalar fields persist explicit nulls.
+            # Explicit nulls were removed before provenance and change detection.
             # skill_ids retains its existing repository limitation (issue #96).
             relationships = {"project_ids", "code_artifact_ids", "document_ids", "file_ids"}
             proposed_data.update({

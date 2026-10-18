@@ -207,7 +207,7 @@ async def test_snapshots_detached_and_candidate_matches_update_semantics(write_s
     assert submitted.tags == ["original"]
     assert update.tags == ["revised"]
     assert result.memory.tags == ["revised"]
-    assert result.memory.source_url is None
+    assert result.memory.source_url == "old"
     assert seen[0].submitted.encoding_agent == "client-agent"
     assert seen[0].proposed.encoding_agent == "server-agent"
     assert seen[1].operation == "update"
@@ -215,7 +215,7 @@ async def test_snapshots_detached_and_candidate_matches_update_semantics(write_s
     assert seen[1].previous.id == created.memory.id
     assert seen[1].submitted.model_fields_set == {"tags", "source_url", "project_ids"}
     assert seen[1].proposed.project_ids == []  # Relationship null means unchanged.
-    assert seen[1].proposed.source_url is None  # Scalar null clears it.
+    assert seen[1].proposed.source_url == "old"  # Explicit null leaves it unchanged.
     assert seen[1].proposed.encoding_agent == "server-agent"
     saved = await service.get_memory(user_id, created.memory.id)
     assert saved.tags == ["revised"]
@@ -290,9 +290,7 @@ async def test_warn_mode_downgrades_reject_and_cancellation_propagates(write_sto
     assert total == 1
 
 
-async def test_invalid_candidate_and_missing_memory_do_not_reach_plugin(write_store):
-    from pydantic import ValidationError
-
+async def test_null_update_and_missing_memory_do_not_reach_plugin(write_store):
     from app.exceptions import NotFoundError
     from app.models.memory_models import MemoryUpdate
     from app.models.write_plugin_models import WriteDecision
@@ -307,8 +305,12 @@ async def test_invalid_candidate_and_missing_memory_do_not_reach_plugin(write_st
 
     service = MemoryService(repo, write_plugin=WritePluginService(check_write))
     created = await service.create_memory(user_id, candidate())
-    with pytest.raises(ValidationError):
-        await service.update_memory(user_id, created.memory.id, MemoryUpdate(title=None))
+    before = await service.get_memory(user_id, created.memory.id)
+    unchanged = await service.update_memory(user_id, created.memory.id, MemoryUpdate(title=None))
+    assert unchanged.memory.title == created.memory.title
+    assert unchanged.memory.updated_at == before.updated_at
+    assert len(calls) == 1
+    assert len(embeddings.requests) == 1
     with pytest.raises(NotFoundError):
         await service.update_memory(user_id, created.memory.id + 100, MemoryUpdate(title="New"))
     saved = await service.get_memory(user_id, created.memory.id)
