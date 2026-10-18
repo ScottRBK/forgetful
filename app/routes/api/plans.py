@@ -85,6 +85,8 @@ def register(mcp: FastMCP):
             plan = await mcp.plan_service.create_plan(user_id=user.id, plan_data=plan_data)
         except ConflictError as e:
             return JSONResponse({"error": str(e)}, status_code=409)
+        except NotFoundError as e:
+            return JSONResponse({"error": str(e)}, status_code=404)
         return JSONResponse(plan.model_dump(mode="json"), status_code=201)
 
     @mcp.custom_route("/api/v1/plans/{plan_id}", methods=["PUT"])

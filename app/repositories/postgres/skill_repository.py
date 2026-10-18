@@ -28,6 +28,7 @@ from app.repositories.postgres.postgres_tables import (
     skill_document_association,
     skill_file_association,
 )
+from app.repositories.postgres.project_reference import ensure_project_owned
 from app.utils.embedding_helpers import build_skill_embedding_text
 
 logger = logging.getLogger(__name__)
@@ -67,12 +68,17 @@ class PostgresSkillRepository:
 
         Returns:
             Created Skill with generated ID and timestamps
+
+        Raises:
+            NotFoundError: If project_id is not one of the user's projects
         """
         try:
             embedding_text = build_skill_embedding_text(skill_data)
             embedding = await self.embedding_adapter.generate_embedding(embedding_text)
 
             async with self.db_adapter.session(user_id) as session:
+                await ensure_project_owned(session, user_id, skill_data.project_id)
+
                 skill_table = SkillsTable(
                     user_id=user_id,
                     name=skill_data.name,
@@ -103,6 +109,8 @@ class PostgresSkillRepository:
 
                 return self._to_skill(skill_table)
 
+        except NotFoundError:
+            raise
         except Exception as e:
             logger.error(
                 "Failed to create skill",
@@ -250,7 +258,8 @@ class PostgresSkillRepository:
             Updated Skill
 
         Raises:
-            NotFoundError: If skill not found or not owned by user
+            NotFoundError: If skill not found or not owned by user,
+                or project_id is not one of the user's projects
         """
         try:
             async with self.db_adapter.session(user_id) as session:
@@ -266,6 +275,7 @@ class PostgresSkillRepository:
                     raise NotFoundError(f"Skill {skill_id} not found")
 
                 update_data = skill_data.model_dump(exclude_unset=True)
+                await ensure_project_owned(session, user_id, update_data.get("project_id"))
 
                 # Map Pydantic 'metadata' field to ORM 'skill_metadata' column
                 if "metadata" in update_data:
