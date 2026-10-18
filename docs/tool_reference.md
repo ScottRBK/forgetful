@@ -1245,7 +1245,7 @@ team = execute_forgetful_tool(
 Search entities by name or alternative names (aka). Case-insensitive text matching.
 
 **Parameters:**
-- `query` (required): Search term (matches name or any aka, partial match supported)
+- `query` (required): Search term (matches name or any single aka, partial match supported; `%`, `_` and `\` are matched literally and a match never spans two aliases)
 - `entity_type` (optional): Filter by entity type
 - `tags` (optional): Filter by tags
 - `limit` (optional): Maximum results (1-100, default 20)

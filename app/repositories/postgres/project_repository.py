@@ -19,6 +19,7 @@ from app.models.project_models import (
 )
 from app.repositories.postgres.postgres_adapter import PostgresDatabaseAdapter
 from app.repositories.postgres.postgres_tables import ProjectsTable
+from app.utils.like_pattern import LIKE_ESCAPE_CHAR, contains_pattern
 from app.utils.repository_identity import repository_identity
 
 logger = logging.getLogger(__name__)
@@ -84,7 +85,11 @@ class PostgresProjectRepository:
                 stmt = stmt.where(ProjectsTable.status == status.value)
 
             if name:
-                stmt = stmt.where(ProjectsTable.name.ilike(f"%{name}%"))
+                stmt = stmt.where(
+                    ProjectsTable.name.ilike(
+                        contains_pattern(name), escape=LIKE_ESCAPE_CHAR,
+                    ),
+                )
 
             if repo_name:
                 identity = repository_identity(repo_name)

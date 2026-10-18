@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from app.config.settings import settings
+from app.repositories.sqlite.text_matching import register_text_functions
 
 logger = logging.getLogger(__name__)
 
@@ -98,6 +99,8 @@ class SqliteDatabaseAdapter:
                     raw_conn.execute("PRAGMA synchronous=NORMAL")
                     raw_conn.execute("PRAGMA foreign_keys=ON")
                     raw_conn.execute("PRAGMA busy_timeout=5000")
+                    # Unicode case folding for name searches (see text_matching)
+                    register_text_functions(raw_conn)
                     logger.debug("sqlite-vec extension loaded on connection")
 
         self._session_factory: async_sessionmaker[AsyncSession] = async_sessionmaker(

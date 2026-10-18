@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, exists, func, or_, select
 from sqlalchemy.orm import selectinload
 
 from app.config.logging_config import logging
@@ -29,6 +29,7 @@ from app.repositories.sqlite.sqlite_tables import (
     entity_project_association,
     memory_entity_association,
 )
+from app.repositories.sqlite.text_matching import contains_ignore_case
 
 logger = logging.getLogger(__name__)
 
@@ -269,11 +270,12 @@ class SqliteEntityRepository:
         tags: list[str] | None = None,
         limit: int = 20,
     ) -> list[EntitySummary]:
-        """Search entities by name using text matching
+        """Search entities by name or alias using text matching
 
         Args:
             user_id: User ID for ownership filtering
-            search_query: Text to search for in entity name
+            search_query: Text to search for in entity name or any single alias
+                (literal, case-insensitive substring match)
             entity_type: Optional filter by entity type
             tags: Optional filter by tags (returns entities with ANY of these tags)
             limit: Maximum number of results to return
@@ -283,15 +285,22 @@ class SqliteEntityRepository:
         """
         try:
             async with self.db_adapter.session(user_id) as session:
-                # Build query with name + AKA search (LIKE is case-insensitive in SQLite by default)
-                search_pattern = f"%{search_query}%"
-                stmt = select(EntitiesTable).where(
-                    EntitiesTable.user_id == str(user_id),
-                    or_(
-                        EntitiesTable.name.like(search_pattern),
-                        # Search in AKA JSON array
-                        func.json_extract(EntitiesTable.aka, "$").like(search_pattern),
-                    ),
+                # Build query with name + AKA search. Matching is a literal,
+                # Unicode case-insensitive substring match; each alias is tested
+                # on its own rather than against the serialized JSON array.
+                aka_values = func.json_each(EntitiesTable.aka).table_valued("value")
+                stmt = (
+                    select(EntitiesTable)
+                    .options(selectinload(EntitiesTable.projects))
+                    .where(
+                        EntitiesTable.user_id == str(user_id),
+                        or_(
+                            contains_ignore_case(EntitiesTable.name, search_query),
+                            exists().where(
+                                contains_ignore_case(aka_values.c.value, search_query),
+                            ),
+                        ),
+                    )
                 )
 
                 # Apply optional filters

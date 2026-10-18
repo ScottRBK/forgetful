@@ -19,6 +19,7 @@ from app.models.project_models import (
 )
 from app.repositories.sqlite.sqlite_adapter import SqliteDatabaseAdapter
 from app.repositories.sqlite.sqlite_tables import ProjectsTable
+from app.repositories.sqlite.text_matching import contains_ignore_case
 from app.utils.repository_identity import repository_identity
 
 logger = logging.getLogger(__name__)
@@ -84,7 +85,7 @@ class SqliteProjectRepository:
                 stmt = stmt.where(ProjectsTable.status == status.value)
 
             if name:
-                stmt = stmt.where(ProjectsTable.name.like(f"%{name}%"))
+                stmt = stmt.where(contains_ignore_case(ProjectsTable.name, name))
 
             if repo_name:
                 identity = repository_identity(repo_name)

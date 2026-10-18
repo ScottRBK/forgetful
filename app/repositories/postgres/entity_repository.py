@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, exists, func, or_, select
 from sqlalchemy.orm import selectinload
 
 from app.config.logging_config import logging
@@ -27,6 +27,7 @@ from app.repositories.postgres.postgres_tables import (
     entity_project_association,
     memory_entity_association,
 )
+from app.utils.like_pattern import LIKE_ESCAPE_CHAR, contains_pattern
 
 logger = logging.getLogger(__name__)
 
@@ -264,11 +265,12 @@ class PostgresEntityRepository:
         tags: list[str] | None = None,
         limit: int = 20,
     ) -> list[EntitySummary]:
-        """Search entities by name using text matching
+        """Search entities by name or alias using text matching
 
         Args:
             user_id: User ID for ownership filtering
-            search_query: Text to search for in entity name
+            search_query: Text to search for in entity name or any single alias
+                (literal, case-insensitive substring match)
             entity_type: Optional filter by entity type
             tags: Optional filter by tags (returns entities with ANY of these tags)
             limit: Maximum number of results to return
@@ -278,15 +280,27 @@ class PostgresEntityRepository:
         """
         try:
             async with self.db_adapter.session(user_id) as session:
-                # Build query with name + AKA search
-                search_pattern = f"%{search_query}%"
-                stmt = select(EntitiesTable).where(
-                    EntitiesTable.user_id == user_id,
-                    or_(
-                        EntitiesTable.name.ilike(search_pattern),
-                        # Search in AKA array - convert to string and search
-                        func.array_to_string(EntitiesTable.aka, " ").ilike(search_pattern),
-                    ),
+                # Build query with name + AKA search. Matching is a literal,
+                # case-insensitive substring match; each alias is tested on its
+                # own so a match cannot span two adjacent aliases.
+                search_pattern = contains_pattern(search_query)
+                aka_values = func.unnest(EntitiesTable.aka).column_valued("alias")
+                stmt = (
+                    select(EntitiesTable)
+                    .options(selectinload(EntitiesTable.projects))
+                    .where(
+                        EntitiesTable.user_id == user_id,
+                        or_(
+                            EntitiesTable.name.ilike(
+                                search_pattern, escape=LIKE_ESCAPE_CHAR,
+                            ),
+                            exists().where(
+                                aka_values.ilike(
+                                    search_pattern, escape=LIKE_ESCAPE_CHAR,
+                                ),
+                            ),
+                        ),
+                    )
                 )
 
                 # Apply optional filters
