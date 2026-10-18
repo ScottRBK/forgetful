@@ -61,8 +61,9 @@ Done when: the skill exists and a capability-phrased `search_skills` finds it.
 
 `import_skill` ingests a SKILL.md string: YAML frontmatter needs `name` and `description`;
 `license`, `compatibility`, `tags`, `metadata`, and `allowed-tools` (hyphenated on disk,
-mapped to `allowed_tools` internally) are honoured. The body after the frontmatter becomes
-the content. `export_skill` re-emits the SKILL.md, round-trip faithful — tags included.
+mapped to `allowed_tools` internally; a list or a space-separated string) are honoured.
+The body after the frontmatter becomes the content. `export_skill` re-emits the SKILL.md,
+round-trip faithful — tags included.
 
 Done when: imported skills search well (check the description survived intact) and exports
 open cleanly in the target platform.
