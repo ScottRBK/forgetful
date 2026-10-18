@@ -14,7 +14,12 @@ from starlette.responses import JSONResponse
 
 from app.middleware.auth import get_user_from_request
 from app.models.activity_models import ActionType, ActorType, EntityType
-from app.routes.api.query_params import parse_datetime_param, parse_int_param
+from app.routes.api.query_params import (
+    INT32_MAX,
+    INT32_MIN,
+    parse_datetime_param,
+    parse_int_param,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -76,8 +81,12 @@ def register(mcp: FastMCP):
             since = parse_datetime_param(params, "since")
             until = parse_datetime_param(params, "until")
             limit, offset = parse_pagination(params)
-            # An empty entity_id means "no filter"
-            entity_id = parse_int_param(params, "entity_id") if params.get("entity_id") else None
+            # An empty entity_id means "no filter"; ids are 32-bit INTEGER columns on PostgreSQL
+            entity_id = (
+                parse_int_param(params, "entity_id", min_value=INT32_MIN, max_value=INT32_MAX)
+                if params.get("entity_id")
+                else None
+            )
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=400)
 

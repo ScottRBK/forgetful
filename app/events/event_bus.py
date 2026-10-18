@@ -381,7 +381,7 @@ class EventBus:
             Number of active SSE stream subscribers
         """
         if user_id is not None:
-            return len(self._stream_subscribers.get(user_id, set()))
+            return len(self._stream_subscribers.get(user_id, {}))
         return sum(len(queues) for queues in self._stream_subscribers.values())
 
     def get_current_seq(self, user_id: str) -> int:

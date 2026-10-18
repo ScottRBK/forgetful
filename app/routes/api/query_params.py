@@ -9,10 +9,17 @@ from datetime import UTC, datetime
 from typing import Any, overload
 
 # Range of a signed 64-bit integer: the widest value SQLite and PostgreSQL
-# (BIGINT) can bind. Python ints are unbounded, so anything outside this range
+# (BIGINT) can bind, used for pagination bounds. Python ints are unbounded, so anything outside this range
 # would otherwise surface as an OverflowError / DataError (HTTP 500).
 INT64_MIN = -(2**63)
 INT64_MAX = 2**63 - 1
+
+# Range of a signed 32-bit integer. Row ids (``entity_id``, ``project_id``) are
+# INTEGER columns on PostgreSQL, so an id above this range is rejected by
+# asyncpg (DataError, HTTP 500) even though SQLite would bind it. ``limit`` and
+# ``offset`` are only bound as LIMIT/OFFSET (BIGINT) and keep the int64 range.
+INT32_MIN = -(2**31)
+INT32_MAX = 2**31 - 1
 
 
 @overload

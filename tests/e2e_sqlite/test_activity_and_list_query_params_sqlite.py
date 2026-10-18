@@ -16,6 +16,8 @@ from app.models.activity_models import ActionType, ActivityEvent, ActorType, Ent
 from app.models.user_models import UserCreate
 
 BEYOND_INT64 = 2**63  # 9223372036854775808, one past the largest SQL integer
+INT32_MAX = 2**31 - 1  # largest id the PostgreSQL INTEGER id columns can hold
+INT32_MIN = -(2**31)
 
 EVENT_TIMES = [
     datetime(2026, 10, 18, 12, 0, tzinfo=UTC),
@@ -139,10 +141,25 @@ class TestActivityIntegerBounds:
         assert response.status_code == 400, f"{url} -> {response.status_code} {response.text[:200]}"
         assert param in response.json()["error"]
 
-    async def test_largest_int64_is_accepted(self, client):
-        response = await client.get(f"/api/v1/activity?entity_id={BEYOND_INT64 - 1}")
+    @pytest.mark.parametrize("value", [INT32_MAX + 1, INT32_MIN - 1, 3_000_000_000])
+    async def test_entity_id_beyond_int32_is_rejected(self, client, value):
+        """Ids are INTEGER columns on PostgreSQL, so a larger id must not reach the database."""
+        response = await client.get(f"/api/v1/activity?entity_id={value}")
+        assert response.status_code == 400, f"entity_id={value} -> {response.status_code}"
+        assert "entity_id" in response.json()["error"]
+
+    @pytest.mark.parametrize("value", [INT32_MAX, INT32_MIN, 0])
+    async def test_int32_edges_are_accepted_for_entity_id(self, client, value):
+        response = await client.get(f"/api/v1/activity?entity_id={value}")
         assert response.status_code == 200, response.text
         assert response.json()["total"] == 0
+
+    @pytest.mark.parametrize("name", ["offset", "limit"])
+    async def test_pagination_keeps_the_int64_range(self, client, name):
+        """offset is bound as BIGINT, so its largest value is accepted (limit stays 1-100)."""
+        value = BEYOND_INT64 - 1 if name == "offset" else 100
+        response = await client.get(f"/api/v1/activity?{name}={value}")
+        assert response.status_code == 200, response.text
 
 
 class TestActivityTimestampsAreUtc:
@@ -207,12 +224,24 @@ class TestMemoriesListQueryParams:
         assert response.status_code == 200, response.text
         assert response.json()["total"] == 2
 
-    @pytest.mark.parametrize("name", ["project_id", "offset"])
     @pytest.mark.parametrize("value", [BEYOND_INT64, -BEYOND_INT64 - 1])
-    async def test_value_beyond_int64_is_rejected(self, client, name, value):
-        response = await client.get(f"/api/v1/memories?{name}={value}")
-        assert response.status_code == 400, f"{name}={value} -> {response.status_code}"
-        assert name in response.json()["error"]
+    async def test_offset_beyond_int64_is_rejected(self, client, value):
+        response = await client.get(f"/api/v1/memories?offset={value}")
+        assert response.status_code == 400, f"offset={value} -> {response.status_code}"
+        assert "offset" in response.json()["error"]
+
+    @pytest.mark.parametrize("value", [INT32_MAX + 1, INT32_MIN - 1, 3_000_000_000, BEYOND_INT64])
+    async def test_project_id_beyond_int32_is_rejected(self, client, value):
+        """project_id is an INTEGER column on PostgreSQL, so a larger id must not reach it."""
+        response = await client.get(f"/api/v1/memories?project_id={value}")
+        assert response.status_code == 400, f"project_id={value} -> {response.status_code}"
+        assert "project_id" in response.json()["error"]
+
+    @pytest.mark.parametrize("value", [INT32_MAX, INT32_MIN])
+    async def test_int32_edges_are_accepted_for_project_id(self, client, value):
+        response = await client.get(f"/api/v1/memories?project_id={value}")
+        assert response.status_code == 200, response.text
+        assert response.json()["total"] == 0
 
 
 class TestGraphQueryParams:
@@ -238,11 +267,22 @@ class TestGraphQueryParams:
             assert meta["has_more"] is (offset < 2)
         assert seen == 3
 
-    @pytest.mark.parametrize("name", ["project_id", "offset"])
-    async def test_value_beyond_int64_is_rejected(self, client, name):
-        response = await client.get(f"/api/v1/graph?{name}={BEYOND_INT64}")
-        assert response.status_code == 400, f"{name} -> {response.status_code}"
-        assert name in response.json()["error"]
+    async def test_offset_beyond_int64_is_rejected(self, client):
+        response = await client.get(f"/api/v1/graph?offset={BEYOND_INT64}")
+        assert response.status_code == 400, f"offset -> {response.status_code}"
+        assert "offset" in response.json()["error"]
+
+    @pytest.mark.parametrize("value", [INT32_MAX + 1, INT32_MIN - 1, 3_000_000_000, BEYOND_INT64])
+    async def test_project_id_beyond_int32_is_rejected(self, client, value):
+        response = await client.get(f"/api/v1/graph?project_id={value}")
+        assert response.status_code == 400, f"project_id={value} -> {response.status_code}"
+        assert "project_id" in response.json()["error"]
+
+    @pytest.mark.parametrize("value", [INT32_MAX, INT32_MIN])
+    async def test_int32_edges_are_accepted_for_project_id(self, client, value):
+        response = await client.get(f"/api/v1/graph?project_id={value}&node_types=memory")
+        assert response.status_code == 200, response.text
+        assert response.json()["meta"]["memory_count"] == 0
 
     async def test_project_id_zero_still_filters(self, client):
         await _create_memories(client, 2)

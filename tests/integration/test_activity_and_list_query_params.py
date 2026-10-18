@@ -18,6 +18,8 @@ from starlette.datastructures import QueryParams
 from app.models.activity_models import ActivityListResponse
 from app.routes.api import activity as activity_routes
 from app.routes.api.query_params import (
+    INT32_MAX,
+    INT32_MIN,
     INT64_MAX,
     INT64_MIN,
     parse_datetime_param,
@@ -49,6 +51,23 @@ class TestParseIntParam:
     def test_int64_edges_are_accepted(self, value):
         params = QueryParams(f"project_id={value}")
         assert parse_int_param(params, "project_id") == value
+
+    def test_id_bounds_are_the_postgres_integer_range(self):
+        assert INT32_MIN == -2147483648
+        assert INT32_MAX == 2147483647
+        for value in (INT32_MAX + 1, INT32_MIN - 1):
+            with pytest.raises(ValueError, match="'entity_id'"):
+                parse_int_param(
+                    QueryParams(f"entity_id={value}"),
+                    "entity_id",
+                    min_value=INT32_MIN,
+                    max_value=INT32_MAX,
+                )
+        for value in (INT32_MAX, INT32_MIN):
+            params = QueryParams(f"entity_id={value}")
+            assert parse_int_param(
+                params, "entity_id", min_value=INT32_MIN, max_value=INT32_MAX,
+            ) == value
 
     def test_custom_bounds(self):
         with pytest.raises(ValueError, match="'limit'"):
@@ -166,6 +185,8 @@ class TestActivityRoutesValidation:
         [
             ("offset=-1", "offset"),
             ("offset=9223372036854775808", "offset"),
+            ("entity_id=2147483648", "entity_id"),
+            ("entity_id=-2147483649", "entity_id"),
             ("entity_id=9223372036854775808", "entity_id"),
             ("limit=0", "limit"),
             ("limit=101", "limit"),
@@ -198,12 +219,12 @@ class TestActivityRoutesValidation:
 
     async def test_valid_values_reach_the_service(self, client, activity_service):
         response = await client.get(
-            "/api/v1/activity?limit=100&offset=5&entity_id=9223372036854775807",
+            "/api/v1/activity?limit=100&offset=5&entity_id=2147483647",
         )
         assert response.status_code == 200, response.text
         assert activity_service.calls[0][1]["limit"] == 100
         assert activity_service.calls[0][1]["offset"] == 5
-        assert activity_service.calls[0][1]["entity_id"] == INT64_MAX
+        assert activity_service.calls[0][1]["entity_id"] == INT32_MAX
 
         response = await client.get("/api/v1/activity/memory/7?limit=1&offset=2")
         assert response.status_code == 200, response.text

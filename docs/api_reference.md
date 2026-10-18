@@ -146,7 +146,7 @@ List memories with pagination, sorting, and filtering.
 | `offset` | int | 0 | Skip N results |
 | `sort_by` | string | created_at | Sort field: `created_at`, `updated_at`, `importance` |
 | `sort_order` | string | desc | Sort direction: `asc`, `desc` |
-| `project_id` | int | - | Filter by project |
+| `project_id` | int | - | Filter by project (32-bit id; outside -2147483648 to 2147483647 returns 400) |
 | `importance_min` | int | - | Minimum importance (1-10) |
 | `tags` | string | - | Comma-separated tags |
 | `include_obsolete` | bool | false | Include obsolete memories |
@@ -831,7 +831,7 @@ Get full knowledge graph for visualization. Returns all nodes and edges for the 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `node_types` | string | `memory,entity,project,document,code_artifact` | Comma-separated list of node types to include |
-| `project_id` | int | - | Filter to specific project |
+| `project_id` | int | - | Filter to specific project (32-bit id; outside -2147483648 to 2147483647 returns 400) |
 | `include_entities` | bool | true | Include entity nodes (deprecated, use `node_types`) |
 | `limit` | int | 100 | Max memories to include (max 500, at least 1; below 1 returns 400) |
 | `offset` | int | 0 | Number of memories to skip for pagination |
@@ -1071,8 +1071,10 @@ List activity events with filtering and pagination.
 
 `since` and `until` are compared in UTC: a value without an offset is read as UTC and a value with an
 offset (`+02:00`) is converted to UTC. Encode a `+` in the offset as `%2B`, since a raw `+` reaches the
-server as a space. A malformed `since`, `until`, `limit`, `offset` or `entity_id` (or an integer outside
-the 64-bit range) returns 400 instead of being ignored.
+server as a space. A malformed `since`, `until`, `limit`, `offset` or `entity_id` returns 400 instead of
+being ignored, and so does an `entity_id` outside the 32-bit range (-2147483648 to 2147483647, the size
+of the stored id) or a `limit`/`offset` outside the 64-bit range. The `project_id` filter of
+`GET /api/v1/memories` and `GET /api/v1/graph` follows the same 32-bit rule.
 
 **Response:**
 ```json
@@ -1210,8 +1212,9 @@ data: {"seq": 2, "entity_type": "memory", "action": "updated", "entity_id": 42, 
 Each event includes a monotonically increasing `seq` field per user. Clients should track this to detect gaps (e.g., receiving seq 45 when last seen was 42 indicates missed events).
 
 When the stream is opened with `entity_type` and/or `action` filters, `seq` counts only the events
-that match them, so events excluded by a filter never appear as a gap and a gap always means a
-dropped event.
+that match them, so events excluded by a filter never appear as a gap and, while the client stays
+connected, a gap always means a dropped event. Events that match while the client is disconnected are
+not counted on its behalf: after a reconnect, recover them with the REST API as described below.
 
 **Gap Recovery:**
 

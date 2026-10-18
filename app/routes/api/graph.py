@@ -13,7 +13,7 @@ from starlette.responses import JSONResponse
 from app.config.settings import settings
 from app.exceptions import NotFoundError
 from app.middleware.auth import get_user_from_request
-from app.routes.api.query_params import INT64_MAX, INT64_MIN
+from app.routes.api.query_params import INT32_MAX, INT32_MIN, INT64_MAX
 
 logger = logging.getLogger(__name__)
 
@@ -171,7 +171,8 @@ def register(mcp: FastMCP):
                     {"error": f"Invalid project_id: {project_id_str}. Must be an integer."},
                     status_code=400,
                 )
-            if not INT64_MIN <= project_ids[0] <= INT64_MAX:
+            # project ids are 32-bit INTEGER columns on PostgreSQL
+            if not INT32_MIN <= project_ids[0] <= INT32_MAX:
                 return JSONResponse(
                     {"error": f"Invalid project_id: {project_id_str}. Out of range."},
                     status_code=400,

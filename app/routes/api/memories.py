@@ -22,7 +22,7 @@ from app.models.memory_models import (
     MemoryQueryRequest,
     MemoryUpdate,
 )
-from app.routes.api.query_params import parse_int_param
+from app.routes.api.query_params import INT32_MAX, INT32_MIN, parse_int_param
 from app.routes.write_plugin_responses import (
     MemoryCreateWriteResponse,
     MemoryUpdateResponse,
@@ -64,7 +64,9 @@ def register(mcp: FastMCP):
             limit = parse_int_param(params, "limit", 20)
             offset = parse_int_param(params, "offset", 0)
             importance_min = parse_int_param(params, "importance_min")
-            project_id = parse_int_param(params, "project_id")
+            project_id = parse_int_param(
+                params, "project_id", min_value=INT32_MIN, max_value=INT32_MAX,
+            )
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=400)
 
