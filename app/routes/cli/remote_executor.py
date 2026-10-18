@@ -10,6 +10,8 @@ import re
 from typing import Any
 from urllib.parse import urlparse, urlsplit, urlunsplit
 
+from app.utils.url_helpers import redact_url
+
 # A real scheme is always followed by "://"; "localhost:8020" is NOT a scheme
 # (urlparse misreads its scheme as "localhost"), so match on the "://" form.
 _SCHEME_RE = re.compile(r"^([a-zA-Z][a-zA-Z0-9+.-]*)://")
@@ -31,7 +33,7 @@ def normalize_server_url(url: str) -> str:
     match = _SCHEME_RE.match(url)
     if match:
         if match.group(1).lower() not in ("http", "https"):
-            raise ValueError(f"Unsupported server URL scheme: {url!r}")
+            raise ValueError(f"Unsupported server URL scheme: {redact_url(url)!r}")
     else:
         # Prepend a throwaway scheme so urlparse can extract the real hostname
         # (it strips IPv6 brackets and lowercases), then pick the true default.
@@ -40,6 +42,14 @@ def normalize_server_url(url: str) -> str:
         url = f"{scheme}://{url}"
     parts = urlsplit(url)  # also lower-cases the scheme
     return urlunsplit(parts._replace(path=parts.path.rstrip("/") or "/mcp"))
+
+
+def strip_url_userinfo(url: str) -> str:
+    """Drop any ``user:password@`` part of a URL; the rest is kept as is."""
+    parts = urlsplit(url)
+    if "@" not in parts.netloc:
+        return url
+    return urlunsplit(parts._replace(netloc=parts.netloc.rpartition("@")[2]))
 
 
 def _default_client_factory(url: str, token: str | None):

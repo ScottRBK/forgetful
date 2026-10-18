@@ -9,7 +9,9 @@ import sys
 from pathlib import Path
 
 from app.routes.cli.paths import token_cache_dir, user_env_file
-from app.routes.cli.remote_executor import normalize_server_url
+from app.routes.cli.remote_executor import normalize_server_url, strip_url_userinfo
+from app.routes.cli.render import redact_urls_in_text
+from app.utils.url_helpers import redact_url
 
 
 def upsert_env_var(env_file: Path, key: str, value: str) -> None:
@@ -81,6 +83,16 @@ async def login(
 ) -> int:
     """Run the browser OAuth flow against a server and save it as the default."""
     url = normalize_server_url(server)
+    bare_url = strip_url_userinfo(url)
+    if bare_url != url:
+        # The OAuth flow ignores URL credentials, and the value is persisted to a
+        # config file that, by project rule, never holds secrets.
+        print(
+            "Note: credentials in the server URL are not used or saved; "
+            "set FORGETFUL_TOKEN to authenticate with a token.",
+            file=sys.stderr,
+        )
+        url = bare_url
     factory = client_factory or _oauth_client_factory
     client = factory(url, token_dir or token_cache_dir())
 
@@ -88,7 +100,11 @@ async def login(
         async with client:
             await client.ping()
     except Exception as exc:
-        print(f"Error: could not authenticate against {url}: {exc}", file=sys.stderr)
+        print(
+            f"Error: could not authenticate against {url}: "
+            f"{redact_urls_in_text(str(exc))}",
+            file=sys.stderr,
+        )
         return 1
 
     upsert_env_var(env_file or user_env_file(), "FORGETFUL_SERVER", url)
@@ -132,14 +148,14 @@ async def status(*, server: str | None = None) -> int:
     try:
         user = await executor.execute("get_current_user", {})
     except Exception as exc:
-        print(f"Server: {executor.server_url}", file=sys.stderr)
-        print(f"Error: not authenticated: {exc}", file=sys.stderr)
+        print(f"Server: {redact_url(executor.server_url)}", file=sys.stderr)
+        print(f"Error: not authenticated: {redact_urls_in_text(str(exc))}", file=sys.stderr)
         return 1
     finally:
         await executor.close()
 
     name = user.get("name") if isinstance(user, dict) else str(user)
-    print(f"Server: {executor.server_url}")
+    print(f"Server: {redact_url(executor.server_url)}")
     print(f"User: {name}")
     print(f"Cached credentials: {'yes' if cached else 'no'}")
     return 0

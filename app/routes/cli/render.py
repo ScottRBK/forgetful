@@ -1,9 +1,16 @@
 """Output rendering for the CLI."""
 import json
+import re
 import sys
 from typing import Any
 
 from pydantic import BaseModel
+
+from app.utils.url_helpers import REDACTED_USERINFO
+
+# "scheme://user:password@" inside free text (an exception message, say). Unlike
+# redact_url this is not anchored, so it can scrub URLs embedded in a longer string.
+_URL_USERINFO_IN_TEXT = re.compile(r"([A-Za-z][A-Za-z0-9+.\-]*://)[^/?#\s'\"<>]*@")
 
 
 def to_jsonable(value: Any) -> Any:
@@ -27,8 +34,20 @@ def render_result(value: Any, as_json: bool) -> str:
     return json.dumps(payload, indent=2)
 
 
+def redact_urls_in_text(text: str) -> str:
+    """Mask the credentials of every ``scheme://user:password@`` URL inside ``text``."""
+    return _URL_USERINFO_IN_TEXT.sub(
+        lambda match: f"{match.group(1)}{REDACTED_USERINFO}@", text,
+    )
+
+
 def emit_error(message: str, as_json: bool) -> None:
-    """Write an error to stderr; JSON mode emits {"error": ...} for scriptability."""
+    """Write an error to stderr; JSON mode emits {"error": ...} for scriptability.
+
+    URL credentials in the message (httpx puts the full request URL in its status
+    errors) are masked so a server URL with userinfo never reaches the terminal or logs.
+    """
+    message = redact_urls_in_text(message)
     if as_json:
         print(json.dumps({"error": message}), file=sys.stderr)
     else:
