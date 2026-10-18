@@ -74,7 +74,7 @@ class CodeArtifactCreate(BaseModel):
             return None
         return [item.strip() for item in v if item.strip()]
 
-    @field_validator("title", "description", "code", "language")
+    @field_validator("title", "description", "language")
     @classmethod
     def strip_whitespace(cls, v, info):
         """Strip whitespace from string fields"""
@@ -88,6 +88,15 @@ class CodeArtifactCreate(BaseModel):
             raise ValueError(f"{info.field_name} cannot be empty or whitespace only")
 
         return stripped
+
+    @field_validator("code")
+    @classmethod
+    def validate_code(cls, v):
+        """Reject blank code but store it verbatim (indentation is significant)"""
+        if v is not None and not v.strip():
+            raise ValueError("code cannot be empty or whitespace only")
+
+        return v
 
     @field_validator("language")
     @classmethod
@@ -176,7 +185,7 @@ class CodeArtifactUpdate(BaseModel):
             return None
         return [item.strip() for item in v if item.strip()]
 
-    @field_validator("title", "description", "code", "language")
+    @field_validator("title", "description", "language")
     @classmethod
     def strip_whitespace(cls, v, info):
         """Strip whitespace from string fields"""
@@ -190,6 +199,15 @@ class CodeArtifactUpdate(BaseModel):
             raise ValueError(f"{info.field_name} cannot be empty or whitespace only")
 
         return stripped
+
+    @field_validator("code")
+    @classmethod
+    def validate_code(cls, v):
+        """Reject blank code but store it verbatim (indentation is significant)"""
+        if v is not None and not v.strip():
+            raise ValueError("code cannot be empty or whitespace only")
+
+        return v
 
     @field_validator("language")
     @classmethod
