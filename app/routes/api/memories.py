@@ -223,6 +223,7 @@ def register(mcp: FastMCP):
             code_artifact_ids=memory.code_artifact_ids,
             document_ids=memory.document_ids,
             file_ids=memory.file_ids,
+            skill_ids=memory.skill_ids,
             similar_memories=similar_memories,
             obsolete_matches=obsolete_matches,
             plugin_warnings=write_result.plugin_warnings,

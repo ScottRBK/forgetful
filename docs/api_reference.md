@@ -250,6 +250,8 @@ returns **400** with `{"error": "<plugin message>"}`; failure/timeout returns **
   "project_ids": [1],
   "code_artifact_ids": [],
   "document_ids": [],
+  "file_ids": [],
+  "skill_ids": [],
   "similar_memories": []
 }
 ```
