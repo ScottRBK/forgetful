@@ -299,6 +299,13 @@ class FileService:
             input_model=file_data, existing_model=existing_file,
         )
 
+        if not changed_fields:
+            logger.info(
+                "no changes detected, returning existing file",
+                extra={"file_id": file_id, "user_id": str(user_id)},
+            )
+            return existing_file
+
         file = await self.file_repo.update_file(
             user_id=user_id,
             file_id=file_id,

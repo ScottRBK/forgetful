@@ -343,6 +343,13 @@ class SkillService:
             input_model=skill_data, existing_model=existing_skill,
         )
 
+        if not changed_fields:
+            logger.info(
+                "no changes detected, returning existing skill",
+                extra={"skill_id": skill_id, "user_id": str(user_id)},
+            )
+            return existing_skill
+
         skill = await self.skill_repo.update_skill(
             user_id=user_id,
             skill_id=skill_id,

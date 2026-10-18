@@ -307,6 +307,13 @@ class CodeArtifactService:
             input_model=artifact_data, existing_model=existing_artifact,
         )
 
+        if not changed_fields:
+            logger.info(
+                "no changes detected, returning existing code artifact",
+                extra={"artifact_id": artifact_id, "user_id": str(user_id)},
+            )
+            return existing_artifact
+
         artifact = await self.artifact_repo.update_code_artifact(
             user_id=user_id,
             artifact_id=artifact_id,

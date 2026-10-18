@@ -307,6 +307,13 @@ class DocumentService:
             input_model=document_data, existing_model=existing_document,
         )
 
+        if not changed_fields:
+            logger.info(
+                "no changes detected, returning existing document",
+                extra={"document_id": document_id, "user_id": str(user_id)},
+            )
+            return existing_document
+
         document = await self.document_repo.update_document(
             user_id=user_id,
             document_id=document_id,

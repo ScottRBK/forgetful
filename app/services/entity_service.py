@@ -397,6 +397,13 @@ class EntityService:
             input_model=entity_data, existing_model=existing_entity,
         )
 
+        if not changed_fields:
+            logger.info(
+                "no changes detected, returning existing entity",
+                extra={"entity_id": entity_id, "user_id": str(user_id)},
+            )
+            return existing_entity
+
         entity = await self.entity_repo.update_entity(
             user_id=user_id,
             entity_id=entity_id,
