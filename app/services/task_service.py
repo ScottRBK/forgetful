@@ -1,3 +1,4 @@
+import asyncio
 from typing import TYPE_CHECKING
 from uuid import UUID
 
@@ -55,6 +56,9 @@ class TaskService:
         self.task_repo = task_repo
         self.plan_service = plan_service
         self._event_bus = event_bus
+        # Orders dependency writers inside this process; the repository re-checks the
+        # graph in the inserting transaction to cover other processes.
+        self._dependency_lock = asyncio.Lock()
         logger.info("Task service initialised")
 
     async def _emit_event(
@@ -406,12 +410,13 @@ class TaskService:
         if depends_on_task_id in task.dependency_ids:
             raise ConflictError(f"Task {task_id} already depends on task {depends_on_task_id}")
 
-        # Cycle detection
-        await self._validate_no_cycle(user_id, task_id, depends_on_task_id)
-
-        dep = await self.task_repo.add_dependency(
-            user_id=user_id, task_id=task_id, depends_on_task_id=depends_on_task_id,
-        )
+        # Cycle detection and insert must not interleave with another writer: two
+        # opposite edges that each pass the check would otherwise both be stored.
+        async with self._dependency_lock:
+            await self._validate_no_cycle(user_id, task_id, depends_on_task_id)
+            dep = await self.task_repo.add_dependency(
+                user_id=user_id, task_id=task_id, depends_on_task_id=depends_on_task_id,
+            )
         logger.info("dependency added", extra={"task_id": task_id, "depends_on": depends_on_task_id})
         return dep
 

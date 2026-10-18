@@ -5,11 +5,12 @@ invariant that must hold regardless of the storage backend; backend-specific ato
 (SQL guards, locking) is covered by the SQLite and PostgreSQL end-to-end suites.
 """
 
+import asyncio
 from uuid import uuid4
 
 import pytest
 
-from app.exceptions import ConflictError, NotFoundError
+from app.exceptions import ConflictError, CyclicDependencyError, NotFoundError
 from app.models.plan_models import (
     CriterionCreate,
     PlanCreate,
@@ -145,3 +146,41 @@ async def test_add_dependency_twice_is_a_conflict(test_task_service):
         await task_service.add_dependency(user_id=user_id, task_id=a.id, depends_on_task_id=b.id)
 
     assert (await task_service.get_task(user_id=user_id, task_id=a.id)).dependency_ids == [b.id]
+
+
+# ---------------------------------------------------------------------------
+# Cycle check and edge insert are one atomic step
+# ---------------------------------------------------------------------------
+
+
+def _yield_before(method):
+    """Wrap a repository coroutine so concurrent callers interleave at every await."""
+    async def wrapper(*args, **kwargs):
+        await asyncio.sleep(0)
+        return await method(*args, **kwargs)
+
+    return wrapper
+
+
+@pytest.mark.asyncio
+async def test_concurrent_opposite_dependencies_cannot_form_a_cycle(test_task_service):
+    task_service, plan_service = test_task_service
+    user_id = uuid4()
+    plan = await _active_plan(plan_service, user_id)
+    a = await _task(task_service, user_id, plan.id, "a")
+    b = await _task(task_service, user_id, plan.id, "b")
+    repo = task_service.task_repo
+    for name in ("get_task_by_id", "get_dependencies", "add_dependency"):
+        setattr(repo, name, _yield_before(getattr(repo, name)))
+
+    results = await asyncio.gather(
+        task_service.add_dependency(user_id=user_id, task_id=a.id, depends_on_task_id=b.id),
+        task_service.add_dependency(user_id=user_id, task_id=b.id, depends_on_task_id=a.id),
+        return_exceptions=True,
+    )
+
+    failures = [r for r in results if isinstance(r, Exception)]
+    assert len(failures) == 1 and isinstance(failures[0], CyclicDependencyError), results
+    a_deps = await repo.get_dependencies(user_id, a.id)
+    b_deps = await repo.get_dependencies(user_id, b.id)
+    assert len(a_deps) + len(b_deps) == 1

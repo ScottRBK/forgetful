@@ -5,10 +5,10 @@ from uuid import UUID
 
 from sqlalchemy import delete, select, update
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import aliased, selectinload
 
 from app.config.logging_config import logging
-from app.exceptions import ConflictError, NotFoundError
+from app.exceptions import ConflictError, CyclicDependencyError, NotFoundError
 from app.models.plan_models import (
     Criterion,
     CriterionCreate,
@@ -360,7 +360,14 @@ class SqliteTaskRepository:
                     depends_on_task_id=depends_on_task_id,
                 )
                 session.add(dep)
+                # The insert takes SQLite's write lock, so no other writer can change the
+                # graph between the cycle re-check below and this transaction's commit.
                 await session.flush()
+                if await self._closes_cycle(session, user_id, task_id, depends_on_task_id):
+                    raise CyclicDependencyError(
+                        f"Adding dependency {task_id} -> {depends_on_task_id} would create a cycle "
+                        f"(path exists from {depends_on_task_id} back to {task_id})",
+                    )
                 return TaskDependency.model_validate(dep)
         except IntegrityError as exc:
             if "UNIQUE constraint failed: task_dependencies" in str(exc.orig):
@@ -368,6 +375,35 @@ class SqliteTaskRepository:
                     f"Task {task_id} already depends on task {depends_on_task_id}",
                 ) from exc
             raise
+
+    async def _closes_cycle(
+        self, session, user_id: UUID, task_id: int, depends_on_task_id: int,
+    ) -> bool:
+        """True if depends_on_task_id reaches task_id through the stored edges.
+
+        Called after the new edge task_id -> depends_on_task_id was flushed, so a hit
+        means that edge closed a cycle (a self-edge is its own one-step cycle).
+        """
+        reachable = (
+            select(TaskDependenciesTable.depends_on_task_id.label("node"))
+            .where(
+                TaskDependenciesTable.user_id == str(user_id),
+                TaskDependenciesTable.task_id == depends_on_task_id,
+            )
+            .cte("reachable", recursive=True)
+        )
+        via = aliased(reachable, name="via")
+        edge = aliased(TaskDependenciesTable, name="edge")
+        reachable = reachable.union(
+            select(edge.depends_on_task_id).where(
+                edge.user_id == str(user_id),
+                edge.task_id == via.c.node,
+            ),
+        )
+        result = await session.execute(
+            select(reachable.c.node).where(reachable.c.node == task_id).limit(1),
+        )
+        return result.first() is not None
 
     async def remove_dependency(
         self, user_id: UUID, task_id: int, depends_on_task_id: int,

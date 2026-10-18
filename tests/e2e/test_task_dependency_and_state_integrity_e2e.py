@@ -4,13 +4,14 @@ These cover the guarantees that depend on the PostgreSQL repository SQL (constra
 names, advisory locking, guarded UPDATE statements) and on real concurrent connections.
 """
 
+import asyncio
 from dataclasses import dataclass
 from uuid import UUID
 
 import pytest
 import pytest_asyncio
 
-from app.exceptions import ConflictError
+from app.exceptions import ConflictError, CyclicDependencyError
 from app.models.plan_models import PlanCreate, PlanStatus, PlanUpdate, TaskCreate
 from app.models.project_models import ProjectCreate, ProjectType
 from app.models.user_models import UserCreate
@@ -65,3 +66,57 @@ async def test_repository_maps_unique_violation_to_conflict(stack):
         await stack.task_repo.add_dependency(stack.user_id, a.id, b.id)
 
     assert await stack.task_repo.get_dependencies(stack.user_id, a.id) == [b.id]
+
+
+async def test_repository_rejects_edge_that_closes_a_cycle_and_persists_nothing(stack):
+    a = await stack.new_task("a")
+    b = await stack.new_task("b")
+    c = await stack.new_task("c")
+    repo = stack.task_repo
+    await repo.add_dependency(stack.user_id, a.id, b.id)
+    await repo.add_dependency(stack.user_id, b.id, c.id)
+
+    with pytest.raises(CyclicDependencyError):
+        await repo.add_dependency(stack.user_id, c.id, a.id)
+    with pytest.raises(CyclicDependencyError):
+        await repo.add_dependency(stack.user_id, a.id, a.id)
+
+    assert await repo.get_dependencies(stack.user_id, c.id) == []
+    assert await repo.get_dependencies(stack.user_id, a.id) == [b.id]
+
+
+async def test_concurrent_opposite_edges_never_form_a_cycle_across_connections(stack):
+    """Bypasses the service lock: the advisory lock + in-transaction re-check must hold."""
+    repo = stack.task_repo
+    for round_number in range(10):
+        a = await stack.new_task(f"A{round_number}")
+        b = await stack.new_task(f"B{round_number}")
+
+        results = await asyncio.gather(
+            repo.add_dependency(stack.user_id, a.id, b.id),
+            repo.add_dependency(stack.user_id, b.id, a.id),
+            return_exceptions=True,
+        )
+
+        failures = [r for r in results if isinstance(r, Exception)]
+        assert len(failures) == 1 and isinstance(failures[0], CyclicDependencyError), results
+        a_deps = await repo.get_dependencies(stack.user_id, a.id)
+        b_deps = await repo.get_dependencies(stack.user_id, b.id)
+        assert len(a_deps) + len(b_deps) == 1
+
+
+async def test_concurrent_edges_around_a_longer_cycle_leave_it_acyclic(stack):
+    """A->B, B->C are stored; C->A and a second writer racing on the same ring."""
+    a = await stack.new_task("a")
+    b = await stack.new_task("b")
+    c = await stack.new_task("c")
+    repo = stack.task_repo
+    results = await asyncio.gather(
+        repo.add_dependency(stack.user_id, a.id, b.id),
+        repo.add_dependency(stack.user_id, b.id, c.id),
+        repo.add_dependency(stack.user_id, c.id, a.id),
+        return_exceptions=True,
+    )
+
+    failures = [r for r in results if isinstance(r, Exception)]
+    assert len(failures) == 1 and isinstance(failures[0], CyclicDependencyError), results

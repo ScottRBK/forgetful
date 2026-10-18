@@ -4,6 +4,7 @@ Exercises the full stack (MCP tools / REST routes -> TaskService -> SqliteTaskRe
 on in-memory SQLite, plus file-backed SQLite where real concurrent connections matter.
 """
 
+import asyncio
 from dataclasses import dataclass
 from uuid import UUID
 
@@ -11,7 +12,7 @@ import pytest
 from fastmcp.exceptions import ToolError
 
 from app.config.settings import settings
-from app.exceptions import ConflictError
+from app.exceptions import ConflictError, CyclicDependencyError
 from app.models.plan_models import PlanCreate, PlanStatus, PlanUpdate, TaskCreate
 from app.models.project_models import ProjectCreate, ProjectType
 from app.models.user_models import UserCreate
@@ -224,3 +225,70 @@ async def test_repository_maps_unique_violation_to_conflict(stack):
         await stack.task_repo.add_dependency(stack.user_id, a.id, b.id)
 
     assert await stack.task_repo.get_dependencies(stack.user_id, a.id) == [b.id]
+
+
+# ---------------------------------------------------------------------------
+# Cycle check and edge insert are one atomic step
+# ---------------------------------------------------------------------------
+
+
+async def test_repository_rejects_edge_that_closes_a_cycle_and_persists_nothing(stack):
+    a = await stack.new_task("a")
+    b = await stack.new_task("b")
+    c = await stack.new_task("c")
+    repo = stack.task_repo
+    await repo.add_dependency(stack.user_id, a.id, b.id)
+    await repo.add_dependency(stack.user_id, b.id, c.id)
+
+    with pytest.raises(CyclicDependencyError):
+        await repo.add_dependency(stack.user_id, c.id, a.id)
+    with pytest.raises(CyclicDependencyError):
+        await repo.add_dependency(stack.user_id, a.id, a.id)
+
+    assert await repo.get_dependencies(stack.user_id, c.id) == []
+    assert await repo.get_dependencies(stack.user_id, a.id) == [b.id]
+
+
+async def test_service_serialises_concurrent_opposite_dependencies(stack):
+    """In-memory SQLite shares one connection, so the service has to order the writers."""
+    a = await stack.new_task("A")
+    b = await stack.new_task("B")
+
+    results = await asyncio.gather(
+        stack.task_service.add_dependency(stack.user_id, a.id, b.id),
+        stack.task_service.add_dependency(stack.user_id, b.id, a.id),
+        return_exceptions=True,
+    )
+
+    failures = [r for r in results if isinstance(r, Exception)]
+    assert len(failures) == 1 and isinstance(failures[0], CyclicDependencyError), results
+    a_deps = await stack.task_repo.get_dependencies(stack.user_id, a.id)
+    b_deps = await stack.task_repo.get_dependencies(stack.user_id, b.id)
+    assert len(a_deps) + len(b_deps) == 1
+    # The surviving prerequisite can still be worked on (no deadlock).
+    prerequisite = b if a_deps else a
+    claimed = await stack.task_service.claim_task(
+        stack.user_id, prerequisite.id, "agent", expected_version=1,
+    )
+    assert claimed.state == "doing"
+
+
+async def test_repository_alone_keeps_concurrent_opposite_edges_acyclic(file_stack):
+    """Two real connections race past the service: only the repository can stop the cycle."""
+    stack = file_stack
+    repo = stack.task_repo
+    for round_number in range(8):
+        a = await stack.new_task(f"A{round_number}")
+        b = await stack.new_task(f"B{round_number}")
+
+        results = await asyncio.gather(
+            repo.add_dependency(stack.user_id, a.id, b.id),
+            repo.add_dependency(stack.user_id, b.id, a.id),
+            return_exceptions=True,
+        )
+
+        failures = [r for r in results if isinstance(r, Exception)]
+        assert len(failures) == 1 and isinstance(failures[0], CyclicDependencyError), results
+        a_deps = await repo.get_dependencies(stack.user_id, a.id)
+        b_deps = await repo.get_dependencies(stack.user_id, b.id)
+        assert len(a_deps) + len(b_deps) == 1
