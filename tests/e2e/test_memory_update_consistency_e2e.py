@@ -4,7 +4,18 @@ Covers skill_ids on every memory read path, replacing skill links through PUT, a
 how update_memory uses pooled connections while an embedding is being generated.
 """
 
+import asyncio
+import hashlib
+import random
+
 import pytest
+from sqlalchemy import select
+
+from app.config.settings import settings
+from app.models.memory_models import MemoryCreate, MemoryUpdate
+from app.models.user_models import UserCreate
+from app.repositories.postgres.postgres_tables import MemoryTable
+from app.utils.embedding_helpers import build_embedding_text
 
 pytestmark = pytest.mark.asyncio(loop_scope="session")
 
@@ -164,3 +175,138 @@ async def test_subgraph_has_memory_skill_edge(http_client):
     body = response.json()
     assert f"skill_{skill_id}" in {node["id"] for node in body["nodes"]}
     assert [edge for edge in body["edges"] if edge["type"] == "memory_skill"], body["edges"]
+
+
+# ============================================================================
+# Embedding written by update_memory
+# ============================================================================
+
+
+class ProbeEmbedder:
+    """Deterministic text -> vector adapter that mimics a slow remote provider.
+
+    Records how many pooled connections are checked out while a call is in flight.
+    """
+
+    def __init__(self, pool, latency=0.0):
+        self.pool = pool
+        self.latency = latency
+        self.checked_out_during_calls: list[int] = []
+
+    @staticmethod
+    def vector(value: str) -> list[float]:
+        seed = int.from_bytes(hashlib.sha256(value.encode()).digest()[:8], "big")
+        rng = random.Random(seed)
+        return [rng.uniform(-1.0, 1.0) for _ in range(settings.EMBEDDING_DIMENSIONS)]
+
+    async def generate_embedding(self, text: str) -> list[float]:  # noqa: A002
+        self.checked_out_during_calls.append(self.pool.checkedout())
+        if self.latency:
+            await asyncio.sleep(self.latency)
+        return self.vector(text)
+
+
+async def _embedding_stack(postgres_app, db_adapter, monkeypatch, latency=0.0):
+    """Default user, the live memory repository and a probe embedder installed on it."""
+    user = await postgres_app.user_service.get_or_create_user(
+        UserCreate(
+            external_id=settings.DEFAULT_USER_ID,
+            name=settings.DEFAULT_USER_NAME,
+            email=settings.DEFAULT_USER_EMAIL,
+        ),
+    )
+    repo = postgres_app.memory_service.memory_repo
+    embedder = ProbeEmbedder(db_adapter._engine.pool, latency=latency)
+    monkeypatch.setattr(repo, "embedding_adapter", embedder)
+    memory = await repo.create_memory(
+        user.id,
+        MemoryCreate(
+            title="old title",
+            content="old content",
+            context="some context",
+            keywords=["alpha"],
+            tags=["beta"],
+            importance=7,
+        ),
+    )
+    embedder.checked_out_during_calls.clear()
+    return user, repo, embedder, memory
+
+
+async def _stored_vector(db_adapter, memory_id):
+    async with db_adapter.system_session() as session:
+        result = await session.execute(select(MemoryTable.embedding).where(MemoryTable.id == memory_id))
+        return [float(value) for value in result.scalar_one()]
+
+
+def _same_vector(left, right):
+    return len(left) == len(right) and all(abs(a - b) < 1e-5 for a, b in zip(left, right, strict=True))
+
+
+@pytest.mark.e2e
+async def test_update_does_not_hold_a_pooled_connection_while_embedding(
+    mcp_client, postgres_app, db_adapter, monkeypatch,
+):
+    user, repo, embedder, memory = await _embedding_stack(postgres_app, db_adapter, monkeypatch)
+    baseline = db_adapter._engine.pool.checkedout()
+
+    updated = await repo.update_memory(
+        user_id=user.id,
+        memory_id=memory.id,
+        updated_memory=MemoryUpdate(content="changed content"),
+        existing_memory=memory,
+        search_fields_changed=True,
+    )
+
+    assert updated.content == "changed content"
+    assert embedder.checked_out_during_calls == [baseline]
+
+
+@pytest.mark.e2e
+async def test_concurrent_updates_of_different_fields_keep_embedding_in_sync(
+    mcp_client, postgres_app, db_adapter, monkeypatch,
+):
+    user, repo, embedder, memory = await _embedding_stack(
+        postgres_app, db_adapter, monkeypatch, latency=0.3,
+    )
+
+    await asyncio.gather(
+        postgres_app.memory_service.update_memory(user.id, memory.id, MemoryUpdate(title="new title")),
+        postgres_app.memory_service.update_memory(user.id, memory.id, MemoryUpdate(content="new content")),
+    )
+
+    final = await repo.get_memory_by_id(user_id=user.id, memory_id=memory.id)
+    assert (final.title, final.content) == ("new title", "new content")
+    expected = ProbeEmbedder.vector(build_embedding_text(final))
+    assert _same_vector(await _stored_vector(db_adapter, memory.id), expected)
+
+
+@pytest.mark.e2e
+async def test_updates_beyond_the_pool_size_do_not_starve_other_requests(
+    mcp_client, postgres_app, db_adapter, monkeypatch,
+):
+    """More slow embedding updates than the pool has connections must leave the pool free."""
+    user, repo, embedder, memory = await _embedding_stack(
+        postgres_app, db_adapter, monkeypatch, latency=2.0,
+    )
+    pool = db_adapter._engine.pool
+    capacity = pool.size() + pool._max_overflow
+    updates = [
+        asyncio.create_task(
+            repo.update_memory(
+                user_id=user.id,
+                memory_id=memory.id,
+                updated_memory=MemoryUpdate(content=f"content {number}"),
+                existing_memory=memory,
+                search_fields_changed=True,
+            ),
+        )
+        for number in range(capacity + 5)
+    ]
+    try:
+        await asyncio.sleep(0.5)
+
+        assert pool.checkedout() == 0
+        await asyncio.wait_for(repo.get_memory_by_id(user_id=user.id, memory_id=memory.id), timeout=1.0)
+    finally:
+        await asyncio.gather(*updates, return_exceptions=True)

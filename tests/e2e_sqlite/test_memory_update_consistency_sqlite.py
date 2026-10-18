@@ -1,9 +1,27 @@
-"""E2E tests (in-memory SQLite) for update_memory consistency
+"""E2E tests (SQLite) for update_memory consistency
 
 Covers skill_ids round-tripping on every read path and the embedding written by
 update_memory.
 """
+import asyncio
+import hashlib
+import random
+import struct
+from contextlib import asynccontextmanager
+from uuid import uuid4
+
 import pytest
+from sqlalchemy import text
+
+from app.config.settings import settings
+from app.exceptions import NotFoundError
+from app.models.memory_models import MemoryCreate, MemoryUpdate
+from app.models.user_models import UserCreate
+from app.repositories.sqlite.memory_repository import SqliteMemoryRepository
+from app.repositories.sqlite.sqlite_adapter import SqliteDatabaseAdapter
+from app.repositories.sqlite.user_repository import SqliteUserRepository
+from app.services.memory_service import MemoryService
+from app.utils.embedding_helpers import build_embedding_text
 
 CREATE_BODY = {
     "title": "Original title",
@@ -185,3 +203,233 @@ async def test_subgraph_has_memory_skill_edge(http_client):
     body = response.json()
     assert f"skill_{skill_id}" in {node["id"] for node in body["nodes"]}
     assert [edge for edge in body["edges"] if edge["type"] == "memory_skill"], body["edges"]
+
+
+# ============================================================================
+# Embedding written by update_memory
+# ============================================================================
+
+
+class RecordingEmbedder:
+    """Deterministic text -> vector adapter that mimics a remote provider.
+
+    latency: seconds each call takes, so concurrent updates overlap like real network calls
+    before_return: optional coroutine run on every call, used to change the row mid-embedding
+    """
+
+    def __init__(self):
+        self.latency = 0.0
+        self.calls = 0
+        self.open_sessions = lambda: 0
+        self.sessions_open_during_calls: list[int] = []
+        self.before_return = None
+
+    @staticmethod
+    def vector(value: str) -> list[float]:
+        seed = int.from_bytes(hashlib.sha256(value.encode()).digest()[:8], "big")
+        rng = random.Random(seed)
+        return [rng.uniform(-1.0, 1.0) for _ in range(settings.EMBEDDING_DIMENSIONS)]
+
+    async def generate_embedding(self, text: str) -> list[float]:  # noqa: A002
+        self.calls += 1
+        self.sessions_open_during_calls.append(self.open_sessions())
+        if self.latency:
+            await asyncio.sleep(self.latency)
+        if self.before_return is not None:
+            await self.before_return(self.calls)
+        return self.vector(text)
+
+
+@pytest.fixture
+async def embedding_stack(tmp_path, monkeypatch):
+    """Service and repository on a file backed SQLite database.
+
+    Concurrent writers need separate connections, which the shared in-memory database
+    used by the other fixtures does not provide.
+    """
+    monkeypatch.setattr(settings, "DATABASE", "SQLite")
+    monkeypatch.setattr(settings, "SQLITE_MEMORY", False)
+    monkeypatch.setattr(settings, "SQLITE_PATH", str(tmp_path / "forgetful.db"))
+
+    db = SqliteDatabaseAdapter()
+    await db.init_db()
+
+    embedder = RecordingEmbedder()
+    open_sessions = 0
+    real_session = db.session
+
+    @asynccontextmanager
+    async def counting_session(user_id):
+        nonlocal open_sessions
+        open_sessions += 1
+        try:
+            async with real_session(user_id) as session:
+                yield session
+        finally:
+            open_sessions -= 1
+
+    monkeypatch.setattr(db, "session", counting_session)
+    embedder.open_sessions = lambda: open_sessions
+
+    repo = SqliteMemoryRepository(db_adapter=db, embedding_adapter=embedder, rerank_adapter=None)
+    service = MemoryService(repo, event_bus=None)
+    user = await SqliteUserRepository(db).create_user(
+        UserCreate(external_id=f"ext-{uuid4()}", name="Embedding Tester", email="embed@example.com"),
+    )
+    try:
+        yield service, repo, db, embedder, user.id
+    finally:
+        await db.dispose()
+
+
+async def _create_embedded_memory(service, embedder, user_id):
+    created = await service.create_memory(
+        user_id=user_id,
+        memory_data=MemoryCreate(
+            title="old title",
+            content="old content",
+            context="some context",
+            keywords=["alpha"],
+            tags=["beta"],
+            importance=7,
+        ),
+    )
+    memory = created.memory
+    embedder.calls = 0
+    embedder.sessions_open_during_calls.clear()
+    return memory
+
+
+async def _stored_vector(db, memory_id):
+    async with db.system_session() as session:
+        row = (
+            await session.execute(
+                text("SELECT embedding FROM vec_memories WHERE memory_id = :memory_id"),
+                {"memory_id": str(memory_id)},
+            )
+        ).one()
+    raw = row[0]
+    return list(struct.unpack(f"{len(raw) // 4}f", raw))
+
+
+def _same_vector(left, right):
+    return len(left) == len(right) and all(abs(a - b) < 1e-5 for a, b in zip(left, right, strict=True))
+
+
+async def _assert_embedding_matches_row(repo, db, user_id, memory_id):
+    final = await repo.get_memory_by_id(user_id=user_id, memory_id=memory_id)
+    expected = RecordingEmbedder.vector(build_embedding_text(final))
+    assert _same_vector(await _stored_vector(db, memory_id), expected), (
+        f"stored embedding does not match the stored row (title={final.title!r}, content={final.content!r})"
+    )
+    return final
+
+
+async def test_update_memory_embeds_before_opening_a_database_session(embedding_stack):
+    service, _repo, _db, embedder, user_id = embedding_stack
+    memory = await _create_embedded_memory(service, embedder, user_id)
+
+    await service.update_memory(user_id, memory.id, MemoryUpdate(content="new content"))
+
+    assert embedder.sessions_open_during_calls == [0]
+
+
+async def test_sequential_updates_keep_embedding_in_sync(embedding_stack):
+    service, repo, db, embedder, user_id = embedding_stack
+    memory = await _create_embedded_memory(service, embedder, user_id)
+
+    await service.update_memory(user_id, memory.id, MemoryUpdate(title="new title"))
+    await service.update_memory(user_id, memory.id, MemoryUpdate(content="new content"))
+
+    final = await _assert_embedding_matches_row(repo, db, user_id, memory.id)
+    assert (final.title, final.content) == ("new title", "new content")
+
+
+async def test_concurrent_updates_of_different_fields_keep_embedding_in_sync(embedding_stack):
+    service, repo, db, embedder, user_id = embedding_stack
+    memory = await _create_embedded_memory(service, embedder, user_id)
+    embedder.latency = 0.2
+
+    await asyncio.gather(
+        service.update_memory(user_id, memory.id, MemoryUpdate(title="new title")),
+        service.update_memory(user_id, memory.id, MemoryUpdate(content="new content")),
+    )
+
+    final = await _assert_embedding_matches_row(repo, db, user_id, memory.id)
+    assert (final.title, final.content) == ("new title", "new content")
+
+
+async def test_burst_of_concurrent_updates_keeps_embedding_in_sync(embedding_stack):
+    service, repo, db, embedder, user_id = embedding_stack
+    memory = await _create_embedded_memory(service, embedder, user_id)
+    embedder.latency = 0.1
+
+    await asyncio.gather(
+        service.update_memory(user_id, memory.id, MemoryUpdate(title="burst title")),
+        service.update_memory(user_id, memory.id, MemoryUpdate(content="burst content")),
+        service.update_memory(user_id, memory.id, MemoryUpdate(context="burst context")),
+        service.update_memory(user_id, memory.id, MemoryUpdate(keywords=["burst"])),
+    )
+
+    final = await _assert_embedding_matches_row(repo, db, user_id, memory.id)
+    assert (final.title, final.content, final.context, final.keywords) == (
+        "burst title", "burst content", "burst context", ["burst"],
+    )
+
+
+async def test_concurrent_updates_of_same_field_keep_embedding_in_sync(embedding_stack):
+    service, repo, db, embedder, user_id = embedding_stack
+    memory = await _create_embedded_memory(service, embedder, user_id)
+    embedder.latency = 0.2
+
+    await asyncio.gather(
+        service.update_memory(user_id, memory.id, MemoryUpdate(title="first title")),
+        service.update_memory(user_id, memory.id, MemoryUpdate(title="second title", tags=["gamma"])),
+    )
+
+    final = await _assert_embedding_matches_row(repo, db, user_id, memory.id)
+    assert final.tags == ["gamma"]
+    assert final.title in {"first title", "second title"}
+
+
+async def test_update_still_succeeds_when_the_row_keeps_changing_during_embedding(embedding_stack):
+    """Sustained contention must end in a successful update, not an error or an endless loop."""
+    service, repo, db, embedder, user_id = embedding_stack
+    memory = await _create_embedded_memory(service, embedder, user_id)
+
+    async def change_title_behind_the_update(call_number):
+        async with db.system_session() as session:
+            await session.execute(
+                text("UPDATE memories SET title = :title WHERE id = :memory_id"),
+                {"title": f"interfering title {call_number}", "memory_id": memory.id},
+            )
+
+    embedder.before_return = change_title_behind_the_update
+
+    result = await asyncio.wait_for(
+        service.update_memory(user_id, memory.id, MemoryUpdate(content="new content")),
+        timeout=30,
+    )
+
+    assert result.memory.content == "new content"
+    assert 2 <= embedder.calls <= 5
+    stored = await repo.get_memory_by_id(user_id=user_id, memory_id=memory.id)
+    assert stored.content == "new content"
+
+
+async def test_update_of_missing_memory_raises_not_found_without_touching_vectors(embedding_stack):
+    service, repo, db, embedder, user_id = embedding_stack
+    memory = await _create_embedded_memory(service, embedder, user_id)
+
+    with pytest.raises(NotFoundError):
+        await repo.update_memory(
+            user_id=user_id,
+            memory_id=memory.id + 1000,
+            updated_memory=MemoryUpdate(title="ghost"),
+            existing_memory=memory,
+            search_fields_changed=True,
+        )
+
+    async with db.system_session() as session:
+        count = (await session.execute(text("SELECT COUNT(*) FROM vec_memories"))).scalar()
+    assert count == 1

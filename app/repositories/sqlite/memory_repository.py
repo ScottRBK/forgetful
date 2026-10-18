@@ -33,6 +33,9 @@ from app.utils.embedding_helpers import (
 
 logger = logging.getLogger(__name__)
 
+# Embedding attempts update_memory makes while other writers keep changing the same memory
+MAX_EMBEDDING_ATTEMPTS = 5
+
 
 class SqliteMemoryRepository:
     """Repository for Memory entity operations in SQLite with sqlite-vec integration
@@ -324,6 +327,13 @@ class SqliteMemoryRepository:
     ) -> Memory:
         """Update a memory
 
+        The embedding is generated before any database session is opened, so no transaction
+        is held while the provider call is in flight. Another writer may change a search field in
+        the meantime, so the write verifies that the row still produces the text that was embedded
+        and, if it does not, embeds again from the current row. After
+        MAX_EMBEDDING_ATTEMPTS attempts the last embedding is written as is rather than failing
+        the update.
+
         Args:
             user_id: User ID
             memory_id: Memory ID
@@ -337,28 +347,65 @@ class SqliteMemoryRepository:
         Raises:
             NotFoundError: If memory not found
         """
-        async with self.db_adapter.session(user_id) as session:
+        update_data = updated_memory.model_dump(
+            exclude_unset=True,
+            exclude={"project_ids", "code_artifact_ids", "document_ids", "file_ids", "skill_ids"},
+        )
 
-            update_data = updated_memory.model_dump(
-                exclude_unset=True,
-                exclude={"project_ids", "code_artifact_ids", "document_ids", "file_ids", "skill_ids"},
-            )
-
+        base_memory = existing_memory
+        attempt = 1
+        while True:
             update_data["updated_at"] = datetime.now(UTC)
 
-            # Update embedding if search fields changed
+            embedding_text = None
+            embeddings = None
             if search_fields_changed:
-                merged_memory = existing_memory.model_copy(update=update_data)
+                merged_memory = base_memory.model_copy(update=update_data)
                 embedding_text = build_embedding_text(memory_data=merged_memory)
                 embeddings = await self._generate_embeddings(embedding_text)
 
-                # Update vec_memories table
-                embedding_bytes = sqlite_vec.serialize_float32(embeddings)
-                await session.execute(
-                    text("UPDATE vec_memories SET embedding = :embedding WHERE memory_id = :memory_id"),
-                    {"embedding": embedding_bytes, "memory_id": str(memory_id)},
-                )
+            is_last_attempt = attempt >= MAX_EMBEDDING_ATTEMPTS
+            if embedding_text is not None and is_last_attempt:
+                logger.warning("memory kept changing while its embedding was generated, writing without verification", extra={
+                    "memory_id": memory_id,
+                    "user_id": user_id,
+                    "attempts": attempt,
+                })
 
+            memory = await self._write_memory_update(
+                user_id=user_id,
+                memory_id=memory_id,
+                updated_memory=updated_memory,
+                update_data=update_data,
+                embeddings=embeddings,
+                verify_embedding_text=None if is_last_attempt else embedding_text,
+            )
+            if memory is not None:
+                return memory
+
+            logger.info("memory changed while its embedding was generated, embedding again", extra={
+                "memory_id": memory_id,
+                "user_id": user_id,
+                "attempt": attempt,
+            })
+            attempt += 1
+            base_memory = await self.get_memory_by_id(user_id=user_id, memory_id=memory_id)
+
+    async def _write_memory_update(
+        self,
+        user_id: UUID,
+        memory_id: int,
+        updated_memory: MemoryUpdate,
+        update_data: dict[str, Any],
+        embeddings: list[float] | None,
+        verify_embedding_text: str | None,
+    ) -> Memory | None:
+        """Apply one update attempt in a single transaction.
+
+        Returns None, with nothing written, when verify_embedding_text is given and the stored row
+        no longer produces that text.
+        """
+        async with self.db_adapter.session(user_id) as session:
             stmt = (
                 update(MemoryTable)
                 .where(MemoryTable.user_id == str(user_id), MemoryTable.id == memory_id)
@@ -369,6 +416,20 @@ class SqliteMemoryRepository:
             try:
                 result = await session.execute(stmt)
                 memory_orm = result.scalar_one()
+
+                if verify_embedding_text is not None:
+                    stored_text = build_embedding_text(memory_data=Memory.model_validate(memory_orm))
+                    if stored_text != verify_embedding_text:
+                        await session.rollback()
+                        return None
+
+                # Update vec_memories table
+                if embeddings is not None:
+                    embedding_bytes = sqlite_vec.serialize_float32(embeddings)
+                    await session.execute(
+                        text("UPDATE vec_memories SET embedding = :embedding WHERE memory_id = :memory_id"),
+                        {"embedding": embedding_bytes, "memory_id": str(memory_id)},
+                    )
 
                 # Handle relationship updates if provided
                 if updated_memory.project_ids is not None:
