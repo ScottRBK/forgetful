@@ -16,6 +16,37 @@ MEMORY = {
 }
 
 
+async def _create_memory(http_client, **overrides) -> int:
+    response = await http_client.post(API, json={**MEMORY, **overrides})
+    assert response.status_code == 201, response.text
+    return response.json()["id"]
+
+
+@pytest.mark.e2e
+@pytest.mark.parametrize(("field", "label"), [
+    ("project_ids", "Projects"),
+    ("code_artifact_ids", "Code artifacts"),
+    ("document_ids", "Documents"),
+    ("file_ids", "Files"),
+    ("skill_ids", "Skills"),
+])
+async def test_create_with_unknown_association_id_is_404(http_client, field, label):
+    response = await http_client.post(API, json={**MEMORY, field: [999999]})
+
+    assert response.status_code == 404, response.text
+    assert response.json()["error"].startswith(f"{label} not found")
+
+
+@pytest.mark.e2e
+async def test_update_with_unknown_project_names_the_association(http_client):
+    memory_id = await _create_memory(http_client)
+
+    response = await http_client.put(f"{API}/{memory_id}", json={"title": "Renamed", "project_ids": [999999]})
+
+    assert response.status_code == 404, response.text
+    assert response.json()["error"].startswith("Projects not found")
+
+
 @pytest.mark.e2e
 async def test_create_response_reports_linked_skill_ids(http_client):
     skill = await http_client.post("/api/v1/skills", json={

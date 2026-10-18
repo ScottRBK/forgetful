@@ -256,6 +256,8 @@ returns **400** with `{"error": "<plugin message>"}`; failure/timeout returns **
 }
 ```
 
+**Errors:** `404` with a message such as `Projects not found: {999}` when an id in `project_ids`, `code_artifact_ids`, `document_ids`, `file_ids` or `skill_ids` does not exist (or belongs to another user). Nothing is created in that case.
+
 ### PUT /api/v1/memories/{id}
 
 Update an existing memory.
@@ -281,6 +283,8 @@ Provenance fields can be added or updated after memory creation. See POST /api/v
 **Response:** Flat updated memory object, with `plugin_warnings` only when nonempty (see create
 above). No-op updates skip the plugin. Write Plugin rejection returns 400; unavailable returns 503.
 An invalid merged candidate returns 400 through validation handling.
+
+**Errors:** `404` with `Memory not found` when the memory does not exist, or with a message such as `Projects not found: {999}` when an associated id does not exist.
 
 ### DELETE /api/v1/memories/{id}
 

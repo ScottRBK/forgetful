@@ -12,6 +12,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from app.exceptions import (
+    AssociationNotFoundError,
     NotFoundError,
     WritePluginRejectedError,
     WritePluginUnavailableError,
@@ -202,6 +203,8 @@ def register(mcp: FastMCP):
                 user_id=user.id,
                 memory_data=memory_data,
             )
+        except AssociationNotFoundError as e:
+            return JSONResponse({"error": str(e)}, status_code=404)
         except WritePluginRejectedError as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
         except WritePluginUnavailableError as exc:
@@ -256,6 +259,8 @@ def register(mcp: FastMCP):
                 updated_memory=update_data,
             )
             memory = write_result.memory
+        except AssociationNotFoundError as e:
+            return JSONResponse({"error": str(e)}, status_code=404)
         except WritePluginRejectedError as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
         except WritePluginUnavailableError as exc:

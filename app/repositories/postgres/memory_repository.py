@@ -10,7 +10,7 @@ from sqlalchemy.orm import selectinload
 
 from app.config.logging_config import logging
 from app.config.settings import settings
-from app.exceptions import NotFoundError
+from app.exceptions import AssociationNotFoundError, NotFoundError
 from app.models.memory_models import Memory, MemoryCreate, MemoryScore, MemoryUpdate
 from app.protocols.embedding_protocol import EmbeddingsAdapter
 from app.repositories.embeddings.reranker_adapter import RerankAdapter
@@ -901,7 +901,7 @@ class PostgresMemoryRepository:
         found_ids = {p.id for p in projects}
         missing_ids = set(project_ids) - found_ids
         if missing_ids:
-            raise NotFoundError(f"Projects not found: {missing_ids}")
+            raise AssociationNotFoundError(f"Projects not found: {missing_ids}")
 
         await session.run_sync(lambda sync_session: memory.projects.extend(projects))
 
@@ -923,7 +923,7 @@ class PostgresMemoryRepository:
         found_ids = {a.id for a in artifacts}
         missing_ids = set(code_artifact_ids) - found_ids
         if missing_ids:
-            raise NotFoundError(f"Code artifacts not found: {missing_ids}")
+            raise AssociationNotFoundError(f"Code artifacts not found: {missing_ids}")
 
         await session.run_sync(lambda sync_session: memory.code_artifacts.extend(artifacts))
 
@@ -945,7 +945,7 @@ class PostgresMemoryRepository:
         found_ids = {d.id for d in documents}
         missing_ids = set(document_ids) - found_ids
         if missing_ids:
-            raise NotFoundError(f"Documents not found: {missing_ids}")
+            raise AssociationNotFoundError(f"Documents not found: {missing_ids}")
 
         await session.run_sync(lambda sync_session: memory.documents.extend(documents))
 
@@ -967,7 +967,7 @@ class PostgresMemoryRepository:
         found_ids = {f.id for f in files}
         missing_ids = set(file_ids) - found_ids
         if missing_ids:
-            raise NotFoundError(f"Files not found: {missing_ids}")
+            raise AssociationNotFoundError(f"Files not found: {missing_ids}")
 
         await session.run_sync(lambda sync_session: memory.files.extend(files))
 
@@ -989,7 +989,7 @@ class PostgresMemoryRepository:
         found_ids = {s.id for s in skills}
         missing_ids = set(skill_ids) - found_ids
         if missing_ids:
-            raise NotFoundError(f"Skills not found: {missing_ids}")
+            raise AssociationNotFoundError(f"Skills not found: {missing_ids}")
 
         await session.run_sync(lambda sync_session: memory.skills.extend(skills))
 
