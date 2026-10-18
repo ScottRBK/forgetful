@@ -1,11 +1,19 @@
 """Regression tests for user provisioning on login.
 
-An IdP name/email change used to overwrite ``notes`` and ``idp_metadata``
-with NULL because the whole ``UserCreate`` was re-sent as a ``UserUpdate``.
+Covers two defects in the identity upsert path:
+
+* An IdP name/email change used to overwrite ``notes`` and ``idp_metadata``
+  with NULL because the whole ``UserCreate`` was re-sent as a ``UserUpdate``.
+* ``external_id``/``name``/``email`` are VARCHAR(255) columns but the models
+  accepted any length, so oversize values failed on PostgreSQL and were
+  silently stored on SQLite.
 """
 import pytest
+from pydantic import ValidationError
 
-from app.models.user_models import UserCreate, UserUpdate
+from app.models.user_models import User, UserCreate, UserUpdate
+
+IDENTITY_FIELDS = ("external_id", "name", "email")
 
 
 @pytest.mark.asyncio
@@ -90,3 +98,50 @@ async def test_explicit_notes_in_login_are_still_applied(test_user_service):
 
     assert after.notes == "set by caller"
     assert after.idp_metadata == {"tier": "pro"}
+
+
+@pytest.mark.parametrize("field", IDENTITY_FIELDS)
+@pytest.mark.parametrize("model", [UserCreate, UserUpdate])
+def test_identity_fields_reject_values_longer_than_the_column(model, field):
+    """Values beyond VARCHAR(255) are rejected up front with a clear validation error."""
+    values = {"external_id": "sub", "name": "Name", "email": "a@example.com"}
+    values[field] = "x" * 256
+
+    with pytest.raises(ValidationError) as exc_info:
+        model(**values)
+
+    assert field in str(exc_info.value)
+
+
+@pytest.mark.parametrize("field", IDENTITY_FIELDS)
+@pytest.mark.parametrize("model", [UserCreate, UserUpdate])
+def test_identity_fields_accept_values_exactly_at_the_column_limit(model, field):
+    values = {"external_id": "sub", "name": "Name", "email": "a@example.com"}
+    values[field] = "x" * 255
+
+    assert getattr(model(**values), field) == "x" * 255
+
+
+@pytest.mark.asyncio
+async def test_oversize_identity_is_rejected_before_reaching_the_repository(
+    test_user_service,
+):
+    """Provisioning never reaches the database with a value that cannot fit."""
+    with pytest.raises(ValueError):
+        await test_user_service.get_or_create_user(
+            UserCreate(external_id="sub-long", name="n" * 300, email="a@example.com"),
+        )
+
+    assert await test_user_service.user_repo.get_user_by_external_id("sub-long") is None
+
+
+def test_user_read_model_still_loads_legacy_oversize_rows():
+    """SQLite ignores VARCHAR(255), so rows written earlier may be longer than that.
+
+    Reading them back must keep working; only new input is bounded.
+    """
+    legacy = User(external_id="s" * 300, name="n" * 300, email="e" * 300)
+
+    assert len(legacy.external_id) == 300
+    assert len(legacy.name) == 300
+    assert len(legacy.email) == 300

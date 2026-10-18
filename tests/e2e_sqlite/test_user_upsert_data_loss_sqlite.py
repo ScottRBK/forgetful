@@ -1,10 +1,11 @@
 """User upsert on login against the real SQLite stack (no stubs).
 
 Regression coverage for notes/idp_metadata being wiped when the IdP name or
-email changes.
+email changes, and for identity values that do not fit the VARCHAR(255) columns.
 """
 
 import pytest
+from pydantic import ValidationError
 
 from app.config.settings import settings
 from app.models.user_models import UserCreate, UserUpdate
@@ -61,3 +62,15 @@ async def test_email_change_on_login_keeps_idp_metadata(user_service):
     assert after.idp_metadata == {"groups": ["admin"]}
     persisted = await user_service.user_repo.get_user_by_external_id("sub2")
     assert persisted.idp_metadata == {"groups": ["admin"]}
+
+
+@pytest.mark.parametrize("field", ["external_id", "name", "email"])
+async def test_oversize_identity_value_is_rejected_on_sqlite_too(user_service, field):
+    """SQLite ignores VARCHAR length, so the model must enforce it like PostgreSQL does."""
+    values = {"external_id": "sub3", "name": "Name", "email": "a@example.com"}
+    values[field] = "x" * 300
+
+    with pytest.raises(ValidationError):
+        await user_service.get_or_create_user(UserCreate(**values))
+
+    assert await user_service.user_repo.get_user_by_external_id(values["external_id"]) is None
