@@ -1490,7 +1490,7 @@ Get relationships for an entity with optional filtering.
 **Parameters:**
 - `entity_id` (required): Entity ID
 - `relationship_type` (optional): Filter by relationship type
-- `direction` (optional): `outgoing`, `incoming`, or `both` (default: `both`)
+- `direction` (optional): `outgoing`, `incoming`, or `both` (default: `both`); case-insensitive, any other value is rejected
 
 **Returns:**
 - List of relationships

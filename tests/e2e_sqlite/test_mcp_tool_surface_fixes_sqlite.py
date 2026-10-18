@@ -78,3 +78,33 @@ async def test_update_project_existing_project_still_updates(mcp_client):
 
     assert updated.data["id"] == project_id
     assert updated.data["name"] == "renamed"
+
+
+@pytest.mark.asyncio
+async def test_get_entity_relationships_direction_is_normalised_or_rejected(mcp_client):
+    """Entity 2 has one incoming and one outgoing edge; direction narrows or errors."""
+    first = await make_entity(mcp_client, name="first")
+    middle = await make_entity(mcp_client, name="middle")
+    last = await make_entity(mcp_client, name="last")
+    for source, target in ((first, middle), (middle, last)):
+        await call(
+            mcp_client, "create_entity_relationship", source_entity_id=source,
+            target_entity_id=target, relationship_type="manages",
+        )
+
+    async def count(direction):
+        result = await call(
+            mcp_client, "get_entity_relationships", entity_id=middle, direction=direction,
+        )
+        return len(result.data["relationships"])
+
+    assert await count("incoming") == 1
+    assert await count("outgoing") == 1
+    assert await count("Incoming") == 1
+    assert await count("OUTGOING") == 1
+    assert await count("both") == 2
+    assert await count(None) == 2
+
+    for unknown in ("sideways", "in"):
+        with pytest.raises(ToolError, match="direction"):
+            await count(unknown)

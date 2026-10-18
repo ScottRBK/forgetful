@@ -44,6 +44,26 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _normalize_relationship_direction(direction: str | None) -> str | None:
+    """Normalise a relationship direction filter to "outgoing", "incoming" or None (both).
+
+    Matching ignores case and surrounding whitespace; "both" and an empty string mean
+    both directions. Anything else raises ValueError instead of silently widening the
+    result to both directions.
+    """
+    if direction is None:
+        return None
+    if isinstance(direction, str):
+        cleaned = direction.strip().lower()
+        if cleaned in ("", "both"):
+            return None
+        if cleaned in ("outgoing", "incoming"):
+            return cleaned
+    raise ValueError(
+        f"direction must be 'outgoing', 'incoming' or 'both', got {direction!r}",
+    )
+
+
 class EntityService:
     """Service layer for entity and entity relationship operations
 
@@ -796,7 +816,8 @@ class EntityService:
         Args:
             user_id: User ID for ownership verification
             entity_id: Entity ID to get relationships for
-            direction: Optional filter: "outgoing", "incoming", or None (both)
+            direction: Optional filter: "outgoing", "incoming", or None/"both" (both);
+                case-insensitive
             relationship_type: Optional filter by relationship type
 
         Returns:
@@ -804,7 +825,10 @@ class EntityService:
 
         Raises:
             NotFoundError: If entity not found or not owned by user
+            ValueError: If direction is not "outgoing", "incoming" or "both"
         """
+        direction = _normalize_relationship_direction(direction)
+
         logger.info(
             "getting entity relationships",
             extra={
