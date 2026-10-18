@@ -510,10 +510,13 @@ write. The plugin receives no repository, database session, or FastMCP context. 
 retains validation, defaults, merging, persistence, automatic links, and post-write events.
 No-op updates skip the plugin and retain existing timestamp/event behavior.
 
-Update candidates follow existing persistence semantics: explicit scalar nulls are retained;
-null project/document/code-artifact/file relationship lists leave associations unchanged, while
-empty lists clear them. An invalid candidate uses normal validation handling before the plugin.
-Existing explicit-null REST/MCP differences (#95) and skill-link update limitations (#96) remain.
+Memory updates treat explicit nulls as unchanged at the shared service boundary across transports,
+before provenance enforcement and change detection. Null fields remain in the raw `submitted`
+snapshot when supplied there, but are omitted from the effective patch and `proposed` merge.
+Null relationship lists leave associations unchanged; empty lists still clear them, and zero
+confidence is preserved. A null-only update is a no-op and skips the plugin. An invalid candidate
+uses normal validation handling before the plugin. Non-null skill-link update limitations (#96)
+remain; dropping null `skill_ids` does not implement skill association updates.
 The candidate does not guarantee referenced IDs exist or that a later database write will succeed.
 No database transaction is held across the plugin await. After a successful update decision,
 MemoryService re-reads the user-owned memory and applies the submitted patch to that current state
