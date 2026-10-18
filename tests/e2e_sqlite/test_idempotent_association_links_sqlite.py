@@ -1,12 +1,14 @@
 """Association links on the real SQLite stack must be idempotent and report real creations.
 
-Covers entity<->memory and entity<->project links. Concurrent identical link requests
-(parallel tool calls, retries) must all succeed and leave exactly one association row,
-and the activity log must only record a link as created once.
+Covers entity<->memory, entity<->project and skill<->{memory,file,code artifact,document}
+links. Concurrent identical link requests (parallel tool calls, retries) must all succeed
+and leave exactly one association row, and the activity log must only record a link as
+created once.
 
 A file-backed database is used so that every concurrent call gets its own connection.
 """
 import asyncio
+import base64
 from dataclasses import dataclass
 
 import pytest
@@ -15,13 +17,23 @@ from app.config.settings import settings
 from app.events import EventBus
 from app.models.activity_models import ActionType
 from app.models.activity_models import EntityType as ActivityEntityType
+from app.models.code_artifact_models import CodeArtifactCreate
+from app.models.document_models import DocumentCreate
 from app.models.entity_models import EntityCreate, EntityType
+from app.models.file_models import FileCreate
 from app.models.memory_models import MemoryCreate
 from app.models.project_models import ProjectCreate, ProjectType
+from app.models.skill_models import SkillCreate
 from app.models.user_models import UserCreate
+from app.repositories.sqlite.code_artifact_repository import (
+    SqliteCodeArtifactRepository,
+)
+from app.repositories.sqlite.document_repository import SqliteDocumentRepository
 from app.repositories.sqlite.entity_repository import SqliteEntityRepository
+from app.repositories.sqlite.file_repository import SqliteFileRepository
 from app.repositories.sqlite.memory_repository import SqliteMemoryRepository
 from app.repositories.sqlite.project_repository import SqliteProjectRepository
+from app.repositories.sqlite.skill_repository import SqliteSkillRepository
 from app.repositories.sqlite.sqlite_adapter import SqliteDatabaseAdapter
 from app.repositories.sqlite.user_repository import SqliteUserRepository
 from app.services.entity_service import EntityService
@@ -53,6 +65,10 @@ class Stack:
     event_bus: CollectingEventBus
     projects: SqliteProjectRepository
     memories: SqliteMemoryRepository
+    files: SqliteFileRepository
+    code_artifacts: SqliteCodeArtifactRepository
+    documents: SqliteDocumentRepository
+    skills: SqliteSkillRepository
 
 
 @pytest.fixture
@@ -78,6 +94,10 @@ async def stack(tmp_path, monkeypatch):
             memories=SqliteMemoryRepository(
                 db_adapter=adapter, embedding_adapter=embeddings,
             ),
+            files=SqliteFileRepository(db_adapter=adapter),
+            code_artifacts=SqliteCodeArtifactRepository(db_adapter=adapter),
+            documents=SqliteDocumentRepository(db_adapter=adapter),
+            skills=SqliteSkillRepository(db_adapter=adapter, embedding_adapter=embeddings),
         )
     finally:
         await adapter.dispose()
@@ -170,3 +190,67 @@ async def test_concurrent_identical_entity_links_are_idempotent(stack, kind):
         assert await _linked_target_ids(stack, kind, entity.id) == [target_id]
     # One real link per entity -> one CREATED event per entity, however many calls raced
     assert len(_created_events(stack, kind)) == len(entities)
+
+
+async def _create_skill_target(stack: Stack, kind: str) -> int:
+    uid = stack.user_id
+    if kind == "memory":
+        return await _new_target(stack, "memory")
+    if kind == "file":
+        created = await stack.files.create_file(
+            uid,
+            FileCreate(
+                filename="a.txt",
+                description="d",
+                data=base64.b64encode(b"hello").decode(),
+                mime_type="text/plain",
+            ),
+        )
+    elif kind == "code_artifact":
+        created = await stack.code_artifacts.create_code_artifact(
+            uid,
+            CodeArtifactCreate(
+                title="t", description="d", code="print(1)", language="python",
+            ),
+        )
+    else:
+        created = await stack.documents.create_document(
+            uid, DocumentCreate(title="t", description="d", content="body"),
+        )
+    return created.id
+
+
+SKILL_LINK_KINDS = {
+    "memory": ("link_skill_to_memory", "memory_id", "memory_ids"),
+    "file": ("link_skill_to_file", "file_id", "file_ids"),
+    "code_artifact": (
+        "link_skill_to_code_artifact",
+        "code_artifact_id",
+        "code_artifact_ids",
+    ),
+    "document": ("link_skill_to_document", "document_id", "document_ids"),
+}
+
+
+@pytest.mark.parametrize("kind", list(SKILL_LINK_KINDS))
+async def test_concurrent_identical_skill_links_are_idempotent(stack, kind):
+    method_name, result_key, links_attr = SKILL_LINK_KINDS[kind]
+    skill = await stack.skills.create_skill(
+        stack.user_id, SkillCreate(name="my-skill", description="d", content="body"),
+    )
+    target_id = await _create_skill_target(stack, kind)
+    link = getattr(stack.skills, method_name)
+
+    results = await asyncio.gather(
+        *[link(stack.user_id, skill.id, target_id) for _ in range(8)],
+        return_exceptions=True,
+    )
+
+    errors = [r for r in results if isinstance(r, BaseException)]
+    assert not errors, f"non-idempotent concurrent link: {[type(e).__name__ for e in errors]}"
+    assert all(
+        r == {"skill_id": skill.id, result_key: target_id, "linked": True}
+        for r in results
+    )
+    links = await stack.skills.get_skill_links(stack.user_id, skill.id)
+    assert getattr(links, links_attr) == [target_id]

@@ -1,10 +1,12 @@
 """PostgreSQL: association links must be idempotent under concurrency and report real creations.
 
-Covers entity<->memory and entity<->project links. Identical link requests racing each
-other (parallel tool calls, retries) must all succeed and leave exactly one association
-row, and the activity log must only record a link as created once.
+Covers entity<->memory, entity<->project and skill<->{memory,file,code artifact,document}
+links. Identical link requests racing each other (parallel tool calls, retries) must all
+succeed and leave exactly one association row, and the activity log must only record a
+link as created once.
 """
 import asyncio
+import base64
 from dataclasses import dataclass
 
 import pytest
@@ -14,13 +16,23 @@ from app.config.settings import settings
 from app.events import EventBus
 from app.models.activity_models import ActionType
 from app.models.activity_models import EntityType as ActivityEntityType
+from app.models.code_artifact_models import CodeArtifactCreate
+from app.models.document_models import DocumentCreate
 from app.models.entity_models import EntityCreate, EntityType
+from app.models.file_models import FileCreate
 from app.models.memory_models import MemoryCreate
 from app.models.project_models import ProjectCreate, ProjectType
+from app.models.skill_models import SkillCreate
 from app.models.user_models import UserCreate
+from app.repositories.postgres.code_artifact_repository import (
+    PostgresCodeArtifactRepository,
+)
+from app.repositories.postgres.document_repository import PostgresDocumentRepository
 from app.repositories.postgres.entity_repository import PostgresEntityRepository
+from app.repositories.postgres.file_repository import PostgresFileRepository
 from app.repositories.postgres.memory_repository import PostgresMemoryRepository
 from app.repositories.postgres.project_repository import PostgresProjectRepository
+from app.repositories.postgres.skill_repository import PostgresSkillRepository
 from app.repositories.postgres.user_repository import PostgresUserRepository
 from app.services.entity_service import EntityService
 
@@ -53,6 +65,10 @@ class Stack:
     event_bus: CollectingEventBus
     projects: PostgresProjectRepository
     memories: PostgresMemoryRepository
+    files: PostgresFileRepository
+    code_artifacts: PostgresCodeArtifactRepository
+    documents: PostgresDocumentRepository
+    skills: PostgresSkillRepository
 
 
 @pytest_asyncio.fixture(loop_scope="session")
@@ -70,6 +86,10 @@ async def stack(db_adapter):
         event_bus=event_bus,
         projects=PostgresProjectRepository(db_adapter),
         memories=PostgresMemoryRepository(db_adapter, embeddings),
+        files=PostgresFileRepository(db_adapter),
+        code_artifacts=PostgresCodeArtifactRepository(db_adapter),
+        documents=PostgresDocumentRepository(db_adapter),
+        skills=PostgresSkillRepository(db_adapter, embeddings),
     )
 
 
@@ -162,3 +182,67 @@ async def test_concurrent_identical_entity_links_are_idempotent(stack, kind):
         assert await _linked_target_ids(stack, kind, entity.id) == [target_id]
     # One real link per entity -> one CREATED event per entity, however many calls raced
     assert len(_created_events(stack, kind)) == len(entities)
+
+
+async def _create_skill_target(stack: Stack, kind: str) -> int:
+    uid = stack.user_id
+    if kind == "memory":
+        return await _new_memory(stack)
+    if kind == "file":
+        created = await stack.files.create_file(
+            uid,
+            FileCreate(
+                filename="a.txt",
+                description="d",
+                data=base64.b64encode(b"hello").decode(),
+                mime_type="text/plain",
+            ),
+        )
+    elif kind == "code_artifact":
+        created = await stack.code_artifacts.create_code_artifact(
+            uid,
+            CodeArtifactCreate(
+                title="t", description="d", code="print(1)", language="python",
+            ),
+        )
+    else:
+        created = await stack.documents.create_document(
+            uid, DocumentCreate(title="t", description="d", content="body"),
+        )
+    return created.id
+
+
+SKILL_LINK_KINDS = {
+    "memory": ("link_skill_to_memory", "memory_id", "memory_ids"),
+    "file": ("link_skill_to_file", "file_id", "file_ids"),
+    "code_artifact": (
+        "link_skill_to_code_artifact",
+        "code_artifact_id",
+        "code_artifact_ids",
+    ),
+    "document": ("link_skill_to_document", "document_id", "document_ids"),
+}
+
+
+@pytest.mark.parametrize("kind", list(SKILL_LINK_KINDS))
+async def test_concurrent_identical_skill_links_are_idempotent(stack, kind):
+    method_name, result_key, links_attr = SKILL_LINK_KINDS[kind]
+    skill = await stack.skills.create_skill(
+        stack.user_id, SkillCreate(name="my-skill", description="d", content="body"),
+    )
+    target_id = await _create_skill_target(stack, kind)
+    link = getattr(stack.skills, method_name)
+
+    results = await asyncio.gather(
+        *[link(stack.user_id, skill.id, target_id) for _ in range(8)],
+        return_exceptions=True,
+    )
+
+    errors = [r for r in results if isinstance(r, BaseException)]
+    assert not errors, f"non-idempotent concurrent link: {[type(e).__name__ for e in errors]}"
+    assert all(
+        r == {"skill_id": skill.id, result_key: target_id, "linked": True}
+        for r in results
+    )
+    links = await stack.skills.get_skill_links(stack.user_id, skill.id)
+    assert getattr(links, links_attr) == [target_id]
