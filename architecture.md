@@ -167,6 +167,10 @@ when `strict_project_filter` is enabled. Budget allocation prioritizes primary r
 ([memory_service.py:595](app/services/memory_service.py#L595)). Within each tier, the budget helper
 sorts by importance ([memory_service.py:672](app/services/memory_service.py#L672)); the final response
 is not an untouched vector-ranking list. Scores are returned for retained primaries.
+Primaries and already-linked memories are excluded before each primary's link cap is applied, a request's
+`token_context_threshold` can only lower `MEMORY_TOKEN_BUDGET`, and `truncated` reports drops by either the
+token budget or `MEMORY_MAX_MEMORIES`. Token counting is lazy and shared, loads off the event loop, and falls
+back to a character-based estimate when tiktoken's encoding is unavailable.
 
 The repositories embed the query and search active, user-owned memories with optional importance
 and project filters. PostgreSQL uses pgvector cosine distance
