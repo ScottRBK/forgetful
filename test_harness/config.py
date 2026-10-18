@@ -5,12 +5,13 @@ story first, the write-heavy skills populate the store, then the read skills con
 they wrote. A skills filter selects from this order; it never reorders it. mcp-setup is
 deliberately absent: it belongs to the MCP surface pass, a reserved (unimplemented) axis.
 """
+import json
 import math
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 SKILL_ORDER: tuple[str, ...] = (
     "forgetful-cli-setup",
@@ -42,7 +43,7 @@ class HarnessConfig(BaseSettings):
     model: str = "opencode-go/deepseek-v4-flash"
     effort: str | None = None
     surface: Literal["cli"] = "cli"
-    skills: list[str] = list(SKILL_ORDER)
+    skills: Annotated[list[str], NoDecode] = list(SKILL_ORDER)
     skill_timeout: float = 900
     skill_timeouts: dict[str, float] = {"forgetful-encode-repo": 1800}
     skills_dir: Path = _REPO_ROOT / "skills"
@@ -70,9 +71,25 @@ class HarnessConfig(BaseSettings):
             _require_enforceable_timeout(seconds)
         return value
 
+    @field_validator("skills", mode="before")
+    @classmethod
+    def _split_comma_separated_skills(cls, value: Any) -> Any:
+        # One spelling for the --skills flag and TEST_HARNESS_SKILLS ("a, b"); NoDecode
+        # keeps pydantic-settings from demanding JSON, which is still accepted.
+        if not isinstance(value, str):
+            return value
+        text = value.strip()
+        if text.startswith("["):
+            return json.loads(text)
+        return [name.strip() for name in text.split(",") if name.strip()]
+
     @field_validator("skills")
     @classmethod
     def _subset_of_walkthrough_order(cls, value: list[str]) -> list[str]:
+        if not value:
+            raise ValueError(
+                f"no skills selected - valid names: {', '.join(SKILL_ORDER)}",
+            )
         unknown = [name for name in value if name not in SKILL_ORDER]
         if unknown:
             raise ValueError(

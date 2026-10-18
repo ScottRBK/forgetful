@@ -42,7 +42,7 @@ def config_from_argv(argv: list[str]) -> HarnessConfig:
         "model": args.model,
         "effort": args.effort,
         "surface": args.surface,
-        "skills": args.skills.split(",") if args.skills else None,
+        "skills": args.skills,  # raw text: HarnessConfig splits and validates it
         "skill_timeout": args.timeout,
         "output_dir": args.output,
         "rebuild_image": args.rebuild_image or None,

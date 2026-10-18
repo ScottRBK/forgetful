@@ -30,7 +30,9 @@ uv run python -m test_harness --timeout 600 --output /tmp/uat
 uv run python -m test_harness --rebuild-image                  # force image rebuild
 ```
 
-Flags > `TEST_HARNESS_*` env > defaults (`test_harness/config.py`). `--timeout` /
+Flags > `TEST_HARNESS_*` env > defaults (`test_harness/config.py`). `--skills` and
+`TEST_HARNESS_SKILLS` share one comma-separated spelling (`a,b`; spaces around commas are
+ignored; an empty value is an error, never "all skills"). `--timeout` /
 `TEST_HARNESS_SKILL_TIMEOUT` applies to every skill, including encode-repo, whose longer
 1800s default only applies when no timeout was given; it must be at least 1 second.
 

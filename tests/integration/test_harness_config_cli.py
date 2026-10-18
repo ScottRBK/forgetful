@@ -1,13 +1,14 @@
 """Integration tests for harness argument and config parsing.
 
 An explicit timeout must win over built-in per-skill defaults and must never reach the
-in-container `timeout` as 0 (GNU `timeout 0` means no limit).
+in-container `timeout` as 0 (GNU `timeout 0` means no limit). The skills filter is spelled the same way on the flag
+and in TEST_HARNESS_SKILLS, and an explicitly empty filter is an error instead of "all skills".
 """
 import pytest
 from pydantic import ValidationError
 
 from test_harness.__main__ import config_from_argv
-from test_harness.config import HarnessConfig
+from test_harness.config import SKILL_ORDER, HarnessConfig
 from test_harness.container import exec_command
 
 
@@ -111,3 +112,79 @@ def test_exec_command_never_hands_gnu_timeout_a_zero_or_shorter_limit(timeout, e
 
     # Assert: rounded up, so the in-container limit is never below what was asked for
     assert cmd[:3] == ["timeout", "--kill-after=30s", expected]
+
+
+# --- skills filter: same spelling on the flag and in the environment --------------
+
+
+def test_spaces_around_commas_in_skills_flag_are_trimmed():
+    # Act
+    config = config_from_argv(["--skills", "forgetful-recall, forgetful-explore"])
+
+    # Assert
+    assert config.skills == ["forgetful-recall", "forgetful-explore"]
+
+
+def test_trailing_and_doubled_commas_in_skills_flag_are_tolerated():
+    # Act
+    config = config_from_argv(["--skills", "forgetful-recall,,forgetful-remember,"])
+
+    # Assert
+    assert config.skills == ["forgetful-remember", "forgetful-recall"]
+
+
+def test_env_skills_accepts_the_same_comma_syntax_as_the_flag(monkeypatch):
+    # Arrange
+    monkeypatch.setenv("TEST_HARNESS_SKILLS", "forgetful-recall, forgetful-explore")
+
+    # Act
+    config = HarnessConfig()
+
+    # Assert
+    assert config.skills == ["forgetful-recall", "forgetful-explore"]
+
+
+def test_env_skills_json_list_is_still_accepted(monkeypatch):
+    # Arrange: the only spelling that worked before comma syntax was supported
+    monkeypatch.setenv("TEST_HARNESS_SKILLS", '["forgetful-recall"]')
+
+    # Act
+    config = HarnessConfig()
+
+    # Assert
+    assert config.skills == ["forgetful-recall"]
+
+
+def test_flag_skills_beat_env_skills(monkeypatch):
+    # Arrange
+    monkeypatch.setenv("TEST_HARNESS_SKILLS", "forgetful-explore")
+
+    # Act
+    config = config_from_argv(["--skills", "forgetful-recall"])
+
+    # Assert
+    assert config.skills == ["forgetful-recall"]
+
+
+@pytest.mark.parametrize("raw", ["", " ", ",", " , ,"])
+def test_explicitly_empty_skills_flag_is_rejected_not_expanded_to_all(raw):
+    # Act / Assert: `--skills "$UNSET_VAR"` must not launch the whole paid walkthrough
+    with pytest.raises(ValidationError, match="no skills selected"):
+        config_from_argv(["--skills", raw])
+
+
+def test_explicitly_empty_env_skills_is_rejected_not_expanded_to_all(monkeypatch):
+    # Arrange
+    monkeypatch.setenv("TEST_HARNESS_SKILLS", "")
+
+    # Act / Assert
+    with pytest.raises(ValidationError, match="no skills selected"):
+        HarnessConfig()
+
+
+def test_omitted_skills_flag_still_selects_the_full_walkthrough():
+    # Act
+    config = config_from_argv([])
+
+    # Assert
+    assert config.skills == list(SKILL_ORDER)
