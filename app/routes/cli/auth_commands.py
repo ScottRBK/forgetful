@@ -97,6 +97,26 @@ async def login(
     return 0
 
 
+# Server-side wording of the meta-tool scope denial (app/routes/mcp/meta_tools.py)
+_SCOPE_DENIAL_MARKER = "is not permitted under current scopes"
+
+
+async def _fetch_user_name(executor) -> str:
+    """The authenticated user's name; raises when the server rejects the request.
+
+    A scope denial is not an authentication failure: the server accepted the
+    credentials and refused only the user lookup, which needs a scope (read:users)
+    that a category-restricted deployment may not grant.
+    """
+    try:
+        user = await executor.execute("get_current_user", {})
+    except Exception as exc:
+        if _SCOPE_DENIAL_MARKER in str(exc):
+            return "(not shown: get_current_user is outside the granted scopes)"
+        raise
+    return user.get("name") if isinstance(user, dict) else str(user)
+
+
 async def status(*, server: str | None = None) -> int:
     """Report the active mode; in remote mode prove the credentials work.
 
@@ -130,7 +150,7 @@ async def status(*, server: str | None = None) -> int:
         executor = RemoteExecutor(url, client_factory=_plain_client_factory)
 
     try:
-        user = await executor.execute("get_current_user", {})
+        name = await _fetch_user_name(executor)
     except Exception as exc:
         print(f"Server: {executor.server_url}", file=sys.stderr)
         print(f"Error: not authenticated: {exc}", file=sys.stderr)
@@ -144,7 +164,6 @@ async def status(*, server: str | None = None) -> int:
     finally:
         await executor.close()
 
-    name = user.get("name") if isinstance(user, dict) else str(user)
     print(f"Server: {executor.server_url}")
     print(f"User: {name}")
     print(f"Cached credentials: {'yes' if cached_token else 'no'}")

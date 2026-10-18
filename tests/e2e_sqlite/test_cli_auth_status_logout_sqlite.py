@@ -55,3 +55,36 @@ def test_auth_status_with_trailing_newline_token_authenticates(
     assert code == 0, err
     assert "User:" in out
     assert SECRET not in out + err
+
+
+# -- auth status under a category-only scope ceiling ---------------------------
+
+
+def test_auth_status_is_authenticated_when_user_lookup_is_out_of_scope(
+    category_scoped_server_url, monkeypatch, capsys,
+):
+    url = category_scoped_server_url
+
+    # Control: the connection and credentials are fine, a permitted command works
+    code, out, err = invoke_cli(
+        monkeypatch, capsys, ["memory", "save", "x", "--title", "S", "--server", url],
+    )
+    assert code == 0, f"{out!r} {err!r}"
+
+    monkeypatch.setattr(settings, "FORGETFUL_SERVER", url)
+    code, out, err = invoke_cli(monkeypatch, capsys, ["auth", "status"])
+
+    assert code == 0, f"exit={code} out={out!r} err={err!r}"
+    assert f"Server: {url}" in out
+    assert "outside the granted scopes" in out
+    assert "not authenticated" not in err
+
+
+def test_auth_status_still_shows_user_when_in_scope(http_server_url, monkeypatch, capsys):
+    monkeypatch.setattr(settings, "FORGETFUL_SERVER", http_server_url)
+
+    code, out, err = invoke_cli(monkeypatch, capsys, ["auth", "status"])
+
+    assert code == 0, err
+    assert "User:" in out
+    assert "outside the granted scopes" not in out

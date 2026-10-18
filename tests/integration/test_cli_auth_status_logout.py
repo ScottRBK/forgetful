@@ -295,3 +295,34 @@ async def test_auth_status_with_rejected_cached_token_stays_read_only(
     assert _snapshot(token_cache) == before
     # The cached token was what got sent
     assert {auth for _, path, auth in server.requests if path == "/mcp"} == {"Bearer stale-token"}
+
+
+# =============================================================================
+# auth status: scope denial is not an authentication failure
+# =============================================================================
+
+
+async def test_auth_status_scope_denied_user_lookup_still_reports_authenticated(
+    token_cache, stub_executor, capsys,
+):
+    stub_executor.outcome = RuntimeError(SCOPE_DENIED)
+
+    code = await auth_commands.status(server="http://remote:8020")
+
+    captured = capsys.readouterr()
+    assert code == 0
+    assert "Server: http://remote:8020" in captured.out
+    assert "outside the granted scopes" in captured.out
+    assert "not authenticated" not in captured.err
+
+
+async def test_auth_status_other_failures_are_still_not_authenticated(
+    token_cache, stub_executor, capsys,
+):
+    stub_executor.outcome = RuntimeError("Client failed to connect: 401 Unauthorized")
+
+    code = await auth_commands.status(server="http://remote:8020")
+
+    captured = capsys.readouterr()
+    assert code == 1
+    assert "Error: not authenticated: Client failed to connect" in captured.err
