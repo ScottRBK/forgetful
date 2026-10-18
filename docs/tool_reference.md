@@ -1745,7 +1745,7 @@ Create a task within a plan.
 - `priority` (optional): Task priority (default: `P2`)
 - `assigned_agent` (optional): Agent identifier to assign the task to
 - `criteria` (optional): Inline list of acceptance criterion descriptions
-- `dependency_ids` (optional): List of task IDs this task depends on
+- `dependency_ids` (optional): List of task IDs this task depends on (same plan, no repeats). If any dependency is rejected nothing is created.
 
 **Returns:**
 - Created task with `task_id`
@@ -1872,7 +1872,7 @@ claimed = execute_forgetful_tool(
 
 ### `transition_task`
 
-Transition a task to a new state. Uses optimistic locking to prevent conflicting state changes.
+Transition a task to a new state. Uses optimistic locking to prevent conflicting state changes. Moving to `doing` or `done` requires all dependencies to be `done`, and moving to `done` requires all criteria to be met. Tasks in a completed or archived plan cannot change state, except that reopening a `done` or `cancelled` task (back to `todo`) returns a completed plan to `active`.
 
 **Parameters:**
 - `task_id` (required): Task ID
@@ -1932,7 +1932,7 @@ criterion = execute_forgetful_tool(
 
 ### `verify_criterion`
 
-Mark an acceptance criterion as met or unmet.
+Mark an acceptance criterion as met or unmet. Rejected once the task is `done`; reopen the task first.
 
 **Parameters:**
 - `criterion_id` (required): Criterion ID
@@ -1952,7 +1952,7 @@ execute_forgetful_tool(
 
 ### `delete_criterion`
 
-Delete an acceptance criterion from a task.
+Delete an acceptance criterion from a task. Rejected once the task is `done`.
 
 **Parameters:**
 - `criterion_id` (required): Criterion ID
@@ -1967,7 +1967,7 @@ execute_forgetful_tool("delete_criterion", {"criterion_id": 78})
 
 ### `add_dependency`
 
-Add a dependency between tasks. The dependent task cannot proceed until the dependency is completed.
+Add a dependency between tasks. The dependent task cannot proceed until the dependency is completed. Rejected if it would create a cycle, if the edge already exists, or if the dependent task is already `done`.
 
 **Parameters:**
 - `task_id` (required): Task that depends on another

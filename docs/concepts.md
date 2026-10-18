@@ -59,7 +59,7 @@ Entities represent concrete nouns that exist in the world. They can have relatio
 
 Plans represent *intent and procedure*, not knowledge. While memories capture what you know, plans capture what you intend to do. Each plan lives within a project and decomposes a goal into concrete tasks.
 
-Plans follow a lifecycle: **draft** → **active** → **completed** → **archived**. A draft plan is being shaped; an active plan is in progress; a completed plan has all its tasks done; an archived plan is retained for reference but no longer actionable.
+Plans follow a lifecycle: **draft** → **active** → **completed** → **archived**. A draft plan is being shaped; an active plan is in progress; a completed plan has all its tasks done; an archived plan is retained for reference but no longer actionable. Reopening a finished task (done or cancelled back to todo) returns a completed plan to active, and tasks in a completed or archived plan cannot otherwise be claimed or moved.
 
 **Good plans have:**
 - **A clear goal** - what does "done" look like?
@@ -79,7 +79,7 @@ Tasks are the actionable steps inside a plan. Each task has a service-enforced s
 
 Tasks support **atomic claiming via optimistic locking** - when an agent picks up a task, the transition is conflict-safe even with concurrent workers. Each task carries a **priority level** (P0 = critical, P1 = high, P2 = normal, P3 = low) and an optional **agent assignment** so multiple agents can coordinate without stepping on each other.
 
-**Task dependencies:** Tasks can declare dependencies on other tasks within the same plan. A task cannot transition to *doing* until all of its dependencies are *done*. The system enforces **cycle detection** at creation time - if adding a dependency would create a circular chain (A → B → C → A), the request is rejected.
+**Task dependencies:** Tasks can declare dependencies on other tasks within the same plan. A task cannot transition to *doing* or *done* until all of its dependencies are *done*; the check is repeated on *done* because a dependency can be added, or a prerequisite reopened, while the task is in progress. The system enforces **cycle detection** when a dependency is added, atomically with the insert - if adding a dependency would create a circular chain (A → B → C → A), the request is rejected. Adding the same dependency twice is a conflict, and a *done* task cannot gain new dependencies.
 
 **Examples:**
 - "Create Stripe webhook endpoint" (P1, todo, assigned: backend-agent)
@@ -90,7 +90,7 @@ Tasks support **atomic claiming via optimistic locking** - when an agent picks u
 
 **Boolean conditions on tasks** - the definition of done.
 
-Acceptance criteria are first-class children of tasks. Each criterion is a clear, verifiable condition that must be satisfied before a task can transition to *done*. All criteria on a task must be met for completion.
+Acceptance criteria are first-class children of tasks. Each criterion is a clear, verifiable condition that must be satisfied before a task can transition to *done*. All criteria on a task must be met for completion. The criteria of a *done* task are frozen: they cannot be added, changed, un-met or deleted until the task is reopened.
 
 This enables a clean separation of concerns: a **planner** defines criteria up front, an **implementer** does the work and marks criteria as met, and a **reviewer** validates the results. The workflow becomes planner-sets-criteria → implementer-does-work → reviewer-validates.
 
