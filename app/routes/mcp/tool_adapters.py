@@ -13,6 +13,7 @@ from fastmcp.exceptions import ToolError
 
 from app.config.logging_config import logging
 from app.config.settings import settings
+from app.exceptions import WritePluginRejectedError, WritePluginUnavailableError
 from app.middleware.auth import get_user_from_auth
 from app.models.code_artifact_models import (
     CodeArtifact,
@@ -32,7 +33,6 @@ from app.models.entity_models import (
 from app.models.memory_models import (
     Memory,
     MemoryCreate,
-    MemoryCreateResponse,
     MemoryQueryRequest,
     MemoryQueryResult,
     MemoryUpdate,
@@ -46,6 +46,10 @@ from app.models.project_models import (
 )
 from app.models.user_models import UserResponse, UserUpdate
 from app.routes.mcp.pagination import clamp_list_pagination
+from app.routes.write_plugin_responses import (
+    MemoryCreateWriteResponse,
+    MemoryUpdateResponse,
+)
 from app.services.code_artifact_service import CodeArtifactService
 from app.services.document_service import DocumentService
 from app.services.entity_service import EntityService
@@ -176,7 +180,7 @@ class MemoryToolAdapters:
         agent_id: str | None = None,
         agent_version: str | None = None,
         agent_model: str | None = None,
-    ) -> MemoryCreateResponse:
+    ) -> MemoryCreateWriteResponse:
         """Adapter for create_memory tool"""
         logger.info("MCP Tool Called -> create memory", extra={"title": title})
 
@@ -213,9 +217,16 @@ class MemoryToolAdapters:
             agent_model=agent_model,
         )
 
-        memory, similar_memories = await self.memory_service.create_memory(
-            user_id=user.id, memory_data=memory_data,
-        )
+        try:
+            write_result = await self.memory_service.create_memory(
+                user_id=user.id, memory_data=memory_data,
+            )
+        except WritePluginRejectedError as exc:
+            raise ToolError(f"WRITE_PLUGIN_REJECTED: {exc}") from None
+        except WritePluginUnavailableError as exc:
+            raise ToolError(f"WRITE_PLUGIN_UNAVAILABLE: {exc}") from None
+        memory = write_result.memory
+        similar_memories = write_result.similar_memories
         obsolete_matches = await self.memory_service.find_obsolete_matches(
             user_id=user.id,
             memory_id=memory.id,
@@ -232,7 +243,7 @@ class MemoryToolAdapters:
             },
         )
 
-        return MemoryCreateResponse(
+        return MemoryCreateWriteResponse(
             id=memory.id,
             title=memory.title,
             linked_memory_ids=memory.linked_memory_ids,
@@ -242,6 +253,7 @@ class MemoryToolAdapters:
             file_ids=memory.file_ids,
             similar_memories=similar_memories,
             obsolete_matches=obsolete_matches,
+            plugin_warnings=write_result.plugin_warnings,
         )
 
     async def query_memory(
@@ -323,7 +335,7 @@ class MemoryToolAdapters:
         agent_version: str | None = None,
         agent_model: str | None = None,
         **kwargs,
-    ) -> Memory:
+    ) -> MemoryUpdateResponse | None:
         """Adapter for update_memory tool"""
         mid = memory_id if memory_id is not None else id
         if mid is None:
@@ -369,13 +381,23 @@ class MemoryToolAdapters:
 
         updated_memory = MemoryUpdate(**updated_dict)
 
-        refreshed_memory = await self.memory_service.update_memory(
-            user_id=user.id,
-            memory_id=mid,
-            updated_memory=updated_memory,
-        )
+        try:
+            write_result = await self.memory_service.update_memory(
+                user_id=user.id,
+                memory_id=mid,
+                updated_memory=updated_memory,
+            )
+        except WritePluginRejectedError as exc:
+            raise ToolError(f"WRITE_PLUGIN_REJECTED: {exc}") from None
+        except WritePluginUnavailableError as exc:
+            raise ToolError(f"WRITE_PLUGIN_UNAVAILABLE: {exc}") from None
+        refreshed_memory = write_result.memory
 
-        return refreshed_memory
+        if refreshed_memory is None:
+            return None
+        return MemoryUpdateResponse(
+            **refreshed_memory.model_dump(), plugin_warnings=write_result.plugin_warnings,
+        )
 
     async def link_memories(
         self,

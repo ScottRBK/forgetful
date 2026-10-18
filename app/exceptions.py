@@ -18,3 +18,11 @@ class DependencyNotMetError(Exception):
 
 class CyclicDependencyError(Exception):
     """Raised when adding a dependency would create a cycle"""
+
+
+class WritePluginRejectedError(Exception):
+    """A Write Plugin rejected the pending memory write with a client-safe message."""
+
+
+class WritePluginUnavailableError(Exception):
+    """A configured Write Plugin could not decide whether a write may proceed."""

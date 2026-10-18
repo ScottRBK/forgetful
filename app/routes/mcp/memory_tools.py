@@ -127,10 +127,12 @@ def register(mcp: FastMCP):
 
             # Access memory service via FastMCP context
             memory_service = ctx.fastmcp.memory_service
-            memory, similar_memories = await memory_service.create_memory(
+            write_result = await memory_service.create_memory(
                 user_id=user.id,
                 memory_data=memory_data,
             )
+            memory = write_result.memory
+            similar_memories = write_result.similar_memories
             obsolete_matches = await memory_service.find_obsolete_matches(
                 user_id=user.id,
                 memory_id=memory.id,
@@ -382,6 +384,7 @@ def register(mcp: FastMCP):
                 memory_id=memory_id,
                 updated_memory=updated_memory,
             )
+            refreshed_memory = refreshed_memory.memory
 
             return refreshed_memory
 

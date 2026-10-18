@@ -25,7 +25,8 @@ async def test_record_memory_access_does_not_mutate_updated_at(test_memory_servi
         tags=["stub"],
         importance=5,
     )
-    mem, _ = await test_memory_service.create_memory(user_id=user_id, memory_data=mem_data)
+    write_result = await test_memory_service.create_memory(user_id=user_id, memory_data=mem_data)
+    mem = write_result.memory
     updated_at_before = mem.updated_at
 
     count = await test_memory_service.memory_repo.record_memory_access(
@@ -54,7 +55,8 @@ async def test_get_memory_records_access(test_memory_service_with_access_trackin
         tags=["stub"],
         importance=5,
     )
-    mem, _ = await service.create_memory(user_id=user_id, memory_data=mem_data)
+    write_result = await service.create_memory(user_id=user_id, memory_data=mem_data)
+    mem = write_result.memory
     updated_at_before = mem.updated_at
 
     with patch.object(settings, "ACTIVITY_TRACK_READS", True):
@@ -85,7 +87,8 @@ async def test_query_memory_records_access_for_primaries_and_linked(
         tags=["main"],
         importance=9,
     )
-    primary, _ = await service.create_memory(user_id, primary_data)
+    write_result = await service.create_memory(user_id, primary_data)
+    primary = write_result.memory
     primary_updated_at_before = primary.updated_at
 
     linked_data = MemoryCreate(
@@ -96,7 +99,8 @@ async def test_query_memory_records_access_for_primaries_and_linked(
         tags=["related"],
         importance=8,
     )
-    linked, _ = await service.create_memory(user_id, linked_data)
+    write_result = await service.create_memory(user_id, linked_data)
+    linked = write_result.memory
     linked_updated_at_before = linked.updated_at
 
     await service.link_memories(
@@ -158,7 +162,8 @@ async def test_get_memory_no_access_when_tracking_disabled(
         tags=["stub"],
         importance=5,
     )
-    mem, _ = await service.create_memory(user_id=user_id, memory_data=mem_data)
+    write_result = await service.create_memory(user_id=user_id, memory_data=mem_data)
+    mem = write_result.memory
 
     with patch.object(settings, "ACTIVITY_TRACK_READS", False):
         await service.get_memory(user_id=user_id, memory_id=mem.id)

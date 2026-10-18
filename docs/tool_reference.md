@@ -144,6 +144,20 @@ execute_forgetful_tool(
 
 ## Memory Tools
 
+Memory create/update can be checked by an administrator's
+[Write Plugin](configuration.md#memory-write-plugin). Success adds `plugin_warnings` only when
+nonempty; each entry contains `outcome="warn"`, a client-safe `message`, and optional `code`.
+Create keeps its existing confirmation fields and `obsolete_matches`. Update stays a flat memory
+object. Reads, lists, queries, and events do not contain these transient warnings.
+
+A warning means the write succeeded: review the message without creating a duplicate. Rejection
+raises `WRITE_PLUGIN_REJECTED: <message>` and leaves the write unapplied. Correct the stated issue
+within the user's authorization before making another attempt. Runtime failure/timeout raises
+`WRITE_PLUGIN_UNAVAILABLE: Memory Write Plugin unavailable.` in enforce mode; warn mode writes
+with that generic warning instead. Do not automatically retry or claim a rejected write succeeded.
+No-op updates skip the plugin. Other tools, including obsolescence and linking, are unaffected.
+
+
 The core of Forgetful - atomic knowledge storage and semantic retrieval.
 
 ### `create_memory`

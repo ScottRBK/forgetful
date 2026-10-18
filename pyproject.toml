@@ -99,7 +99,7 @@ source_modules = [
 ]
 forbidden_modules = [
     "app.services", "app.repositories", "app.routes", "app.bootstrap",
-    "app.middleware.auth", "app.config.auth",
+    "app.middleware.auth", "app.config.auth", "app.config.write_plugin",
 ]
 
 [[tool.importlinter.contracts]]
@@ -109,7 +109,7 @@ type = "forbidden"
 source_modules = ["app.services"]
 forbidden_modules = [
     "app.repositories", "app.routes", "app.bootstrap",
-    "app.middleware.auth", "app.config.auth",
+    "app.middleware.auth", "app.config.auth", "app.config.write_plugin",
 ]
 
 [[tool.importlinter.contracts]]
@@ -119,7 +119,7 @@ type = "forbidden"
 source_modules = ["app.repositories"]
 forbidden_modules = [
     "app.services", "app.routes", "app.bootstrap",
-    "app.middleware.auth", "app.config.auth",
+    "app.middleware.auth", "app.config.auth", "app.config.write_plugin",
 ]
 
 [[tool.importlinter.contracts]]
@@ -140,8 +140,10 @@ forbidden_modules = [
 id = "routes"
 name = "HTTP and MCP handlers use services instead of repositories or bootstrap"
 type = "forbidden"
-source_modules = ["app.routes.api", "app.routes.mcp", "app.middleware.auth"]
-forbidden_modules = ["app.repositories", "app.bootstrap"]
+source_modules = [
+    "app.routes.api", "app.routes.mcp", "app.routes.write_plugin_responses", "app.middleware.auth",
+]
+forbidden_modules = ["app.repositories", "app.bootstrap", "app.config.write_plugin"]
 
 # Keep CLI startup exceptions separate so HTTP/MCP cannot use them to reach bootstrap.
 [[tool.importlinter.contracts]]
@@ -149,7 +151,7 @@ id = "cli"
 name = "CLI uses services with explicit startup wiring"
 type = "forbidden"
 source_modules = ["app.routes.cli"]
-forbidden_modules = ["app.repositories", "app.bootstrap"]
+forbidden_modules = ["app.repositories", "app.bootstrap", "app.config.write_plugin"]
 ignore_imports = [
     "app.routes.cli.local_executor -> app.bootstrap",
     "app.routes.cli.context -> app.bootstrap",

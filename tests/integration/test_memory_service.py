@@ -26,10 +26,12 @@ async def test_create_memory_basic(test_memory_service):
         importance=7,
     )
 
-    memory, similar_memories = await test_memory_service.create_memory(
+    write_result = await test_memory_service.create_memory(
         user_id=user_id,
         memory_data=memory_data,
     )
+    memory = write_result.memory
+    similar_memories = write_result.similar_memories
 
     assert memory is not None
     assert memory.id is not None
@@ -53,7 +55,8 @@ async def test_create_memory_with_auto_linking(test_memory_service):
         tags=["testing", "python"],
         importance=9,
     )
-    memory1, _ = await test_memory_service.create_memory(user_id, memory1_data)
+    write_result = await test_memory_service.create_memory(user_id, memory1_data)
+    memory1 = write_result.memory
 
     # Create second similar memory - should auto-link
     memory2_data = MemoryCreate(
@@ -64,7 +67,9 @@ async def test_create_memory_with_auto_linking(test_memory_service):
         tags=["testing", "python"],
         importance=8,
     )
-    memory2, similar_memories = await test_memory_service.create_memory(user_id, memory2_data)
+    write_result = await test_memory_service.create_memory(user_id, memory2_data)
+    memory2 = write_result.memory
+    similar_memories = write_result.similar_memories
 
     # Verify auto-linking occurred
     assert len(similar_memories) > 0
@@ -120,7 +125,8 @@ async def test_query_memory_with_linked_memories(test_memory_service):
         tags=["main"],
         importance=9,
     )
-    primary, _ = await test_memory_service.create_memory(user_id, primary_data)
+    write_result = await test_memory_service.create_memory(user_id, primary_data)
+    primary = write_result.memory
 
     # Create linked memory
     linked_data = MemoryCreate(
@@ -131,7 +137,8 @@ async def test_query_memory_with_linked_memories(test_memory_service):
         tags=["related"],
         importance=8,
     )
-    linked, _ = await test_memory_service.create_memory(user_id, linked_data)
+    write_result = await test_memory_service.create_memory(user_id, linked_data)
+    linked = write_result.memory
 
     # Manually link them
     await test_memory_service.link_memories(
@@ -174,7 +181,8 @@ async def test_link_memories_bidirectional(test_memory_service):
         tags=["programming", "python"],
         importance=7,
     )
-    memory1, _ = await test_memory_service.create_memory(user_id, memory1_data)
+    write_result = await test_memory_service.create_memory(user_id, memory1_data)
+    memory1 = write_result.memory
 
     memory2_data = MemoryCreate(
         title="Database Connection Pooling",
@@ -184,7 +192,8 @@ async def test_link_memories_bidirectional(test_memory_service):
         tags=["database", "optimization"],
         importance=7,
     )
-    memory2, _ = await test_memory_service.create_memory(user_id, memory2_data)
+    write_result = await test_memory_service.create_memory(user_id, memory2_data)
+    memory2 = write_result.memory
 
     # Link them
     links_created = await test_memory_service.link_memories(
@@ -217,7 +226,8 @@ async def test_list_memories_linked_ids_match_get_memory(test_memory_service):
         tags=["programming", "python"],
         importance=7,
     )
-    memory1, _ = await test_memory_service.create_memory(user_id, memory1_data)
+    write_result = await test_memory_service.create_memory(user_id, memory1_data)
+    memory1 = write_result.memory
 
     memory2_data = MemoryCreate(
         title="Database Connection Pooling",
@@ -227,7 +237,8 @@ async def test_list_memories_linked_ids_match_get_memory(test_memory_service):
         tags=["database", "optimization"],
         importance=7,
     )
-    memory2, _ = await test_memory_service.create_memory(user_id, memory2_data)
+    write_result = await test_memory_service.create_memory(user_id, memory2_data)
+    memory2 = write_result.memory
 
     await test_memory_service.link_memories(
         user_id=user_id,
@@ -267,7 +278,8 @@ async def test_update_memory_content(test_memory_service):
         tags=["original"],
         importance=7,
     )
-    memory, _ = await test_memory_service.create_memory(user_id, memory_data)
+    write_result = await test_memory_service.create_memory(user_id, memory_data)
+    memory = write_result.memory
 
     # Update content and importance
     memory_update = MemoryUpdate(
@@ -281,6 +293,7 @@ async def test_update_memory_content(test_memory_service):
         memory_id=memory.id,
         updated_memory=memory_update,
     )
+    updated_memory = updated_memory.memory
 
     assert updated_memory is not None
     assert updated_memory.title == "Updated Title"
@@ -303,7 +316,8 @@ async def test_mark_memory_obsolete(test_memory_service):
         tags=["outdated"],
         importance=7,
     )
-    old_memory, _ = await test_memory_service.create_memory(user_id, old_memory_data)
+    write_result = await test_memory_service.create_memory(user_id, old_memory_data)
+    old_memory = write_result.memory
 
     # Create new memory that supersedes it
     new_memory_data = MemoryCreate(
@@ -314,7 +328,8 @@ async def test_mark_memory_obsolete(test_memory_service):
         tags=["current"],
         importance=8,
     )
-    new_memory, _ = await test_memory_service.create_memory(user_id, new_memory_data)
+    write_result = await test_memory_service.create_memory(user_id, new_memory_data)
+    new_memory = write_result.memory
 
     # Mark old memory as obsolete
     success = await test_memory_service.mark_memory_obsolete(
@@ -358,7 +373,8 @@ async def test_list_memories_defaults_to_recent_first(test_memory_service):
             tags=[f"tag{i}"],
             importance=7,
         )
-        memory, _ = await test_memory_service.create_memory(user_id, memory_data)
+        write_result = await test_memory_service.create_memory(user_id, memory_data)
+        memory = write_result.memory
         memories_created.append(memory)
         await asyncio.sleep(0.01)  # Small delay to ensure different timestamps
 
@@ -388,7 +404,8 @@ async def test_list_memories_with_project_filter(test_memory_service):
         importance=7,
         project_ids=[1],
     )
-    memory1, _ = await test_memory_service.create_memory(user_id, memory1_data)
+    write_result = await test_memory_service.create_memory(user_id, memory1_data)
+    _memory1 = write_result.memory
 
     memory2_data = MemoryCreate(
         title="Project B Memory",
@@ -399,7 +416,8 @@ async def test_list_memories_with_project_filter(test_memory_service):
         importance=7,
         project_ids=[2],
     )
-    memory2, _ = await test_memory_service.create_memory(user_id, memory2_data)
+    write_result = await test_memory_service.create_memory(user_id, memory2_data)
+    _memory2 = write_result.memory
 
     memory3_data = MemoryCreate(
         title="Project A Memory 2",
@@ -410,7 +428,8 @@ async def test_list_memories_with_project_filter(test_memory_service):
         importance=7,
         project_ids=[1],
     )
-    memory3, _ = await test_memory_service.create_memory(user_id, memory3_data)
+    write_result = await test_memory_service.create_memory(user_id, memory3_data)
+    _memory3 = write_result.memory
 
     # Get recent memories for project 1 only
     recent_project_a, total = await test_memory_service.list_memories(
@@ -433,7 +452,7 @@ async def test_list_memories_created_since_accepts_offset_and_counts_matches(tes
     user_id = uuid4()
     created = []
     for importance in (9, 8, 3):
-        memory, _ = await test_memory_service.create_memory(
+        write_result = await test_memory_service.create_memory(
             user_id,
             MemoryCreate(
                 title=f"Created since {importance}",
@@ -444,6 +463,7 @@ async def test_list_memories_created_since_accepts_offset_and_counts_matches(tes
                 importance=importance,
             ),
         )
+        memory = write_result.memory
         created.append(memory)
 
     floor = created[1].created_at.astimezone(timezone(timedelta(hours=2)))
@@ -474,7 +494,8 @@ async def test_list_memories_excludes_obsolete(test_memory_service):
         tags=["current"],
         importance=7,
     )
-    memory1, _ = await test_memory_service.create_memory(user_id, memory1_data)
+    write_result = await test_memory_service.create_memory(user_id, memory1_data)
+    memory1 = write_result.memory
 
     memory2_data = MemoryCreate(
         title="To Be Obsolete",
@@ -484,7 +505,8 @@ async def test_list_memories_excludes_obsolete(test_memory_service):
         tags=["old"],
         importance=7,
     )
-    memory2, _ = await test_memory_service.create_memory(user_id, memory2_data)
+    write_result = await test_memory_service.create_memory(user_id, memory2_data)
+    memory2 = write_result.memory
 
     # Mark second memory as obsolete
     await test_memory_service.mark_memory_obsolete(
@@ -516,7 +538,8 @@ async def test_unlink_memories_success(test_memory_service):
         tags=["hobby", "music"],
         importance=7,
     )
-    memory1, _ = await test_memory_service.create_memory(user_id, memory1_data)
+    write_result = await test_memory_service.create_memory(user_id, memory1_data)
+    memory1 = write_result.memory
 
     memory2_data = MemoryCreate(
         title="SQL Query Optimization",
@@ -526,7 +549,8 @@ async def test_unlink_memories_success(test_memory_service):
         tags=["database", "optimization"],
         importance=7,
     )
-    memory2, _ = await test_memory_service.create_memory(user_id, memory2_data)
+    write_result = await test_memory_service.create_memory(user_id, memory2_data)
+    memory2 = write_result.memory
 
     # Link them
     await test_memory_service.link_memories(
@@ -571,7 +595,8 @@ async def test_unlink_memories_not_found(test_memory_service):
         tags=["science"],
         importance=7,
     )
-    memory1, _ = await test_memory_service.create_memory(user_id, memory1_data)
+    write_result = await test_memory_service.create_memory(user_id, memory1_data)
+    memory1 = write_result.memory
 
     memory2_data = MemoryCreate(
         title="Medieval Castle Architecture",
@@ -581,7 +606,8 @@ async def test_unlink_memories_not_found(test_memory_service):
         tags=["history"],
         importance=7,
     )
-    memory2, _ = await test_memory_service.create_memory(user_id, memory2_data)
+    write_result = await test_memory_service.create_memory(user_id, memory2_data)
+    memory2 = write_result.memory
 
     # Verify they didn't auto-link (different keywords = no overlap)
     refreshed_m1 = await test_memory_service.get_memory(user_id, memory1.id)
@@ -622,10 +648,11 @@ async def test_create_memory_with_provenance(test_memory_service):
         encoding_version="0.1.0",
     )
 
-    memory, _ = await test_memory_service.create_memory(
+    write_result = await test_memory_service.create_memory(
         user_id=user_id,
         memory_data=memory_data,
     )
+    memory = write_result.memory
 
     assert memory is not None
     assert memory.source_repo == "scottrbk/forgetful"
@@ -651,10 +678,11 @@ async def test_create_memory_without_provenance(test_memory_service):
         # No provenance fields - should default to None
     )
 
-    memory, _ = await test_memory_service.create_memory(
+    write_result = await test_memory_service.create_memory(
         user_id=user_id,
         memory_data=memory_data,
     )
+    memory = write_result.memory
 
     assert memory is not None
     assert memory.source_repo is None
@@ -679,7 +707,8 @@ async def test_update_memory_add_provenance(test_memory_service):
         tags=["test"],
         importance=7,
     )
-    memory, _ = await test_memory_service.create_memory(user_id, memory_data)
+    write_result = await test_memory_service.create_memory(user_id, memory_data)
+    memory = write_result.memory
 
     assert memory.source_repo is None
 
@@ -696,6 +725,7 @@ async def test_update_memory_add_provenance(test_memory_service):
         memory_id=memory.id,
         updated_memory=memory_update,
     )
+    updated_memory = updated_memory.memory
 
     assert updated_memory.source_repo == "owner/repo"
     assert updated_memory.source_files == ["file1.py"]
@@ -722,7 +752,8 @@ async def test_update_memory_modify_provenance(test_memory_service):
         confidence=0.5,
         encoding_agent="old-agent",
     )
-    memory, _ = await test_memory_service.create_memory(user_id, memory_data)
+    write_result = await test_memory_service.create_memory(user_id, memory_data)
+    memory = write_result.memory
 
     assert memory.confidence == 0.5
     assert memory.encoding_agent == "old-agent"
@@ -738,6 +769,7 @@ async def test_update_memory_modify_provenance(test_memory_service):
         memory_id=memory.id,
         updated_memory=memory_update,
     )
+    updated_memory = updated_memory.memory
 
     assert updated_memory.confidence == 0.95
     assert updated_memory.encoding_agent == "verified-by-human"
@@ -798,7 +830,8 @@ async def test_confidence_validation(test_memory_service):
         importance=5,
         confidence=0.0,  # Minimum valid
     )
-    memory_low, _ = await test_memory_service.create_memory(user_id, memory_data_low)
+    write_result = await test_memory_service.create_memory(user_id, memory_data_low)
+    memory_low = write_result.memory
     assert memory_low.confidence == 0.0
 
     memory_data_high = MemoryCreate(
@@ -810,7 +843,8 @@ async def test_confidence_validation(test_memory_service):
         importance=9,
         confidence=1.0,  # Maximum valid
     )
-    memory_high, _ = await test_memory_service.create_memory(user_id, memory_data_high)
+    write_result = await test_memory_service.create_memory(user_id, memory_data_high)
+    memory_high = write_result.memory
     assert memory_high.confidence == 1.0
 
 
@@ -829,7 +863,8 @@ async def test_source_files_empty_string_cleaning(test_memory_service):
         source_files=["file1.py", "", "  ", "file2.py", "   file3.py   "],
     )
 
-    memory, _ = await test_memory_service.create_memory(user_id, memory_data)
+    write_result = await test_memory_service.create_memory(user_id, memory_data)
+    memory = write_result.memory
 
     # Empty strings and whitespace-only strings should be removed
     # Strings with content should be trimmed
@@ -858,7 +893,8 @@ async def test_get_memory_emits_read_event_when_tracking_enabled(
         tags=["test"],
         importance=7,
     )
-    memory, _ = await service.create_memory(user_id, memory_data)
+    write_result = await service.create_memory(user_id, memory_data)
+    memory = write_result.memory
     event_bus.collected_events.clear()  # Clear creation event
 
     # Read the memory with tracking enabled
@@ -890,7 +926,8 @@ async def test_get_memory_no_event_when_tracking_disabled(
         tags=["test"],
         importance=7,
     )
-    memory, _ = await service.create_memory(user_id, memory_data)
+    write_result = await service.create_memory(user_id, memory_data)
+    memory = write_result.memory
     event_bus.collected_events.clear()
 
     # Read with tracking disabled (default)

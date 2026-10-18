@@ -23,6 +23,10 @@ flowchart TD
     ToolAdapters --> Services["Domain services"]
     HTTP["HTTP custom routes"] --> Services
     Services --> Contracts["Repository protocols"]
+    Services --> WritePlugin["WritePluginService: decision before memory create/update"]
+    WritePlugin --> Callable["WritePlugin callable protocol"]
+    Bootstrap --> Loader["config.write_plugin: trusted module:function loader"]
+    Loader -. supplies handler .-> WritePlugin
     SQLite["SQLite repositories"] -. implements .-> Contracts
     Postgres["PostgreSQL repositories"] -. implements .-> Contracts
     SQLite --> SQLiteDB["SQLite adapter and sqlite-vec"]
@@ -110,7 +114,7 @@ inspect their own authorization path before assuming parity. This overview is no
 
 ## Memory write, retrieval, and linking
 
-**Create:** route/tool adapter → `MemoryService.create_memory` → repository → embedding provider
+**Create:** route/tool adapter → `MemoryService.create_memory` → optional `WritePluginService` decision → repository → embedding provider
 and database. [memory_service.py:169](app/services/memory_service.py#L169) applies provenance
 defaults, persists the memory, then optionally finds similar memories and creates links in a batch.
 The repository builds embedding text and persists associations as part of its create operation:
@@ -125,6 +129,33 @@ service operation ([memory_service.py:459](app/services/memory_service.py#L459))
 methods maintain the bidirectional memory relation. Obsolescence is a soft state with reason and
 optional replacement; create responses can additionally warn about similar obsolete memories
 ([memory_service.py:380](app/services/memory_service.py#L380)).
+
+**Write Plugin:** `app/config/write_plugin.py` loads one trusted async `module:function` at runtime
+startup before costly resources. Bootstrap injects `WritePluginService` into MemoryService; services
+never import the loader. `app/protocols/write_plugin_protocol.py` defines the callable boundary, and
+`app/models/write_plugin_models.py` owns the request, decision, and explicit internal write results.
+The plugin gets separately detached submitted/previous/proposed snapshots, with the writable
+candidate built by MemoryService after defaults and update merging. No-op updates skip evaluation.
+A rejection in enforce mode, malformed decision, exception, or timeout blocks before repository work;
+warn mode proceeds with warnings. Cancellation propagates; the deadline is cooperative, not a hard kill.
+No session spans the plugin await. After a successful update decision, MemoryService re-reads the
+user-owned memory and recomputes patch differences before repository work, using the refreshed state
+for embeddings and event differences. A resulting no-op preserves the current timestamp and any
+plugin warning without emitting an update event. The original plugin snapshots are not re-evaluated.
+This removes the new plugin-wait stale-state window; it does not prevent later concurrent changes,
+including the pre-existing embedding-provider await race, or promise atomic global checks.
+Explicit-null adapter differences (#95) and skill update limitations (#96) are unchanged.
+
+`app/routes/write_plugin_responses.py` adds nonempty-only warnings to write responses; update remains
+flat. Stored/read `Memory` and event snapshots are unchanged. The live MCP adapter maps plugin errors
+for both meta-tools and local CLI; REST maps rejection to 400 and unavailable to 503. The legacy
+unregistered `memory_tools.py` only unwraps the changed internal results for compatibility; it is not
+a supported Write Plugin transport. CLI memory-save rendering shows warnings with success.
+Bootstrap restores the core plugin diagnostic logger after Alembic's existing logger-disabling setup.
+It also preserves pre-initialization enabled/disabled state for existing configured-module and
+handler-module loggers (including children and re-exports), without changing global logging setup.
+Import diagnostics identify module/reference, phase, and exception type; neither import nor decision
+diagnostics expose original exception text or full memory snapshots.
 
 **Query:** [memory_service.py:61](app/services/memory_service.py#L61) asks the repository for
 scored primary results, optionally expands one-hop links, deduplicates, and applies token/count
@@ -187,12 +218,12 @@ The six contracts in `pyproject.toml` enforce these rules, including indirect im
 
 | Source | Must not import |
 | --- | --- |
-| Models, protocols, events, utilities, settings, logging support, exceptions, version | Services, repositories, routes, bootstrap, authentication middleware/configuration |
-| Services | Repositories, routes, bootstrap, authentication middleware/configuration |
-| Repositories | Services, routes, bootstrap, authentication middleware/configuration |
+| Models, protocols, events, utilities, settings, logging support, exceptions, version | Services, repositories, routes, bootstrap, authentication middleware/configuration, Write Plugin loader |
+| Services | Repositories, routes, bootstrap, authentication middleware/configuration, Write Plugin loader |
+| Repositories | Services, routes, bootstrap, authentication middleware/configuration, Write Plugin loader |
 | Shared code above and services | `sqlalchemy`, `openai`, `google`, `fastembed`, `httpx`, `ollama`, `subprocess`, `shutil` |
-| API/MCP routes and authentication middleware | Repositories or bootstrap |
-| CLI | Repositories or bootstrap, except the two startup imports below |
+| API/MCP routes, write response models, and authentication middleware | Repositories, bootstrap, or Write Plugin loader |
+| CLI | Repositories, bootstrap, or Write Plugin loader, except the two startup imports below |
 
 All Python files under `app` must be visible to the checker; a regression test verifies this.
 Package markers are required, including for SQLite repositories, middleware, and utilities.

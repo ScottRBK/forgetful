@@ -29,7 +29,7 @@ async def test_build_runtime_wires_registry_and_memory_service(sqlite_runtime_se
                 email=settings.DEFAULT_USER_EMAIL,
             ),
         )
-        memory, _ = await runtime.services.memory.create_memory(
+        write_result = await runtime.services.memory.create_memory(
             user_id=user.id,
             memory_data=MemoryCreate(
                 title="Bootstrap smoke memory",
@@ -40,6 +40,7 @@ async def test_build_runtime_wires_registry_and_memory_service(sqlite_runtime_se
                 importance=5,
             ),
         )
+        memory = write_result.memory
         assert memory.id is not None
         assert memory.title == "Bootstrap smoke memory"
         ctx = SimpleNamespace(
