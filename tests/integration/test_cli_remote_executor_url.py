@@ -7,14 +7,25 @@ Covers regressions around the remote CLI server URL:
 * ``/mcp`` was appended to the raw string, so URLs with a query or fragment grew a
   doubled mount path every time they were normalised again;
 * credentials embedded in the server URL were echoed by ``auth login`` / ``auth status``
-  and persisted into the user env file.
+  and persisted into the user env file;
+* every fastmcp client was built without a handshake or request timeout, so a server
+  that answers ``initialize`` with a non-MCP ``200`` made the CLI wait forever.
 
-The fastmcp client is stubbed through the client-factory seam where one is needed.
+The fastmcp client is stubbed through the client-factory seam for the URL tests. The
+timeout tests talk to a real local HTTP stub over a loopback socket (no external network).
 """
 
+import asyncio
+import socket
+import threading
+import time
 from urllib.parse import urlsplit
 
 import pytest
+import uvicorn
+from starlette.applications import Starlette
+from starlette.responses import HTMLResponse
+from starlette.routing import Route
 
 from app.config.settings import settings
 from app.routes.cli import auth_commands, remote_executor
@@ -26,6 +37,7 @@ from app.utils.url_helpers import redact_url
 SECRET = "s3cretPassw0rd"
 USER = "alice"
 URL_WITH_SECRET = f"http://{USER}:{SECRET}@127.0.0.1:18765"
+GUARD_SECONDS = 20  # outer bound so a regression fails instead of hanging the suite
 
 
 def _args(argv):
@@ -322,3 +334,181 @@ async def test_tool_command_error_does_not_echo_url_credentials(
     assert "401 Unauthorized" in err
     assert SECRET not in err
     assert USER not in err
+
+
+# =============================================================================
+# Client timeouts
+# =============================================================================
+@pytest.fixture
+def recorded_clients(monkeypatch, tmp_path):
+    """Replace fastmcp.Client with a recorder of constructor kwargs."""
+    import fastmcp
+
+    calls = []
+
+    class Recorder:
+        def __init__(self, *args, **kwargs):
+            calls.append(kwargs)
+
+    monkeypatch.setattr(fastmcp, "Client", Recorder)
+    monkeypatch.setattr("app.routes.cli.paths.token_cache_dir", lambda: tmp_path / "t")
+    return calls
+
+
+def _assert_bounded(kwargs):
+    for name in ("init_timeout", "timeout"):
+        assert kwargs.get(name) is not None, f"{name} must be set"
+        assert kwargs[name] > 0
+
+
+def test_bearer_and_plain_clients_have_a_short_handshake_bound(recorded_clients):
+    remote_executor._default_client_factory("http://h:1/mcp", "token")
+    auth_commands._plain_client_factory("http://h:1/mcp")
+
+    assert len(recorded_clients) == 2
+    for kwargs in recorded_clients:
+        _assert_bounded(kwargs)
+        assert kwargs["init_timeout"] <= 60
+
+
+def test_oauth_clients_leave_room_for_the_browser_login(recorded_clients, tmp_path):
+    # fastmcp's OAuth callback waits up to 300s inside the first request; the
+    # handshake bound must not cut an interactive login short.
+    remote_executor._default_client_factory("http://h:1/mcp", None)
+    auth_commands._oauth_client_factory("http://h:1/mcp", tmp_path / "tokens")
+
+    assert len(recorded_clients) == 2
+    for kwargs in recorded_clients:
+        _assert_bounded(kwargs)
+        assert kwargs["init_timeout"] > 300
+        assert kwargs["timeout"] > 300
+
+
+def _free_port() -> int:
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        return sock.getsockname()[1]
+
+
+@pytest.fixture
+def html_server():
+    """Loopback server answering every request 200 text/html (not an MCP server)."""
+    hits = []
+
+    async def endpoint(request):
+        hits.append(request.method)
+        return HTMLResponse("<html><body>Welcome</body></html>")
+
+    app = Starlette(
+        routes=[Route("/{path:path}", endpoint, methods=["GET", "POST", "DELETE"])],
+    )
+    port = _free_port()
+    server = uvicorn.Server(
+        uvicorn.Config(app, host="127.0.0.1", port=port, log_level="error"),
+    )
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+    deadline = time.monotonic() + 10
+    while not server.started and time.monotonic() < deadline:
+        time.sleep(0.02)
+    assert server.started
+    yield f"http://127.0.0.1:{port}", hits
+    server.should_exit = True
+    thread.join(timeout=5)
+
+
+@pytest.fixture
+def short_timeouts(monkeypatch):
+    monkeypatch.setattr(remote_executor, "CLIENT_INIT_TIMEOUT_SECONDS", 1.0)
+    monkeypatch.setattr(remote_executor, "CLIENT_REQUEST_TIMEOUT_SECONDS", 2.0)
+    monkeypatch.setattr(remote_executor, "INTERACTIVE_CLIENT_TIMEOUT_SECONDS", 2.0)
+
+
+async def _fails_within_bound(awaitable):
+    started = time.monotonic()
+    try:
+        await asyncio.wait_for(awaitable, timeout=GUARD_SECONDS)
+    except TimeoutError:
+        pytest.fail(f"still blocked after {GUARD_SECONDS}s: no client timeout applied")
+    except Exception as exc:
+        return exc, time.monotonic() - started
+    pytest.fail("expected the handshake against a non-MCP server to fail")
+
+
+async def test_handshake_against_a_non_mcp_200_fails_in_bounded_time(
+    html_server, short_timeouts,
+):
+    url, hits = html_server
+    executor = RemoteExecutor(url, token="t")
+
+    try:
+        _, elapsed = await _fails_within_bound(executor.list_tools())
+    finally:
+        await executor.close()
+
+    assert "POST" in hits
+    assert elapsed < GUARD_SECONDS / 2
+
+
+@pytest.mark.parametrize(
+    ("init_timeout", "request_timeout"), [(1.0, 600.0), (600.0, 1.0)],
+)
+async def test_init_and_request_timeouts_each_bound_the_handshake(
+    html_server, monkeypatch, init_timeout, request_timeout,
+):
+    monkeypatch.setattr(remote_executor, "CLIENT_INIT_TIMEOUT_SECONDS", init_timeout)
+    monkeypatch.setattr(remote_executor, "CLIENT_REQUEST_TIMEOUT_SECONDS", request_timeout)
+    url, _ = html_server
+    executor = RemoteExecutor(url, token="t")
+
+    try:
+        await _fails_within_bound(executor.list_tools())
+    finally:
+        await executor.close()
+
+
+async def test_tool_command_against_a_non_mcp_200_exits_one(
+    html_server, short_timeouts, monkeypatch, capsys,
+):
+    url, _ = html_server
+    monkeypatch.setenv("FORGETFUL_TOKEN", "t")
+
+    code = await asyncio.wait_for(
+        _run_tool_command(_args(["tools", "list", "--server", url])),
+        timeout=GUARD_SECONDS,
+    )
+
+    assert code == 1
+    assert capsys.readouterr().err.startswith("Error:")
+
+
+async def test_auth_status_against_a_non_mcp_200_exits_one(
+    html_server, short_timeouts, monkeypatch, tmp_path, capsys,
+):
+    url, _ = html_server
+    monkeypatch.setattr(auth_commands, "token_cache_dir", lambda: tmp_path / "tokens")
+    monkeypatch.setattr(settings, "FORGETFUL_SERVER", url)
+    monkeypatch.delenv("FORGETFUL_TOKEN", raising=False)
+
+    code = await asyncio.wait_for(
+        _run_auth_command(_args(["auth", "status"])), timeout=GUARD_SECONDS,
+    )
+
+    assert code == 1
+    assert "not authenticated" in capsys.readouterr().err
+
+
+async def test_auth_login_against_a_non_mcp_200_exits_one_and_saves_nothing(
+    html_server, short_timeouts, tmp_path, capsys,
+):
+    url, _ = html_server
+    env_file = tmp_path / ".env"
+
+    code = await asyncio.wait_for(
+        auth_commands.login(url, env_file=env_file, token_dir=tmp_path / "tokens"),
+        timeout=GUARD_SECONDS,
+    )
+
+    assert code == 1
+    assert "could not authenticate" in capsys.readouterr().err
+    assert not env_file.exists()

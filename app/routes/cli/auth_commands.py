@@ -9,7 +9,11 @@ import sys
 from pathlib import Path
 
 from app.routes.cli.paths import token_cache_dir, user_env_file
-from app.routes.cli.remote_executor import normalize_server_url, strip_url_userinfo
+from app.routes.cli.remote_executor import (
+    client_timeouts,
+    normalize_server_url,
+    strip_url_userinfo,
+)
 from app.routes.cli.render import redact_urls_in_text
 from app.utils.url_helpers import redact_url
 
@@ -39,7 +43,7 @@ def _oauth_client_factory(url: str, token_dir: Path):
     token_dir.mkdir(parents=True, exist_ok=True)
     token_dir.chmod(0o700)
     oauth = OAuth(mcp_url=url, token_storage=oauth_token_file_tree_store(token_dir))
-    return Client(url, auth=oauth)
+    return Client(url, auth=oauth, **client_timeouts(interactive=True))
 
 
 def _plain_client_factory(url: str, _token: str | None = None):
@@ -51,7 +55,7 @@ def _plain_client_factory(url: str, _token: str | None = None):
     """
     from fastmcp import Client
 
-    return Client(url)
+    return Client(url, **client_timeouts())
 
 
 async def _has_cached_credentials(url: str, token_dir: Path) -> bool:
