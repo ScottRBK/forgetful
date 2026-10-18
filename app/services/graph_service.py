@@ -23,8 +23,13 @@ from app.protocols.memory_protocol import MemoryRepository
 
 logger = logging.getLogger(__name__)
 
-# Regex pattern for parsing node IDs
-NODE_ID_PATTERN = re.compile(r"^(memory|entity|project|document|code_artifact|file|skill|plan|task)_(\d+)$")
+# Regex pattern for parsing node IDs. Matched with fullmatch(): ASCII digits only, so a
+# trailing newline or non-ASCII decimal digits are not valid ids.
+NODE_ID_PATTERN = re.compile(r"(memory|entity|project|document|code_artifact|file|skill|plan|task)_([0-9]+)")
+
+# Largest id a node_id may carry: object ids are signed 32-bit INTEGER columns on PostgreSQL,
+# and drivers raise on a larger value instead of matching no row.
+MAX_NODE_ID = 2**31 - 1
 
 
 # Protocol for project service (to avoid circular imports)
@@ -114,17 +119,22 @@ class GraphService:
             Tuple of (node_type, numeric_id)
 
         Raises:
-            ValueError: If node_id format is invalid
+            ValueError: If node_id format is invalid or the id is out of range
         """
-        match = NODE_ID_PATTERN.match(node_id)
+        match = NODE_ID_PATTERN.fullmatch(node_id)
         if not match:
             raise ValueError(
                 f"Invalid node_id format: '{node_id}'. "
-                "Expected 'memory_{{id}}', 'entity_{{id}}', 'project_{{id}}', "
-                "'document_{{id}}', 'code_artifact_{{id}}', 'file_{{id}}', 'skill_{{id}}', "
-                "'plan_{{id}}', or 'task_{{id}}'.",
+                "Expected 'memory_{id}', 'entity_{id}', 'project_{id}', "
+                "'document_{id}', 'code_artifact_{id}', 'file_{id}', 'skill_{id}', "
+                "'plan_{id}', or 'task_{id}'.",
             )
-        return match.group(1), int(match.group(2))
+        numeric_id = int(match.group(2))
+        if numeric_id > MAX_NODE_ID:
+            raise ValueError(
+                f"Invalid node_id: '{node_id}' is out of range (maximum id is {MAX_NODE_ID}).",
+            )
+        return match.group(1), numeric_id
 
     async def get_subgraph(
         self,
@@ -156,8 +166,10 @@ class GraphService:
             ValueError: If center_node_id format is invalid
             NotFoundError: If center node doesn't exist
         """
-        # Parse and validate center node
+        # Parse and validate center node; report the canonical id (e.g. 'memory_001' -> 'memory_1')
+        # so meta.center_node_id always matches a node id in the response
         center_type, center_id = self.parse_node_id(center_node_id)
+        center_node_id = f"{center_type}_{center_id}"
 
         # Validate center node exists
         await self._validate_center_node(user_id, center_type, center_id)

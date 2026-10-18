@@ -1066,9 +1066,9 @@ def register(mcp: FastMCP):
         except NotFoundError as e:
             return JSONResponse({"error": str(e)}, status_code=404)
         except Exception as e:
-            # Log and return detailed error for debugging
+            # Details (SQL, bound parameters) stay in the server log, never in the response body
             logger.exception(f"Subgraph query failed: {e}")
-            return JSONResponse({"error": f"Internal error: {e!s}"}, status_code=500)
+            return JSONResponse({"error": "Internal server error"}, status_code=500)
 
         # Convert Pydantic models to dicts for JSON response
         return JSONResponse({
