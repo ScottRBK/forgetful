@@ -215,6 +215,41 @@ async def test_rest_create_task_with_cross_plan_dependency_is_a_client_error(htt
     assert listed.json()["total"] == 0
 
 
+async def test_failed_edge_write_removes_the_task_criteria_and_earlier_edges(stack, monkeypatch):
+    """Cascades must clean up what the failed create_task already stored in the database."""
+    prerequisite_a = await stack.new_task("a")
+    prerequisite_b = await stack.new_task("b")
+    repo = stack.task_repo
+    created_ids = []
+    original_create, original_add = repo.create_task, repo.add_dependency
+
+    async def remember_create(*args, **kwargs):
+        task = await original_create(*args, **kwargs)
+        created_ids.append(task.id)
+        return task
+
+    async def fail_on_second_edge(user_id, task_id, depends_on_task_id):
+        if depends_on_task_id == prerequisite_b.id:
+            raise RuntimeError("database went away")
+        return await original_add(user_id, task_id, depends_on_task_id)
+
+    monkeypatch.setattr(repo, "create_task", remember_create)
+    monkeypatch.setattr(repo, "add_dependency", fail_on_second_edge)
+
+    with pytest.raises(RuntimeError, match="database went away"):
+        await stack.new_task(
+            "X",
+            criteria=[CriterionCreate(description="c")],
+            dependency_ids=[prerequisite_a.id, prerequisite_b.id],
+        )
+
+    (orphan_id,) = created_ids
+    assert await repo.get_task_by_id(stack.user_id, orphan_id) is None
+    assert await repo.get_criteria_for_task(stack.user_id, orphan_id) == []
+    assert await repo.get_dependencies(stack.user_id, orphan_id) == []
+    assert await repo.get_dependents(stack.user_id, prerequisite_a.id) == []
+
+
 # ---------------------------------------------------------------------------
 # Duplicate dependency edges are a clean conflict
 # ---------------------------------------------------------------------------
