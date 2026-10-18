@@ -4,6 +4,7 @@ Full-stack cli() invocations over a file-backed SQLite database: deterministic -
 resolution, terminal-safe rendering of stored text, the obsolete marker in
 `memory get` and stdout encoding safety after a committed write.
 """
+import io
 import json
 import re
 import sys
@@ -149,6 +150,25 @@ def test_empty_project_value_is_rejected_and_nothing_is_saved(cli_env, monkeypat
     assert "Unknown project ''" in err
     _, recent_out, _ = invoke_cli(monkeypatch, capsys, ["memory", "recent", "--json"])
     assert json.loads(recent_out)["memories"] == []
+
+
+def test_save_with_unencodable_title_succeeds_on_a_cp1252_stdout(cli_env, monkeypatch):
+    title = "Arrow → test"
+    raw_out, raw_err = io.BytesIO(), io.BytesIO()
+    strict_stdout = io.TextIOWrapper(raw_out, encoding="cp1252", errors="strict", write_through=True)
+    err_stream = io.TextIOWrapper(raw_err, encoding="utf-8", write_through=True)
+    monkeypatch.setattr(sys, "stdout", strict_stdout)
+    monkeypatch.setattr(sys, "stderr", err_stream)
+    monkeypatch.setattr(
+        sys, "argv", ["forgetful", "memory", "save", "body text for the arrow memory", "--title", title],
+    )
+
+    code = main.cli() or 0
+
+    stderr_text = raw_err.getvalue().decode("utf-8")
+    assert code == 0, f"committed write reported as failure: {stderr_text!r}"
+    assert "Error:" not in stderr_text
+    assert raw_out.getvalue().decode("cp1252").startswith("Created memory 1: Arrow ")
 
 
 def test_recent_and_get_never_replay_stored_control_characters(cli_env, monkeypatch, capsys):

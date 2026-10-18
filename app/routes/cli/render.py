@@ -45,6 +45,23 @@ def sanitize_text(value: Any) -> str:
     return _TEXT_UNSAFE.sub(_escape, str(value).replace("\r\n", "\n"))
 
 
+def ensure_safe_stdout() -> None:
+    """Make stdout replace unencodable characters instead of raising.
+
+    Redirected stdout can use a legacy code page (Windows cp1252, ISO-8859-1 locales)
+    where a title containing an arrow raises UnicodeEncodeError, which would be reported
+    as a failed command after the write was already committed. Only the default 'strict'
+    handler is changed; an explicit PYTHONIOENCODING error handler is respected.
+    """
+    stream = sys.stdout
+    if getattr(stream, "errors", None) != "strict":
+        return
+    try:
+        stream.reconfigure(errors="replace")
+    except (AttributeError, OSError, ValueError):
+        pass
+
+
 def render_result(value: Any, as_json: bool) -> str:
     """Passthrough rendering: compact JSON for --json, indented JSON for humans."""
     payload = to_jsonable(value)

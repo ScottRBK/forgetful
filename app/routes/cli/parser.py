@@ -224,8 +224,9 @@ async def _build_executor(args):
 
 async def _run_tool_command(args) -> int:
     """Execute a tools/call command and map failures onto exit code 1."""
-    from app.routes.cli.render import emit_error, render_result
+    from app.routes.cli.render import emit_error, ensure_safe_stdout, render_result
 
+    ensure_safe_stdout()
     as_json = getattr(args, "json", False)
     try:
         executor = await _build_executor(args)

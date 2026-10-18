@@ -5,6 +5,7 @@ project names, empty values), terminal-safe rendering of stored text, the obsole
 marker in `memory get` and stdout encoding safety. Verbs run against a recording
 executor, so no database or embedding model is involved.
 """
+import io
 import re
 
 import pytest
@@ -268,3 +269,43 @@ def test_obsolete_reason_is_escaped_too():
     )
 
     assert output.splitlines()[1] == "OBSOLETE: bad\\x1b[2J\\nreason"
+
+
+# -- stdout encoding safety -----------------------------------------------------------
+
+
+def _strict_stdout(encoding="cp1252", errors="strict"):
+    raw = io.BytesIO()
+    stream = io.TextIOWrapper(raw, encoding=encoding, errors=errors, newline="\n", write_through=True)
+    return stream, raw
+
+
+def test_ensure_safe_stdout_makes_strict_streams_replace_unencodable_text(monkeypatch):
+    stream, raw = _strict_stdout()
+    monkeypatch.setattr("sys.stdout", stream)
+
+    render.ensure_safe_stdout()
+    print("Arrow \u2192 done")
+
+    assert raw.getvalue() == b"Arrow ? done\n"
+
+
+def test_ensure_safe_stdout_keeps_an_explicit_error_handler(monkeypatch):
+    stream, raw = _strict_stdout(errors="backslashreplace")
+    monkeypatch.setattr("sys.stdout", stream)
+
+    render.ensure_safe_stdout()
+    print("\u2192")
+
+    assert raw.getvalue() == b"\\u2192\n"
+
+
+def test_ensure_safe_stdout_tolerates_streams_without_reconfigure(monkeypatch):
+    class StrictWithoutReconfigure:
+        errors = "strict"
+
+    monkeypatch.setattr("sys.stdout", StrictWithoutReconfigure())
+    render.ensure_safe_stdout()  # must not raise
+
+    monkeypatch.setattr("sys.stdout", io.StringIO())
+    render.ensure_safe_stdout()  # must not raise
