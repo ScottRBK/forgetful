@@ -1,4 +1,4 @@
-name: E2E Tests
+name: PostgreSQL test suite
 
 on:
   push:
