@@ -4,6 +4,7 @@ Tests ReEmbeddingService -> PostgresMemoryRepository / PostgresSkillRepository: 
 migrated with the memories, and the schema must be left exactly as the application models
 declare it once a re-embed has completed.
 """
+import argparse
 import hashlib
 from datetime import UTC, datetime
 from uuid import uuid4
@@ -12,6 +13,7 @@ import pytest
 import pytest_asyncio
 from sqlalchemy import text
 
+import main
 from app.config.settings import settings
 from app.models.memory_models import MemoryCreate
 from app.models.skill_models import SkillCreate
@@ -157,3 +159,42 @@ async def test_skills_are_migrated_with_memories_and_keep_their_constraint(
     # Rebuilding a vector is not an edit of the skill.
     after = {s.id: s.updated_at for s in await skill_repo.get_skills_for_reembedding(10, 0)}
     assert after == before
+
+
+@pytest.mark.e2e
+async def test_dry_run_counts_without_touching_the_schema(
+    memory_repo, skill_repo, db_adapter, monkeypatch, capsys,
+):
+    # Arrange: one memory and one skill, and the migration version the database is at.
+    import app.bootstrap
+    import app.config.logging_config
+
+    monkeypatch.setattr(app.config.logging_config, "configure_logging", lambda **_: None)
+    monkeypatch.setattr(main.atexit, "register", lambda *_: None)
+    monkeypatch.setattr(app.bootstrap, "get_embedding_adapter", StubEmbeddings)
+    user_id = await create_user(db_adapter)
+    await memory_repo.create_memory(user_id, MemoryCreate(
+        title="Memory", content="content", context="run flow",
+        keywords=["run"], tags=["flow"], importance=7,
+    ))
+    await skill_repo.create_skill(user_id, SkillCreate(
+        name="pdf-processing", description="Process pdf documents", content="# Steps",
+    ))
+
+    async def version():
+        async with db_adapter.system_session() as session:
+            return await session.scalar(text("SELECT version_num FROM alembic_version"))
+
+    before = await version()
+
+    # Act
+    await main._run_reembed(argparse.Namespace(batch_size=5, dry_run=True))
+
+    # Assert
+    out = capsys.readouterr().out
+    assert "Memories to process: 1" in out
+    assert "Skills to process: 1" in out
+    assert "No changes were made." in out
+    assert await version() == before
+    assert not await embedding_is_nullable(db_adapter)
+    assert not await embedding_is_nullable(db_adapter, "skills")

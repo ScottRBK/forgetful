@@ -152,6 +152,46 @@ if settings.PLANNING_ENABLED:
 meta_tools.register(mcp)
 
 
+def _print_counts(total, skill_total):
+    print(f"  Memories to process: {total}")
+    if skill_total:
+        print(f"  Skills to process: {skill_total}")
+
+
+async def _count_without_migrating(embeddings_adapter):
+    """Count memories and skills as stored, for a dry run that must leave the database alone.
+
+    Unlike init_db(), which runs Alembic migrations and creates the database file and the
+    vector tables, this only reads. A database that does not exist yet holds nothing.
+    """
+    from app.bootstrap import (
+        create_db_adapter,
+        create_repositories,
+        create_skill_repository,
+    )
+
+    if settings.DATABASE == "SQLite" and (
+        settings.SQLITE_MEMORY or not Path(settings.SQLITE_PATH).exists()
+    ):
+        return 0, 0
+
+    db_adapter = create_db_adapter()
+    try:
+        repos = create_repositories(db_adapter, embeddings_adapter, None)
+        total = await repos["memory"].count_all_memories()
+        try:
+            skill_total = await create_skill_repository(
+                db_adapter, embeddings_adapter,
+            ).count_all_skills()
+        except Exception:  # noqa: BLE001
+            # A database from before the skills feature has no skills table, and a preview
+            # must not migrate it. It has no skills to count either.
+            skill_total = 0
+        return total, skill_total
+    finally:
+        await db_adapter.dispose()
+
+
 async def _run_reembed(args):
     """Run the re-embedding workflow"""
     from app.config.logging_config import configure_logging, shutdown_logging
@@ -180,6 +220,14 @@ async def _run_reembed(args):
         print(f"  Database: PostgreSQL ({settings.POSTGRES_HOST}:{settings.PGPORT}/{settings.POSTGRES_DB})")
     print(f"  Batch size: {args.batch_size}")
 
+    if args.dry_run:
+        total, skill_total = await _count_without_migrating(embeddings_adapter)
+        _print_counts(total, skill_total)
+        skills_note = f" and {skill_total} skills" if skill_total else ""
+        print(f"\n[DRY RUN] Would re-embed {total} memories{skills_note} with the above configuration.")
+        print("  No changes were made.")
+        return
+
     # Initialize database
     db_adapter = create_db_adapter()
 
@@ -195,19 +243,9 @@ async def _run_reembed(args):
     memory_repository = repos["memory"]
     skill_repository = create_skill_repository(db_adapter, embeddings_adapter)
 
-    # Count memories and skills for dry run / estimation
     total = await memory_repository.count_all_memories()
     skill_total = await skill_repository.count_all_skills()
-    print(f"  Memories to process: {total}")
-    if skill_total:
-        print(f"  Skills to process: {skill_total}")
-
-    if args.dry_run:
-        skills_note = f" and {skill_total} skills" if skill_total else ""
-        print(f"\n[DRY RUN] Would re-embed {total} memories{skills_note} with the above configuration.")
-        print("  No changes were made.")
-        await db_adapter.dispose()
-        return
+    _print_counts(total, skill_total)
 
     service = ReEmbeddingService(
         memory_repository=memory_repository,

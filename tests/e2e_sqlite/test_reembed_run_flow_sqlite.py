@@ -6,12 +6,16 @@ codec is involved) are the real ones.
 """
 
 import argparse
+import asyncio
 import hashlib
 import sqlite3
+from pathlib import Path
 
 import pytest
+from alembic.config import Config
 
 import main
+from alembic import command
 from app.bootstrap import create_repositories
 from app.config.settings import settings
 from app.models.memory_models import MemoryCreate
@@ -22,6 +26,7 @@ from app.repositories.sqlite.skill_repository import SqliteSkillRepository
 from app.repositories.sqlite.sqlite_adapter import SqliteDatabaseAdapter
 from app.services.re_embedding_service import ReEmbeddingService
 
+ROOT = Path(__file__).resolve().parents[2]
 OLD_DIMS = 4
 NEW_DIMS = 6
 
@@ -203,6 +208,83 @@ class TestSkills:
             assert [hit.name for hit in hits] == ["pdf-processing"]
         finally:
             await adapter.dispose()
+
+
+class TestDryRun:
+    @pytest.fixture
+    def older_schema(self, db_file):
+        """A database one release behind, built the way that release's server built it."""
+        async def build(revision):
+            db_file.parent.mkdir(parents=True, exist_ok=True)
+            config = Config(str(ROOT / "alembic.ini"))
+            config.set_main_option("script_location", str(ROOT / "alembic"))
+            # env.py reads settings.SQLITE_PATH and starts its own event loop.
+            await asyncio.to_thread(command.upgrade, config, revision)
+        return build
+
+    @staticmethod
+    def schema(path):
+        connection = sqlite3.connect(path)
+        try:
+            version = connection.execute("SELECT version_num FROM alembic_version").fetchone()[0]
+            tables = {row[0] for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table'",
+            )}
+        finally:
+            connection.close()
+        return version, tables
+
+    async def test_dry_run_does_not_migrate_the_schema(
+        self, db_file, older_schema, quiet_cli, capsys,
+    ):
+        await older_schema("20260408_provenance_all")
+        before = self.schema(db_file)
+
+        await main._run_reembed(argparse.Namespace(batch_size=20, dry_run=True))
+
+        out = capsys.readouterr().out
+        assert "Memories to process: 0" in out
+        assert "No changes were made." in out
+        assert self.schema(db_file) == before
+        assert "vec_memories" not in before[1]  # still no vector tables either
+
+    async def test_dry_run_counts_a_database_that_predates_skills(
+        self, db_file, older_schema, quiet_cli, capsys,
+    ):
+        await older_schema("20260315_files")  # before the skills table existed
+        before = self.schema(db_file)
+
+        await main._run_reembed(argparse.Namespace(batch_size=20, dry_run=True))
+
+        assert "Would re-embed 0 memories" in capsys.readouterr().out
+        assert self.schema(db_file) == before
+
+    async def test_dry_run_does_not_create_a_missing_database(self, db_file, quiet_cli, capsys):
+        await main._run_reembed(argparse.Namespace(batch_size=20, dry_run=True))
+
+        assert "Memories to process: 0" in capsys.readouterr().out
+        assert not db_file.exists()
+
+    async def test_dry_run_reports_counts_and_leaves_vector_storage_alone(
+        self, db_file, monkeypatch, quiet_cli, capsys,
+    ):
+        adapter, memories, skills = await open_stack()
+        user_id = await create_user(adapter)
+        await memories.create_memory(user_id, new_memory("one"))
+        await memories.create_memory(user_id, new_memory("two"))
+        await skills.create_skill(user_id, new_skill("pdf-processing"))
+        await adapter.dispose()
+        use_new_dimensions(monkeypatch)
+
+        await main._run_reembed(argparse.Namespace(batch_size=20, dry_run=True))
+
+        out = capsys.readouterr().out
+        assert "Memories to process: 2" in out
+        assert "Skills to process: 1" in out
+        assert "Would re-embed 2 memories and 1 skills" in out
+        assert vec_dimensions(db_file, "vec_memories") == OLD_DIMS
+        assert vec_dimensions(db_file, "vec_skills") == OLD_DIMS
+        assert not list(db_file.parent.glob("*.bak-*"))
 
 
 def test_sqlite_skill_repository_is_available_without_the_feature_flag(monkeypatch):
