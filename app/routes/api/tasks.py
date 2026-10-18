@@ -257,6 +257,8 @@ def register(mcp: FastMCP):
             )
         except NotFoundError as e:
             return JSONResponse({"error": str(e)}, status_code=404)
+        except InvalidStateTransitionError as e:
+            return JSONResponse({"error": str(e)}, status_code=422)
 
         return JSONResponse(criterion.model_dump(mode="json"))
 
@@ -269,9 +271,12 @@ def register(mcp: FastMCP):
             return JSONResponse({"error": str(e)}, status_code=401)
 
         criterion_id = int(request.path_params["criterion_id"])
-        success = await mcp.task_service.delete_criterion(
-            user_id=user.id, criterion_id=criterion_id,
-        )
+        try:
+            success = await mcp.task_service.delete_criterion(
+                user_id=user.id, criterion_id=criterion_id,
+            )
+        except InvalidStateTransitionError as e:
+            return JSONResponse({"error": str(e)}, status_code=422)
         if not success:
             return JSONResponse({"error": "Criterion not found"}, status_code=404)
         return JSONResponse({"success": True})

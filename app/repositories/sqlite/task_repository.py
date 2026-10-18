@@ -413,6 +413,20 @@ class SqliteTaskRepository:
             result = await session.execute(stmt)
             return result.rowcount > 0
 
+    async def get_criterion_by_id(
+        self, user_id: UUID, criterion_id: int,
+    ) -> Criterion | None:
+        async with self.db_adapter.session(user_id) as session:
+            stmt = select(CriteriaTable).where(
+                CriteriaTable.user_id == str(user_id),
+                CriteriaTable.id == criterion_id,
+            )
+            result = await session.execute(stmt)
+            criterion_orm = result.scalar_one_or_none()
+            if criterion_orm:
+                return Criterion.model_validate(criterion_orm)
+            return None
+
     async def get_criteria_for_task(
         self, user_id: UUID, task_id: int,
     ) -> list[Criterion]:

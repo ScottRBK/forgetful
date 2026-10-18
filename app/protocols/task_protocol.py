@@ -69,6 +69,10 @@ class TaskRepository(Protocol):
 
     async def delete_criterion(self, user_id: UUID, criterion_id: int) -> bool: ...
 
+    async def get_criterion_by_id(
+        self, user_id: UUID, criterion_id: int,
+    ) -> Criterion | None: ...
+
     async def get_criteria_for_task(
         self, user_id: UUID, task_id: int,
     ) -> list[Criterion]: ...

@@ -246,3 +246,26 @@ async def test_repository_transition_guards_and_error_precedence(stack):
         stack.user_id, task.id, TaskState.DONE, expected_version=doing.version,
     )
     assert finished.state == TaskState.DONE
+
+
+# ---------------------------------------------------------------------------
+# Criteria of a completed task are frozen, like add_criterion already enforces
+# ---------------------------------------------------------------------------
+
+
+async def test_criterion_of_a_done_task_is_frozen_and_lookup_is_user_scoped(stack):
+    task = await stack.new_task("t", criteria=[CriterionCreate(description="holds")])
+    criterion = task.criteria[0]
+    service = stack.task_service
+    await service.update_criterion(stack.user_id, criterion.id, CriterionUpdate(met=True))
+    doing = await service.claim_task(stack.user_id, task.id, "agent", expected_version=1)
+    await service.transition_task(stack.user_id, task.id, TaskState.DONE, expected_version=doing.version)
+
+    fetched = await stack.task_repo.get_criterion_by_id(stack.user_id, criterion.id)
+    assert fetched is not None and fetched.task_id == task.id
+    assert await stack.task_repo.get_criterion_by_id(UUID(int=1), criterion.id) is None
+    with pytest.raises(InvalidStateTransitionError, match="completed task"):
+        await service.update_criterion(stack.user_id, criterion.id, CriterionUpdate(met=False))
+    with pytest.raises(InvalidStateTransitionError, match="completed task"):
+        await service.delete_criterion(stack.user_id, criterion.id)
+    assert (await service.get_task(stack.user_id, task.id)).criteria[0].met is True

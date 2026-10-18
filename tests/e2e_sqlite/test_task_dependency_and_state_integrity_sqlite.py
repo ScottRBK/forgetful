@@ -464,3 +464,47 @@ async def test_repository_transition_guards_and_error_precedence(stack):
         stack.user_id, task.id, TaskState.DONE, expected_version=doing.version,
     )
     assert finished.state == TaskState.DONE
+
+
+# ---------------------------------------------------------------------------
+# Criteria of a completed task are frozen, like add_criterion already enforces
+# ---------------------------------------------------------------------------
+
+
+async def test_unmeeting_a_criterion_of_a_done_task_is_rejected_over_mcp(mcp_client):
+    project_id = await _mcp_project(mcp_client, "frozen-criteria")
+    plan_id = await _mcp_active_plan(mcp_client, project_id)
+    task = (await _tool(mcp_client, "create_task", plan_id=plan_id, title="t")).data
+    criterion = (await _tool(
+        mcp_client, "add_criterion", task_id=task["id"], description="must hold",
+    )).data
+    await _tool(mcp_client, "verify_criterion", criterion_id=criterion["id"], met=True)
+    claimed = (await _tool(
+        mcp_client, "claim_task", task_id=task["id"], agent_id="agent-1", version=task["version"],
+    )).data
+    await _tool(mcp_client, "transition_task", task_id=task["id"], state="done", version=claimed["version"])
+
+    with pytest.raises(ToolError, match="completed task"):
+        await _tool(mcp_client, "verify_criterion", criterion_id=criterion["id"], met=False)
+
+    final = (await _tool(mcp_client, "get_task", task_id=task["id"])).data
+    assert final["state"] == "done"
+    assert [c["met"] for c in final["criteria"]] == [True]
+
+
+async def test_rest_criterion_changes_on_a_done_task_are_unprocessable(http_client):
+    (plan_id,) = await _rest_project_and_plans(http_client)
+    task = await _rest_task(http_client, plan_id, "t")
+    added = await http_client.post(f"/api/v1/tasks/{task['id']}/criteria", json={"description": "holds"})
+    criterion_id = added.json()["id"]
+    assert (await http_client.put(f"/api/v1/criteria/{criterion_id}", json={"met": True})).status_code == 200
+    assert (await _rest_transition(http_client, task["id"], "doing")).status_code == 200
+    assert (await _rest_transition(http_client, task["id"], "done")).status_code == 200
+
+    unmet = await http_client.put(f"/api/v1/criteria/{criterion_id}", json={"met": False})
+    deleted = await http_client.delete(f"/api/v1/criteria/{criterion_id}")
+
+    assert unmet.status_code == 422, unmet.text
+    assert deleted.status_code == 422, deleted.text
+    final = (await http_client.get(f"/api/v1/tasks/{task['id']}")).json()
+    assert [c["met"] for c in final["criteria"]] == [True]

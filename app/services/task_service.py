@@ -379,6 +379,10 @@ class TaskService:
     async def update_criterion(
         self, user_id: UUID, criterion_id: int, criterion_data: CriterionUpdate,
     ) -> Criterion:
+        existing = await self._get_editable_criterion(user_id, criterion_id)
+        if existing is None:
+            raise NotFoundError(f"Criterion with id {criterion_id} not found")
+
         criterion = await self.task_repo.update_criterion(
             user_id=user_id, criterion_id=criterion_id, criterion_data=criterion_data,
         )
@@ -386,6 +390,9 @@ class TaskService:
         return criterion
 
     async def delete_criterion(self, user_id: UUID, criterion_id: int) -> bool:
+        if await self._get_editable_criterion(user_id, criterion_id) is None:
+            return False
+
         success = await self.task_repo.delete_criterion(user_id=user_id, criterion_id=criterion_id)
         if success:
             logger.info("criterion deleted", extra={"criterion_id": criterion_id})
@@ -435,6 +442,19 @@ class TaskService:
         return success
 
     # ---- Private Helpers ----
+
+    async def _get_editable_criterion(self, user_id: UUID, criterion_id: int) -> Criterion | None:
+        """Return the criterion, or None if missing; refuse if its task is already DONE.
+
+        Mirrors add_criterion: a completed task keeps the criteria it was completed with.
+        """
+        criterion = await self.task_repo.get_criterion_by_id(user_id=user_id, criterion_id=criterion_id)
+        if criterion is None:
+            return None
+        task = await self.task_repo.get_task_by_id(user_id=user_id, task_id=criterion.task_id)
+        if task is not None and TaskState(task.state) == TaskState.DONE:
+            raise InvalidStateTransitionError("Cannot modify criteria of a completed task")
+        return criterion
 
     async def _validate_dependencies_met(self, user_id: UUID, task: Task) -> None:
         """Check all dependencies are in done state."""

@@ -19,6 +19,7 @@ from app.exceptions import (
 )
 from app.models.plan_models import (
     CriterionCreate,
+    CriterionUpdate,
     PlanCreate,
     PlanStatus,
     PlanUpdate,
@@ -263,3 +264,69 @@ async def test_done_task_cannot_gain_a_dependency(test_task_service):
         )
 
     assert (await task_service.get_task(user_id=user_id, task_id=finished.id)).dependency_ids == []
+
+
+# ---------------------------------------------------------------------------
+# Criteria of a completed task are frozen, like add_criterion already enforces
+# ---------------------------------------------------------------------------
+
+
+async def _done_task_with_met_criterion(task_service, user_id, plan_id):
+    task = await _task(task_service, user_id, plan_id, "t", criteria=[CriterionCreate(description="holds")])
+    criterion = task.criteria[0]
+    await task_service.update_criterion(user_id, criterion.id, CriterionUpdate(met=True))
+    await _finish(task_service, user_id, task)
+    return task, criterion
+
+
+@pytest.mark.asyncio
+async def test_criterion_of_a_done_task_cannot_be_unmet_or_edited(test_task_service):
+    task_service, plan_service = test_task_service
+    user_id = uuid4()
+    plan = await _active_plan(plan_service, user_id)
+    task, criterion = await _done_task_with_met_criterion(task_service, user_id, plan.id)
+
+    for change in (CriterionUpdate(met=False), CriterionUpdate(description="rewritten")):
+        with pytest.raises(InvalidStateTransitionError, match="completed task"):
+            await task_service.update_criterion(user_id, criterion.id, change)
+
+    current = await task_service.get_task(user_id=user_id, task_id=task.id)
+    assert current.state == TaskState.DONE
+    assert [(c.description, c.met) for c in current.criteria] == [("holds", True)]
+
+
+@pytest.mark.asyncio
+async def test_criterion_of_a_done_task_cannot_be_deleted(test_task_service):
+    task_service, plan_service = test_task_service
+    user_id = uuid4()
+    plan = await _active_plan(plan_service, user_id)
+    task, criterion = await _done_task_with_met_criterion(task_service, user_id, plan.id)
+
+    with pytest.raises(InvalidStateTransitionError, match="completed task"):
+        await task_service.delete_criterion(user_id, criterion.id)
+
+    assert len((await task_service.get_task(user_id=user_id, task_id=task.id)).criteria) == 1
+
+
+@pytest.mark.asyncio
+async def test_criteria_are_editable_again_after_the_task_is_reopened(test_task_service):
+    task_service, plan_service = test_task_service
+    user_id = uuid4()
+    plan = await _active_plan(plan_service, user_id)
+    task, criterion = await _done_task_with_met_criterion(task_service, user_id, plan.id)
+    await _move(task_service, user_id, task, TaskState.TODO)
+
+    updated = await task_service.update_criterion(user_id, criterion.id, CriterionUpdate(met=False))
+
+    assert updated.met is False
+    assert await task_service.delete_criterion(user_id, criterion.id) is True
+
+
+@pytest.mark.asyncio
+async def test_unknown_criterion_keeps_its_not_found_behaviour(test_task_service):
+    task_service, _ = test_task_service
+    user_id = uuid4()
+
+    with pytest.raises(NotFoundError):
+        await task_service.update_criterion(user_id, 999, CriterionUpdate(met=True))
+    assert await task_service.delete_criterion(user_id, 999) is False

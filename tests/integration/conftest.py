@@ -2028,6 +2028,11 @@ class InMemoryTaskRepository(TaskRepository):
             return True
         return False
 
+    async def get_criterion_by_id(
+        self, user_id: UUID, criterion_id: int,
+    ) -> Criterion | None:
+        return self._criteria.get(user_id, {}).get(criterion_id)
+
     async def get_criteria_for_task(
         self, user_id: UUID, task_id: int,
     ) -> list[Criterion]:
