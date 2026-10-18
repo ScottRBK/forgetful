@@ -11,6 +11,8 @@ Uses a deterministic offline embedding adapter, so no model download is needed.
 import asyncio
 import hashlib
 import random
+import sqlite3
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from types import SimpleNamespace
 from uuid import uuid4
@@ -18,7 +20,7 @@ from uuid import uuid4
 import pytest
 import sqlite_vec
 from fastmcp.exceptions import ToolError
-from sqlalchemy import text
+from sqlalchemy import event, text
 
 from app.config.settings import settings
 from app.models.memory_models import MemoryCreate, MemoryUpdate
@@ -63,16 +65,20 @@ class GatedEmbeddingAdapter:
         return self.vector(text)
 
 
-@pytest.fixture
-async def stack():
+@asynccontextmanager
+async def _open_stack(sqlite_path: str | None = None):
+    """Yield (repo, db_adapter, embedder, user_id) on in-memory SQLite or a database file."""
     saved = (
         settings.DATABASE,
         settings.SQLITE_MEMORY,
+        settings.SQLITE_PATH,
         settings.EMBEDDING_DIMENSIONS,
         settings.MEMORY_NUM_AUTO_LINK,
     )
     settings.DATABASE = "SQLite"
-    settings.SQLITE_MEMORY = True
+    settings.SQLITE_MEMORY = sqlite_path is None
+    if sqlite_path is not None:
+        settings.SQLITE_PATH = sqlite_path
     settings.EMBEDDING_DIMENSIONS = DIMS
     settings.MEMORY_NUM_AUTO_LINK = 0
 
@@ -92,9 +98,24 @@ async def stack():
         (
             settings.DATABASE,
             settings.SQLITE_MEMORY,
+            settings.SQLITE_PATH,
             settings.EMBEDDING_DIMENSIONS,
             settings.MEMORY_NUM_AUTO_LINK,
         ) = saved
+
+
+@pytest.fixture
+async def stack():
+    async with _open_stack() as opened:
+        yield opened
+
+
+@pytest.fixture
+async def file_stack(tmp_path):
+    """File-backed database: separate connections really are separate, as in production."""
+    db_file = tmp_path / "forgetful.db"
+    async with _open_stack(str(db_file)) as opened:
+        yield (*opened, str(db_file))
 
 
 def _memory(content: str, project_id: int | None = None) -> MemoryCreate:
@@ -260,6 +281,87 @@ async def test_upsert_targeted_embeddings_without_expectation_still_writes(stack
 
     assert written == [memory.id]
     assert await _vec_blob(db_adapter, memory.id) == sqlite_vec.serialize_float32(new_vector)
+
+
+def _commit_edit_on_second_connection(db_file: str, memory_id: int, vector: bytes) -> str | None:
+    """Do what a concurrent update_memory does, on its own connection: bump `updated_at` and swap the vector.
+
+    Returns None when the edit committed, or the SQLite error text when it could not (no waiting).
+    """
+    conn = sqlite3.connect(db_file)
+    try:
+        conn.enable_load_extension(True)
+        sqlite_vec.load(conn)
+        conn.execute("PRAGMA busy_timeout=0")
+        conn.execute("UPDATE memories SET updated_at = '2099-01-01 00:00:00.000000' WHERE id = ?", (memory_id,))
+        conn.execute("DELETE FROM vec_memories WHERE memory_id = ?", (str(memory_id),))
+        conn.execute("INSERT INTO vec_memories (memory_id, embedding) VALUES (?, ?)", (str(memory_id), vector))
+        conn.commit()
+        return None
+    except sqlite3.OperationalError as exc:
+        conn.rollback()
+        return str(exc)
+    finally:
+        conn.close()
+
+
+async def test_upsert_targeted_embeddings_version_check_is_atomic_with_the_write(file_stack):
+    """An edit committed after the version check but before the vector write must not be overwritten.
+
+    The edit is injected from a second connection right before the first `DELETE FROM vec_memories`,
+    that is between the version check and the vector write. pysqlite starts a transaction only at the
+    first DML statement, so a check done with a plain SELECT leaves exactly this gap open (the stale
+    vector replaced the new one, silently). With the check done as the first write of the transaction
+    the write lock is already held at that point, so the competing edit has to wait.
+    """
+    repo, db_adapter, embedder, user_id, db_file = file_stack
+    memory = await repo.create_memory(user_id, _memory("OLD-CONTENT"))
+    read = await repo.get_memory_by_id(user_id, memory.id)
+    stale_vector = embedder.vector("computed from OLD-CONTENT")
+    fresh_blob = sqlite_vec.serialize_float32(embedder.vector("computed from NEW-CONTENT"))
+
+    competing_edits: list[str | None] = []
+
+    def edit_between_check_and_write(conn, cursor, statement, parameters, context, executemany):  # noqa: ANN001
+        if "DELETE FROM vec_memories" in statement and not competing_edits:
+            competing_edits.append(_commit_edit_on_second_connection(db_file, memory.id, fresh_blob))
+
+    sync_engine = db_adapter._engine.sync_engine
+    event.listen(sync_engine, "before_cursor_execute", edit_between_check_and_write)
+    try:
+        written = await repo.upsert_targeted_embeddings(
+            user_id=user_id,
+            updates=[(memory.id, stale_vector)],
+            expected_updated_at={memory.id: read.updated_at},
+        )
+    finally:
+        event.remove(sync_engine, "before_cursor_execute", edit_between_check_and_write)
+
+    assert len(competing_edits) == 1
+    assert competing_edits[0] is not None, "the edit committed inside the check-to-write window"
+    assert "locked" in competing_edits[0]
+    assert written == [memory.id]
+
+    # The edit has to wait for the batch, then lands on top of it (as update_memory would).
+    assert _commit_edit_on_second_connection(db_file, memory.id, fresh_blob) is None
+    assert await _vec_blob(db_adapter, memory.id) == fresh_blob
+
+
+async def test_upsert_targeted_embeddings_skips_row_edited_on_another_connection(file_stack):
+    repo, db_adapter, embedder, user_id, db_file = file_stack
+    memory = await repo.create_memory(user_id, _memory("OLD-CONTENT"))
+    read = await repo.get_memory_by_id(user_id, memory.id)
+    fresh_blob = sqlite_vec.serialize_float32(embedder.vector("computed from NEW-CONTENT"))
+    assert _commit_edit_on_second_connection(db_file, memory.id, fresh_blob) is None
+
+    written = await repo.upsert_targeted_embeddings(
+        user_id=user_id,
+        updates=[(memory.id, embedder.vector("computed from OLD-CONTENT"))],
+        expected_updated_at={memory.id: read.updated_at},
+    )
+
+    assert written == []
+    assert await _vec_blob(db_adapter, memory.id) == fresh_blob
 
 
 # ---------------------------------------------------------------------------

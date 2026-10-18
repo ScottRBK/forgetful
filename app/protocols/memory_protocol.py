@@ -283,6 +283,8 @@ class MemoryRepository(Protocol):
                 embedding input was read. A memory whose `updated_at` no longer matches
                 was edited (and re-embedded) meanwhile: its stored vector is left alone
                 and its id is not returned. Ids without an entry are written unconditionally.
+                Implementations MUST make the check part of the write itself, so an edit
+                that commits after the check cannot be overwritten.
 
         Returns:
             list of memory ids whose embedding was actually written.

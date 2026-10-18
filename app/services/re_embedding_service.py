@@ -288,6 +288,12 @@ class ReEmbeddingService:
         that caused it. A memory edited since it was read is not written (the
         repository omits it), which the caller reports as skipped.
 
+        The retry also runs when the failure is not row specific (a locked or
+        unreachable database). That is bounded by one extra attempt per row of the
+        batch (at most `batch_size`, each waiting out the driver's busy timeout), so
+        a persistent outage ends in `persistence_failed` for the batch rather than
+        in an unbounded loop.
+
         Returns:
             (ids written, ids recorded as `persistence_failed` in `result.failed`)
         """

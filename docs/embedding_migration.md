@@ -159,9 +159,12 @@ Obsolete memories remain excluded from normal queries and automatic links. The t
 recovery.
 
 Embedding refreshes (both the CLI rebuild and `rebuild_embeddings`) never change a memory's
-`updated_at`. The targeted tool also never overwrites a newer vector: a memory edited while the
-rebuild is running is reported in `skipped_ids` and keeps the embedding generated for its new
-content. `failed` entries carry a short reason code (`embedding_failed`, `persistence_failed`,
+`updated_at`. The targeted tool also does not overwrite a newer vector: each row is written only if
+its `updated_at` is still the value seen when the batch was read, and the check is part of the write
+(the `UPDATE` condition on PostgreSQL, a guard `UPDATE` that takes SQLite's write lock for the
+batch). A memory edited while the rebuild is running is reported in `skipped_ids` and keeps the
+embedding generated for its new content. An edit that arrives during the short write itself waits
+for it. `failed` entries carry a short reason code (`embedding_failed`, `persistence_failed`,
 `auto_link_failed`, `not_found_or_not_owned`); the underlying error is written to the server log.
 An unknown or foreign `project_id` is rejected with a validation error.
 

@@ -5,7 +5,7 @@ from typing import Any
 from uuid import UUID
 
 import sqlite_vec
-from sqlalchemy import and_, or_, select, text, update
+from sqlalchemy import or_, select, text, update
 from sqlalchemy.exc import IntegrityError, NoResultFound
 from sqlalchemy.orm import selectinload
 
@@ -1210,9 +1210,16 @@ class SqliteMemoryRepository:
 
         Implementation note: SQLite-vec's `vec_memories` virtual table is
         keyed by `memory_id` and rejects duplicate inserts. We delete the
-        existing row (if any) before inserting the new embedding. We also
-        verify ownership of every memory id against the canonical `memories`
-        table so a malicious caller cannot poison another user's vector.
+        existing row (if any) before inserting the new embedding.
+
+        Every row is guarded by a no-op UPDATE of its `memories` row that also
+        checks ownership, `is_obsolete` and, when given, `expected_updated_at`.
+        The UPDATE is the first write of the transaction, so it takes SQLite's
+        write lock and holds it until commit: a concurrent `update_memory` has
+        to wait for this batch instead of slipping between check and write, and
+        a row it already committed fails the check. A plain SELECT is not
+        enough here, because pysqlite opens its transaction only at the first
+        DML statement, leaving a SELECT outside it.
 
         `expected_updated_at` maps a memory id to the `updated_at` observed when
         its embedding input was read. A memory whose row no longer carries that
@@ -1221,41 +1228,29 @@ class SqliteMemoryRepository:
         """
         if not updates:
             return []
-        ids = [mid for mid, _ in updates]
-        conditions = [
-            MemoryTable.user_id == str(user_id),
-            MemoryTable.is_obsolete.is_(False),
-            MemoryTable.id.in_(ids),
-        ]
-        if expected_updated_at:
-            conditions.append(
-                or_(
-                    MemoryTable.id.not_in(list(expected_updated_at)),
-                    *(
-                        and_(MemoryTable.id == memory_id, MemoryTable.updated_at == updated_at)
-                        for memory_id, updated_at in expected_updated_at.items()
-                    ),
-                ),
-            )
+        expected_updated_at = expected_updated_at or {}
         async with self.db_adapter.system_session() as session:
-            owned_rows = await session.execute(select(MemoryTable.id).where(*conditions))
-            owned_ids = {row[0] for row in owned_rows}
             written: list[int] = []
             for memory_id, embedding in updates:
-                if memory_id not in owned_ids:
+                guard = (
+                    update(MemoryTable)
+                    .where(
+                        MemoryTable.id == memory_id,
+                        MemoryTable.user_id == str(user_id),
+                        MemoryTable.is_obsolete.is_(False),
+                    )
+                    # Explicit value keeps the column's `onupdate` from bumping updated_at.
+                    .values(updated_at=MemoryTable.updated_at)
+                )
+                if memory_id in expected_updated_at:
+                    guard = guard.where(MemoryTable.updated_at == expected_updated_at[memory_id])
+                guarded = await session.execute(guard)
+                if guarded.rowcount == 0:
                     continue
                 embedding_bytes = sqlite_vec.serialize_float32(embedding)
                 await session.execute(
-                    text(
-                        "DELETE FROM vec_memories WHERE memory_id = :memory_id "
-                        "AND EXISTS ("
-                        "SELECT 1 FROM memories "
-                        "WHERE memories.id = CAST(:memory_id AS INTEGER) "
-                        "AND memories.user_id = :user_id "
-                        "AND memories.is_obsolete = 0"
-                        ")",
-                    ),
-                    {"memory_id": str(memory_id), "user_id": str(user_id)},
+                    text("DELETE FROM vec_memories WHERE memory_id = :memory_id"),
+                    {"memory_id": str(memory_id)},
                 )
                 await session.execute(
                     text("INSERT INTO vec_memories (memory_id, embedding) VALUES (:memory_id, :embedding)"),
