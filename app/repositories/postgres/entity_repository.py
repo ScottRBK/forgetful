@@ -4,10 +4,11 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import and_, func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
 from app.config.logging_config import logging
-from app.exceptions import NotFoundError
+from app.exceptions import ConflictError, NotFoundError
 from app.models.entity_models import (
     Entity,
     EntityCreate,
@@ -42,6 +43,14 @@ class PostgresEntityRepository:
         """
         self.db_adapter = db_adapter
         logger.info("Postgres entity repository initialized")
+
+    @staticmethod
+    def _raise_if_duplicate_relationship(exc: IntegrityError) -> None:
+        """Translate the unique (source, target, type) violation into ConflictError"""
+        if "ix_entity_relationships_unique" in str(exc.orig):
+            raise ConflictError(
+                "A relationship of this type already exists between these entities",
+            ) from exc
 
     async def _get_owned_projects(
         self,
@@ -797,7 +806,11 @@ class PostgresEntityRepository:
                 )
 
                 session.add(relationship_table)
-                await session.commit()
+                try:
+                    await session.commit()
+                except IntegrityError as exc:
+                    self._raise_if_duplicate_relationship(exc)
+                    raise
                 await session.refresh(relationship_table)
 
                 # Convert ORM to Pydantic (manually map relationship_metadata -> metadata)
@@ -821,7 +834,7 @@ class PostgresEntityRepository:
                     agent_model=relationship_table.agent_model,
                 )
 
-        except NotFoundError:
+        except (ConflictError, NotFoundError):
             raise
         except Exception as e:
             logger.error(
@@ -985,7 +998,11 @@ class PostgresEntityRepository:
                 # Update timestamp
                 relationship_table.updated_at = datetime.now(UTC)
 
-                await session.commit()
+                try:
+                    await session.commit()
+                except IntegrityError as exc:
+                    self._raise_if_duplicate_relationship(exc)
+                    raise
                 await session.refresh(relationship_table)
 
                 # Convert ORM to Pydantic (manually map relationship_metadata -> metadata)
@@ -1009,7 +1026,7 @@ class PostgresEntityRepository:
                     agent_model=relationship_table.agent_model,
                 )
 
-        except NotFoundError:
+        except (ConflictError, NotFoundError):
             raise
         except Exception as e:
             logger.error(

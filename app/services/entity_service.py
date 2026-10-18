@@ -794,6 +794,7 @@ class EntityService:
 
         Raises:
             NotFoundError: If source or target entity not found or not owned by user
+            ConflictError: If a relationship of the same type already exists between them
         """
         logger.info(
             "creating entity relationship",
@@ -902,6 +903,7 @@ class EntityService:
 
         Raises:
             NotFoundError: If relationship not found or not owned by user
+            ConflictError: If the new relationship_type already exists between the same entities
         """
         logger.info(
             "updating entity relationship",

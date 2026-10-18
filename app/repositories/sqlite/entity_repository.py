@@ -4,10 +4,11 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import and_, func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
 from app.config.logging_config import logging
-from app.exceptions import NotFoundError
+from app.exceptions import ConflictError, NotFoundError
 from app.models.entity_models import (
     Entity,
     EntityCreate,
@@ -44,6 +45,14 @@ class SqliteEntityRepository:
         """
         self.db_adapter = db_adapter
         logger.info("SQLite entity repository initialized")
+
+    @staticmethod
+    def _raise_if_duplicate_relationship(exc: IntegrityError) -> None:
+        """Translate the unique (source, target, type) violation into ConflictError"""
+        if "UNIQUE constraint failed: entity_relationships.source_entity_id" in str(exc.orig):
+            raise ConflictError(
+                "A relationship of this type already exists between these entities",
+            ) from exc
 
     async def _get_owned_projects(
         self,
@@ -807,7 +816,11 @@ class SqliteEntityRepository:
                 )
 
                 session.add(relationship_table)
-                await session.commit()
+                try:
+                    await session.commit()
+                except IntegrityError as exc:
+                    self._raise_if_duplicate_relationship(exc)
+                    raise
                 await session.refresh(relationship_table)
 
                 # Convert ORM to Pydantic (manually map relationship_metadata -> metadata)
@@ -831,7 +844,7 @@ class SqliteEntityRepository:
                     updated_at=relationship_table.updated_at,
                 )
 
-        except NotFoundError:
+        except (ConflictError, NotFoundError):
             raise
         except Exception as e:
             logger.error(
@@ -919,6 +932,14 @@ class SqliteEntityRepository:
                         strength=r.strength,
                         confidence=r.confidence,
                         metadata=r.relationship_metadata,
+                        source_repo=r.source_repo,
+                        source_files=r.source_files,
+                        source_url=r.source_url,
+                        encoding_agent=r.encoding_agent,
+                        encoding_version=r.encoding_version,
+                        agent_id=r.agent_id,
+                        agent_version=r.agent_version,
+                        agent_model=r.agent_model,
                         created_at=r.created_at,
                         updated_at=r.updated_at,
                     )
@@ -987,7 +1008,11 @@ class SqliteEntityRepository:
                 # Update timestamp
                 relationship_table.updated_at = datetime.now(UTC)
 
-                await session.commit()
+                try:
+                    await session.commit()
+                except IntegrityError as exc:
+                    self._raise_if_duplicate_relationship(exc)
+                    raise
                 await session.refresh(relationship_table)
 
                 # Convert ORM to Pydantic (manually map relationship_metadata -> metadata)
@@ -1011,7 +1036,7 @@ class SqliteEntityRepository:
                     updated_at=relationship_table.updated_at,
                 )
 
-        except NotFoundError:
+        except (ConflictError, NotFoundError):
             raise
         except Exception as e:
             logger.error(

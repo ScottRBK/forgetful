@@ -11,7 +11,7 @@ from pydantic import ValidationError
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-from app.exceptions import NotFoundError
+from app.exceptions import ConflictError, NotFoundError
 from app.middleware.auth import get_user_from_request
 from app.models.entity_models import (
     EntityCreate,
@@ -381,6 +381,8 @@ def register(mcp: FastMCP):
             )
         except NotFoundError as e:
             return JSONResponse({"error": str(e)}, status_code=404)
+        except ConflictError as e:
+            return JSONResponse({"error": str(e)}, status_code=409)
 
         return JSONResponse(relationship.model_dump(mode="json"), status_code=201)
 
@@ -408,6 +410,8 @@ def register(mcp: FastMCP):
             )
         except NotFoundError:
             return JSONResponse({"error": "Relationship not found"}, status_code=404)
+        except ConflictError as e:
+            return JSONResponse({"error": str(e)}, status_code=409)
 
         return JSONResponse(relationship.model_dump(mode="json"))
 

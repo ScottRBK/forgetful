@@ -4,15 +4,18 @@ Covers the full stack (REST routes -> EntityService -> SqliteEntityRepository):
 - updates validate the merged entity_type/custom_type state before writing
 - project_ids that do not exist (or belong to another user) are rejected
   instead of being dropped, and never wipe existing project links
+- duplicate entity relationships surface as ConflictError / HTTP 409
 """
 import pytest
 from fastmcp.exceptions import ToolError
 
 from app.config.settings import settings
 from app.events import EventBus
-from app.exceptions import NotFoundError
+from app.exceptions import ConflictError, NotFoundError
 from app.models.activity_models import ActionType
 from app.models.entity_models import (
+    EntityRelationshipCreate,
+    EntityRelationshipUpdate,
     EntityUpdate,
 )
 from app.models.user_models import UserCreate
@@ -275,6 +278,80 @@ class TestProjectIdValidation:
 
 
 # ----------------------------------------------------------------------------
+# entity relationship uniqueness
+# ----------------------------------------------------------------------------
+
+
+class TestRelationshipConflicts:
+    @pytest.mark.asyncio
+    async def test_duplicate_relationship_create_returns_409(self, http_client):
+        source = await _create_entity(http_client, name="A")
+        target = await _create_entity(http_client, name="B")
+        url = f"/api/v1/entities/{source['id']}/relationships"
+        body = {"target_entity_id": target["id"], "relationship_type": "owns"}
+
+        first = await http_client.post(url, json=body)
+        second = await http_client.post(url, json=body)
+
+        assert first.status_code == 201
+        assert second.status_code == 409
+        assert "already exists" in second.json()["error"]
+
+        # Only the first relationship was stored, and another type is still allowed
+        third = await http_client.post(url, json={**body, "relationship_type": "manages"})
+        assert third.status_code == 201
+
+    @pytest.mark.asyncio
+    async def test_relationship_type_collision_on_update_returns_409(self, http_client):
+        source = await _create_entity(http_client, name="A")
+        target = await _create_entity(http_client, name="B")
+        url = f"/api/v1/entities/{source['id']}/relationships"
+        await http_client.post(url, json={"target_entity_id": target["id"], "relationship_type": "owns"})
+        manages = await http_client.post(
+            url, json={"target_entity_id": target["id"], "relationship_type": "manages"},
+        )
+        relationship_id = manages.json()["id"]
+
+        collision = await http_client.put(
+            f"/api/v1/entities/relationships/{relationship_id}",
+            json={"relationship_type": "owns"},
+        )
+        assert collision.status_code == 409
+
+        # The failed update left the relationship as it was and it stays editable
+        rename = await http_client.put(
+            f"/api/v1/entities/relationships/{relationship_id}",
+            json={"relationship_type": "supervises"},
+        )
+        assert rename.status_code == 200
+        assert rename.json()["relationship_type"] == "supervises"
+
+    @pytest.mark.asyncio
+    async def test_service_raises_conflict_error_for_duplicates(self, http_client, sqlite_app):
+        user = await _default_user(sqlite_app)
+        source = await _create_entity(http_client, name="A")
+        target = await _create_entity(http_client, name="B")
+        service = sqlite_app.entity_service
+        data = EntityRelationshipCreate(
+            source_entity_id=source["id"],
+            target_entity_id=target["id"],
+            relationship_type="owns",
+        )
+
+        await service.create_entity_relationship(user.id, data)
+        with pytest.raises(ConflictError):
+            await service.create_entity_relationship(user.id, data)
+
+        other = await service.create_entity_relationship(
+            user.id, data.model_copy(update={"relationship_type": "manages"}),
+        )
+        with pytest.raises(ConflictError):
+            await service.update_entity_relationship(
+                user.id, other.id, EntityRelationshipUpdate(relationship_type="owns"),
+            )
+
+
+# ----------------------------------------------------------------------------
 # MCP tool surface: clean errors instead of corrupted rows / raw SQL text
 # ----------------------------------------------------------------------------
 
@@ -319,3 +396,20 @@ async def test_mcp_update_entity_with_unknown_project_keeps_links(mcp_client):
 
     fetched = await _call_tool(mcp_client, "get_entity", {"entity_id": entity_id})
     assert fetched.data["project_ids"] == [project_id]
+
+
+@pytest.mark.asyncio
+async def test_mcp_duplicate_relationship_reports_conflict_not_sql(mcp_client):
+    source = await _call_tool(mcp_client, "create_entity", {"name": "A", "entity_type": "Team"})
+    target = await _call_tool(mcp_client, "create_entity", {"name": "B", "entity_type": "Team"})
+    arguments = {
+        "source_entity_id": source.data["id"],
+        "target_entity_id": target.data["id"],
+        "relationship_type": "owns",
+    }
+    await _call_tool(mcp_client, "create_entity_relationship", arguments)
+
+    with pytest.raises(ToolError, match="already exists") as excinfo:
+        await _call_tool(mcp_client, "create_entity_relationship", arguments)
+
+    assert "UNIQUE constraint" not in str(excinfo.value)

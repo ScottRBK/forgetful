@@ -2,6 +2,7 @@
 
 Covers the PostgreSQL repository paths touched by the integrity fixes:
 - unknown project_ids are rejected and never wipe existing links
+- the unique relationship index surfaces as a conflict (409 / clean tool error)
 - the merged entity_type/custom_type state is validated before the write
 """
 import pytest
@@ -46,6 +47,50 @@ async def test_create_entity_with_unknown_project_is_rejected_e2e(mcp_client, ht
     assert "Projects not found" in response.json()["error"]
     listed = await http_client.get("/api/v1/entities")
     assert listed.json()["entities"] == []
+
+
+@pytest.mark.e2e
+async def test_duplicate_relationship_returns_409_e2e(http_client):
+    source = (await http_client.post(
+        "/api/v1/entities", json={"name": "A", "entity_type": "Organization"},
+    )).json()
+    target = (await http_client.post(
+        "/api/v1/entities", json={"name": "B", "entity_type": "Organization"},
+    )).json()
+    url = f"/api/v1/entities/{source['id']}/relationships"
+    body = {"target_entity_id": target["id"], "relationship_type": "owns"}
+
+    first = await http_client.post(url, json=body)
+    duplicate = await http_client.post(url, json=body)
+    manages = await http_client.post(url, json={**body, "relationship_type": "manages"})
+
+    assert first.status_code == 201
+    assert duplicate.status_code == 409
+    assert "already exists" in duplicate.json()["error"]
+    assert manages.status_code == 201
+
+    collision = await http_client.put(
+        f"/api/v1/entities/relationships/{manages.json()['id']}",
+        json={"relationship_type": "owns"},
+    )
+    assert collision.status_code == 409
+
+
+@pytest.mark.e2e
+async def test_duplicate_relationship_tool_error_is_clean_e2e(mcp_client):
+    source = await _call_tool(mcp_client, "create_entity", {"name": "A", "entity_type": "Team"})
+    target = await _call_tool(mcp_client, "create_entity", {"name": "B", "entity_type": "Team"})
+    arguments = {
+        "source_entity_id": source.data["id"],
+        "target_entity_id": target.data["id"],
+        "relationship_type": "owns",
+    }
+    await _call_tool(mcp_client, "create_entity_relationship", arguments)
+
+    with pytest.raises(ToolError, match="already exists") as excinfo:
+        await _call_tool(mcp_client, "create_entity_relationship", arguments)
+
+    assert "duplicate key" not in str(excinfo.value)
 
 
 @pytest.mark.e2e
