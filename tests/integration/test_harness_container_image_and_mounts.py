@@ -9,7 +9,9 @@ network or model is involved; the real container round-trip stays with live harn
 import asyncio
 import importlib
 import os
+import re
 import shutil
+import stat
 import subprocess
 import sys
 import types
@@ -25,6 +27,8 @@ from test_harness.container import (
     AgentContainer,
     ensure_image,
     export_requirements,
+    provision_agent,
+    staged_mount,
 )
 from test_harness.server import HarnessInfraError
 
@@ -436,3 +440,113 @@ def test_matching_image_is_not_rebuilt(build_calls, fake_docker):
     assert build_calls == []
 
 
+# --- credentials stay private; the container runs as the invoking user ---------------
+
+
+@posix_only
+@pytest.mark.parametrize("source_mode", [0o600, 0o644], ids=["host-0600", "host-0644"])
+def test_staged_credentials_are_private_to_the_invoking_user(tmp_path, staged, source_mode):
+    # Arrange: the host original is a secret (opencode writes it 0600; a loosened 0644
+    # original must not leak further through the copy)
+    secret = tmp_path / "auth.json"
+    secret.write_text('{"anthropic": {"type": "api", "key": "sk-real"}}')
+    secret.chmod(source_mode)
+
+    # Act
+    staged_mount([secret], "/home/node/.local/share/opencode", staged)
+
+    # Assert: owner-only dir and file, no group/other bits at all
+    (staging,) = staged
+    copy = staging / "auth.json"
+    assert stat.S_IMODE(staging.stat().st_mode) == 0o700
+    assert stat.S_IMODE(copy.stat().st_mode) == 0o600
+    assert copy.read_text() == secret.read_text()
+    assert stat.S_IMODE(secret.stat().st_mode) == source_mode  # original untouched
+
+
+@posix_only
+def test_provisioned_opencode_mounts_are_all_private(tmp_path, staged):
+    # Arrange
+    auth = tmp_path / "auth.json"
+    auth.write_text("{}")
+
+    # Act
+    provision_agent("opencode", staged, auth_path=auth)
+
+    # Assert
+    assert len(staged) == 2
+    for staging in staged:
+        assert stat.S_IMODE(staging.stat().st_mode) == 0o700
+        for item in staging.iterdir():
+            assert stat.S_IMODE(item.stat().st_mode) == 0o600
+
+
+@pytest.fixture
+def started_container(tmp_path, monkeypatch, fake_docker, host_home):
+    """Real AgentContainer.start() against the fake SDK; returns the containers.run kwargs."""
+    monkeypatch.setattr(container_mod, "_prepare_harness_mount", lambda run_dir: run_dir)
+    monkeypatch.setattr(AgentContainer, "_exec", lambda self, cmd, log_path=None: (0, ""))
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+
+    def start():
+        agent = AgentContainer(HarnessConfig(), run_dir, SERVER_URL)
+        agent.start()
+        agent.stop()
+        return fake_docker.runs[-1]
+
+    return start
+
+
+@posix_only
+def test_container_runs_as_the_invoking_host_user(started_container, monkeypatch):
+    # Arrange: bind mounts keep host ownership, so a fixed image uid (node = 1000) can
+    # neither write the rw skills tree nor read 0600 credentials when the host uid differs
+    monkeypatch.setattr(os, "getuid", lambda: 4242)
+    monkeypatch.setattr(os, "getgid", lambda: 4343)
+
+    # Act
+    kwargs = started_container()
+
+    # Assert
+    assert kwargs["user"] == "4242:4343"
+
+
+@posix_only
+def test_container_home_is_pinned_so_a_passwd_less_uid_finds_its_credentials(
+    started_container,
+):
+    # Act
+    kwargs = started_container()
+
+    # Assert: an arbitrary uid has no /etc/passwd entry, and docker then defaults HOME to /
+    assert kwargs["environment"]["HOME"] == "/home/node"
+    binds = {spec["bind"] for spec in kwargs["volumes"].values()}
+    assert "/home/node/.local/share/opencode" in binds
+
+
+def test_container_keeps_the_image_user_where_the_platform_has_no_uids(
+    started_container, monkeypatch,
+):
+    # Arrange: e.g. a Windows host driving Docker Desktop
+    monkeypatch.delattr(os, "getuid", raising=False)
+    monkeypatch.delattr(os, "getgid", raising=False)
+
+    # Act
+    kwargs = started_container()
+
+    # Assert
+    assert kwargs.get("user") is None
+
+
+def test_image_is_writable_by_an_arbitrary_uid():
+    # Arrange: with the container running as the host uid, the venv the working-tree
+    # wheel installs into and HOME must not depend on the image's node uid
+    dockerfile = Path("test_harness/docker/Dockerfile").read_text()
+
+    # Act
+    chmods = re.findall(r"chmod -R a\+rwX ([^\n\\]+)", dockerfile)
+
+    # Assert
+    assert chmods
+    assert "/opt/venv" in chmods[-1] and "/home/node" in chmods[-1]

@@ -70,9 +70,9 @@ def test_exec_command_wraps_runner_in_os_level_timeout():
     assert cmd[-1] == f"{SKILLS_MOUNT}/forgetful-recall"
 
 
-def test_staged_mount_copies_and_opens_permissions(tmp_path, staged):
-    # Arrange: the container's non-root user must traverse the staging dir, and the
-    # originals (host secrets) must never be the mounted files
+def test_staged_mount_copies_into_an_owner_only_dir(tmp_path, staged):
+    # Arrange: the container runs as the invoking user, so the staging dir stays private
+    # to it, and the originals (host secrets) must never be the mounted files
     secret = tmp_path / "auth.json"
     secret.write_text('{"token": "real"}')
 
@@ -86,8 +86,8 @@ def test_staged_mount_copies_and_opens_permissions(tmp_path, staged):
     assert copy.read_text() == '{"token": "real"}'
     assert copy != secret
     if sys.platform != "win32":
-        assert host_dir.stat().st_mode & 0o777 == 0o777
-        assert copy.stat().st_mode & 0o777 == 0o644
+        assert host_dir.stat().st_mode & 0o777 == 0o700
+        assert copy.stat().st_mode & 0o777 == 0o600
 
 
 def test_provision_opencode_stages_auth_and_config(tmp_path, staged):

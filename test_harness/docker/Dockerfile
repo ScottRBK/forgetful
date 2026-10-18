@@ -49,3 +49,9 @@ ENV NPM_CONFIG_PREFIX=/usr/local/share/npm-global
 ENV PATH=$PATH:/usr/local/share/npm-global/bin
 
 RUN npm install -g opencode-ai@${OPENCODE_VERSION}
+
+# The harness runs this container as the invoking host user (see container.py) so the
+# bind mounts keep their private host modes; that uid is arbitrary, so everything it
+# must write - the venv the working-tree wheel installs into, and HOME (uv cache, agent
+# state) - is made writable for any uid. Inside a throwaway sandbox this widens nothing.
+RUN chmod -R a+rwX /opt/venv /home/node
