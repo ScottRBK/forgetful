@@ -150,12 +150,14 @@ class CodeArtifactService:
         self,
         user_id: UUID,
         artifact_id: int,
+        track_read: bool = True,
     ) -> CodeArtifact:
         """Get artifact by ID with ownership verification
 
         Args:
             user_id: User ID for ownership verification
             artifact_id: Artifact ID to retrieve
+            track_read: Set False for internal lookups so no read event is emitted
 
         Returns:
             CodeArtifact with full details
@@ -188,7 +190,7 @@ class CodeArtifactService:
         )
 
         # Emit read event (opt-in via ACTIVITY_TRACK_READS)
-        if settings.ACTIVITY_TRACK_READS and self._event_bus:
+        if track_read and settings.ACTIVITY_TRACK_READS and self._event_bus:
             await self._emit_event(
                 user_id=user_id,
                 entity_type=EntityType.CODE_ARTIFACT,

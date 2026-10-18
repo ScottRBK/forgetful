@@ -932,6 +932,10 @@ which requires `ACTIVITY_TRACK_READS=true` and a wired EventBus
 REST listing does not emit those events.
 `ACTIVITY_TRACK_READS` still also controls activity-log *events*.
 
+Only explicit reads are tracked. Internal lookups that merely check an object exists or
+hydrate a view (rendering a graph, linking or unlinking memories and skills, creating a task,
+plan auto-completion) emit no `read`/`queried` events and do not touch `access_count`.
+
 ### SSE Streaming Configuration
 
 #### `SSE_MAX_QUEUE_SIZE`

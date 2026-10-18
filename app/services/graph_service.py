@@ -29,28 +29,38 @@ NODE_ID_PATTERN = re.compile(r"^(memory|entity|project|document|code_artifact|fi
 
 # Protocol for project service (to avoid circular imports)
 class ProjectServiceProtocol(Protocol):
-    async def get_project(self, user_id: UUID, project_id: int) -> Any: ...
+    async def get_project(
+        self, user_id: UUID, project_id: int, track_read: bool = True,
+    ) -> Any: ...
 
 
 # Protocol for document service (to avoid circular imports)
 class DocumentServiceProtocol(Protocol):
-    async def get_document(self, user_id: UUID, document_id: int) -> Any: ...
+    async def get_document(
+        self, user_id: UUID, document_id: int, track_read: bool = True,
+    ) -> Any: ...
 
 
 # Protocol for code artifact service (to avoid circular imports)
 class CodeArtifactServiceProtocol(Protocol):
-    async def get_code_artifact(self, user_id: UUID, artifact_id: int) -> Any: ...
+    async def get_code_artifact(
+        self, user_id: UUID, artifact_id: int, track_read: bool = True,
+    ) -> Any: ...
 
 
 # Protocol for file service (to avoid circular imports)
 class FileServiceProtocol(Protocol):
-    async def get_file(self, user_id: UUID, file_id: int) -> Any: ...
+    async def get_file(
+        self, user_id: UUID, file_id: int, track_read: bool = True,
+    ) -> Any: ...
     async def list_files(self, user_id: UUID, **kwargs) -> Any: ...
 
 
 # Protocol for skill service (to avoid circular imports)
 class SkillServiceProtocol(Protocol):
-    async def get_skill(self, user_id: UUID, skill_id: int) -> Any: ...
+    async def get_skill(
+        self, user_id: UUID, skill_id: int, track_read: bool = True,
+    ) -> Any: ...
     async def get_all_skill_file_links(self, user_id: UUID) -> list[tuple[int, int]]: ...
     async def get_all_skill_code_artifact_links(self, user_id: UUID) -> list[tuple[int, int]]: ...
     async def get_all_skill_document_links(self, user_id: UUID) -> list[tuple[int, int]]: ...
@@ -58,7 +68,9 @@ class SkillServiceProtocol(Protocol):
 
 # Protocol for plan service (to avoid circular imports)
 class PlanServiceProtocol(Protocol):
-    async def get_plan(self, user_id: UUID, plan_id: int) -> Any: ...
+    async def get_plan(
+        self, user_id: UUID, plan_id: int, track_read: bool = True,
+    ) -> Any: ...
     async def list_plans(self, user_id: UUID, **kwargs) -> Any: ...
 
 
@@ -76,6 +88,10 @@ class GraphService:
     Handles business logic for efficient subgraph extraction using
     recursive CTE queries. Coordinates between memory, entity, project,
     document, and code_artifact repositories to build complete subgraph responses.
+
+    Rendering a graph is a bulk traversal, not the user opening each object, so every
+    lookup that goes through another service passes ``track_read=False`` to keep
+    ACTIVITY_TRACK_READS from logging read events for nodes nobody opened.
     """
 
     def __init__(
@@ -361,6 +377,7 @@ class GraphService:
             project = await self.project_service.get_project(
                 user_id=user_id,
                 project_id=center_id,
+                track_read=False,
             )
             if project is None:
                 raise NotFoundError(f"Project {center_id} not found")
@@ -370,6 +387,7 @@ class GraphService:
             document = await self.document_service.get_document(
                 user_id=user_id,
                 document_id=center_id,
+                track_read=False,
             )
             if document is None:
                 raise NotFoundError(f"Document {center_id} not found")
@@ -379,6 +397,7 @@ class GraphService:
             artifact = await self.code_artifact_service.get_code_artifact(
                 user_id=user_id,
                 artifact_id=center_id,
+                track_read=False,
             )
             if artifact is None:
                 raise NotFoundError(f"Code artifact {center_id} not found")
@@ -388,6 +407,7 @@ class GraphService:
             file = await self.file_service.get_file(
                 user_id=user_id,
                 file_id=center_id,
+                track_read=False,
             )
             if file is None:
                 raise NotFoundError(f"File {center_id} not found")
@@ -397,6 +417,7 @@ class GraphService:
             skill = await self.skill_service.get_skill(
                 user_id=user_id,
                 skill_id=center_id,
+                track_read=False,
             )
             if skill is None:
                 raise NotFoundError(f"Skill {center_id} not found")
@@ -406,6 +427,7 @@ class GraphService:
             plan = await self.plan_service.get_plan(
                 user_id=user_id,
                 plan_id=center_id,
+                track_read=False,
             )
             if plan is None:
                 raise NotFoundError(f"Plan {center_id} not found")
@@ -509,6 +531,7 @@ class GraphService:
                     project = await self.project_service.get_project(
                         user_id=user_id,
                         project_id=project_id,
+                        track_read=False,
                     )
                     if project is None:
                         logger.warning(f"Project {project_id} not found during fetch")
@@ -538,6 +561,7 @@ class GraphService:
                     document = await self.document_service.get_document(
                         user_id=user_id,
                         document_id=document_id,
+                        track_read=False,
                     )
                     if document is None:
                         logger.warning(f"Document {document_id} not found during fetch")
@@ -567,6 +591,7 @@ class GraphService:
                     artifact = await self.code_artifact_service.get_code_artifact(
                         user_id=user_id,
                         artifact_id=artifact_id,
+                        track_read=False,
                     )
                     if artifact is None:
                         logger.warning(f"Code artifact {artifact_id} not found during fetch")
@@ -592,7 +617,9 @@ class GraphService:
         # Fetch files (use list_files once to get summaries, avoids loading binary data)
         if self.file_service and file_ids:
             try:
-                file_summaries = await self.file_service.list_files(user_id=user_id)
+                file_summaries = await self.file_service.list_files(
+                    user_id=user_id, track_read=False,
+                )
                 file_summary_map = {f.id: f for f in file_summaries}
                 for file_id in file_ids:
                     file_summary = file_summary_map.get(file_id)
@@ -624,6 +651,7 @@ class GraphService:
                     skill = await self.skill_service.get_skill(
                         user_id=user_id,
                         skill_id=skill_id,
+                        track_read=False,
                     )
                     if skill is None:
                         logger.warning(f"Skill {skill_id} not found during fetch")
@@ -651,6 +679,7 @@ class GraphService:
                     plan = await self.plan_service.get_plan(
                         user_id=user_id,
                         plan_id=plan_id,
+                        track_read=False,
                     )
                     if plan is None:
                         logger.warning(f"Plan {plan_id} not found during fetch")
@@ -918,6 +947,7 @@ class GraphService:
                     document = await self.document_service.get_document(
                         user_id=user_id,
                         document_id=document_id,
+                        track_read=False,
                     )
                     if document and document.project_id and document.project_id in project_id_set:
                         edge_id = f"document_{document_id}_project_{document.project_id}"
@@ -939,6 +969,7 @@ class GraphService:
                     artifact = await self.code_artifact_service.get_code_artifact(
                         user_id=user_id,
                         artifact_id=artifact_id,
+                        track_read=False,
                     )
                     if artifact and artifact.project_id and artifact.project_id in project_id_set:
                         edge_id = f"code_artifact_{artifact_id}_project_{artifact.project_id}"
@@ -956,7 +987,9 @@ class GraphService:
         # Fetch file-to-project edges
         if self.file_service and file_ids and project_ids:
             try:
-                file_summaries = await self.file_service.list_files(user_id=user_id)
+                file_summaries = await self.file_service.list_files(
+                    user_id=user_id, track_read=False,
+                )
                 for fs in file_summaries:
                     if fs.id in file_id_set and fs.project_id and fs.project_id in project_id_set:
                         edge_id = f"file_{fs.id}_project_{fs.project_id}"
@@ -995,6 +1028,7 @@ class GraphService:
                     skill = await self.skill_service.get_skill(
                         user_id=user_id,
                         skill_id=sid,
+                        track_read=False,
                     )
                     if skill and skill.project_id and skill.project_id in project_id_set:
                         edge_id = f"skill_{sid}_project_{skill.project_id}"
@@ -1075,6 +1109,7 @@ class GraphService:
                     plan = await self.plan_service.get_plan(
                         user_id=user_id,
                         plan_id=pid,
+                        track_read=False,
                     )
                     if plan and plan.project_id and plan.project_id in project_id_set:
                         edge_id = f"plan_{pid}_project_{plan.project_id}"

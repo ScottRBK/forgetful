@@ -150,12 +150,14 @@ class DocumentService:
         self,
         user_id: UUID,
         document_id: int,
+        track_read: bool = True,
     ) -> Document:
         """Get document by ID with ownership verification
 
         Args:
             user_id: User ID for ownership verification
             document_id: Document ID to retrieve
+            track_read: Set False for internal lookups so no read event is emitted
 
         Returns:
             Document with full details
@@ -188,7 +190,7 @@ class DocumentService:
         )
 
         # Emit read event (opt-in via ACTIVITY_TRACK_READS)
-        if settings.ACTIVITY_TRACK_READS and self._event_bus:
+        if track_read and settings.ACTIVITY_TRACK_READS and self._event_bus:
             await self._emit_event(
                 user_id=user_id,
                 entity_type=EntityType.DOCUMENT,

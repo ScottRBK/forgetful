@@ -146,12 +146,14 @@ class FileService:
         self,
         user_id: UUID,
         file_id: int,
+        track_read: bool = True,
     ) -> File:
         """Get file by ID with ownership verification
 
         Args:
             user_id: User ID for ownership verification
             file_id: File ID to retrieve
+            track_read: Set False for internal lookups so no read event is emitted
 
         Returns:
             File with full details including base64 data
@@ -183,7 +185,7 @@ class FileService:
             },
         )
 
-        if settings.ACTIVITY_TRACK_READS and self._event_bus:
+        if track_read and settings.ACTIVITY_TRACK_READS and self._event_bus:
             await self._emit_event(
                 user_id=user_id,
                 entity_type=EntityType.FILE,
@@ -200,6 +202,7 @@ class FileService:
         project_id: int | None = None,
         mime_type: str | None = None,
         tags: list[str] | None = None,
+        track_read: bool = True,
     ) -> list[FileSummary]:
         """List files with optional filtering
 
@@ -208,6 +211,7 @@ class FileService:
             project_id: Optional filter by project
             mime_type: Optional filter by MIME type
             tags: Optional filter by tags (returns files with ANY of these tags)
+            track_read: Set False for internal lookups so no queried event is emitted
 
         Returns:
             List of FileSummary (lightweight, excludes base64 data)
@@ -237,7 +241,7 @@ class FileService:
             },
         )
 
-        if settings.ACTIVITY_TRACK_READS and self._event_bus:
+        if track_read and settings.ACTIVITY_TRACK_READS and self._event_bus:
             await self._emit_event(
                 user_id=user_id,
                 entity_type=EntityType.FILE,

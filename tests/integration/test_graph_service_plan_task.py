@@ -76,7 +76,7 @@ class _FakePlanService:
     def __init__(self, exists=True):
         self.exists = exists
 
-    async def get_plan(self, user_id, plan_id):
+    async def get_plan(self, user_id, plan_id, track_read=True):
         return object() if self.exists else None
 
     async def list_plans(self, user_id, **kwargs):
