@@ -89,6 +89,53 @@ def read_names(db_file: Path) -> list[str]:
 
 
 @posix_only
+async def test_new_database_directory_and_files_are_owner_only(database, committed_only_in_wal):
+    db_path = committed_only_in_wal
+
+    assert mode(db_path.parent) == 0o700
+    for path in (db_path, *sidecars(db_path)):
+        assert path.exists(), path
+        assert mode(path) == 0o600, path
+
+
+@posix_only
+async def test_existing_loose_database_is_tightened_without_touching_its_directory(
+    tmp_path, monkeypatch, umask022,
+):
+    data_dir = tmp_path / "shared"
+    data_dir.mkdir()
+    data_dir.chmod(0o755)
+    db_path = data_dir / "forgetful.db"
+    for path in (db_path, *sidecars(db_path)):
+        path.write_bytes(b"")
+        path.chmod(0o644)
+    monkeypatch.setattr(settings, "SQLITE_MEMORY", False)
+    monkeypatch.setattr(settings, "SQLITE_PATH", str(db_path))
+
+    adapter = SqliteDatabaseAdapter()
+    await adapter.dispose()
+
+    # SQLITE_PATH may live in a shared directory (the working directory, /tmp), which is not ours.
+    assert mode(data_dir) == 0o755
+    for path in (db_path, *sidecars(db_path)):
+        assert mode(path) == 0o600, path
+
+
+@posix_only
+async def test_read_only_database_stays_read_only_for_its_owner(tmp_path, monkeypatch):
+    db_path = tmp_path / "forgetful.db"
+    db_path.write_bytes(b"")
+    db_path.chmod(0o444)
+    monkeypatch.setattr(settings, "SQLITE_MEMORY", False)
+    monkeypatch.setattr(settings, "SQLITE_PATH", str(db_path))
+
+    adapter = SqliteDatabaseAdapter()
+    await adapter.dispose()
+
+    assert mode(db_path) == 0o400
+
+
+@posix_only
 async def test_backup_is_one_owner_only_file(database, committed_only_in_wal):
     db_path = committed_only_in_wal
 

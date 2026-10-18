@@ -13,6 +13,11 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from app.config.settings import settings
+from app.utils.private_files import (
+    create_private_file,
+    make_private_dir,
+    restrict_to_owner,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +63,13 @@ class SqliteDatabaseAdapter:
         if not settings.SQLITE_MEMORY:
             from pathlib import Path
             db_path = Path(settings.SQLITE_PATH)
-            db_path.parent.mkdir(parents=True, exist_ok=True)
+            # The database holds every user's data: owner-only from its first byte, and
+            # tightened on installs that predate this. SQLite gives the -wal and -shm files
+            # the database file's permissions, so they follow it.
+            make_private_dir(db_path.parent)
+            create_private_file(db_path)
+            for suffix in ("-wal", "-shm"):
+                restrict_to_owner(Path(str(db_path) + suffix))
             logger.info("Validated DB directory exists", extra={
                 "SQL Lite Path": settings.SQLITE_PATH,
             })
