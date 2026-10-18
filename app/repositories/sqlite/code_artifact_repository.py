@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import select
 
 from app.config.logging_config import logging
 from app.exceptions import NotFoundError
@@ -14,6 +14,7 @@ from app.models.code_artifact_models import (
     CodeArtifactUpdate,
 )
 from app.repositories.sqlite.sqlite_adapter import SqliteDatabaseAdapter
+from app.repositories.sqlite.sqlite_json_filters import json_array_overlaps
 from app.repositories.sqlite.sqlite_tables import CodeArtifactsTable
 
 logger = logging.getLogger(__name__)
@@ -161,11 +162,9 @@ class SqliteCodeArtifactRepository:
 
                 if tags:
                     # SQLite JSON array search - finds artifacts with ANY of the provided tags
-                    tag_conditions = [
-                        func.json_extract(CodeArtifactsTable.tags, "$").like(f'%"{tag}"%')
-                        for tag in tags
-                    ]
-                    stmt = stmt.where(or_(*tag_conditions))
+                    stmt = stmt.where(
+                        json_array_overlaps(CodeArtifactsTable.tags, tags),
+                    )
 
                 # Order by creation date (newest first)
                 stmt = stmt.order_by(CodeArtifactsTable.created_at.desc())

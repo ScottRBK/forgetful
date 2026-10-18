@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 import sqlite_vec
-from sqlalchemy import func, or_, select, text
+from sqlalchemy import select, text
 
 from app.config.logging_config import logging
 from app.config.settings import settings
@@ -18,6 +18,7 @@ from app.models.skill_models import (
 from app.protocols.embedding_protocol import EmbeddingsAdapter
 from app.repositories.embeddings.reranker_adapter import RerankAdapter
 from app.repositories.sqlite.sqlite_adapter import SqliteDatabaseAdapter
+from app.repositories.sqlite.sqlite_json_filters import json_array_overlaps
 from app.repositories.sqlite.sqlite_tables import (
     CodeArtifactsTable,
     DocumentsTable,
@@ -229,13 +230,9 @@ class SqliteSkillRepository:
                     )
 
                 if tags:
-                    tag_conditions = [
-                        func.json_extract(
-                            SkillsTable.tags, "$",
-                        ).like(f'%"{tag}"%')
-                        for tag in tags
-                    ]
-                    stmt = stmt.where(or_(*tag_conditions))
+                    stmt = stmt.where(
+                        json_array_overlaps(SkillsTable.tags, tags),
+                    )
 
                 if importance_threshold is not None:
                     stmt = stmt.where(
