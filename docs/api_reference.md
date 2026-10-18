@@ -276,6 +276,8 @@ Update an existing memory.
 
 Provenance fields can be added or updated after memory creation. See POST /api/v1/memories for field descriptions.
 
+A field that is omitted or `null` is left unchanged. The link lists `project_ids`, `code_artifact_ids`, `document_ids`, `file_ids` and `skill_ids` replace the existing links when provided, and an empty list removes them all.
+
 **Response:** Flat updated memory object, with `plugin_warnings` only when nonempty (see create
 above). No-op updates skip the plugin. Write Plugin rejection returns 400; unavailable returns 503.
 An invalid merged candidate returns 400 through validation handling.
