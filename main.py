@@ -192,6 +192,43 @@ async def _count_without_migrating(embeddings_adapter):
         await db_adapter.dispose()
 
 
+def _install_stop_handlers(loop, on_stop, signals=(signal.SIGINT, signal.SIGTERM)):
+    """Call on_stop on the event loop when one of the signals arrives; return an undo callable.
+
+    A plain signal.signal handler runs on the main thread while the loop is running, where it
+    cannot drive that loop. loop.add_signal_handler hands the signal to the loop instead; it is
+    not implemented on Windows, where signal.signal plus call_soon_threadsafe does the same.
+    """
+    previous = {sig: signal.getsignal(sig) for sig in signals}
+    for sig in signals:
+        try:
+            loop.add_signal_handler(sig, on_stop)
+        except NotImplementedError:
+            signal.signal(sig, lambda _signum, _frame: loop.call_soon_threadsafe(on_stop))
+
+    def restore():
+        for sig, handler in previous.items():
+            try:
+                loop.remove_signal_handler(sig)
+            except NotImplementedError:
+                pass
+            if handler is not None:
+                signal.signal(sig, handler)
+
+    return restore
+
+
+async def _restore_backup(db_adapter, backup_service, backup_path):
+    """Put the database back as it was before a failed or interrupted re-embed."""
+    # Release SQLite file handles before replacing database/WAL files.
+    await db_adapter.dispose()
+    if backup_path:
+        print("\n  Restoring from backup...")
+        await backup_service.restore_backup(backup_path)
+        print(f"  Restored: {backup_path}")
+        print("  Database returned to pre-migration state.")
+
+
 async def _run_reembed(args):
     """Run the re-embedding workflow"""
     from app.config.logging_config import configure_logging, shutdown_logging
@@ -272,26 +309,19 @@ async def _run_reembed(args):
         backup_path = await backup_service.create_backup()
         print(f"  Backup saved: {backup_path}")
 
-    # Set up signal handling for graceful restore
-    restore_triggered = False
+    # A signal cancels this task and the restore runs from the coroutine below: a signal
+    # handler cannot run the restore on the event loop that is currently running.
+    run_task = asyncio.current_task()
+    interrupted = False
+    restoring = False  # once a restore has begun, later signals must not cut it short
 
-    def signal_handler(signum, frame):
-        nonlocal restore_triggered
-        if restore_triggered:
-            return
-        restore_triggered = True
-        print("\n\nInterrupted! Restoring from backup...")
-        if backup_path:
-            asyncio.get_event_loop().run_until_complete(
-                backup_service.restore_backup(backup_path),
-            )
-            print(f"  Restored: {backup_path}")
-        sys.exit(1)
+    def stop_requested():
+        nonlocal interrupted, restoring
+        if not restoring:
+            interrupted = restoring = True
+            run_task.cancel()
 
-    original_sigint = signal.getsignal(signal.SIGINT)
-    original_sigterm = signal.getsignal(signal.SIGTERM)
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
+    restore_signal_handlers = _install_stop_handlers(asyncio.get_running_loop(), stop_requested)
 
     try:
         # Reset schema
@@ -327,13 +357,8 @@ async def _run_reembed(args):
 
             if not result.validation.all_passed:
                 print("\n  Validation FAILED!")
-                # Release SQLite file handles before replacing database/WAL files.
-                await db_adapter.dispose()
-                if backup_path:
-                    print("  Restoring from backup...")
-                    await backup_service.restore_backup(backup_path)
-                    print(f"  Restored: {backup_path}")
-                    print("  Database returned to pre-migration state.")
+                restoring = True
+                await _restore_backup(db_adapter, backup_service, backup_path)
                 sys.exit(1)
 
         skills_note = f" and {result.skills_processed} skills" if result.total_skills else ""
@@ -342,20 +367,23 @@ async def _run_reembed(args):
             print(f"  Backup retained at: {backup_path}")
             print("  (Delete manually when satisfied with results)")
 
+    except asyncio.CancelledError:
+        # Stopped by a signal (or cancelled from outside) with the vector storage half rebuilt.
+        restoring = True
+        if interrupted:
+            run_task.uncancel()  # handled here: restore, then exit instead of propagating
+            print("\n\nInterrupted!")
+        await _restore_backup(db_adapter, backup_service, backup_path)
+        if interrupted:
+            sys.exit(1)
+        raise
     except Exception as e:
+        restoring = True
         print(f"\n  ERROR: {e}")
-        # Release SQLite file handles before replacing database/WAL files.
-        await db_adapter.dispose()
-        if backup_path:
-            print("\n  Restoring from backup...")
-            await backup_service.restore_backup(backup_path)
-            print(f"  Restored: {backup_path}")
-            print("  Database returned to pre-migration state.")
+        await _restore_backup(db_adapter, backup_service, backup_path)
         raise
     finally:
-        # Restore original signal handlers
-        signal.signal(signal.SIGINT, original_sigint)
-        signal.signal(signal.SIGTERM, original_sigterm)
+        restore_signal_handlers()
 
     await db_adapter.dispose()
 
