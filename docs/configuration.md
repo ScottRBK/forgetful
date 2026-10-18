@@ -1146,7 +1146,7 @@ it stays available here as an optional provider. Restart the service after chang
 #### `RERANKING_URL`
 - **Default**: (empty string)
 - **Description**: HTTP endpoint URL for re-ranking requests
-- **Note**: Only used when `RERANKING_PROVIDER=HTTP`
+- **Note**: Only used when `RERANKING_PROVIDER=HTTP`, where it is required: Forgetful refuses to start with `RERANKING_ENABLED=true` and an empty URL
 - **Examples**:
   - Jina: `https://api.jina.ai/v1/rerank`
   - Cohere: `https://api.cohere.com/v2/rerank`

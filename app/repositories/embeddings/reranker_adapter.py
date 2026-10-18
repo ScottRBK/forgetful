@@ -121,6 +121,11 @@ class HttpRerankAdapter:
         self.url = url if url is not None else settings.RERANKING_URL
         self.api_key = api_key if api_key is not None else settings.RERANKING_API_KEY
 
+        if not self.url.strip():
+            raise ValueError(
+                "RERANKING_URL must be set when RERANKING_PROVIDER=HTTP "
+                "(e.g. http://localhost:8080/v1/rerank).",
+            )
 
     async def rerank(
             self,

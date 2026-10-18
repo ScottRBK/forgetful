@@ -7,6 +7,7 @@ httpx mock transports or a throw-away loopback server.
 import httpx
 import pytest
 
+from app.bootstrap import get_reranker_adapter
 from app.config.settings import settings
 from app.repositories.embeddings.reranker_adapter import (
     FastEmbedCrossEncoderAdapter,
@@ -61,6 +62,36 @@ def test_local_reranker_prefers_explicit_cache_dir(monkeypatch, tmp_path, cross_
     FastEmbedCrossEncoderAdapter(model="m", cache_dir=explicit)
 
     assert cross_encoder_calls[0]["cache_dir"] == explicit
+
+
+@pytest.mark.parametrize("url", ["", "   "])
+def test_http_reranker_rejects_missing_url(monkeypatch, url):
+    monkeypatch.setattr(settings, "RERANKING_URL", url)
+
+    with pytest.raises(ValueError, match="RERANKING_URL"):
+        HttpRerankAdapter()
+
+
+def test_http_reranker_rejects_explicit_empty_url(monkeypatch):
+    monkeypatch.setattr(settings, "RERANKING_URL", RERANK_URL)
+
+    with pytest.raises(ValueError, match="RERANKING_URL"):
+        HttpRerankAdapter(url="")
+
+
+def test_http_reranker_accepts_url_argument_without_setting(monkeypatch):
+    monkeypatch.setattr(settings, "RERANKING_URL", "")
+
+    assert HttpRerankAdapter(url=RERANK_URL).url == RERANK_URL
+
+
+def test_enabling_http_reranking_without_url_fails_at_startup(monkeypatch):
+    monkeypatch.setattr(settings, "RERANKING_ENABLED", True)
+    monkeypatch.setattr(settings, "RERANKING_PROVIDER", "HTTP")
+    monkeypatch.setattr(settings, "RERANKING_URL", "")
+
+    with pytest.raises(ValueError, match="RERANKING_URL"):
+        get_reranker_adapter()
 
 
 async def test_http_reranker_returns_results_by_descending_score(http_reranker):

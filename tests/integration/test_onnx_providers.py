@@ -125,6 +125,7 @@ def test_bootstrap_surfaces_directml_worker_conflict(monkeypatch, cross_encoder_
 def test_http_reranking_ignores_local_onnx_settings(monkeypatch, cross_encoder_calls):
     monkeypatch.setattr(settings, "RERANKING_ENABLED", True)
     monkeypatch.setattr(settings, "RERANKING_PROVIDER", "HTTP")
+    monkeypatch.setattr(settings, "RERANKING_URL", "https://reranker.test/v1/rerank")
     monkeypatch.setattr(settings, "RERANKING_ONNX_PROVIDERS", "DmlExecutionProvider")
     monkeypatch.setattr(settings, "RERANKING_WORKERS", 2)
 
