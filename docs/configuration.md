@@ -999,7 +999,7 @@ ACTIVITY_TRACK_READS=false
 
 ### Azure Embedding Provider Configuration
 
-**Note**: These settings only apply when `EMBEDDING_PROVIDER=Azure`
+**Note**: These settings only apply when `EMBEDDING_PROVIDER=Azure`. `AZURE_ENDPOINT`, `AZURE_DEPLOYMENT`, `AZURE_API_VERSION` and `AZURE_API_KEY` are all required: startup fails with an error naming the missing ones.
 
 #### `AZURE_ENDPOINT`
 - **Default**: (empty string)

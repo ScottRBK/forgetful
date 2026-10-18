@@ -9,12 +9,21 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from app.bootstrap import get_embedding_adapter
 from app.config import logging_config
 from app.config.settings import settings
 from app.repositories.embeddings import embedding_adapter as ea
 from app.utils.url_helpers import redact_url
 
 SECRET = "s3cr3t-PASSWORD-value"
+
+AZURE_FIELDS = ("AZURE_ENDPOINT", "AZURE_API_KEY", "AZURE_API_VERSION", "AZURE_DEPLOYMENT")
+AZURE_CONFIG = {
+    "AZURE_ENDPOINT": "https://my-resource.openai.azure.com/",
+    "AZURE_API_KEY": "test-key",
+    "AZURE_API_VERSION": "2023-05-15",
+    "AZURE_DEPLOYMENT": "text-embedding-ada-002",
+}
 
 
 def _init_record(caplog: pytest.LogCaptureFixture, message: str) -> logging.LogRecord:
@@ -95,3 +104,55 @@ def test_ollama_adapter_does_not_log_base_url_credentials(monkeypatch, caplog):
     assert record.base_url == "http://***:***@host:11434"
     assert SECRET not in _as_json_log_line(record)
     assert client_cls.call_args.kwargs["host"] == base_url
+
+
+# --------------------------------------------------------------------------
+# Azure configuration is validated at startup, like the other adapters
+# --------------------------------------------------------------------------
+@pytest.fixture
+def azure_config(monkeypatch):
+    """Complete Azure settings, with ambient SDK fallbacks removed."""
+    for env in ("OPENAI_API_KEY", "AZURE_OPENAI_API_KEY", "AZURE_OPENAI_ENDPOINT",
+                "OPENAI_API_VERSION", "OPENAI_BASE_URL"):
+        monkeypatch.delenv(env, raising=False)
+    for name, value in AZURE_CONFIG.items():
+        monkeypatch.setattr(settings, name, value)
+    return dict(AZURE_CONFIG)
+
+
+def test_azure_adapter_rejects_unconfigured_settings(azure_config, monkeypatch):
+    for name in AZURE_FIELDS:
+        monkeypatch.setattr(settings, name, "")
+
+    with pytest.raises(ValueError) as excinfo:
+        ea.AzureOpenAIAdapter()
+
+    assert f"missing: {', '.join(AZURE_FIELDS)}" in str(excinfo.value)
+
+
+@pytest.mark.parametrize("missing", AZURE_FIELDS)
+@pytest.mark.parametrize("blank", ["", "   "], ids=["empty", "whitespace"])
+def test_azure_adapter_names_the_missing_setting(azure_config, monkeypatch, missing, blank):
+    monkeypatch.setattr(settings, missing, blank)
+
+    with pytest.raises(ValueError) as excinfo:
+        ea.AzureOpenAIAdapter()
+
+    message = str(excinfo.value)
+    assert f"missing: {missing}" in message
+    for present in set(AZURE_FIELDS) - {missing}:
+        assert f"missing: {present}" not in message
+
+
+def test_bootstrap_rejects_unconfigured_azure_provider(azure_config, monkeypatch):
+    monkeypatch.setattr(settings, "EMBEDDING_PROVIDER", "Azure")
+    monkeypatch.setattr(settings, "AZURE_ENDPOINT", "")
+
+    with pytest.raises(ValueError, match="AZURE_ENDPOINT"):
+        get_embedding_adapter()
+
+
+def test_azure_adapter_accepts_complete_configuration(azure_config):
+    adapter = ea.AzureOpenAIAdapter()
+
+    assert adapter.model == "text-embedding-ada-002"

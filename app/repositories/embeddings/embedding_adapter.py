@@ -71,6 +71,20 @@ class AzureOpenAIAdapter(EmbeddingsAdapter):
         logger.info("Initialising Azure Open AI embeddings adapter", extra={
             "embedding_model": settings.EMBEDDING_MODEL,
         })
+
+        required = {
+            "AZURE_ENDPOINT": settings.AZURE_ENDPOINT,
+            "AZURE_API_KEY": settings.AZURE_API_KEY,
+            "AZURE_API_VERSION": settings.AZURE_API_VERSION,
+            "AZURE_DEPLOYMENT": settings.AZURE_DEPLOYMENT,
+        }
+        missing = [name for name, value in required.items() if not value.strip()]
+        if missing:
+            raise ValueError(
+                "AZURE_ENDPOINT, AZURE_API_KEY, AZURE_API_VERSION and AZURE_DEPLOYMENT "
+                f"must be configured for AzureOpenAIAdapter; missing: {', '.join(missing)}",
+            )
+
         self.client = AzureOpenAI(
             api_version=settings.AZURE_API_VERSION,
             azure_endpoint=settings.AZURE_ENDPOINT,
