@@ -67,7 +67,9 @@ rebuilds automatically when the lock drifts (stale images have burned runs befor
    inside a container.
 5. Teardown container and server, then a summary table and `run.json`. Teardown is
    best-effort and independent per resource: a docker failure never skips stopping the
-   server or deleting the staged credential copies.
+   server or deleting the staged credential copies. `SIGTERM` (`kill`, a CI cancel,
+   `timeout`) takes the same path as Ctrl-C: the run is cancelled at its next await,
+   everything is torn down, and the process exits `143`.
 
 ## Artifacts
 

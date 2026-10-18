@@ -1,14 +1,18 @@
 """Integration tests for the harness run lifecycle (test_harness/__main__.py + container.py).
 
-Teardown order and exception safety, exercised without a docker daemon. Only the
-outside world is faked: the docker SDK (a daemon stand-in plus a fake `docker` module,
-since the optional `harness` dependency group is not installed here), the throwaway
-server and the agent walkthrough. `_run` and the real `AgentContainer` start/stop code
-paths are what run.
+Teardown order and exception safety plus SIGTERM handling, exercised without a docker
+daemon. Only the outside world is faked: the docker SDK (a daemon stand-in plus a fake
+`docker` module, since the optional `harness` dependency group is not installed here),
+the throwaway server and the agent walkthrough. `_run`, `main` and the real
+`AgentContainer` start/stop code paths are what run.
 """
+import os
+import signal
 import subprocess
 import sys
 import tempfile
+import textwrap
+import time
 import types
 from pathlib import Path
 
@@ -21,6 +25,7 @@ from test_harness.config import HarnessConfig
 from test_harness.container import AgentContainer
 from test_harness.server import HarnessInfraError, ThrowawayForgetful
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
 THROWAWAY_PORT = 59999
 
 
@@ -263,3 +268,118 @@ def test_container_stop_is_best_effort_per_step(env, tmp_path, capsys, failing_s
         assert env.daemon.registry == [], "remove must still be attempted"
     assert env.staged_dirs() == [], "credential copies must always be deleted"
     assert "daemon gone" in capsys.readouterr().err
+
+
+# --- SIGTERM takes the same teardown path as Ctrl-C --------------------------
+
+DRIVER = textwrap.dedent(
+    """
+    import asyncio, os, signal, sys
+    from pathlib import Path
+
+    sys.path.insert(0, __REPO__)
+    signal.signal(signal.SIGINT, signal.default_int_handler)  # never inherit SIG_IGN
+
+    import test_harness.__main__ as hm
+    from test_harness.container import AgentContainer, staged_mount
+
+    EVENTS = Path(os.environ["LIFECYCLE_EVENTS"])
+
+    def log(msg):
+        with EVENTS.open("a") as fh:
+            fh.write(msg + "\\n")
+
+    class FakeServer:
+        def __init__(self, run_dir):
+            self.url = "http://127.0.0.1:1"
+        def start(self):
+            log("server.start")
+        def stop(self):
+            log("server.stop")
+        async def seed_skills(self, skills_dir, names):
+            return []
+
+    class FakeDockerContainer:
+        def stop(self, timeout=5):
+            log("docker.stop")
+        def remove(self, force=False):
+            log("docker.remove")
+
+    class FakeContainer(AgentContainer):
+        # real __init__ and real stop(); only the docker-dependent parts are faked
+        def start(self):
+            staged_mount([Path(os.environ["LIFECYCLE_AUTH"])], "/x", self._staged)
+            self._container = FakeDockerContainer()
+        def check_server_reachable(self):
+            pass
+        def health_check(self):
+            pass
+
+    class FakeWalkthrough:
+        def __init__(self, **kwargs):
+            pass
+        async def run_skill(self, skill):
+            log("session-in-progress")
+            await asyncio.sleep(120)
+        def write_summary(self, results):
+            pass
+
+    hm.ensure_image = lambda rebuild=False: None
+    hm.ThrowawayForgetful = FakeServer
+    hm.AgentContainer = FakeContainer
+    hm.Walkthrough = FakeWalkthrough
+
+    sys.exit(hm.main(["--skills", "forgetful-cli-setup", "--output", os.environ["LIFECYCLE_OUT"]]))
+    """,
+).replace("__REPO__", repr(str(REPO_ROOT)))
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX signals")
+@pytest.mark.parametrize("sig", [signal.SIGINT, signal.SIGTERM], ids=["SIGINT", "SIGTERM"])
+def test_termination_signal_runs_the_full_teardown(tmp_path, sig):
+    # Arrange: a real process, so a missing SIGTERM handler kills it for real
+    events = tmp_path / "events.log"
+    events.touch()
+    auth = tmp_path / "auth.json"
+    auth.write_text('{"secret": "token"}')
+    out = tmp_path / "runs"
+    out.mkdir()
+    tmpdir = tmp_path / "tmp"
+    tmpdir.mkdir()  # staged uat-mount-* dirs land here instead of /tmp
+    driver = tmp_path / "driver.py"
+    driver.write_text(DRIVER)
+    child_env = dict(os.environ)
+    child_env.update(
+        LIFECYCLE_EVENTS=str(events), LIFECYCLE_AUTH=str(auth),
+        LIFECYCLE_OUT=str(out), TMPDIR=str(tmpdir),
+    )
+    proc = subprocess.Popen(  # noqa: S603 - trusted: our own driver under sys.executable
+        [sys.executable, "-I", str(driver)], env=child_env, cwd=tmp_path,
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+    )
+
+    # Act
+    try:
+        deadline = time.monotonic() + 60
+        while "session-in-progress" not in events.read_text():
+            assert proc.poll() is None, f"driver died early: {proc.stdout.read()}"
+            assert time.monotonic() < deadline, "session never started"
+            time.sleep(0.05)
+        proc.send_signal(sig)
+        try:
+            returncode = proc.wait(timeout=30)
+        except subprocess.TimeoutExpired:
+            returncode = None
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+            proc.wait()
+
+    # Assert
+    lines = events.read_text().splitlines()
+    assert "docker.stop" in lines, f"container never stopped; events={lines}"
+    assert "docker.remove" in lines, f"container never removed; events={lines}"
+    assert "server.stop" in lines, f"server never stopped; events={lines}"
+    assert list(tmpdir.glob("uat-mount-*")) == [], "credential copies left on disk"
+    if sig == signal.SIGTERM:
+        assert returncode == 128 + signal.SIGTERM
