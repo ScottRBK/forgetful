@@ -113,9 +113,11 @@ class PostgresActivityRepository:
             the count BEFORE limit/offset applied (for pagination)
         """
         async with self.db_adapter.session(user_id) as session:
-            # Build base query with filters
-            # RLS handles user_id filtering in PostgreSQL
-            base_query = select(ActivityLogTable)
+            # Build base query with filters. The schema defines no row-level
+            # security policy, so user isolation is enforced explicitly here.
+            base_query = select(ActivityLogTable).where(
+                ActivityLogTable.user_id == user_id,
+            )
 
             if entity_type is not None:
                 base_query = base_query.where(
@@ -196,16 +198,18 @@ class PostgresActivityRepository:
         cutoff_date = datetime.now(UTC) - timedelta(days=retention_days)
 
         async with self.db_adapter.session(user_id) as session:
-            # Count events to be deleted (RLS handles user filtering)
+            # Count the user's events to be deleted
             count_query = select(func.count()).select_from(ActivityLogTable).where(
+                ActivityLogTable.user_id == user_id,
                 ActivityLogTable.created_at < cutoff_date,
             )
             count_result = await session.execute(count_query)
             count = count_result.scalar() or 0
 
             if count > 0:
-                # Delete expired events (RLS handles user filtering)
+                # Delete the user's expired events
                 delete_stmt = delete(ActivityLogTable).where(
+                    ActivityLogTable.user_id == user_id,
                     ActivityLogTable.created_at < cutoff_date,
                 )
                 await session.execute(delete_stmt)
@@ -233,8 +237,9 @@ class PostgresActivityRepository:
             Total count of matching events
         """
         async with self.db_adapter.session(user_id) as session:
-            # RLS handles user filtering in PostgreSQL
-            query = select(func.count()).select_from(ActivityLogTable)
+            query = select(func.count()).select_from(ActivityLogTable).where(
+                ActivityLogTable.user_id == user_id,
+            )
 
             if entity_type is not None:
                 query = query.where(ActivityLogTable.entity_type == entity_type)
