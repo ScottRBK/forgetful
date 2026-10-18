@@ -388,3 +388,63 @@ async def test_skill_noop_update_does_not_touch_repository(mock_skill_repository
     await service.update_skill(test_user.id, skill.id, SkillUpdate(description=None))
 
     assert calls == []
+
+
+# ---------------------------------------------------------------------------
+# Files: replacing only the content is a change
+# ---------------------------------------------------------------------------
+
+
+async def test_file_content_only_update_emits_updated_event(test_file_service_with_event_bus, test_user):
+    service, bus = test_file_service_with_event_bus
+    created = await service.create_file(
+        test_user.id,
+        FileCreate(
+            filename="data.bin",
+            description="Binary data",
+            data=FILE_BYTES,
+            mime_type="application/octet-stream",
+        ),
+    )
+    original_size = created.size_bytes
+    bus.collected_events.clear()
+    new_content = b"This is much longer content than Hello, World!"
+    new_data = base64.b64encode(new_content).decode("utf-8")
+
+    updated = await service.update_file(test_user.id, created.id, FileUpdate(data=new_data))
+
+    assert updated.data == new_data
+    assert len(bus.collected_events) == 1
+    event = bus.collected_events[0]
+    assert event.entity_type == EntityType.FILE
+    assert event.entity_id == created.id
+    assert event.action == ActionType.UPDATED
+    assert "data" not in event.changes
+    assert event.changes["size_bytes"] == {"old": original_size, "new": len(new_content)}
+    assert "data" not in event.snapshot
+
+
+async def test_file_content_and_metadata_update_reports_size_and_metadata(
+    test_file_service_with_event_bus, test_user,
+):
+    service, bus = test_file_service_with_event_bus
+    created = await service.create_file(
+        test_user.id,
+        FileCreate(
+            filename="data.bin",
+            description="Binary data",
+            data=FILE_BYTES,
+            mime_type="application/octet-stream",
+        ),
+    )
+    bus.collected_events.clear()
+    new_data = base64.b64encode(b"x").decode("utf-8")
+
+    await service.update_file(
+        test_user.id, created.id, FileUpdate(data=new_data, filename="renamed.bin"),
+    )
+
+    assert len(bus.collected_events) == 1
+    changes = bus.collected_events[0].changes
+    assert set(changes) == {"filename", "size_bytes"}
+    assert changes["filename"] == {"old": "data.bin", "new": "renamed.bin"}
