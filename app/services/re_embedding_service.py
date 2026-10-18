@@ -102,6 +102,11 @@ class ReEmbeddingService:
         # Validate
         validation = await self.validate()
 
+        # Reset relaxed the storage so vectors could be rebuilt; only a complete, valid
+        # rebuild can put the constraints back (Postgres rejects NOT NULL while a row is NULL).
+        if validation.all_passed:
+            await self.memory_repository.finalize_embedding_storage()
+
         return ReEmbedResult(
             total_processed=processed,
             total_memories=total,

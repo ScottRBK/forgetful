@@ -1049,6 +1049,16 @@ class PostgresMemoryRepository:
                 "dimensions": dims,
             })
 
+    async def finalize_embedding_storage(self) -> None:
+        """Restore NOT NULL on the embedding column that reset_embedding_storage dropped.
+
+        Only valid once every memory has an embedding again, otherwise PostgreSQL rejects it.
+        """
+        async with self.db_adapter.system_session() as session:
+            await session.execute(text(
+                "ALTER TABLE memories ALTER COLUMN embedding SET NOT NULL",
+            ))
+
     async def bulk_update_embeddings(self, updates: list[tuple[int, list[float]]]) -> None:
         """Write new embeddings for a batch of memory IDs"""
         async with self.db_adapter.system_session() as session:

@@ -290,6 +290,13 @@ class MemoryRepository(Protocol):
         """
         ...
 
+    async def finalize_embedding_storage(self) -> None:
+        """Undo what `reset_embedding_storage` relaxed, once every memory has a new embedding.
+        SQLite: nothing to restore
+        Postgres: restore NOT NULL on the embedding column
+        """
+        ...
+
     async def bulk_update_embeddings(self, updates: list[tuple[int, list[float]]]) -> None:
         """Write new embeddings for a batch of memory IDs"""
         ...

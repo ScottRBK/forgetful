@@ -1108,6 +1108,9 @@ class SqliteMemoryRepository:
                 "dimensions": settings.EMBEDDING_DIMENSIONS,
             })
 
+    async def finalize_embedding_storage(self) -> None:
+        """Nothing to restore: resetting recreates vec_memories without relaxing any constraint."""
+
     async def bulk_update_embeddings(self, updates: list[tuple[int, list[float]]]) -> None:
         """Write new embeddings for a batch of memory IDs into vec_memories"""
         async with self.db_adapter.system_session() as session:
