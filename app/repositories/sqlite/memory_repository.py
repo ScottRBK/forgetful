@@ -545,9 +545,14 @@ class SqliteMemoryRepository:
         max_links: int,
     ) -> list[tuple[Memory, float]]:
         async with self.db_adapter.session(user_id) as session:
+            # vec_memories has no user_id, so ownership is checked against memories:
+            # another user's embedding must never be used as the query vector.
             embedding_result = await session.execute(
-                text("SELECT embedding FROM vec_memories WHERE memory_id = :memory_id"),
-                {"memory_id": str(memory_id)},
+                text(
+                    "SELECT embedding FROM vec_memories WHERE memory_id = :memory_id "
+                    "AND EXISTS (SELECT 1 FROM memories WHERE id = :memory_pk AND user_id = :user_id)",
+                ),
+                {"memory_id": str(memory_id), "memory_pk": memory_id, "user_id": str(user_id)},
             )
             embedding_row = embedding_result.fetchone()
             if not embedding_row:
@@ -617,9 +622,14 @@ class SqliteMemoryRepository:
         min_similarity: float,
     ) -> list[tuple[Memory, float]]:
         async with self.db_adapter.session(user_id) as session:
+            # vec_memories has no user_id, so ownership is checked against memories:
+            # another user's embedding must never be used as the query vector.
             embedding_result = await session.execute(
-                text("SELECT embedding FROM vec_memories WHERE memory_id = :memory_id"),
-                {"memory_id": str(memory_id)},
+                text(
+                    "SELECT embedding FROM vec_memories WHERE memory_id = :memory_id "
+                    "AND EXISTS (SELECT 1 FROM memories WHERE id = :memory_pk AND user_id = :user_id)",
+                ),
+                {"memory_id": str(memory_id), "memory_pk": memory_id, "user_id": str(user_id)},
             )
             embedding_row = embedding_result.fetchone()
             if not embedding_row:
