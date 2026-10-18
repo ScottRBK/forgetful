@@ -8,9 +8,12 @@ exercised without booting a server (the real boot lives in
 tests/e2e_sqlite/test_harness_throwaway_server_sqlite.py).
 """
 import asyncio
+import json
 import os
 import socket
+import subprocess
 import sys
+import textwrap
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -24,6 +27,9 @@ from test_harness.server import (
     ThrowawayForgetful,
     _plain_client_factory,
 )
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
 
 # ---------------------------------------------------------------------------
 # Which forgetful is launched
@@ -256,3 +262,76 @@ def test_seeding_client_ignores_proxy_env(proxy_requests):
     # Assert
     assert names == ["ping"]
     assert proxy_requests == []
+
+
+# ---------------------------------------------------------------------------
+# Settings must not leak in from the shell or the user config
+# ---------------------------------------------------------------------------
+
+# Resolve Settings in a fresh interpreter exactly as the server child would (cwd = run
+# dir, absolute user-config path pinned via platformdirs so any OS looks where we put it)
+_RESOLVE_SETTINGS = textwrap.dedent(
+    """
+    import sys
+    import platformdirs
+    platformdirs.user_config_dir = lambda *args, **kwargs: sys.argv[1]
+    from app.config.settings import Settings
+    print(Settings().model_dump_json())
+    """,
+)
+
+
+def _resolved_settings(tmp_path: Path, name: str, user_config: str | None) -> dict:
+    config_dir = tmp_path / name / "config"
+    config_dir.mkdir(parents=True)
+    if user_config is not None:
+        (config_dir / ".env").write_text(user_config)
+    run_dir = tmp_path / "run"
+    run_dir.mkdir(exist_ok=True)
+
+    env = ThrowawayForgetful(run_dir)._child_env()
+    env["PYTHONPATH"] = str(_PROJECT_ROOT)
+    result = subprocess.run(  # noqa: S603
+        [sys.executable, "-c", _RESOLVE_SETTINGS, str(config_dir)],
+        cwd=run_dir, env=env, capture_output=True, text=True, check=True,
+    )
+    return json.loads(result.stdout)
+
+
+def test_child_settings_ignore_host_shell_and_user_config(tmp_path, monkeypatch):
+    # Arrange: a neutral baseline first - what the server resolves on a clean host
+    for name in ("FORGETFUL_SCOPES", "MCP_DESCRIPTOR_MODE", "MEMORY_NUM_AUTO_LINK",
+                 "FASTEMBED_CACHE_DIR"):
+        monkeypatch.delenv(name, raising=False)
+    baseline = _resolved_settings(tmp_path, "clean", user_config=None)
+
+    # ... then a developer who restricted the instance in the shell (in two spellings)
+    # and in the user-config dotenv file the Settings class always reads
+    monkeypatch.setenv("FORGETFUL_SCOPES", "read")
+    monkeypatch.setenv("mcp_descriptor_mode", "compact")
+    monkeypatch.setenv("MEMORY_NUM_AUTO_LINK", "0")
+    monkeypatch.setenv("FASTEMBED_CACHE_DIR", str(tmp_path / "warm-cache"))
+    user_config = (
+        "FORGETFUL_SCOPES=read:memories\n"
+        "LOG_FORMAT=json\n"
+        "MEMORY_TITLE_MAX_LENGTH=5\n"
+        "OBSOLETE_WARNING_ENABLED=false\n"
+        "DEFAULT_USER_NAME=leaked\n"
+    )
+
+    # Act
+    leaky = _resolved_settings(tmp_path, "leaky", user_config=user_config)
+
+    # Assert: the instance under test is the same as on a clean host ...
+    machine_plumbing = {"FASTEMBED_CACHE_DIR"}
+    assert {k: v for k, v in leaky.items() if k not in machine_plumbing} == {
+        k: v for k, v in baseline.items() if k not in machine_plumbing
+    }
+    # ... and that is the unrestricted, default-configured one
+    assert baseline["FORGETFUL_SCOPES"] == "*"
+    assert baseline["MCP_DESCRIPTOR_MODE"] == "verbose"
+    assert baseline["MEMORY_NUM_AUTO_LINK"] == 3
+    assert baseline["MEMORY_TITLE_MAX_LENGTH"] == 200
+    assert baseline["LOG_FORMAT"] == "console"
+    # The developer's warm model cache is machine plumbing and keeps resolving
+    assert leaky["FASTEMBED_CACHE_DIR"] == str(tmp_path / "warm-cache")

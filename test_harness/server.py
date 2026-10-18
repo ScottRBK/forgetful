@@ -2,8 +2,11 @@
 
 File-backed SQLite (in-memory dies at the process boundary), all feature flags on, no
 auth, FastEmbed with the default (warm) model cache. Env is injected at launch because
-settings freeze at import time in the child; cwd is the run directory so no repo-local
-.env leaks in. The server is the `forgetful` of the interpreter running the harness, and
+settings freeze at import time in the child. The instance must not depend on whoever
+runs the harness: cwd is the run directory so no repo-local dotenv file leaks in, but
+the absolute user-config dotenv file (and the shell) still reach the child, so every
+Forgetful setting is pinned to its declared default (a real env var outranks every
+dotenv file). The server is the `forgetful` of the interpreter running the harness, and
 harness-to-server traffic is direct (loopback must never go through HTTP(S)_PROXY).
 Readiness = GET /health -> 200 (503 while initialising).
 
@@ -12,6 +15,7 @@ misreported as agent findings). Seeding and state inspection reuse the CLI's own
 RemoteExecutor with a plain no-auth client, which dogfoods the meta-tool path and its
 object-root wire handling.
 """
+import json
 import os
 import shutil
 import socket
@@ -29,6 +33,15 @@ from app.routes.cli.remote_executor import RemoteExecutor
 
 class HarnessInfraError(RuntimeError):
     """The harness itself failed - not a finding about the agent or the docs."""
+
+
+# Machine plumbing rather than instance behaviour: the warm model cache (and whether to
+# stay offline) is wherever the developer keeps it, so these keep resolving as usual.
+_HOST_PASSTHROUGH = frozenset({
+    "FASTEMBED_CACHE_DIR",
+    "FASTEMBED_LOCAL_FILES_ONLY",
+    "EMBEDDING_ONNX_PROVIDERS",
+})
 
 
 def _direct_http_client(
@@ -74,6 +87,30 @@ def _server_executable() -> str:
     return on_path
 
 
+def _host_env_with_default_settings() -> dict[str, str]:
+    """The host env with every Forgetful setting reset to its declared default.
+
+    Settings also reads the absolute user-config dotenv file whatever the cwd, but a
+    real env var outranks every dotenv file, so each setting is pinned here. Host
+    spellings are dropped first: setting names are case-insensitive, so a lower-case
+    shell variable would otherwise compete with the pin.
+    """
+    from app.config.settings import Settings
+
+    fields = Settings.model_fields
+    env = {
+        key: value for key, value in os.environ.items()
+        if key.upper() not in fields or key.upper() in _HOST_PASSTHROUGH
+    }
+    for name, field in fields.items():
+        if name in _HOST_PASSTHROUGH or field.is_required():
+            continue
+        default = field.get_default(call_default_factory=True)
+        if default is not None:  # no env spelling for "unset"
+            env[name] = default if isinstance(default, str) else json.dumps(default)
+    return env
+
+
 def _ephemeral_port() -> int:
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
@@ -97,7 +134,7 @@ class ThrowawayForgetful:
         return f"{self.url}/mcp"
 
     def _child_env(self) -> dict[str, str]:
-        env = dict(os.environ)
+        env = _host_env_with_default_settings()
         env.update({
             "DATABASE": "SQLite",
             "SQLITE_MEMORY": "false",
