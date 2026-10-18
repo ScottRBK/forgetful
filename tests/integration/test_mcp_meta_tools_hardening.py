@@ -4,6 +4,7 @@ Covers, with stubbed services and no database:
 - ``client_error_detail`` keeps authored messages and hides driver details.
 - the per-category entity tools never put SQL, bound parameters or driver text in a ToolError.
 - ``discover_forgetful_tools`` honours the advertised ``linking`` category.
+- ``execute_forgetful_tool`` rejects argument names that cannot be keyword arguments.
 """
 
 from types import SimpleNamespace
@@ -24,7 +25,10 @@ from app.exceptions import (
 )
 from app.models.tool_registry_models import ToolCategory, ToolParameter
 from app.routes.mcp import entity_tools
-from app.routes.mcp.meta_tools import build_discovery_payload
+from app.routes.mcp.meta_tools import (
+    build_discovery_payload,
+    reject_invalid_argument_names,
+)
 from app.routes.mcp.tool_errors import (
     CONSTRAINT_FAILURE,
     GENERIC_FAILURE,
@@ -288,3 +292,32 @@ class TestLinkingCategory:
         names = {tool["name"] for tools in payload["tools_by_category"].values() for tool in tools}
         assert names == {"link_memories", "get_memory"}
         assert "linking" not in payload["categories_available"]
+
+
+class TestRejectInvalidArgumentNames:
+    """Argument names become keyword arguments; anything else is refused unseen."""
+
+    @pytest.mark.parametrize(
+        "arguments",
+        [{}, {"query": 1}, {"memory_id": 1, "_private": 2, "ctx": 3}, {"naïve": 1}],
+        ids=["empty", "plain", "underscore_and_ctx", "unicode_identifier"],
+    )
+    def test_valid_names_pass(self, arguments):
+        reject_invalid_argument_names("get_memory", arguments)
+
+    @pytest.mark.parametrize(
+        "name",
+        ["a\nb", "a\rb", "a\x1bb", "a b", "", "1a", "a-b", "a.b", 7, None],
+        ids=["lf", "cr", "esc", "space", "empty", "digit_first", "dash", "dot", "int", "none"],
+    )
+    def test_invalid_names_are_refused_without_echo(self, name):
+        arguments = {"ok": 1, name: 2}
+
+        with pytest.raises(ToolError) as caught:
+            reject_invalid_argument_names("get_memory", arguments)
+
+        message = str(caught.value)
+        assert "Invalid argument name" in message
+        assert repr(name) not in message
+        if isinstance(name, str) and name:
+            assert name not in message

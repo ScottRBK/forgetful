@@ -175,7 +175,8 @@ def console_log(monkeypatch):
     root = logging.getLogger()
     saved_handlers, saved_level = root.handlers[:], root.level
     # Alembic's fileConfig (run by the app fixture) disables pre-existing loggers.
-    logging.getLogger("app.routes.mcp.meta_tools").disabled = False
+    for name in ("app.routes.mcp.meta_tools", "app.routes.mcp.tool_registry"):
+        logging.getLogger(name).disabled = False
     logging_config.configure_logging(log_level="INFO", log_format="console")
     try:
         yield lambda: _drain(buffer)
@@ -238,6 +239,43 @@ class TestLogInjection:
 
         assert "how_to_use_forgetful_tool" in output, "precondition: the call was logged"
         assert "\x1b[2J" not in output
+
+    @pytest.mark.parametrize(
+        "poisoned_key",
+        ["x\n" + FORGED_RECORD, "x\r" + FORGED_RECORD, "x\x1b[2J\x1b[31mPWNED", "x y", "", "1x"],
+        ids=["newline", "carriage_return", "escape", "space", "empty", "leading_digit"],
+    )
+    async def test_argument_names_cannot_forge_a_record(
+        self, mcp_client, console_log, poisoned_key,
+    ):
+        """CPython copies an unknown keyword into the TypeError text unescaped (message and
+        traceback), so the name is rejected before dispatch and never logged or echoed raw."""
+        with pytest.raises(ToolError) as caught:
+            await execute(mcp_client, "list_projects", {poisoned_key: 1})
+
+        output = console_log()
+
+        assert "execute_forgetful_tool" in output, "precondition: the rejected call was logged"
+        assert forged_lines(output) == []
+        assert "\x1b[2J" not in output
+        assert "\r" not in output
+        assert "PWNED" not in output
+        assert "PWNED" not in str(caught.value)
+        assert FORGED_PREFIX not in str(caught.value)
+        assert "argument name" in str(caught.value).lower()
+
+    async def test_unknown_but_well_formed_argument_name_is_still_a_normal_error(
+        self, mcp_client, console_log,
+    ):
+        message = await tool_error(mcp_client, "list_projects", {"no_such_argument": 1})
+
+        output = console_log()
+
+        assert "no_such_argument" in message
+        assert "Tool 'list_projects' execution failed" in output, (
+            "precondition: the registry failure is logged, so the poisoned-key tests cover it"
+        )
+        assert forged_lines(output) == []
 
     async def test_regular_calls_still_log_the_tool_name(self, mcp_client, console_log):
         await execute(mcp_client, "list_projects", {})

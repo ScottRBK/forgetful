@@ -450,6 +450,24 @@ def build_tool_documentation(registry, permitted: set, tool_name: str) -> dict[s
     return tool.metadata.to_detailed_dict()
 
 
+def reject_invalid_argument_names(tool_name: str, arguments: dict[str, Any]) -> None:
+    """Raise ToolError if an argument name could not be a Python keyword argument.
+
+    Arguments are splatted into the tool adapters as keyword arguments. CPython copies an
+    unknown keyword verbatim into the TypeError text, so a name carrying CR, LF or ESC would
+    reach the logs (message and traceback) and the client unescaped. No tool parameter is
+    named like that, so such a call can only be malformed or hostile: it is rejected before
+    dispatch, and the offending name is never echoed or logged raw.
+    """
+    if all(isinstance(name, str) and name.isidentifier() for name in arguments):
+        return
+    logger.warning("execute_forgetful_tool: %r rejected, invalid argument name", tool_name)
+    raise ToolError(
+        "Invalid argument name: argument names must be identifiers "
+        "(letters, digits and underscores, not starting with a digit)",
+    )
+
+
 def ensure_tool_executable(registry, permitted: set, tool_name: str) -> None:
     """Raise ToolError unless tool_name exists and is permitted (execute-path checks)."""
     if not registry.tool_exists(tool_name):
@@ -552,6 +570,8 @@ def register(mcp: FastMCP):
     ) -> Any:
         """Placeholder - set dynamically below"""
         try:
+            reject_invalid_argument_names(tool_name, arguments)
+
             registry = ctx.fastmcp.registry
             permitted, _ = get_effective_scopes(ctx)
             logger.info("execute_forgetful_tool: %r, args=%r", tool_name, list(arguments.keys()))

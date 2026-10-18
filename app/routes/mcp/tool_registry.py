@@ -219,13 +219,13 @@ class ToolRegistry:
         if not tool:
             raise ValueError(f"Tool '{name}' not found in registry")
 
-        logger.debug(f"Executing tool: {name} with args: {list(arguments.keys())}")
+        logger.debug("Executing tool: %r with args: %r", name, list(arguments.keys()))
 
         try:
             # Execute the tool implementation with arguments and context
             result = await tool.implementation(**arguments, **context)
-            logger.debug(f"Tool '{name}' executed successfully")
+            logger.debug("Tool %r executed successfully", name)
             return result
         except Exception as e:
-            logger.error(f"Tool '{name}' execution failed: {e}", exc_info=True)
+            logger.error("Tool %r execution failed: %r", name, e, exc_info=True)
             raise
