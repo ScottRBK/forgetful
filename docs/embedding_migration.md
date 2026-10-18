@@ -57,6 +57,8 @@ Counts and progress include obsolete memories. Their status and supersession met
 forgetful --re-embed [--batch-size N] [--dry-run]
 ```
 
+`--batch-size` and `--dry-run` only apply together with `--re-embed`; used alone they are rejected with a usage error instead of starting the server.
+
 ### `--batch-size N`
 
 Number of memories to process per batch. Must be a whole number of at least `1`; anything else is rejected before any backup or schema change. Default: `20`.

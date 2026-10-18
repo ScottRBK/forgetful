@@ -396,7 +396,7 @@ def _legacy_launcher(argv):
     parser.add_argument(
         "--batch-size",
         type=positive_int,
-        default=20,
+        default=None,
         help="Batch size for re-embedding (default: 20)",
     )
     parser.add_argument(
@@ -408,8 +408,23 @@ def _legacy_launcher(argv):
     args = parser.parse_args(argv)
 
     if args.re_embed:
+        if args.batch_size is None:
+            args.batch_size = 20
         asyncio.run(_run_reembed(args))
         return None
+
+    # Re-embed-only flags: without --re-embed they would be silently ignored and the
+    # real server started instead, unlike `forgetful serve`, which rejects them.
+    stray = [
+        flag
+        for flag, given in (
+            ("--batch-size", args.batch_size is not None),
+            ("--dry-run", args.dry_run),
+        )
+        if given
+    ]
+    if stray:
+        parser.error(f"{', '.join(stray)} can only be used with --re-embed")
 
     return _serve(transport=args.transport, host=args.host, port=args.port)
 
