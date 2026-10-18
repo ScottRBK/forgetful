@@ -1,6 +1,6 @@
-"""Re-embedding service for batch migration of memory embeddings.
+"""Re-embedding service for batch migration of memory and skill embeddings.
 
-Orchestrates the workflow of re-embedding all memories with the currently
+Orchestrates the workflow of re-embedding all memories and skills with the currently
 configured embedding provider. Knows nothing about SQLite/PostgreSQL specifics.
 """
 import logging
@@ -11,7 +11,8 @@ from uuid import UUID
 from app.config.settings import settings
 from app.protocols.embedding_protocol import EmbeddingsAdapter
 from app.protocols.memory_protocol import MemoryRepository, ValidationResult
-from app.utils.embedding_helpers import build_embedding_text
+from app.protocols.skill_protocol import SkillRepository
+from app.utils.embedding_helpers import build_embedding_text, build_skill_embedding_text
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,8 @@ class ReEmbedResult:
     total_processed: int
     total_memories: int
     validation: ValidationResult | None = None
+    total_skills: int = 0
+    skills_processed: int = 0
 
 
 @dataclass
@@ -38,37 +41,54 @@ class TargetedRebuildResult:
 
 
 class ReEmbeddingService:
-    """Orchestrates batch re-embedding of all memories"""
+    """Orchestrates batch re-embedding of all memories and, when given, all skills"""
 
     def __init__(
         self,
         memory_repository: MemoryRepository,
         embedding_adapter: EmbeddingsAdapter,
         batch_size: int = 20,
+        skill_repository: SkillRepository | None = None,
     ):
         self.memory_repository = memory_repository
         self.embedding_adapter = embedding_adapter
         self.batch_size = batch_size
+        # Skills share the embedding provider and dimensions, so a full migration covers them too.
+        self.skill_repository = skill_repository
+
+    async def reset_vector_storage(self) -> None:
+        """Resize the vector storage of memories (and skills) to the configured dimensions."""
+        await self.memory_repository.reset_embedding_storage()
+        if self.skill_repository is not None:
+            await self.skill_repository.reset_embedding_storage()
 
     async def re_embed_all(
         self,
         progress_callback: Callable[[int, int], None] | None = None,
+        reset_storage: bool = True,
     ) -> ReEmbedResult:
         """Orchestrate: count -> reset schema -> batch re-embed -> validate
 
         Args:
-            progress_callback: Optional callback(processed, total) called after each batch
+            progress_callback: Optional callback(processed, total) called after each memory batch
+            reset_storage: False when the caller already reset the vector storage itself
 
         Returns:
             ReEmbedResult with counts and validation status
         """
         total = await self.memory_repository.count_all_memories()
-        logger.info("Starting re-embedding", extra={"total_memories": total})
+        total_skills = 0
+        if self.skill_repository is not None:
+            total_skills = await self.skill_repository.count_all_skills()
+        logger.info("Starting re-embedding", extra={
+            "total_memories": total, "total_skills": total_skills,
+        })
 
         # Reset vector storage for new dimensions. This also applies when there is nothing to
         # re-embed: existing storage is never resized at startup, so skipping the reset would
         # keep the old dimensions and fail the next insert.
-        await self.memory_repository.reset_embedding_storage()
+        if reset_storage:
+            await self.reset_vector_storage()
 
         processed = 0
         for offset in range(0, total, self.batch_size):
@@ -99,6 +119,8 @@ class ReEmbeddingService:
                 "batch_size": len(memories),
             })
 
+        skills_processed = await self._re_embed_skills(total_skills)
+
         # Validate
         validation = await self.validate()
 
@@ -106,12 +128,45 @@ class ReEmbeddingService:
         # rebuild can put the constraints back (Postgres rejects NOT NULL while a row is NULL).
         if validation.all_passed:
             await self.memory_repository.finalize_embedding_storage()
+            if self.skill_repository is not None:
+                await self.skill_repository.finalize_embedding_storage()
 
         return ReEmbedResult(
             total_processed=processed,
             total_memories=total,
             validation=validation,
+            total_skills=total_skills,
+            skills_processed=skills_processed,
         )
+
+    async def _re_embed_skills(self, total: int) -> int:
+        """Embed every skill description again into the freshly reset skill storage."""
+        if self.skill_repository is None:
+            return 0
+
+        processed = 0
+        for offset in range(0, total, self.batch_size):
+            skills = await self.skill_repository.get_skills_for_reembedding(
+                limit=self.batch_size, offset=offset,
+            )
+            if not skills:
+                break
+
+            updates: list[tuple[int, list[float]]] = []
+            for skill in skills:
+                embedding = await self.embedding_adapter.generate_embedding(
+                    build_skill_embedding_text(skill),
+                )
+                updates.append((skill.id, embedding))
+            await self.skill_repository.bulk_update_embeddings(updates)
+
+            processed += len(skills)
+            logger.info("Skill batch complete", extra={
+                "processed": processed,
+                "total": total,
+                "batch_size": len(skills),
+            })
+        return processed
 
     async def validate_targeted_scope(
         self,
@@ -326,6 +381,12 @@ class ReEmbeddingService:
         count_ok = await self.memory_repository.validate_embedding_count()
         dims_ok = await self.memory_repository.validate_embedding_dimensions()
         search_ok = await self.memory_repository.validate_search_works()
+
+        if self.skill_repository is not None:
+            skills_count_ok = await self.skill_repository.validate_embedding_count()
+            skills_dims_ok = await self.skill_repository.validate_embedding_dimensions()
+            count_ok = count_ok and skills_count_ok
+            dims_ok = dims_ok and skills_dims_ok
 
         result = ValidationResult(
             count_ok=count_ok,

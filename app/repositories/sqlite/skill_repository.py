@@ -1255,6 +1255,78 @@ class SqliteSkillRepository:
             )
             raise
 
+    # ============ Re-embedding support methods ============
+
+    async def count_all_skills(self) -> int:
+        """Count all skills across all users."""
+        async with self.db_adapter.system_session() as session:
+            result = await session.execute(text("SELECT COUNT(*) FROM skills"))
+            return result.scalar()
+
+    async def get_skills_for_reembedding(self, limit: int, offset: int) -> list[Skill]:
+        """Fetch all skills, across all users, in batches ordered by id."""
+        async with self.db_adapter.system_session() as session:
+            result = await session.execute(
+                select(SkillsTable)
+                .order_by(SkillsTable.id.asc())
+                .offset(offset)
+                .limit(limit),
+            )
+            return [self._to_skill(skill) for skill in result.scalars().all()]
+
+    async def reset_embedding_storage(self) -> None:
+        """Drop and recreate vec_skills table with current EMBEDDING_DIMENSIONS"""
+        async with self.db_adapter.system_session() as session:
+            await session.execute(text("DROP TABLE IF EXISTS vec_skills"))
+            await session.execute(
+                text(f"""
+                    CREATE VIRTUAL TABLE vec_skills USING vec0(
+                        skill_id TEXT PRIMARY KEY,
+                        embedding FLOAT[{settings.EMBEDDING_DIMENSIONS}]
+                    )
+                """),
+            )
+            logger.info("Recreated vec_skills table", extra={
+                "dimensions": settings.EMBEDDING_DIMENSIONS,
+            })
+
+    async def finalize_embedding_storage(self) -> None:
+        """Nothing to restore: resetting recreates vec_skills without relaxing any constraint."""
+
+    async def bulk_update_embeddings(self, updates: list[tuple[int, list[float]]]) -> None:
+        """Write new embeddings for a batch of skill IDs into vec_skills"""
+        async with self.db_adapter.system_session() as session:
+            for skill_id, embedding in updates:
+                await session.execute(
+                    text("INSERT INTO vec_skills (skill_id, embedding) VALUES (:skill_id, :embedding)"),
+                    {
+                        "skill_id": str(skill_id),
+                        "embedding": sqlite_vec.serialize_float32(embedding),
+                    },
+                )
+
+    async def validate_embedding_count(self) -> bool:
+        """Check every skill has an embedding."""
+        async with self.db_adapter.system_session() as session:
+            skill_count = (await session.execute(text("SELECT COUNT(*) FROM skills"))).scalar()
+            vec_count = (await session.execute(text("SELECT COUNT(*) FROM vec_skills"))).scalar()
+            return skill_count == vec_count
+
+    async def validate_embedding_dimensions(self) -> bool:
+        """Sample embeddings and verify correct dimensions"""
+        async with self.db_adapter.system_session() as session:
+            result = await session.execute(text("SELECT embedding FROM vec_skills LIMIT 5"))
+            for row in result.fetchall():
+                # sqlite-vec stores as raw bytes, 4 bytes per float32
+                num_dims = len(row[0]) // 4
+                if num_dims != settings.EMBEDDING_DIMENSIONS:
+                    logger.error("Skill dimension mismatch", extra={
+                        "expected": settings.EMBEDDING_DIMENSIONS,
+                        "actual": num_dims,
+                    })
+                    return False
+            return True
+
     @staticmethod
     def _to_skill(skill_table: SkillsTable) -> Skill:
         """Convert SkillsTable ORM to Skill Pydantic model.

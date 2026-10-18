@@ -3,9 +3,10 @@
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select, text, update
 
 from app.config.logging_config import logging
+from app.config.settings import settings
 from app.exceptions import NotFoundError
 from app.models.skill_models import (
     Skill,
@@ -1090,6 +1091,103 @@ class PostgresSkillRepository:
                 extra={"user_id": str(user_id)},
             )
             raise
+
+    # ============ Re-embedding support methods ============
+
+    async def count_all_skills(self) -> int:
+        """Count all skills across all users."""
+        async with self.db_adapter.system_session() as session:
+            return await session.scalar(select(func.count()).select_from(SkillsTable))
+
+    async def get_skills_for_reembedding(self, limit: int, offset: int) -> list[Skill]:
+        """Fetch all skills, across all users, in batches ordered by id."""
+        async with self.db_adapter.system_session() as session:
+            result = await session.execute(
+                select(SkillsTable)
+                .order_by(SkillsTable.id.asc())
+                .offset(offset)
+                .limit(limit),
+            )
+            return [self._to_skill(row) for row in result.scalars().all()]
+
+    async def reset_embedding_storage(self) -> None:
+        """Alter embedding column to match new EMBEDDING_DIMENSIONS.
+
+        pgvector cannot cast vectors across dimensions, so existing embeddings
+        must be cleared before resizing the column.
+        """
+        dims = settings.EMBEDDING_DIMENSIONS
+        async with self.db_adapter.system_session() as session:
+            # Drop NOT NULL so we can clear embeddings
+            await session.execute(text(
+                "ALTER TABLE skills ALTER COLUMN embedding DROP NOT NULL",
+            ))
+            # Clear existing embeddings (can't cast across dimensions)
+            await session.execute(text(
+                "UPDATE skills SET embedding = NULL",
+            ))
+            # Resize the column
+            await session.execute(text(
+                f"ALTER TABLE skills ALTER COLUMN embedding TYPE vector({dims})",
+            ))
+            logger.info("Altered skills embedding column", extra={
+                "dimensions": dims,
+            })
+
+    async def finalize_embedding_storage(self) -> None:
+        """Restore NOT NULL on the embedding column that reset_embedding_storage dropped.
+
+        Only valid once every skill has an embedding again, otherwise PostgreSQL rejects it.
+        """
+        async with self.db_adapter.system_session() as session:
+            await session.execute(text(
+                "ALTER TABLE skills ALTER COLUMN embedding SET NOT NULL",
+            ))
+
+    async def bulk_update_embeddings(self, updates: list[tuple[int, list[float]]]) -> None:
+        """Write new embeddings for a batch of skill IDs"""
+        async with self.db_adapter.system_session() as session:
+            for skill_id, embedding in updates:
+                await session.execute(
+                    update(SkillsTable)
+                    .where(SkillsTable.id == skill_id)
+                    # Assigning updated_at to itself keeps its onupdate default from
+                    # presenting a rebuilt vector as an edit of the skill.
+                    .values(embedding=embedding, updated_at=SkillsTable.updated_at),
+                )
+
+    async def validate_embedding_count(self) -> bool:
+        """Check every skill has an embedding."""
+        async with self.db_adapter.system_session() as session:
+            skill_count = await session.scalar(
+                select(func.count()).select_from(SkillsTable),
+            )
+            embedding_count = await session.scalar(
+                select(func.count()).select_from(SkillsTable).where(
+                    SkillsTable.embedding.isnot(None),
+                ),
+            )
+            return skill_count == embedding_count
+
+    async def validate_embedding_dimensions(self) -> bool:
+        """Sample embeddings and verify correct dimensions"""
+        async with self.db_adapter.system_session() as session:
+            result = await session.execute(
+                text("""
+                    SELECT vector_dims(embedding) as dims
+                    FROM skills
+                    WHERE embedding IS NOT NULL
+                    LIMIT 5
+                """),
+            )
+            for row in result.fetchall():
+                if row[0] != settings.EMBEDDING_DIMENSIONS:
+                    logger.error("Skill dimension mismatch", extra={
+                        "expected": settings.EMBEDDING_DIMENSIONS,
+                        "actual": row[0],
+                    })
+                    return False
+            return True
 
     @staticmethod
     def _to_skill(row: SkillsTable) -> Skill:

@@ -189,6 +189,29 @@ def create_repositories(db_adapter, embeddings_adapter, reranker_adapter):
     raise ValueError(f"Unsupported DATABASE setting: {settings.DATABASE}. Must be 'Postgres' or 'SQLite'")
 
 
+def create_skill_repository(db_adapter, embeddings_adapter, reranker_adapter=None):
+    """Create the skill repository for the configured database, whatever SKILLS_ENABLED says.
+
+    Re-embedding must reach the skill vectors even while the feature is switched off, or
+    switching it on later would meet vectors of the old dimensions.
+    """
+    if settings.DATABASE == "Postgres":
+        from app.repositories.postgres.skill_repository import PostgresSkillRepository
+        return PostgresSkillRepository(
+            db_adapter=db_adapter,
+            embedding_adapter=embeddings_adapter,
+            rerank_adapter=reranker_adapter,
+        )
+    if settings.DATABASE == "SQLite":
+        from app.repositories.sqlite.skill_repository import SqliteSkillRepository
+        return SqliteSkillRepository(
+            db_adapter=db_adapter,
+            embedding_adapter=embeddings_adapter,
+            rerank_adapter=reranker_adapter,
+        )
+    raise ValueError(f"Unsupported DATABASE setting: {settings.DATABASE}. Must be 'Postgres' or 'SQLite'")
+
+
 @dataclass
 class Services:
     """Service layer instances; feature-flagged services are None when disabled."""

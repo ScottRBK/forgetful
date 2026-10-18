@@ -257,3 +257,39 @@ class SkillRepository(Protocol):
     ) -> list[tuple[int, int]]:
         """Get all skill-document associations for a user (for graph visualization)."""
         ...
+
+    # Re-embedding support methods
+
+    async def count_all_skills(self) -> int:
+        """Count all skills across all users."""
+        ...
+
+    async def get_skills_for_reembedding(self, limit: int, offset: int) -> list[Skill]:
+        """Fetch all skills, across all users, in batches ordered by id."""
+        ...
+
+    async def reset_embedding_storage(self) -> None:
+        """Prepare skill vector storage for new dimensions.
+        SQLite: DROP + CREATE vec_skills with new dimensions
+        Postgres: clear the embedding column and ALTER its type
+        """
+        ...
+
+    async def finalize_embedding_storage(self) -> None:
+        """Undo what `reset_embedding_storage` relaxed, once every skill has a new embedding.
+        SQLite: nothing to restore
+        Postgres: restore NOT NULL on the embedding column
+        """
+        ...
+
+    async def bulk_update_embeddings(self, updates: list[tuple[int, list[float]]]) -> None:
+        """Write new embeddings for a batch of skill IDs"""
+        ...
+
+    async def validate_embedding_count(self) -> bool:
+        """Check every skill has an embedding."""
+        ...
+
+    async def validate_embedding_dimensions(self) -> bool:
+        """Sample embeddings and verify correct dimensions"""
+        ...

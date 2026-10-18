@@ -162,6 +162,7 @@ async def _run_reembed(args):
         create_backup_service,
         create_db_adapter,
         create_repositories,
+        create_skill_repository,
         get_embedding_adapter,
     )
     from app.services.re_embedding_service import ReEmbeddingService
@@ -188,25 +189,37 @@ async def _run_reembed(args):
 
     await db_adapter.init_db()
 
-    # Create memory repository (reranker not needed for re-embedding)
+    # Create repositories (reranker not needed for re-embedding). Skills share the embedding
+    # provider and dimensions, so they are migrated even when the skills feature is switched off.
     repos = create_repositories(db_adapter, embeddings_adapter, None)
     memory_repository = repos["memory"]
+    skill_repository = create_skill_repository(db_adapter, embeddings_adapter)
 
-    # Count memories for dry run / estimation
+    # Count memories and skills for dry run / estimation
     total = await memory_repository.count_all_memories()
+    skill_total = await skill_repository.count_all_skills()
     print(f"  Memories to process: {total}")
+    if skill_total:
+        print(f"  Skills to process: {skill_total}")
 
     if args.dry_run:
-        print(f"\n[DRY RUN] Would re-embed {total} memories with the above configuration.")
+        skills_note = f" and {skill_total} skills" if skill_total else ""
+        print(f"\n[DRY RUN] Would re-embed {total} memories{skills_note} with the above configuration.")
         print("  No changes were made.")
         await db_adapter.dispose()
         return
 
-    if total == 0:
+    service = ReEmbeddingService(
+        memory_repository=memory_repository,
+        embedding_adapter=embeddings_adapter,
+        batch_size=args.batch_size,
+        skill_repository=skill_repository,
+    )
+
+    if total == 0 and skill_total == 0:
         # Nothing to re-embed or lose, so no backup is needed. The vector storage must still
         # match the configured dimensions though, and init_db() never resizes existing tables.
         print("\n  No memories to re-embed. Updating vector schema only...")
-        service = ReEmbeddingService(memory_repository, embeddings_adapter)
         await service.re_embed_all()
         print(f"  Vector storage uses {settings.EMBEDDING_DIMENSIONS} dimensions. Done.")
         await db_adapter.dispose()
@@ -245,11 +258,11 @@ async def _run_reembed(args):
     try:
         # Reset schema
         print("\n[3/5] Updating vector schema...")
-        await memory_repository.reset_embedding_storage()
+        await service.reset_vector_storage()
         if settings.DATABASE == "SQLite":
-            print(f"  Recreated vec_memories table with {settings.EMBEDDING_DIMENSIONS} dimensions")
+            print(f"  Recreated vec_memories and vec_skills tables with {settings.EMBEDDING_DIMENSIONS} dimensions")
         else:
-            print(f"  Altered embedding column to vector({settings.EMBEDDING_DIMENSIONS})")
+            print(f"  Altered embedding columns to vector({settings.EMBEDDING_DIMENSIONS})")
 
         # Re-embed
         print("\n[4/5] Re-embedding memories...")
@@ -260,13 +273,7 @@ async def _run_reembed(args):
             bar = "#" * bar_filled + "-" * (25 - bar_filled)
             print(f"\r  [{bar}] {processed}/{total_count} memories ({pct}%)", end="", flush=True)
 
-        service = ReEmbeddingService(
-            memory_repository=memory_repository,
-            embedding_adapter=embeddings_adapter,
-            batch_size=args.batch_size,
-        )
-
-        result = await service.re_embed_all(progress_callback=progress)
+        result = await service.re_embed_all(progress_callback=progress, reset_storage=False)
         print()  # newline after progress bar
 
         # Validate
@@ -277,6 +284,8 @@ async def _run_reembed(args):
                   f"{'OK' if result.validation.count_ok else 'FAILED'}")
             print(f"  Dimension check: {'OK' if result.validation.dimensions_ok else 'FAILED'}")
             print(f"  Search check: {'OK' if result.validation.search_ok else 'FAILED'}")
+            if result.total_skills:
+                print(f"  Skills: {result.skills_processed}/{result.total_skills} re-embedded")
 
             if not result.validation.all_passed:
                 print("\n  Validation FAILED!")
@@ -289,7 +298,8 @@ async def _run_reembed(args):
                     print("  Database returned to pre-migration state.")
                 sys.exit(1)
 
-        print(f"\n  Successfully re-embedded {result.total_processed} memories")
+        skills_note = f" and {result.skills_processed} skills" if result.total_skills else ""
+        print(f"\n  Successfully re-embedded {result.total_processed} memories{skills_note}")
         if backup_path:
             print(f"  Backup retained at: {backup_path}")
             print("  (Delete manually when satisfied with results)")
