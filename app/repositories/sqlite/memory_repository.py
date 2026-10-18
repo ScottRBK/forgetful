@@ -12,7 +12,13 @@ from sqlalchemy.orm import selectinload
 from app.config.logging_config import logging
 from app.config.settings import settings
 from app.exceptions import NotFoundError
-from app.models.memory_models import Memory, MemoryCreate, MemoryScore, MemoryUpdate
+from app.models.memory_models import (
+    VALID_SORT_ORDER,
+    Memory,
+    MemoryCreate,
+    MemoryScore,
+    MemoryUpdate,
+)
 from app.protocols.embedding_protocol import EmbeddingsAdapter
 from app.repositories.embeddings.reranker_adapter import RerankAdapter
 from app.repositories.sqlite.sqlite_adapter import SqliteDatabaseAdapter
@@ -943,7 +949,11 @@ class SqliteMemoryRepository:
             "updated_at": MemoryTable.updated_at,
             "importance": MemoryTable.importance,
         }
-        sort_column = sort_column_map.get(sort_by, MemoryTable.created_at)
+        if sort_by not in sort_column_map:
+            raise ValueError(f"sort_by must be one of: {', '.join(sort_column_map)}")
+        if sort_order not in VALID_SORT_ORDER:
+            raise ValueError(f"sort_order must be one of: {', '.join(VALID_SORT_ORDER)}")
+        sort_column = sort_column_map[sort_by]
         order = sort_column.desc() if sort_order == "desc" else sort_column.asc()
         # Tie-break on id to keep ordering deterministic when timestamps are equal
         id_tiebreak = MemoryTable.id.desc() if sort_order == "desc" else MemoryTable.id.asc()

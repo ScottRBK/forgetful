@@ -17,6 +17,8 @@ from app.config.settings import settings
 from app.exceptions import InvalidStateTransitionError, NotFoundError
 from app.models.activity_models import ActionType, ActivityEvent, ActorType, EntityType
 from app.models.memory_models import (
+    VALID_SORT_BY,
+    VALID_SORT_ORDER,
     LinkedMemory,
     Memory,
     MemoryCreate,
@@ -44,6 +46,15 @@ if TYPE_CHECKING:
     from app.events import EventBus
 
 logger = logging.getLogger(__name__)
+
+
+def _normalise_sort_option(value: object, name: str, allowed: tuple[str, ...]) -> str:
+    """Strip and lower-case a sort option, raising ValueError when it is not an allowed value."""
+    if isinstance(value, str):
+        cleaned = value.strip().lower()
+        if cleaned in allowed:
+            return cleaned
+    raise ValueError(f"{name} must be one of: {', '.join(allowed)}")
 
 
 class MemoryService:
@@ -534,7 +545,13 @@ class MemoryService:
 
         Returns:
             Tuple of (memories, total_count) where total_count is count before pagination
+
+        Raises:
+            ValueError: If sort_by or sort_order is not one of the supported values
         """
+        sort_by = _normalise_sort_option(sort_by, "sort_by", VALID_SORT_BY)
+        sort_order = _normalise_sort_option(sort_order, "sort_order", VALID_SORT_ORDER)
+
         return await self.memory_repo.list_memories(
             user_id=user_id,
             limit=limit,

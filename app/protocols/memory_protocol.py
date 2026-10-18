@@ -150,6 +150,9 @@ class MemoryRepository(Protocol):
         Returns:
             Tuple of (memories, total_count) where total_count is
             the count BEFORE limit/offset applied (for pagination)
+
+        Raises:
+            ValueError: If sort_by or sort_order is not a supported (lower-case) value
         """
         ...
 
