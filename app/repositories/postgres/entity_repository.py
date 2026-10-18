@@ -1351,6 +1351,7 @@ class PostgresEntityRepository:
                 ).where(
                     memory_entity_association.c.entity_id == entity_id,
                     MemoryTable.user_id == user_id,
+                    MemoryTable.is_obsolete.is_(False),
                 )
 
                 result = await session.execute(stmt)

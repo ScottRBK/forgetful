@@ -1099,6 +1099,7 @@ class SqliteSkillRepository:
                 ).where(
                     memory_skill_association.c.skill_id == skill_id,
                     MemoryTable.user_id == str(user_id),
+                    MemoryTable.is_obsolete.is_(False),
                 )
                 memory_ids = [row.memory_id for row in await session.execute(memory_stmt)]
 

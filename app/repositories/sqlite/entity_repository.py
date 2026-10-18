@@ -1350,6 +1350,7 @@ class SqliteEntityRepository:
                 ).where(
                     memory_entity_association.c.entity_id == entity_id,
                     MemoryTable.user_id == str(user_id),
+                    MemoryTable.is_obsolete.is_(False),
                 )
 
                 result = await session.execute(stmt)

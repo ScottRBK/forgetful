@@ -108,3 +108,63 @@ async def test_list_entities_empty_project_ids_is_no_filter(http_client, mcp_cli
     assert unfiltered.data["total_count"] == 2
     assert with_empty.data["total_count"] == 2
     assert filtered.data["total_count"] == 1
+
+
+@pytest.mark.e2e
+async def test_entity_memories_exclude_obsolete_memory(http_client):
+    """GET /entities/{id}/memories no longer lists a soft-deleted memory."""
+    entity_id = await _create_entity(http_client, "Obsolete entity", [])
+    kept = await _create_memory(http_client, "Kept memory")
+    doomed = await _create_memory(http_client, "Doomed memory")
+    for memory_id in (kept, doomed):
+        link = await http_client.post(
+            f"/api/v1/entities/{entity_id}/memories", json={"memory_id": memory_id},
+        )
+        assert link.status_code == 200, link.text
+
+    deleted = await http_client.request(
+        "DELETE", f"/api/v1/memories/{doomed}", json={"reason": "no longer true"},
+    )
+    assert deleted.status_code == 200, deleted.text
+
+    after = (await http_client.get(f"/api/v1/entities/{entity_id}/memories")).json()
+    assert after["memory_ids"] == [kept]
+    assert after["count"] == 1
+    assert [m["id"] for m in after["memories"]] == [kept]
+
+
+@pytest.mark.e2e
+async def test_skill_links_exclude_obsolete_memory(mcp_client):
+    """The get_skill_links reverse lookup no longer reports a memory marked obsolete."""
+    skill = await _call(mcp_client, "create_skill", {
+        "name": "obsolete-links-skill",
+        "description": "Skill used to check obsolete memory visibility",
+        "content": "# Content",
+        "tags": [],
+        "importance": 7,
+    })
+    skill_id = skill.data["id"]
+
+    memory_ids = []
+    for title in ("Kept skill memory", "Doomed skill memory"):
+        memory = await _call(mcp_client, "create_memory", {
+            "title": title,
+            "content": f"content of {title}",
+            "context": "obsolete visibility test",
+            "keywords": ["visibility"],
+            "tags": ["visibility"],
+            "importance": 7,
+        })
+        memory_ids.append(memory.data["id"])
+        await _call(mcp_client, "link_skill_to_memory", {
+            "skill_id": skill_id, "memory_id": memory.data["id"],
+        })
+    kept, doomed = memory_ids
+
+    await _call(mcp_client, "mark_memory_obsolete", {
+        "memory_id": doomed, "reason": "superseded",
+    })
+
+    links = await _call(mcp_client, "get_skill_links", {"skill_id": skill_id})
+    assert links.data["memory_ids"] == [kept]
+    assert links.data["total_count"] == 1
