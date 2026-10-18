@@ -5,6 +5,7 @@ Provides graph data (nodes and edges) for visualization UI.
 """
 import logging
 from typing import Any
+from uuid import UUID
 
 from fastmcp import FastMCP
 from starlette.requests import Request
@@ -13,8 +14,49 @@ from starlette.responses import JSONResponse
 from app.config.settings import settings
 from app.exceptions import NotFoundError
 from app.middleware.auth import get_user_from_request
+from app.models.memory_models import Memory
 
 logger = logging.getLogger(__name__)
+
+
+async def _collect_memory_neighbourhood(
+    memory_service: Any,
+    user_id: UUID,
+    center_memory: Memory,
+    depth: int,
+) -> dict[int, tuple[Memory, int]]:
+    """Breadth-first walk over memory links, starting at the centre memory.
+
+    Returns every memory reachable within `depth` hops as {memory_id: (memory, level)},
+    in discovery order, where level is the shortest hop count from the centre (centre = 0).
+    Obsolete and missing memories are neither returned nor traversed through, matching
+    /graph/subgraph.
+    """
+    reached: dict[int, tuple[Memory, int]] = {center_memory.id: (center_memory, 0)}
+    skipped_ids: set[int] = set()
+    frontier = [center_memory]
+
+    for level in range(1, depth + 1):
+        next_frontier: list[Memory] = []
+        for memory in frontier:
+            for linked_id in memory.linked_memory_ids:
+                if linked_id in reached or linked_id in skipped_ids:
+                    continue
+                try:
+                    linked_memory = await memory_service.get_memory(
+                        user_id=user_id,
+                        memory_id=linked_id,
+                    )
+                except NotFoundError:
+                    linked_memory = None
+                if linked_memory is None or linked_memory.is_obsolete:
+                    skipped_ids.add(linked_id)
+                    continue
+                reached[linked_id] = (linked_memory, level)
+                next_frontier.append(linked_memory)
+        frontier = next_frontier
+
+    return reached
 
 
 def register(mcp: FastMCP):
@@ -767,9 +809,10 @@ def register(mcp: FastMCP):
         """Get subgraph centered on a specific memory.
 
         Returns the memory, its linked memories, and related entities.
+        Obsolete linked memories are not included.
 
         Query params:
-            depth: Link traversal depth (1-3, default 1)
+            depth: Link traversal depth (1-3, default 1; larger values are capped at 3)
         """
         try:
             user = await get_user_from_request(request, mcp)
@@ -790,12 +833,18 @@ def register(mcp: FastMCP):
 
         # Validate depth parameter
         try:
-            depth = min(int(depth_str), 3)
+            depth = int(depth_str)
         except ValueError:
             return JSONResponse(
                 {"error": f"Invalid depth: {depth_str}. Must be an integer."},
                 status_code=400,
             )
+        if depth < 1:
+            return JSONResponse(
+                {"error": f"Invalid depth: {depth}. Must be at least 1."},
+                status_code=400,
+            )
+        depth = min(depth, 3)
 
         # Get center memory
         try:
@@ -808,13 +857,17 @@ def register(mcp: FastMCP):
 
         nodes: list[dict[str, Any]] = []
         edges: list[dict[str, Any]] = []
-        seen_memory_ids = set()
 
-        async def add_memory_node(memory, level: int):
-            if memory.id in seen_memory_ids:
-                return
-            seen_memory_ids.add(memory.id)
+        # Breadth-first so every memory within depth is found at its shortest level
+        reached_memories = await _collect_memory_neighbourhood(
+            memory_service=mcp.memory_service,
+            user_id=user.id,
+            center_memory=center_memory,
+            depth=depth,
+        )
+        seen_memory_ids = set(reached_memories)
 
+        for memory, level in reached_memories.values():
             nodes.append({
                 "id": f"memory_{memory.id}",
                 "type": "memory",
@@ -829,48 +882,20 @@ def register(mcp: FastMCP):
                 },
             })
 
-            # Recurse for linked memories if within depth
-            if level < depth:
-                for linked_id in memory.linked_memory_ids:
-                    if linked_id not in seen_memory_ids:
-                        linked_memory = await mcp.memory_service.get_memory(
-                            user_id=user.id,
-                            memory_id=linked_id,
-                        )
-                        if linked_memory:
-                            await add_memory_node(linked_memory, level + 1)
-
-                            # Add edge
-                            edge_id = f"memory_{min(memory.id, linked_id)}_memory_{max(memory.id, linked_id)}"
-                            edges.append({
-                                "id": edge_id,
-                                "source": f"memory_{memory.id}",
-                                "target": f"memory_{linked_id}",
-                                "type": "memory_link",
-                            })
-
-        # Build subgraph starting from center
-        await add_memory_node(center_memory, 0)
-
-        # Add edges between already-seen memories
+        # Add edges between memories in the subgraph, one per canonical edge id
         seen_edge_ids = set()
-        for memory_id_val in seen_memory_ids:
-            memory = await mcp.memory_service.get_memory(
-                user_id=user.id,
-                memory_id=memory_id_val,
-            )
-            if memory:
-                for linked_id in memory.linked_memory_ids:
-                    if linked_id in seen_memory_ids:
-                        edge_id = f"memory_{min(memory_id_val, linked_id)}_memory_{max(memory_id_val, linked_id)}"
-                        if edge_id not in seen_edge_ids:
-                            seen_edge_ids.add(edge_id)
-                            edges.append({
-                                "id": edge_id,
-                                "source": f"memory_{memory_id_val}",
-                                "target": f"memory_{linked_id}",
-                                "type": "memory_link",
-                            })
+        for memory_id_val, (memory, _level) in reached_memories.items():
+            for linked_id in memory.linked_memory_ids:
+                if linked_id in seen_memory_ids:
+                    edge_id = f"memory_{min(memory_id_val, linked_id)}_memory_{max(memory_id_val, linked_id)}"
+                    if edge_id not in seen_edge_ids:
+                        seen_edge_ids.add(edge_id)
+                        edges.append({
+                            "id": edge_id,
+                            "source": f"memory_{memory_id_val}",
+                            "target": f"memory_{linked_id}",
+                            "type": "memory_link",
+                        })
 
         # Add entities linked to memories in subgraph
         seen_entity_ids = set()

@@ -1,11 +1,14 @@
-"""E2E tests for the memory link routes.
+"""E2E tests for the memory link routes and the legacy memory subgraph route.
 
-Covers GET/POST /api/v1/memories/{id}/links: limit validation, related_ids
-validation, and soft-deleted neighbours.
+Covers GET/POST /api/v1/memories/{id}/links and GET /api/v1/graph/memory/{id}:
+limit and depth validation, related_ids validation, soft-deleted neighbours,
+shortest-path levels, and duplicate edges.
 
-Auto-linking is disabled so every memory contains exactly the links the test
-creates.
+Auto-linking is disabled so every graph below contains exactly the links the
+test creates.
 """
+from collections import Counter
+
 import pytest
 
 pytestmark = pytest.mark.asyncio
@@ -55,6 +58,14 @@ async def _soft_delete(client, memory_id: int) -> None:
         "DELETE", f"/api/v1/memories/{memory_id}", json={"reason": "no longer needed"},
     )
     assert response.status_code == 200, response.text
+
+
+def _memory_levels(body: dict) -> dict[str, int]:
+    return {n["id"]: n["level"] for n in body["nodes"] if n["type"] == "memory"}
+
+
+def _memory_edge_ids(body: dict) -> list[str]:
+    return [e["id"] for e in body["edges"] if e["type"] == "memory_link"]
 
 
 class TestGetMemoryLinksLimit:
@@ -197,3 +208,141 @@ class TestPostMemoryLinksValidation:
         response = await http_client.post("/api/v1/memories/99999/links", json={"related_ids": [target]})
 
         assert response.status_code == 404, response.text
+
+
+class TestMemorySubgraphTraversal:
+    """GET /api/v1/graph/memory/{id} levels, node set, and edges."""
+
+    async def _build_diamond_with_tail(self, client) -> tuple[int, int, int, int]:
+        """Links 1-2, 1-3, 2-3, 3-4: memory 4 is two hops from memory 1."""
+        m1, m2, m3, m4 = await _create_memories(client, 4)
+        for source, target in ((m1, m2), (m1, m3), (m2, m3), (m3, m4)):
+            await _link(client, source, [target])
+        return m1, m2, m3, m4
+
+    async def test_levels_are_shortest_path_and_nodes_within_depth_included(self, http_client):
+        m1, m2, m3, m4 = await self._build_diamond_with_tail(http_client)
+
+        response = await http_client.get(f"/api/v1/graph/memory/{m1}?depth=2")
+
+        assert response.status_code == 200, response.text
+        assert _memory_levels(response.json()) == {
+            f"memory_{m1}": 0,
+            f"memory_{m2}": 1,
+            f"memory_{m3}": 1,
+            f"memory_{m4}": 2,
+        }
+
+    async def test_depth_one_excludes_second_hop(self, http_client):
+        m1, m2, m3, m4 = await self._build_diamond_with_tail(http_client)
+
+        response = await http_client.get(f"/api/v1/graph/memory/{m1}?depth=1")
+
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert _memory_levels(body) == {f"memory_{m1}": 0, f"memory_{m2}": 1, f"memory_{m3}": 1}
+        assert sorted(_memory_edge_ids(body)) == sorted([
+            f"memory_{m1}_memory_{m2}",
+            f"memory_{m1}_memory_{m3}",
+            f"memory_{m2}_memory_{m3}",
+        ])
+
+    async def test_matches_subgraph_endpoint(self, http_client):
+        m1, *_ = await self._build_diamond_with_tail(http_client)
+
+        legacy = (await http_client.get(f"/api/v1/graph/memory/{m1}?depth=2")).json()
+        current = (await http_client.get(f"/api/v1/graph/subgraph?node_id=memory_{m1}&depth=2")).json()
+
+        assert _memory_levels(legacy) == {n["id"]: n["depth"] for n in current["nodes"] if n["type"] == "memory"}
+        assert sorted(_memory_edge_ids(legacy)) == sorted(
+            e["id"] for e in current["edges"] if e["type"] == "memory_link"
+        )
+
+    @pytest.mark.parametrize("depth", [1, 2, 3])
+    async def test_each_memory_link_edge_is_listed_once(self, http_client, depth):
+        m1, m2, m3 = await _create_memories(http_client, 3)
+        await _link(http_client, m1, [m2, m3])
+
+        response = await http_client.get(f"/api/v1/graph/memory/{m1}?depth={depth}")
+
+        assert response.status_code == 200, response.text
+        body = response.json()
+        edge_ids = [e["id"] for e in body["edges"]]
+        assert {k: v for k, v in Counter(edge_ids).items() if v > 1} == {}
+        assert sorted(edge_ids) == sorted([f"memory_{m1}_memory_{m2}", f"memory_{m1}_memory_{m3}"])
+        assert body["meta"]["edge_count"] == 2
+        assert body["meta"]["memory_link_count"] == 2
+
+    async def test_traversal_edges_point_away_from_the_centre(self, http_client):
+        m1, m2, m3 = await _create_memories(http_client, 3)
+        await _link(http_client, m1, [m2])
+        await _link(http_client, m2, [m3])
+
+        response = await http_client.get(f"/api/v1/graph/memory/{m1}?depth=2")
+
+        assert response.status_code == 200, response.text
+        edges = {e["id"]: (e["source"], e["target"]) for e in response.json()["edges"]}
+        assert edges == {
+            f"memory_{m1}_memory_{m2}": (f"memory_{m1}", f"memory_{m2}"),
+            f"memory_{m2}_memory_{m3}": (f"memory_{m2}", f"memory_{m3}"),
+        }
+
+    async def test_obsolete_neighbour_is_not_a_node_or_edge_endpoint(self, http_client):
+        center, alive, gone = await _create_memories(http_client, 3)
+        await _link(http_client, center, [alive, gone])
+        await _soft_delete(http_client, gone)
+
+        response = await http_client.get(f"/api/v1/graph/memory/{center}?depth=2")
+
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert set(_memory_levels(body)) == {f"memory_{center}", f"memory_{alive}"}
+        assert _memory_edge_ids(body) == [f"memory_{center}_memory_{alive}"]
+        assert body["meta"]["memory_count"] == 2
+
+    async def test_traversal_does_not_continue_through_obsolete_memory(self, http_client):
+        center, bridge, beyond = await _create_memories(http_client, 3)
+        await _link(http_client, center, [bridge])
+        await _link(http_client, bridge, [beyond])
+        await _soft_delete(http_client, bridge)
+
+        response = await http_client.get(f"/api/v1/graph/memory/{center}?depth=3")
+
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert set(_memory_levels(body)) == {f"memory_{center}"}
+        assert body["edges"] == []
+
+
+class TestMemorySubgraphDepth:
+    """GET /api/v1/graph/memory/{id} depth validation."""
+
+    @pytest.mark.parametrize("bad_depth", ["0", "-2"])
+    async def test_depth_below_one_is_rejected(self, http_client, bad_depth):
+        first, second = await _create_memories(http_client, 2)
+        await _link(http_client, first, [second])
+
+        response = await http_client.get(f"/api/v1/graph/memory/{first}?depth={bad_depth}")
+
+        assert response.status_code == 400, response.text
+        assert "at least 1" in response.json()["error"]
+
+    async def test_non_integer_depth_is_still_rejected(self, http_client):
+        (memory_id,) = await _create_memories(http_client, 1)
+
+        response = await http_client.get(f"/api/v1/graph/memory/{memory_id}?depth=abc")
+
+        assert response.status_code == 400, response.text
+        assert "Must be an integer" in response.json()["error"]
+
+    async def test_depth_above_maximum_is_clamped_to_three(self, http_client):
+        memory_ids = await _create_memories(http_client, 5)
+        for source, target in zip(memory_ids, memory_ids[1:]):
+            await _link(http_client, source, [target])
+
+        response = await http_client.get(f"/api/v1/graph/memory/{memory_ids[0]}?depth=99")
+
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["meta"]["depth"] == 3
+        assert set(_memory_levels(body)) == {f"memory_{i}" for i in memory_ids[:4]}
