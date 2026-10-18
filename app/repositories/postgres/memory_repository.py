@@ -1269,7 +1269,8 @@ class PostgresMemoryRepository:
 
         Each node is visited once, at its minimum depth: the recursion uses UNION so
         rows it has already produced are discarded, and termination is guaranteed by
-        the depth bound.
+        the depth bound. The center node is always returned; the include_* flags select
+        which types of node are traversed into, whatever the type of the center.
 
         Args:
             user_id: User ID for ownership filtering
@@ -1310,7 +1311,7 @@ class PostgresMemoryRepository:
             """)
 
         # Memory -> Entity via memory_entity_association
-        if include_memories and include_entities:
+        if include_entities:
             edge_queries.append("""
                 SELECT
                     mea.entity_id AS target_id,
@@ -1323,7 +1324,7 @@ class PostgresMemoryRepository:
             """)
 
         # Entity -> Memory via memory_entity_association
-        if include_memories and include_entities:
+        if include_memories:
             edge_queries.append("""
                 SELECT
                     mea.memory_id AS target_id,
@@ -1351,7 +1352,7 @@ class PostgresMemoryRepository:
             """)
 
         # Memory -> Project via memory_project_association
-        if include_memories and include_projects:
+        if include_projects:
             edge_queries.append("""
                 SELECT
                     mpa.project_id AS target_id,
@@ -1364,7 +1365,7 @@ class PostgresMemoryRepository:
             """)
 
         # Project -> Memory via memory_project_association
-        if include_memories and include_projects:
+        if include_memories:
             edge_queries.append("""
                 SELECT
                     mpa.memory_id AS target_id,
@@ -1378,7 +1379,7 @@ class PostgresMemoryRepository:
             """)
 
         # Memory -> Document via memory_document_association
-        if include_memories and include_documents:
+        if include_documents:
             edge_queries.append("""
                 SELECT
                     mda.document_id AS target_id,
@@ -1391,7 +1392,7 @@ class PostgresMemoryRepository:
             """)
 
         # Document -> Memory via memory_document_association
-        if include_memories and include_documents:
+        if include_memories:
             edge_queries.append("""
                 SELECT
                     mda.memory_id AS target_id,
@@ -1405,7 +1406,7 @@ class PostgresMemoryRepository:
             """)
 
         # Memory -> CodeArtifact via memory_code_artifact_association
-        if include_memories and include_code_artifacts:
+        if include_code_artifacts:
             edge_queries.append("""
                 SELECT
                     mca.code_artifact_id AS target_id,
@@ -1418,7 +1419,7 @@ class PostgresMemoryRepository:
             """)
 
         # CodeArtifact -> Memory via memory_code_artifact_association
-        if include_memories and include_code_artifacts:
+        if include_memories:
             edge_queries.append("""
                 SELECT
                     mca.memory_id AS target_id,
@@ -1432,7 +1433,7 @@ class PostgresMemoryRepository:
             """)
 
         # Document -> Project via documents.project_id FK
-        if include_documents and include_projects:
+        if include_projects:
             edge_queries.append("""
                 SELECT
                     d.project_id AS target_id,
@@ -1446,7 +1447,7 @@ class PostgresMemoryRepository:
             """)
 
         # Project -> Document via documents.project_id FK
-        if include_documents and include_projects:
+        if include_documents:
             edge_queries.append("""
                 SELECT
                     d.id AS target_id,
@@ -1458,7 +1459,7 @@ class PostgresMemoryRepository:
             """)
 
         # CodeArtifact -> Project via code_artifacts.project_id FK
-        if include_code_artifacts and include_projects:
+        if include_projects:
             edge_queries.append("""
                 SELECT
                     ca.project_id AS target_id,
@@ -1472,7 +1473,7 @@ class PostgresMemoryRepository:
             """)
 
         # Project -> CodeArtifact via code_artifacts.project_id FK
-        if include_code_artifacts and include_projects:
+        if include_code_artifacts:
             edge_queries.append("""
                 SELECT
                     ca.id AS target_id,
@@ -1484,7 +1485,7 @@ class PostgresMemoryRepository:
             """)
 
         # Entity -> Project via entity_project_association
-        if include_entities and include_projects:
+        if include_projects:
             edge_queries.append("""
                 SELECT
                     epa.project_id AS target_id,
@@ -1497,7 +1498,7 @@ class PostgresMemoryRepository:
             """)
 
         # Project -> Entity via entity_project_association
-        if include_entities and include_projects:
+        if include_entities:
             edge_queries.append("""
                 SELECT
                     epa.entity_id AS target_id,
@@ -1510,7 +1511,7 @@ class PostgresMemoryRepository:
             """)
 
         # Memory -> File via memory_file_association
-        if include_memories and include_files:
+        if include_files:
             edge_queries.append("""
                 SELECT
                     mfa.file_id AS target_id,
@@ -1523,7 +1524,7 @@ class PostgresMemoryRepository:
             """)
 
         # File -> Memory via memory_file_association
-        if include_memories and include_files:
+        if include_memories:
             edge_queries.append("""
                 SELECT
                     mfa.memory_id AS target_id,
@@ -1537,7 +1538,7 @@ class PostgresMemoryRepository:
             """)
 
         # File -> Project via files.project_id FK
-        if include_files and include_projects:
+        if include_projects:
             edge_queries.append("""
                 SELECT
                     f.project_id AS target_id,
@@ -1551,7 +1552,7 @@ class PostgresMemoryRepository:
             """)
 
         # Project -> File via files.project_id FK
-        if include_files and include_projects:
+        if include_files:
             edge_queries.append("""
                 SELECT
                     f.id AS target_id,
@@ -1563,7 +1564,7 @@ class PostgresMemoryRepository:
             """)
 
         # Entity -> File via entity_file_association
-        if include_entities and include_files:
+        if include_files:
             edge_queries.append("""
                 SELECT
                     efa.file_id AS target_id,
@@ -1576,7 +1577,7 @@ class PostgresMemoryRepository:
             """)
 
         # File -> Entity via entity_file_association
-        if include_entities and include_files:
+        if include_entities:
             edge_queries.append("""
                 SELECT
                     efa.entity_id AS target_id,
@@ -1589,7 +1590,7 @@ class PostgresMemoryRepository:
             """)
 
         # Memory -> Skill via memory_skill_association
-        if include_memories and include_skills:
+        if include_skills:
             edge_queries.append("""
                 SELECT
                     msa.skill_id AS target_id,
@@ -1602,7 +1603,7 @@ class PostgresMemoryRepository:
             """)
 
         # Skill -> Memory via memory_skill_association
-        if include_memories and include_skills:
+        if include_memories:
             edge_queries.append("""
                 SELECT
                     msa.memory_id AS target_id,
@@ -1616,7 +1617,7 @@ class PostgresMemoryRepository:
             """)
 
         # Skill -> Project via skills.project_id FK
-        if include_skills and include_projects:
+        if include_projects:
             edge_queries.append("""
                 SELECT
                     s.project_id AS target_id,
@@ -1630,7 +1631,7 @@ class PostgresMemoryRepository:
             """)
 
         # Project -> Skill via skills.project_id FK
-        if include_skills and include_projects:
+        if include_skills:
             edge_queries.append("""
                 SELECT
                     s.id AS target_id,
@@ -1642,7 +1643,7 @@ class PostgresMemoryRepository:
             """)
 
         # Skill -> File via skill_file_association
-        if include_skills and include_files:
+        if include_files:
             edge_queries.append("""
                 SELECT
                     sfa.file_id AS target_id,
@@ -1655,7 +1656,7 @@ class PostgresMemoryRepository:
             """)
 
         # File -> Skill via skill_file_association
-        if include_skills and include_files:
+        if include_skills:
             edge_queries.append("""
                 SELECT
                     sfa.skill_id AS target_id,
@@ -1668,7 +1669,7 @@ class PostgresMemoryRepository:
             """)
 
         # Skill -> CodeArtifact via skill_code_artifact_association
-        if include_skills and include_code_artifacts:
+        if include_code_artifacts:
             edge_queries.append("""
                 SELECT
                     sca.code_artifact_id AS target_id,
@@ -1681,7 +1682,7 @@ class PostgresMemoryRepository:
             """)
 
         # CodeArtifact -> Skill via skill_code_artifact_association
-        if include_skills and include_code_artifacts:
+        if include_skills:
             edge_queries.append("""
                 SELECT
                     sca.skill_id AS target_id,
@@ -1694,7 +1695,7 @@ class PostgresMemoryRepository:
             """)
 
         # Skill -> Document via skill_document_association
-        if include_skills and include_documents:
+        if include_documents:
             edge_queries.append("""
                 SELECT
                     sda.document_id AS target_id,
@@ -1707,7 +1708,7 @@ class PostgresMemoryRepository:
             """)
 
         # Document -> Skill via skill_document_association
-        if include_skills and include_documents:
+        if include_skills:
             edge_queries.append("""
                 SELECT
                     sda.skill_id AS target_id,
@@ -1720,7 +1721,7 @@ class PostgresMemoryRepository:
             """)
 
         # Plan -> Project via plans.project_id FK
-        if include_plans and include_projects:
+        if include_projects:
             edge_queries.append("""
                 SELECT
                     pl.project_id AS target_id,
@@ -1734,7 +1735,7 @@ class PostgresMemoryRepository:
             """)
 
         # Project -> Plan via plans.project_id FK
-        if include_plans and include_projects:
+        if include_plans:
             edge_queries.append("""
                 SELECT
                     pl.id AS target_id,
@@ -1746,7 +1747,7 @@ class PostgresMemoryRepository:
             """)
 
         # Plan -> Task via tasks.plan_id FK
-        if include_plans and include_tasks:
+        if include_tasks:
             edge_queries.append("""
                 SELECT
                     t.id AS target_id,
@@ -1758,7 +1759,7 @@ class PostgresMemoryRepository:
             """)
 
         # Task -> Plan via tasks.plan_id FK
-        if include_plans and include_tasks:
+        if include_plans:
             edge_queries.append("""
                 SELECT
                     t.plan_id AS target_id,

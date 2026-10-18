@@ -2,6 +2,7 @@
 
 Covers the recursive traversal behind GET /api/v1/graph/subgraph:
 - neighbours whose id is a decimal prefix of an id already visited (1 vs 10)
+- the node_types filter applies to the neighbour type only, for every edge type
 - work is bounded by the number of distinct nodes, not by the number of paths
 - each node keeps its minimum depth
 """
@@ -15,14 +16,29 @@ from app.config.settings import settings
 from app.repositories.sqlite.memory_repository import SqliteMemoryRepository
 from app.repositories.sqlite.sqlite_adapter import SqliteDatabaseAdapter
 from app.repositories.sqlite.sqlite_tables import (
+    CodeArtifactsTable,
+    DocumentsTable,
     EntitiesTable,
     EntityRelationshipsTable,
+    FilesTable,
     MemoryLinkTable,
     MemoryTable,
+    PlansTable,
     ProjectsTable,
+    SkillsTable,
+    TasksTable,
     UsersTable,
+    entity_file_association,
+    entity_project_association,
+    memory_code_artifact_association,
+    memory_document_association,
     memory_entity_association,
+    memory_file_association,
     memory_project_association,
+    memory_skill_association,
+    skill_code_artifact_association,
+    skill_document_association,
+    skill_file_association,
 )
 
 NODE_TYPES = (
@@ -35,6 +51,34 @@ NODE_TYPES = (
     "skill",
     "plan",
     "task",
+)
+
+# Every edge type the traversal knows about, as an undirected pair of node types.
+EDGE_TYPE_PAIRS = [
+    ("memory", "memory"),
+    ("memory", "entity"),
+    ("entity", "entity"),
+    ("memory", "project"),
+    ("memory", "document"),
+    ("memory", "code_artifact"),
+    ("document", "project"),
+    ("code_artifact", "project"),
+    ("entity", "project"),
+    ("memory", "file"),
+    ("file", "project"),
+    ("entity", "file"),
+    ("memory", "skill"),
+    ("skill", "project"),
+    ("skill", "file"),
+    ("skill", "code_artifact"),
+    ("skill", "document"),
+    ("plan", "project"),
+    ("plan", "task"),
+]
+
+# One test per direction of every edge type (36 traversal branches).
+DIRECTED_EDGES = sorted(
+    {(a, b) for a, b in EDGE_TYPE_PAIRS} | {(b, a) for a, b in EDGE_TYPE_PAIRS},
 )
 
 
@@ -188,6 +232,119 @@ async def test_nodes_keep_their_minimum_depth_in_cyclic_graphs():
         shallow, _ = await _traverse(repo, user_id, "memory", 1, depth=2)
         assert ("memory", 5) not in shallow
         assert shallow[("memory", 4)] == 2
+
+
+# ---------------------------------------------------------------------------
+# node_types filter: the same rule for every edge type and both directions
+# ---------------------------------------------------------------------------
+
+
+async def _seed_universe(db_adapter, user_id: UUID) -> None:
+    """One node of every type with id 1, wired together by every edge type.
+
+    memory_2 and entity_2 exist only to give the memory-memory and entity-entity
+    edge types a second endpoint.
+    """
+    uid = str(user_id)
+    async with db_adapter.system_session() as session:
+        session.add_all(_projects(user_id, [1]))
+        session.add_all(_memories(user_id, [1, 2]))
+        session.add_all(_entities(user_id, [1, 2]))
+        await session.flush()
+        session.add_all([
+            DocumentsTable(
+                id=1, user_id=uid, project_id=1, title="d", description="d",
+                content="c", size_bytes=1, tags=[],
+            ),
+            CodeArtifactsTable(
+                id=1, user_id=uid, project_id=1, title="c", description="d",
+                code="x = 1", language="python", tags=[],
+            ),
+            FilesTable(
+                id=1, user_id=uid, project_id=1, filename="f.txt", description="d",
+                data=b"x", mime_type="text/plain", size_bytes=1, tags=[],
+            ),
+            SkillsTable(
+                id=1, user_id=uid, project_id=1, name="s", description="d",
+                content="c", tags=[],
+            ),
+            PlansTable(id=1, user_id=uid, project_id=1, title="plan"),
+        ])
+        await session.flush()
+        session.add(TasksTable(id=1, user_id=uid, plan_id=1, title="task"))
+        session.add(MemoryLinkTable(user_id=uid, source_id=1, target_id=2))
+        session.add(EntityRelationshipsTable(
+            user_id=uid, source_entity_id=1, target_entity_id=2, relationship_type="knows",
+        ))
+        await session.flush()
+        for table, values in [
+            (memory_entity_association, {"memory_id": 1, "entity_id": 1}),
+            (memory_project_association, {"memory_id": 1, "project_id": 1}),
+            (memory_document_association, {"memory_id": 1, "document_id": 1}),
+            (memory_code_artifact_association, {"memory_id": 1, "code_artifact_id": 1}),
+            (memory_file_association, {"memory_id": 1, "file_id": 1}),
+            (memory_skill_association, {"memory_id": 1, "skill_id": 1}),
+            (entity_project_association, {"entity_id": 1, "project_id": 1}),
+            (entity_file_association, {"entity_id": 1, "file_id": 1}),
+            (skill_file_association, {"skill_id": 1, "file_id": 1}),
+            (skill_code_artifact_association, {"skill_id": 1, "code_artifact_id": 1}),
+            (skill_document_association, {"skill_id": 1, "document_id": 1}),
+        ]:
+            await session.execute(table.insert().values(**values))
+
+
+@pytest.fixture(scope="module")
+async def universe():
+    async with _sqlite_repo() as (db_adapter, repo, user_id):
+        await _seed_universe(db_adapter, user_id)
+        yield repo, user_id
+
+
+def test_edge_table_lists_every_traversal_branch():
+    assert len(EDGE_TYPE_PAIRS) == 19
+    assert len(DIRECTED_EDGES) == 36
+    assert {t for pair in EDGE_TYPE_PAIRS for t in pair} == set(NODE_TYPES)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("source", "target"), DIRECTED_EDGES)
+async def test_requested_neighbour_type_is_returned_whether_or_not_center_type_is_requested(
+    universe, source, target,
+):
+    """node_types=[target] around a source center returns the target neighbour.
+
+    The center is always part of the result; its own type does not have to be in
+    node_types for the neighbours of a requested type to be reachable.
+    """
+    repo, user_id = universe
+    neighbour_id = 2 if source == target else 1
+
+    nodes, _ = await _traverse(repo, user_id, source, 1, depth=1, include=(target,))
+
+    assert nodes == {(source, 1): 0, (target, neighbour_id): 1}
+
+
+@pytest.mark.asyncio
+async def test_excluded_center_does_not_leak_neighbours_of_unrequested_types(universe):
+    repo, user_id = universe
+
+    nodes, _ = await _traverse(repo, user_id, "entity", 1, depth=3, include=("project", "memory"))
+
+    assert {t for t, _ in nodes} <= {"entity", "project", "memory"}
+    assert ("entity", 1) in nodes
+    assert ("entity", 2) not in nodes
+    assert nodes[("memory", 1)] == 1
+    assert nodes[("project", 1)] == 1
+
+
+@pytest.mark.asyncio
+async def test_no_requested_types_returns_only_the_center(universe):
+    repo, user_id = universe
+
+    nodes, truncated = await _traverse(repo, user_id, "memory", 1, depth=3, include=())
+
+    assert nodes == {("memory", 1): 0}
+    assert truncated is False
 
 
 # ---------------------------------------------------------------------------

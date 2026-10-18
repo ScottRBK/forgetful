@@ -954,7 +954,7 @@ This is the recommended endpoint for graph visualization with depth-limited trav
 |-----------|------|---------|-------------|
 | `node_id` | string | *required* | Center node (e.g., `memory_1`, `entity_5`, `project_3`, `document_2`, `code_artifact_4`) |
 | `depth` | int | 2 | Traversal depth (1-3, clamped) |
-| `node_types` | string | `memory,entity,project,document,code_artifact` | Comma-separated list of types to traverse |
+| `node_types` | string | `memory,entity,project,document,code_artifact` | Comma-separated list of types to traverse. The center node is always returned, whatever its type; only nodes of the listed types are traversed into, so neighbours of a requested type are returned even when the center's own type is not listed |
 | `max_nodes` | int | 200 | Maximum nodes to return (max 500) |
 
 **Response:**

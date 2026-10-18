@@ -1,6 +1,8 @@
 """End-to-end tests for the subgraph traversal CTE on PostgreSQL.
 
 Covers the recursive CTE behind GET /api/v1/graph/subgraph:
+- the node_types filter applies to the neighbour type only, so an excluded
+  center type does not hide its neighbours
 - every node keeps its minimum depth in cyclic graphs
 - work is bounded by the number of distinct nodes, not by the number of paths
 
@@ -46,6 +48,48 @@ async def _subgraph(http_client, center: str, node_types: str, depth: int = 1) -
     )
     assert response.status_code == 200, response.text
     return response.json()
+
+
+@pytest.mark.e2e
+async def test_subgraph_excluded_center_type_still_reaches_requested_neighbours(http_client):
+    """node_types=project,memory around an entity returns both kinds of neighbour."""
+    project_resp = await http_client.post("/api/v1/projects", json={
+        "name": "Traversal Project",
+        "description": "Project linked to the center entity",
+        "project_type": "development",
+    })
+    assert project_resp.status_code in [200, 201], project_resp.text
+    project_id = project_resp.json()["id"]
+
+    entity_resp = await http_client.post("/api/v1/entities", json={
+        "name": "Traversal Entity",
+        "entity_type": "Organization",
+        "project_ids": [project_id],
+    })
+    assert entity_resp.status_code in [200, 201], entity_resp.text
+    entity_id = entity_resp.json()["id"]
+
+    memory_id = await _create_memory(http_client, "Traversal Memory")
+    link_resp = await http_client.post(
+        f"/api/v1/entities/{entity_id}/memories", json={"memory_id": memory_id},
+    )
+    assert link_resp.status_code in [200, 201], link_resp.text
+
+    data = await _subgraph(http_client, f"entity_{entity_id}", "project,memory")
+
+    ids = {node["id"] for node in data["nodes"]}
+    assert ids == {f"entity_{entity_id}", f"project_{project_id}", f"memory_{memory_id}"}
+    assert data["meta"]["entity_project_count"] == 1
+    assert data["meta"]["entity_memory_count"] == 1
+
+    # Same rule from the project side: memory and entity requested, project excluded.
+    memory_resp = await http_client.put(
+        f"/api/v1/memories/{memory_id}", json={"project_ids": [project_id]},
+    )
+    assert memory_resp.status_code == 200, memory_resp.text
+    data = await _subgraph(http_client, f"project_{project_id}", "memory,entity")
+    ids = {node["id"] for node in data["nodes"]}
+    assert ids == {f"project_{project_id}", f"memory_{memory_id}", f"entity_{entity_id}"}
 
 
 @pytest.mark.e2e

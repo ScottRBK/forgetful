@@ -1337,7 +1337,9 @@ class SqliteMemoryRepository:
         - files.project_id (file -> project)
         - entity_file_association (entity <-> file)
 
-        Each node is visited once, at its minimum depth.
+        Each node is visited once, at its minimum depth. The center node is always
+        returned; the include_* flags select which types of node are traversed into,
+        whatever the type of the center.
 
         Args:
             user_id: User ID for ownership filtering
@@ -1360,6 +1362,8 @@ class SqliteMemoryRepository:
         # Each UNION branch handles one edge type. UNION (not UNION ALL) makes SQLite
         # discard rows it has already produced, so every (node, depth) pair is expanded
         # once and the work is bounded by distinct nodes instead of by simple paths.
+        # A branch only checks the type of the node it reaches, never the type of the
+        # node it leaves, so an excluded center type does not block its neighbours.
         query = text("""
             WITH RECURSIVE graph_traverse(node_id, node_type, depth) AS (
                 -- Anchor: the center node
@@ -1628,7 +1632,6 @@ class SqliteMemoryRepository:
                 INNER JOIN projects p ON p.id = epa.project_id
                 WHERE gt.depth < :max_depth
                   AND p.user_id = :user_id
-                  AND :include_entities = 1
                   AND :include_projects = 1
 
                 UNION
@@ -1647,7 +1650,6 @@ class SqliteMemoryRepository:
                 WHERE gt.depth < :max_depth
                   AND e.user_id = :user_id
                   AND :include_entities = 1
-                  AND :include_projects = 1
 
                 UNION
 
@@ -1734,7 +1736,6 @@ class SqliteMemoryRepository:
                 WHERE gt.depth < :max_depth
                   AND f.user_id = :user_id
                   AND :include_files = 1
-                  AND :include_entities = 1
 
                 UNION
 
@@ -1751,7 +1752,6 @@ class SqliteMemoryRepository:
                 INNER JOIN entities e ON e.id = efa.entity_id
                 WHERE gt.depth < :max_depth
                   AND e.user_id = :user_id
-                  AND :include_files = 1
                   AND :include_entities = 1
 
                 UNION
@@ -1839,7 +1839,6 @@ class SqliteMemoryRepository:
                 WHERE gt.depth < :max_depth
                   AND f.user_id = :user_id
                   AND :include_files = 1
-                  AND :include_skills = 1
 
                 UNION
 
@@ -1856,7 +1855,6 @@ class SqliteMemoryRepository:
                 INNER JOIN skills s ON s.id = sfa.skill_id
                 WHERE gt.depth < :max_depth
                   AND s.user_id = :user_id
-                  AND :include_files = 1
                   AND :include_skills = 1
 
                 UNION
@@ -1875,7 +1873,6 @@ class SqliteMemoryRepository:
                 WHERE gt.depth < :max_depth
                   AND ca.user_id = :user_id
                   AND :include_code_artifacts = 1
-                  AND :include_skills = 1
 
                 UNION
 
@@ -1892,7 +1889,6 @@ class SqliteMemoryRepository:
                 INNER JOIN skills s ON s.id = sca.skill_id
                 WHERE gt.depth < :max_depth
                   AND s.user_id = :user_id
-                  AND :include_code_artifacts = 1
                   AND :include_skills = 1
 
                 UNION
@@ -1911,7 +1907,6 @@ class SqliteMemoryRepository:
                 WHERE gt.depth < :max_depth
                   AND d.user_id = :user_id
                   AND :include_documents = 1
-                  AND :include_skills = 1
 
                 UNION
 
@@ -1928,7 +1923,6 @@ class SqliteMemoryRepository:
                 INNER JOIN skills s ON s.id = sda.skill_id
                 WHERE gt.depth < :max_depth
                   AND s.user_id = :user_id
-                  AND :include_documents = 1
                   AND :include_skills = 1
 
                 UNION
