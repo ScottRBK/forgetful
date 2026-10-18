@@ -11,6 +11,7 @@ from datetime import UTC, datetime
 import pytest
 from pydantic import ValidationError
 
+from app.config.settings import settings
 from app.models.code_artifact_models import CodeArtifactCreate, CodeArtifactUpdate
 from app.models.file_models import File, FileCreate, FileUpdate
 from app.models.plan_models import (
@@ -22,6 +23,7 @@ from app.models.plan_models import (
     TaskCreate,
     TaskUpdate,
 )
+from app.models.skill_models import Skill, SkillCreate, SkillUpdate
 
 BLANKS = ["", "   ", " \t\n "]
 
@@ -35,10 +37,16 @@ def _file_kwargs(data: str) -> dict:
     }
 
 
+def _skill_kwargs(**overrides) -> dict:
+    return {"name": "my-skill", "description": "d", "content": "c", **overrides}
+
+
+def _oversized_tools() -> list[str]:
+    return ["Bash(tool:*)"] * (settings.SKILL_ALLOWED_TOOLS_MAX_LENGTH // 5)
+
+
 # ============================================================================
 # Files: base64 payloads
-
-
 # ============================================================================
 
 
@@ -97,8 +105,6 @@ class TestFileBase64:
 
 # ============================================================================
 # Code artifacts: code is stored verbatim
-
-
 # ============================================================================
 
 
@@ -135,8 +141,6 @@ class TestCodeArtifactVerbatimCode:
 
 # ============================================================================
 # Plans, tasks and criteria: blank titles / descriptions
-
-
 # ============================================================================
 
 
@@ -198,3 +202,90 @@ class TestBlankPlanningText:
         assert plan.title == ""
 
 
+# ============================================================================
+# Skills: blank description/content and allowed-tools length
+# ============================================================================
+
+
+class TestSkillBlankText:
+    @pytest.mark.parametrize("field", ["description", "content"])
+    @pytest.mark.parametrize("blank", ["   ", " \t\n "])
+    def test_create_rejects_blank_required_text(self, field, blank):
+        with pytest.raises(ValidationError) as exc_info:
+            SkillCreate(**_skill_kwargs(**{field: blank}))
+
+        assert f"{field} cannot be empty or whitespace only" in str(exc_info.value)
+
+    @pytest.mark.parametrize("field", ["description", "content"])
+    @pytest.mark.parametrize("blank", ["   ", " \t\n "])
+    def test_update_rejects_blank_required_text(self, field, blank):
+        with pytest.raises(ValidationError) as exc_info:
+            SkillUpdate(**{field: blank})
+
+        assert f"{field} cannot be empty or whitespace only" in str(exc_info.value)
+
+    def test_create_trims_surrounding_whitespace(self):
+        skill = SkillCreate(**_skill_kwargs(description="  does things  ", content="\n  body  \n"))
+
+        assert skill.description == "does things"
+        assert skill.content == "body"
+
+    def test_update_trims_surrounding_whitespace(self):
+        update = SkillUpdate(description="  does things  ", content="\n  body  \n")
+
+        assert update.description == "does things"
+        assert update.content == "body"
+
+    def test_update_without_text_is_still_allowed(self):
+        update = SkillUpdate(importance=3)
+
+        assert update.description is None
+        assert update.content is None
+
+    def test_response_model_still_reads_blank_text_stored_earlier(self):
+        now = datetime.now(tz=UTC)
+
+        skill = Skill(id=1, **_skill_kwargs(description="   ", content="   "), created_at=now, updated_at=now)
+
+        assert skill.description == "   "
+        assert skill.content == "   "
+
+
+class TestSkillAllowedToolsLength:
+    def test_limit_is_enforced_on_create_and_update(self):
+        tools = _oversized_tools()
+        assert sum(len(tool) for tool in tools) > settings.SKILL_ALLOWED_TOOLS_MAX_LENGTH
+
+        with pytest.raises(ValidationError, match="allowed_tools"):
+            SkillCreate(**_skill_kwargs(allowed_tools=tools))
+        with pytest.raises(ValidationError, match="allowed_tools"):
+            SkillUpdate(allowed_tools=tools)
+
+    def test_combined_length_exactly_at_the_limit_is_accepted(self, monkeypatch):
+        monkeypatch.setattr(settings, "SKILL_ALLOWED_TOOLS_MAX_LENGTH", 10)
+        at_limit = ["Read", "Grep", "Wr"]  # 4 + 4 + 2
+
+        assert SkillCreate(**_skill_kwargs(allowed_tools=at_limit)).allowed_tools == at_limit
+        assert SkillUpdate(allowed_tools=at_limit).allowed_tools == at_limit
+
+        with pytest.raises(ValidationError):
+            SkillCreate(**_skill_kwargs(allowed_tools=[*at_limit, "x"]))
+
+    def test_configured_limit_is_honoured(self, monkeypatch):
+        monkeypatch.setattr(settings, "SKILL_ALLOWED_TOOLS_MAX_LENGTH", 5)
+
+        with pytest.raises(ValidationError):
+            SkillCreate(**_skill_kwargs(allowed_tools=["Read", "Grep"]))
+
+    def test_unset_or_empty_lists_are_accepted(self):
+        assert SkillCreate(**_skill_kwargs()).allowed_tools is None
+        assert SkillCreate(**_skill_kwargs(allowed_tools=[])).allowed_tools == []
+        assert SkillUpdate().allowed_tools is None
+
+    def test_response_model_still_reads_oversized_lists_stored_earlier(self):
+        now = datetime.now(tz=UTC)
+        tools = _oversized_tools()
+
+        skill = Skill(id=1, **_skill_kwargs(allowed_tools=tools), created_at=now, updated_at=now)
+
+        assert skill.allowed_tools == tools

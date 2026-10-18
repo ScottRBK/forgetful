@@ -10,7 +10,8 @@ import pytest
 from fastmcp.exceptions import ToolError
 from sqlalchemy import update
 
-from app.repositories.sqlite.sqlite_tables import FilesTable, PlansTable
+from app.config.settings import settings
+from app.repositories.sqlite.sqlite_tables import FilesTable, PlansTable, SkillsTable
 
 GOOD_DATA = base64.b64encode(b"hello world").decode()
 GARBAGE_DATA = ["!!!!", "====", "    "]
@@ -53,10 +54,15 @@ async def _create_task(http_client) -> int:
     return response.json()["id"]
 
 
+async def _create_skill(http_client, name: str = "my-skill", **overrides) -> int:
+    payload = {"name": name, "description": "does things", "content": "body", **overrides}
+    response = await http_client.post("/api/v1/skills", json=payload)
+    assert response.status_code == 201, response.text
+    return response.json()["id"]
+
+
 # ============================================================================
 # Files: strict base64
-
-
 # ============================================================================
 
 
@@ -137,8 +143,6 @@ class TestFileBase64Api:
 
 # ============================================================================
 # Code artifacts: verbatim code
-
-
 # ============================================================================
 
 
@@ -165,8 +169,6 @@ class TestCodeArtifactVerbatimApi:
 
 # ============================================================================
 # Plans, tasks, criteria: blank text
-
-
 # ============================================================================
 
 
@@ -292,3 +294,137 @@ class TestBlankPlanningTextApi:
         assert deleted.status_code == 200, deleted.text
 
 
+# ============================================================================
+# Skills: blank text and allowed-tools length
+# ============================================================================
+
+
+class TestSkillBlankTextApi:
+    @pytest.mark.asyncio
+    async def test_create_with_whitespace_only_description_and_content_is_rejected(self, http_client):
+        response = await http_client.post("/api/v1/skills", json={
+            "name": "blank", "description": "   ", "content": "   ",
+        })
+
+        assert response.status_code == 400, response.text
+        assert "cannot be empty or whitespace only" in response.text
+
+    @pytest.mark.asyncio
+    async def test_create_trims_description_and_content(self, http_client):
+        response = await http_client.post("/api/v1/skills", json={
+            "name": "padded", "description": "  does things  ", "content": "\n  body  \n",
+        })
+
+        assert response.status_code == 201, response.text
+        assert response.json()["description"] == "does things"
+        assert response.json()["content"] == "body"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("field", ["description", "content"])
+    async def test_update_with_whitespace_only_text_is_rejected(self, http_client, field):
+        skill_id = await _create_skill(http_client)
+
+        response = await http_client.put(f"/api/v1/skills/{skill_id}", json={field: "   "})
+
+        assert response.status_code == 400, response.text
+        fetched = await http_client.get(f"/api/v1/skills/{skill_id}")
+        assert fetched.json()[field] == {"description": "does things", "content": "body"}[field]
+
+    @pytest.mark.asyncio
+    async def test_mcp_create_skill_with_blank_description_is_rejected(self, mcp_client):
+        with pytest.raises(ToolError):
+            await mcp_client.call_tool("execute_forgetful_tool", {
+                "tool_name": "create_skill",
+                "arguments": {"name": "mcp-blank", "description": "   ", "content": "body"},
+            })
+
+    @pytest.mark.asyncio
+    async def test_skill_stored_with_blank_text_earlier_stays_readable_and_deletable(
+        self, sqlite_app, http_client,
+    ):
+        skill_id = await _create_skill(http_client)
+        db_adapter = sqlite_app.skill_service.skill_repo.db_adapter
+        async with db_adapter.system_session() as session:
+            await session.execute(
+                update(SkillsTable)
+                .where(SkillsTable.id == skill_id)
+                .values(description="   ", content="   "),
+            )
+
+        fetched = await http_client.get(f"/api/v1/skills/{skill_id}")
+        assert fetched.status_code == 200, fetched.text
+        assert fetched.json()["description"] == "   "
+
+        deleted = await http_client.delete(f"/api/v1/skills/{skill_id}")
+        assert deleted.status_code == 200, deleted.text
+
+
+class TestSkillAllowedToolsLimitApi:
+    @staticmethod
+    def _oversized_tools() -> list[str]:
+        return ["Bash(tool:*)"] * (settings.SKILL_ALLOWED_TOOLS_MAX_LENGTH // 5)
+
+    @pytest.mark.asyncio
+    async def test_create_over_the_limit_is_rejected(self, http_client):
+        response = await http_client.post("/api/v1/skills", json={
+            "name": "big-tools",
+            "description": "d",
+            "content": "c",
+            "allowed_tools": self._oversized_tools(),
+        })
+
+        assert response.status_code == 400, response.text
+        assert "allowed_tools" in response.text
+        assert (await http_client.get("/api/v1/skills")).json()["total"] == 0
+
+    @pytest.mark.asyncio
+    async def test_update_over_the_limit_is_rejected_and_keeps_the_stored_tools(self, http_client):
+        skill_id = await _create_skill(http_client, allowed_tools=["Read"])
+
+        response = await http_client.put(
+            f"/api/v1/skills/{skill_id}", json={"allowed_tools": self._oversized_tools()},
+        )
+
+        assert response.status_code == 400, response.text
+        fetched = await http_client.get(f"/api/v1/skills/{skill_id}")
+        assert fetched.json()["allowed_tools"] == ["Read"]
+
+    @pytest.mark.asyncio
+    async def test_create_within_the_limit_is_accepted(self, http_client):
+        tools = ["Bash(python:*)", "Read", "WebFetch"]
+
+        skill_id = await _create_skill(http_client, allowed_tools=tools)
+
+        fetched = await http_client.get(f"/api/v1/skills/{skill_id}")
+        assert fetched.json()["allowed_tools"] == tools
+
+    @pytest.mark.asyncio
+    async def test_mcp_create_skill_over_the_limit_is_rejected(self, mcp_client):
+        with pytest.raises(ToolError):
+            await mcp_client.call_tool("execute_forgetful_tool", {
+                "tool_name": "create_skill",
+                "arguments": {
+                    "name": "mcp-big-tools",
+                    "description": "d",
+                    "content": "c",
+                    "allowed_tools": self._oversized_tools(),
+                },
+            })
+
+    @pytest.mark.asyncio
+    async def test_skill_stored_over_the_limit_earlier_stays_readable(
+        self, sqlite_app, http_client,
+    ):
+        skill_id = await _create_skill(http_client)
+        db_adapter = sqlite_app.skill_service.skill_repo.db_adapter
+        async with db_adapter.system_session() as session:
+            await session.execute(
+                update(SkillsTable)
+                .where(SkillsTable.id == skill_id)
+                .values(allowed_tools=self._oversized_tools()),
+            )
+
+        fetched = await http_client.get(f"/api/v1/skills/{skill_id}")
+
+        assert fetched.status_code == 200, fetched.text
+        assert fetched.json()["allowed_tools"] == self._oversized_tools()

@@ -13,6 +13,30 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from app.config.settings import settings
 
 
+def _require_text(value: str, field_name: str) -> str:
+    """Trim required text and reject values that are blank after trimming"""
+    stripped = value.strip()
+    if not stripped:
+        raise ValueError(f"{field_name} cannot be empty or whitespace only")
+
+    return stripped
+
+
+def _check_allowed_tools_length(tools: list[str] | None) -> list[str] | None:
+    """Enforce SKILL_ALLOWED_TOOLS_MAX_LENGTH on the combined length of all tools"""
+    if tools is None:
+        return None
+
+    total = sum(len(tool) for tool in tools)
+    if total > settings.SKILL_ALLOWED_TOOLS_MAX_LENGTH:
+        raise ValueError(
+            f"allowed_tools total length {total} exceeds maximum of "
+            f"{settings.SKILL_ALLOWED_TOOLS_MAX_LENGTH} characters",
+        )
+
+    return tools
+
+
 class SkillCreate(BaseModel):
     """Request model for creating a skill
 
@@ -114,6 +138,18 @@ class SkillCreate(BaseModel):
 
         return stripped
 
+    @field_validator("description", "content")
+    @classmethod
+    def validate_required_text(cls, v, info):
+        """Trim description/content and reject blank values."""
+        return _require_text(v, info.field_name)
+
+    @field_validator("allowed_tools")
+    @classmethod
+    def validate_allowed_tools_length(cls, v):
+        """Validate the combined length of the allowed tools list."""
+        return _check_allowed_tools_length(v)
+
     @field_validator("tags")
     @classmethod
     def validate_tags(cls, v):
@@ -184,6 +220,21 @@ class SkillUpdate(BaseModel):
 
         return stripped
 
+    @field_validator("description", "content")
+    @classmethod
+    def validate_required_text(cls, v, info):
+        """Trim description/content and reject blank values."""
+        if v is None:
+            return None
+
+        return _require_text(v, info.field_name)
+
+    @field_validator("allowed_tools")
+    @classmethod
+    def validate_allowed_tools_length(cls, v):
+        """Validate the combined length of the allowed tools list."""
+        return _check_allowed_tools_length(v)
+
     @field_validator("tags")
     @classmethod
     def validate_tags(cls, v):
@@ -210,6 +261,20 @@ class Skill(SkillCreate):
     updated_at: datetime = Field(default_factory=lambda: datetime.now(tz=UTC))
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("description", "content")
+    @classmethod
+    def validate_required_text(cls, v):
+        # Overrides SkillCreate.validate_required_text: skills stored before blank text
+        # was rejected must stay readable and deletable.
+        return v
+
+    @field_validator("allowed_tools")
+    @classmethod
+    def validate_allowed_tools_length(cls, v):
+        # Overrides SkillCreate.validate_allowed_tools_length: skills stored before the
+        # limit was enforced must stay readable and deletable.
+        return v
 
 
 class SkillSummary(BaseModel):
