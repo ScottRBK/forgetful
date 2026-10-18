@@ -121,7 +121,15 @@ class TaskService:
         # Validate every dependency before anything is persisted so a bad id cannot
         # leave a half-built task behind. A brand new task cannot be part of a cycle.
         dependency_ids = task_data.dependency_ids or []
-        duplicates = sorted({dep_id for dep_id in dependency_ids if dependency_ids.count(dep_id) > 1})
+        # Single pass: the list is caller supplied and unbounded, so a per-item count()
+        # would turn a large request into quadratic CPU time on the event loop.
+        seen: set[int] = set()
+        repeated: set[int] = set()
+        for dep_id in dependency_ids:
+            if dep_id in seen:
+                repeated.add(dep_id)
+            seen.add(dep_id)
+        duplicates = sorted(repeated)
         if duplicates:
             raise ValueError(f"dependency_ids lists the same task more than once: {duplicates}")
         for dep_id in dependency_ids:
@@ -142,7 +150,8 @@ class TaskService:
                 await self.task_repo.add_dependency(
                     user_id=user_id, task_id=task.id, depends_on_task_id=dep_id,
                 )
-        except Exception:
+        except BaseException:
+            # BaseException so a cancelled request (client disconnect) cannot orphan the task.
             await self._discard_partial_task(user_id, task.id)
             raise
 

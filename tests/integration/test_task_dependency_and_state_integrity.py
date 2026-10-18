@@ -128,6 +128,49 @@ async def test_create_task_rejects_duplicate_dependency_ids_without_persisting(t
     assert [t.title for t in await task_service.list_tasks(user_id=user_id, plan_id=plan.id)] == ["prereq"]
 
 
+class _NoCountList(list):
+    """List that fails if a caller uses the quadratic list.count() on it."""
+
+    def count(self, value):  # noqa: ARG002
+        raise AssertionError("duplicate detection must be linear, not a count() per item")
+
+
+@pytest.mark.asyncio
+async def test_duplicate_dependency_check_is_linear_and_reports_sorted_ids(test_task_service):
+    task_service, plan_service = test_task_service
+    user_id = uuid4()
+    plan = await _active_plan(plan_service, user_id)
+    # model_construct skips validation so the service receives the instrumented list as is.
+    task_data = TaskCreate.model_construct(
+        title="X", plan_id=plan.id, dependency_ids=_NoCountList([9, 3, 9, 4, 3, 9]),
+    )
+
+    with pytest.raises(ValueError, match=r"more than once: \[3, 9\]"):
+        await task_service.create_task(user_id=user_id, task_data=task_data)
+
+    assert await task_service.list_tasks(user_id=user_id, plan_id=plan.id) == []
+
+
+@pytest.mark.asyncio
+async def test_create_task_rolls_back_when_cancelled_mid_create(test_task_service):
+    """A cancelled request (client disconnect) must not leave the half-built task behind."""
+    task_service, plan_service = test_task_service
+    user_id = uuid4()
+    plan = await _active_plan(plan_service, user_id)
+
+    async def cancelled(*args, **kwargs):
+        raise asyncio.CancelledError
+
+    task_service.task_repo.create_criterion = cancelled
+
+    with pytest.raises(asyncio.CancelledError):
+        await _task(
+            task_service, user_id, plan.id, "X", criteria=[CriterionCreate(description="c")],
+        )
+
+    assert await task_service.list_tasks(user_id=user_id, plan_id=plan.id) == []
+
+
 @pytest.mark.asyncio
 async def test_create_task_rolls_back_when_a_later_step_fails(test_task_service):
     """An unexpected repository failure after the task row exists must not leave an orphan."""
