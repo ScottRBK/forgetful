@@ -207,7 +207,8 @@ def register(mcp: FastMCP):
                 agent_id=agent_id, expected_version=version,
             )
         except ValidationError as e:
-            return JSONResponse({"error": e.errors()}, status_code=400)
+            # Without the rejected value: it can be huge or not representable as JSON.
+            return JSONResponse({"error": e.errors(include_input=False)}, status_code=400)
         except NotFoundError as e:
             return JSONResponse({"error": str(e)}, status_code=404)
         except ConflictError as e:

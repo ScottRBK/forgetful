@@ -8,6 +8,8 @@ Handlers raise ``RequestError`` through these helpers and are wrapped with
 ``handle_request_errors`` below the ``custom_route`` decorator.
 """
 import functools
+import json
+import math
 import re
 from collections.abc import Awaitable, Callable
 from enum import Enum
@@ -24,6 +26,19 @@ MIN_INT = -(2**31)
 
 _ID_PATTERN = re.compile(r"[0-9]+")
 _MAX_ID_DIGITS = len(str(MAX_ID))
+
+
+def _finite_float(token: str) -> float:
+    """``json`` hook for number tokens: reject values that overflow to infinity (``1e999``)."""
+    number = float(token)
+    if not math.isfinite(number):
+        raise ValueError(f"non-finite number: {token[:20]}")
+    return number
+
+
+def _reject_constant(token: str) -> float:
+    """``json`` hook for the non-standard ``NaN``, ``Infinity`` and ``-Infinity`` literals."""
+    raise ValueError(f"non-finite number: {token}")
 
 
 class RequestError(Exception):
@@ -60,9 +75,15 @@ def path_id(request: Request, name: str) -> int:
 
 
 async def read_json_object(request: Request) -> dict[str, Any]:
-    """Return the request body as a JSON object, or raise a 400."""
+    """Return the request body as a JSON object, or raise a 400.
+
+    NaN and infinite numbers are rejected: they are not JSON, and a validation error that
+    echoed one back could not be rendered as a JSON response (that was a 500).
+    """
     try:
-        body = await request.json()
+        body = json.loads(
+            await request.body(), parse_float=_finite_float, parse_constant=_reject_constant,
+        )
     except (ValueError, RecursionError):
         raise RequestError("Invalid JSON body") from None
     if not isinstance(body, dict):

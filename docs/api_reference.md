@@ -52,7 +52,7 @@ See [FastMCP Auth Documentation](https://fastmcp.wiki/en/servers/auth/authentica
 |------|-------------|
 | 200 | Success |
 | 201 | Created |
-| 400 | Bad Request (validation error, malformed or non-object JSON body, invalid query parameter, `CyclicDependencyError`) |
+| 400 | Bad Request (validation error, malformed or non-object JSON body, `NaN`/infinite numbers in a body, invalid query parameter, `CyclicDependencyError`) |
 | 401 | Unauthorized (missing/invalid token) |
 | 404 | Not Found (including a path id that is not an integer id, such as `/api/v1/tasks/abc`) |
 | 409 | Conflict (`ConflictError` -- version mismatch in optimistic concurrency) |

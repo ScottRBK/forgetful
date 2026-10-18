@@ -47,6 +47,15 @@ BAD_BODIES = [
     b"\xff\xfe\xfd",
     b"[" * 100_000,
 ]
+# NaN and infinite numbers (not JSON) inside an otherwise well-formed object
+NON_FINITE_BODIES = [
+    b'{"title": NaN}',
+    b'{"title": Infinity}',
+    b'{"title": [NaN]}',
+    b'{"a": {"b": -Infinity}}',
+    b'{"title": 1e999}',
+    b'{"title": -1e999}',
+]
 # Raw JSON literals that are not a usable integer (or do not fit the database column)
 BAD_INT_JSON = [
     b"null",
@@ -167,6 +176,24 @@ class TestJsonBodies:
                     failures.append(f"{method} {path} body={body[:20]!r} -> {response.status_code}")
         assert not failures, "\n".join(failures)
 
+    async def test_every_body_route_rejects_non_finite_numbers(self, client):
+        """NaN/infinity must not reach pydantic: echoing them in its error made a 500."""
+        failures = []
+        for method, template in ROUTES_WITH_BODY:
+            path = _concrete(template)
+            for body in NON_FINITE_BODIES:
+                response = await client.request(method, path, content=body, headers=JSON_HEADERS)
+                if response.status_code != 400 or "error" not in response.json():
+                    failures.append(f"{method} {path} body={body[:30]!r} -> {response.status_code}")
+        assert not failures, "\n".join(failures)
+
+    async def test_finite_floats_are_still_accepted(self, client):
+        response = await client.post(
+            "/api/v1/projects",
+            content=b'{"name": "f", "description": "p", "project_type": "development", "x": 1.5e3}',
+        )
+        assert response.status_code == 201
+
     async def test_non_object_body_message(self, client):
         response = await client.post("/api/v1/projects", content=b"[1, 2]")
         assert response.status_code == 400
@@ -283,6 +310,30 @@ class TestClaimAgentId:
             assert task["state"] == "todo", agent_id
             assert task["assigned_agent"] is None, agent_id
             assert task["version"] == todo_task["version"], agent_id
+
+    async def test_non_finite_agent_id_is_rejected_and_task_untouched(self, client, todo_task):
+        url = f"/api/v1/tasks/{todo_task['id']}"
+        # Raw bytes: httpx refuses to serialise NaN through json=
+        for agent_id in (b"NaN", b"Infinity", b"[NaN]", b'{"a": -Infinity}', b"1e999"):
+            response = await client.post(
+                f"{url}/claim",
+                content=b'{"agent_id": ' + agent_id + b', "version": %d}' % todo_task["version"],
+            )
+            assert response.status_code == 400, (agent_id, response.text[:200])
+            assert "error" in response.json()
+
+        task = (await client.get(url)).json()
+        assert task["state"] == "todo"
+        assert task["assigned_agent"] is None
+
+    async def test_validation_error_does_not_echo_the_rejected_value(self, client, todo_task):
+        response = await client.post(
+            f"/api/v1/tasks/{todo_task['id']}/claim",
+            json={"agent_id": "a" * 1_000_000, "version": todo_task["version"]},
+        )
+        assert response.status_code == 400
+        assert len(response.content) < 2_000
+        assert "input" not in response.json()["error"][0]
 
     async def test_missing_agent_id_is_rejected(self, client, todo_task):
         response = await client.post(
