@@ -3,6 +3,8 @@
 Supports both SQLite (file copy) and PostgreSQL (pg_dump/psql) backup strategies.
 """
 import logging
+import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -10,6 +12,40 @@ from pathlib import Path
 from app.config.settings import settings
 
 logger = logging.getLogger(__name__)
+
+
+def _postgres_env() -> dict[str, str]:
+    """Environment for pg_dump/psql: the caller's own, plus the password.
+
+    Replacing it would hide the caller's PATH (so tools outside /bin:/usr/bin are not
+    found) and HOME, PGSSLMODE, PGSERVICE and similar libpq settings.
+    """
+    return {**os.environ, "PGPASSWORD": settings.POSTGRES_PASSWORD}
+
+
+# pg_dump 17 and later write `SET transaction_timeout = 0;` whatever server they dump, and
+# servers before 17 reject it, so a strict psql restore would fail on its first statements.
+_DUMP_HEADER_BYTES = 8192
+_DUMPED_FROM = re.compile(rb"^-- Dumped from database version (\d+)", re.MULTILINE)
+_TRANSACTION_TIMEOUT_SET = b"\nSET transaction_timeout = 0;"
+_TRANSACTION_TIMEOUT_COMMENT = b"\n--  transaction_timeout = 0;"  # same length as the SET
+
+
+def _comment_out_unsupported_settings(dump_path: Path) -> None:
+    """Comment out `SET transaction_timeout` in a dump taken from a server older than 17.
+
+    The statement only disables a timeout that such a server does not have. The
+    replacement keeps the byte length, so the dump is patched in place.
+    """
+    with dump_path.open("r+b") as dump:
+        header = dump.read(_DUMP_HEADER_BYTES)
+        dumped_from = _DUMPED_FROM.search(header)
+        if dumped_from is None or int(dumped_from.group(1)) >= 17:
+            return
+        patched = header.replace(_TRANSACTION_TIMEOUT_SET, _TRANSACTION_TIMEOUT_COMMENT)
+        if patched != header:
+            dump.seek(0)
+            dump.write(patched)
 
 
 class DatabaseBackupAdapter:
@@ -82,6 +118,7 @@ class DatabaseBackupAdapter:
         cmd = [
             "pg_dump",
             "--clean",
+            "--if-exists",
             "-h", settings.POSTGRES_HOST,
             "-p", str(settings.PGPORT),
             "-U", settings.POSTGRES_USER,
@@ -89,19 +126,25 @@ class DatabaseBackupAdapter:
             "-f", str(backup_path),
         ]
 
-        env = {"PGPASSWORD": settings.POSTGRES_PASSWORD}
-
-        result = subprocess.run(cmd, env=env, capture_output=True, text=True)
+        result = subprocess.run(cmd, env=_postgres_env(), capture_output=True, text=True)
         if result.returncode != 0:
             raise RuntimeError(f"pg_dump failed: {result.stderr}")
+
+        _comment_out_unsupported_settings(backup_path)
 
         logger.info("PostgreSQL backup created", extra={"backup_path": str(backup_path)})
         return backup_path
 
     def _restore_postgres(self, backup_path: Path) -> None:
         """Restore PostgreSQL database from pg_dump file"""
+        # psql exits 0 when statements inside a script fail unless ON_ERROR_STOP is set,
+        # which would report a half-restored database as restored. The single transaction
+        # makes a failed restore roll back and leave the database as it was.
         cmd = [
             "psql",
+            "-X",
+            "-v", "ON_ERROR_STOP=1",
+            "--single-transaction",
             "-h", settings.POSTGRES_HOST,
             "-p", str(settings.PGPORT),
             "-U", settings.POSTGRES_USER,
@@ -109,9 +152,7 @@ class DatabaseBackupAdapter:
             "-f", str(backup_path),
         ]
 
-        env = {"PGPASSWORD": settings.POSTGRES_PASSWORD}
-
-        result = subprocess.run(cmd, env=env, capture_output=True, text=True)
+        result = subprocess.run(cmd, env=_postgres_env(), capture_output=True, text=True)
         if result.returncode != 0:
             raise RuntimeError(f"psql restore failed: {result.stderr}")
 

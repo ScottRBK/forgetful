@@ -105,7 +105,7 @@ Displays the target provider, model, dimensions, database backend, and memory co
 Creates a timestamped backup of your database:
 
 - **SQLite**: Copies the `.db` file (plus WAL/SHM if present) to `forgetful.db.bak-YYYYMMDD-HHMMSS`
-- **PostgreSQL**: Runs `pg_dump` to `forgetful-pg-YYYYMMDD-HHMMSS.sql`
+- **PostgreSQL**: Runs `pg_dump --clean --if-exists` to `forgetful-pg-YYYYMMDD-HHMMSS.sql`
 
 The backup is kept alongside your database. In-memory SQLite databases skip this step.
 
@@ -182,6 +182,8 @@ The backup is restored automatically in these scenarios:
   Database returned to pre-migration state.
 ```
 
+A PostgreSQL restore runs in a single transaction and stops at the first error. If the restore itself fails, the error from `psql` is reported and the database is left exactly as it was, so a half-restored database is never reported as restored.
+
 ### Manual Restore
 
 If you need to manually restore after a successful migration (e.g., you notice search quality issues):
@@ -194,7 +196,8 @@ cp /path/to/forgetful.db.bak-YYYYMMDD-HHMMSS /path/to/forgetful.db
 
 **PostgreSQL:**
 ```bash
-psql -h localhost -p 5099 -U forgetful -d forgetful -f /path/to/forgetful-pg-YYYYMMDD-HHMMSS.sql
+psql -h localhost -p 5099 -U forgetful -d forgetful -v ON_ERROR_STOP=1 --single-transaction \
+  -f /path/to/forgetful-pg-YYYYMMDD-HHMMSS.sql
 ```
 
 ### Backup Cleanup
