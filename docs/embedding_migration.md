@@ -52,6 +52,9 @@ uv run main.py --re-embed
 Runs the re-embedding migration instead of starting the server. Processes all memories across all
 users, including obsolete memories, with the currently configured embedding provider and dimensions.
 Counts and progress include obsolete memories. Their status and supersession metadata are preserved.
+Skills are re-embedded in the same run (from their description), whether or not `SKILLS_ENABLED`
+is set, so they keep working with the new model. The vector storage is resized to the configured
+dimensions even when the database holds no memories yet.
 
 ```bash
 forgetful --re-embed [--batch-size N] [--dry-run]
@@ -71,6 +74,8 @@ forgetful --re-embed --batch-size 5     # conservative for rate-limited APIs
 ### `--dry-run`
 
 Shows configuration and memory count without making any changes. Use this to verify your setup before committing to a migration.
+The preview is read-only: it does not run database schema migrations, create the SQLite database
+file or touch the vector tables. A SQLite database that does not exist yet is reported as empty.
 
 ```bash
 forgetful --re-embed --dry-run
@@ -107,18 +112,21 @@ Creates a timestamped backup of your database:
 - **SQLite**: Copies the `.db` file (plus WAL/SHM if present) to `forgetful.db.bak-YYYYMMDD-HHMMSS`
 - **PostgreSQL**: Runs `pg_dump` to `forgetful-pg-YYYYMMDD-HHMMSS.sql`
 
-The backup is kept alongside your database. In-memory SQLite databases skip this step.
+The backup is kept alongside your database. In-memory SQLite databases skip this step, and so do
+databases without any memories or skills: there is nothing to lose, so only the vector storage is
+resized to the configured dimensions.
 
 ### Step 3: Update Vector Schema
 
 Resizes the vector storage to match the new `EMBEDDING_DIMENSIONS`:
 
-- **SQLite**: Drops and recreates the `vec_memories` virtual table
-- **PostgreSQL**: Alters the `embedding` column type to `vector(N)`
+- **SQLite**: Drops and recreates the `vec_memories` and `vec_skills` virtual tables
+- **PostgreSQL**: Alters the `embedding` column type of `memories` and `skills` to `vector(N)`.
+  The `NOT NULL` constraint is lifted while the vectors are rebuilt and restored once validation passes.
 
-### Step 4: Re-embed Memories
+### Step 4: Re-embed Memories and Skills
 
-Processes all active and obsolete memories in batches:
+Processes all active and obsolete memories in batches, followed by all skills:
 1. Reads a batch of memories from the database
 2. Generates new embeddings using the configured provider
 3. Writes the new embeddings back
@@ -133,7 +141,7 @@ Processes all active and obsolete memories in batches:
 
 Runs three automated checks:
 
-1. **Count check** - Verifies every memory, including obsolete memories, has an embedding
+1. **Count check** - Verifies every memory, including obsolete memories, and every skill has an embedding
 2. **Dimension check** - Samples embeddings and confirms correct dimension count
 3. **Search check** - Tests vector retrieval, including when all memories are obsolete
 
