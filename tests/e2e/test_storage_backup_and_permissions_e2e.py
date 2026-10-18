@@ -1,5 +1,8 @@
-"""PostgreSQL restores with the real pg_dump and psql: strict and all-or-nothing."""
+"""PostgreSQL backups with the real pg_dump and psql: strict restores and private dumps."""
 
+import os
+import stat
+import sys
 from uuid import uuid4
 
 import psycopg2
@@ -14,6 +17,8 @@ pytestmark = [
     pytest.mark.asyncio(loop_scope="session"),
     pytest.mark.usefixtures("postgres_backup_tools"),
 ]
+
+posix_only = pytest.mark.skipif(sys.platform == "win32", reason="POSIX permission bits")
 
 
 @pytest.fixture
@@ -117,3 +122,17 @@ async def test_dump_restores_into_an_empty_database_under_a_strict_restore(
             assert cursor.fetchone()[0] is True
     finally:
         restored.close()
+
+
+@posix_only
+async def test_dump_and_new_backup_directory_are_owner_only(db_adapter, backup_directory):
+    previous = os.umask(0o022)  # the common default, which used to yield a 0644 dump
+    try:
+        backup = await create_backup_service(database_type="Postgres").create_backup()
+    finally:
+        os.umask(previous)
+
+    assert backup.parent == backup_directory
+    assert stat.S_IMODE(backup.stat().st_mode) == 0o600
+    assert stat.S_IMODE(backup_directory.stat().st_mode) == 0o700
+    assert "PostgreSQL database dump" in backup.read_text()

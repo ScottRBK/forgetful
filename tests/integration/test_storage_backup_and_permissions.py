@@ -1,4 +1,4 @@
-"""Backup tool lookup and restore strictness.
+"""Backup tool lookup, restore strictness and dump permissions.
 
 The PostgreSQL client tools are replaced by tiny POSIX shell scripts that record how
 they were started, so these checks need no database and no network.
@@ -13,6 +13,7 @@ import pytest
 
 from app.bootstrap import create_backup_service
 from app.config.settings import settings
+from app.repositories.backup_adapter import DatabaseBackupAdapter
 
 posix_only = pytest.mark.skipif(sys.platform == "win32", reason="POSIX shell scripts and mode bits")
 
@@ -112,6 +113,44 @@ async def test_postgres_restore_failure_is_reported_with_the_server_message(pg_t
 
     with pytest.raises(RuntimeError, match="relation does not exist"):
         await create_backup_service(database_type="Postgres").restore_backup(dump)
+
+
+@posix_only
+async def test_failed_postgres_dump_leaves_no_partial_file(pg_tools, tmp_path):
+    fake_tool(pg_tools, "pg_dump", tmp_path / "pg_dump.log", exit_code=1, stderr="connection refused")
+
+    with pytest.raises(RuntimeError, match="connection refused"):
+        await create_backup_service(database_type="Postgres").create_backup()
+
+    assert list((tmp_path / "data").glob("forgetful-pg-*.sql")) == []
+
+
+@posix_only
+async def test_postgres_dump_and_new_backup_directory_are_owner_only(pg_tools, tmp_path):
+    fake_tool(pg_tools, "pg_dump", tmp_path / "pg_dump.log")
+    old_umask = os.umask(0o022)  # the common default, which used to yield 0644 dumps
+    try:
+        backup = await create_backup_service(database_type="Postgres").create_backup()
+    finally:
+        os.umask(old_umask)
+
+    assert stat.S_IMODE(backup.stat().st_mode) == 0o600
+    assert stat.S_IMODE(backup.parent.stat().st_mode) == 0o700
+
+
+@posix_only
+def test_postgres_dump_tightens_a_pre_existing_loose_file(pg_tools, tmp_path):
+    fake_tool(pg_tools, "pg_dump", tmp_path / "pg_dump.log")
+    leftover = tmp_path / "data" / "forgetful-pg-20260101-000000.sql"
+    leftover.parent.mkdir()
+    leftover.write_text("older dump taken within the same second")
+    leftover.chmod(0o644)
+
+    backup = DatabaseBackupAdapter("Postgres").create_backup("20260101-000000")
+
+    assert backup == leftover
+    assert stat.S_IMODE(backup.stat().st_mode) == 0o600
+    assert backup.read_text() == "-- fake dump\n"
 
 
 DUMP_HEADER = (

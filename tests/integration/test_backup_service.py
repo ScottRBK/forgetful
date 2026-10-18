@@ -2,6 +2,8 @@
 
 Tests SQLite backup/restore with temporary files.
 """
+import sqlite3
+from contextlib import closing
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
@@ -11,11 +13,24 @@ import pytest
 from app.bootstrap import create_backup_service
 
 
+def write_content(db_path, content):
+    with closing(sqlite3.connect(db_path)) as conn:
+        conn.execute("create table if not exists notes (body text)")
+        conn.execute("delete from notes")
+        conn.execute("insert into notes values (?)", (content,))
+        conn.commit()
+
+
+def read_content(db_path):
+    with closing(sqlite3.connect(db_path)) as conn:
+        return conn.execute("select body from notes").fetchone()[0]
+
+
 @pytest.fixture
 def temp_db(tmp_path):
     """Create a temporary SQLite database file for testing"""
     db_path = tmp_path / "forgetful.db"
-    db_path.write_text("original database content")
+    write_content(db_path, "original database content")
     return db_path
 
 
@@ -31,7 +46,7 @@ async def test_sqlite_backup_creates_copy(temp_db):
         backup_path = await service.create_backup()
 
         assert backup_path.exists()
-        assert backup_path.read_text() == "original database content"
+        assert read_content(backup_path) == "original database content"
         assert backup_path.parent == temp_db.parent
 
 
@@ -49,14 +64,14 @@ async def test_sqlite_restore_overwrites_current(temp_db):
         backup_path = await service.create_backup()
 
         # Modify the original
-        temp_db.write_text("modified database content")
-        assert temp_db.read_text() == "modified database content"
+        write_content(temp_db, "modified database content")
+        assert read_content(temp_db) == "modified database content"
 
         # Restore
         await service.restore_backup(backup_path)
 
         # Should be back to original
-        assert temp_db.read_text() == "original database content"
+        assert read_content(temp_db) == "original database content"
 
 
 @pytest.mark.asyncio
@@ -81,27 +96,26 @@ async def test_backup_path_contains_timestamp(temp_db):
 
 
 @pytest.mark.asyncio
-async def test_sqlite_backup_copies_wal_files(temp_db):
-    """Verify WAL and SHM files are also backed up if present"""
-    wal_path = Path(str(temp_db) + "-wal")
-    shm_path = Path(str(temp_db) + "-shm")
-    wal_path.write_text("wal content")
-    shm_path.write_text("shm content")
+async def test_sqlite_backup_includes_wal_data_without_extra_files(temp_db):
+    """A snapshot is one file that already holds what is still in the WAL"""
+    with closing(sqlite3.connect(temp_db)) as other_connection:
+        other_connection.execute("pragma journal_mode=wal")
+        other_connection.execute("pragma wal_autocheckpoint=0")
+        other_connection.execute("update notes set body = 'committed in the wal'")
+        other_connection.commit()
+        assert Path(str(temp_db) + "-wal").stat().st_size > 0
 
-    with patch("app.repositories.backup_adapter.settings") as mock_settings:
-        mock_settings.DATABASE = "SQLite"
-        mock_settings.SQLITE_PATH = str(temp_db)
-        mock_settings.SQLITE_MEMORY = False
+        with patch("app.repositories.backup_adapter.settings") as mock_settings:
+            mock_settings.DATABASE = "SQLite"
+            mock_settings.SQLITE_PATH = str(temp_db)
+            mock_settings.SQLITE_MEMORY = False
+    
+            service = create_backup_service(database_type="SQLite")
+            backup_path = await service.create_backup()
 
-        service = create_backup_service(database_type="SQLite")
-        backup_path = await service.create_backup()
-
-        backup_wal = Path(str(backup_path) + "-wal")
-        backup_shm = Path(str(backup_path) + "-shm")
-        assert backup_wal.exists()
-        assert backup_shm.exists()
-        assert backup_wal.read_text() == "wal content"
-        assert backup_shm.read_text() == "shm content"
+    assert read_content(backup_path) == "committed in the wal"
+    assert not Path(str(backup_path) + "-wal").exists()
+    assert not Path(str(backup_path) + "-shm").exists()
 
 
 @pytest.mark.asyncio

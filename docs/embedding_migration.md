@@ -104,10 +104,10 @@ Displays the target provider, model, dimensions, database backend, and memory co
 
 Creates a timestamped backup of your database:
 
-- **SQLite**: Copies the `.db` file (plus WAL/SHM if present) to `forgetful.db.bak-YYYYMMDD-HHMMSS`
+- **SQLite**: Takes a consistent snapshot of the database with SQLite's online backup, including changes that are still in the WAL, and writes it as one file, `forgetful.db.bak-YYYYMMDD-HHMMSS`
 - **PostgreSQL**: Runs `pg_dump --clean --if-exists` to `forgetful-pg-YYYYMMDD-HHMMSS.sql`
 
-The backup is kept alongside your database. In-memory SQLite databases skip this step.
+The backup is kept alongside your database. Backups contain all of your data, so they are created readable by their owner only (`0600`, in a `0700` directory if Forgetful creates it). In-memory SQLite databases skip this step.
 
 ### Step 3: Update Vector Schema
 
@@ -190,8 +190,9 @@ If you need to manually restore after a successful migration (e.g., you notice s
 
 **SQLite:**
 ```bash
-# The backup path is printed at the end of the migration
+# The backup path is printed at the end of the migration. Stop Forgetful first.
 cp /path/to/forgetful.db.bak-YYYYMMDD-HHMMSS /path/to/forgetful.db
+rm -f /path/to/forgetful.db-wal /path/to/forgetful.db-shm   # leftovers of the replaced database
 ```
 
 **PostgreSQL:**
