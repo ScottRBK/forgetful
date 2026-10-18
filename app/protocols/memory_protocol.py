@@ -272,7 +272,8 @@ class MemoryRepository(Protocol):
         Unlike `bulk_update_embeddings`, this method:
         - is user-scoped (rejects ids not owned by `user_id`),
         - never resets vector storage,
-        - is idempotent for repeated calls on the same memory id.
+        - is idempotent for repeated calls on the same memory id,
+        - MUST NOT mutate `updated_at` (an embedding refresh is not an edit).
 
         Args:
             user_id: Authenticated user id; ownership filter, never optional.
@@ -291,7 +292,7 @@ class MemoryRepository(Protocol):
         ...
 
     async def bulk_update_embeddings(self, updates: list[tuple[int, list[float]]]) -> None:
-        """Write new embeddings for a batch of memory IDs"""
+        """Write new embeddings for a batch of memory IDs. MUST NOT mutate `updated_at`."""
         ...
 
     async def validate_embedding_count(self) -> bool:

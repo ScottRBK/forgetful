@@ -2149,6 +2149,8 @@ class SqliteMemoryRepository:
                 .values(
                     access_count=MemoryTable.access_count + 1,
                     last_accessed_at=ts,
+                    # Explicit value: suppresses the column `onupdate` so reads do not look like edits.
+                    updated_at=MemoryTable.updated_at,
                 )
             )
             result = await session.execute(stmt)

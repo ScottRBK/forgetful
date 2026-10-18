@@ -1056,7 +1056,8 @@ class PostgresMemoryRepository:
                 await session.execute(
                     update(MemoryTable)
                     .where(MemoryTable.id == memory_id)
-                    .values(embedding=embedding),
+                    # Explicit value: suppresses the column `onupdate`, a re-embed is not an edit.
+                    .values(embedding=embedding, updated_at=MemoryTable.updated_at),
                 )
 
     # ---- Targeted (user-scoped) rebuild support, never resets vec storage ----
@@ -1163,7 +1164,8 @@ class PostgresMemoryRepository:
                         MemoryTable.id == memory_id,
                         MemoryTable.user_id == user_id,
                     )
-                    .values(embedding=embedding),
+                    # Explicit value: suppresses the column `onupdate`, a re-embed is not an edit.
+                    .values(embedding=embedding, updated_at=MemoryTable.updated_at),
                 )
                 written.append(memory_id)
             return written
@@ -1881,6 +1883,8 @@ class PostgresMemoryRepository:
                 .values(
                     access_count=MemoryTable.access_count + 1,
                     last_accessed_at=ts,
+                    # Explicit value: suppresses the column `onupdate` so reads do not look like edits.
+                    updated_at=MemoryTable.updated_at,
                 )
             )
             result = await session.execute(stmt)
