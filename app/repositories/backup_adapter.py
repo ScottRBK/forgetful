@@ -82,6 +82,13 @@ class DatabaseBackupAdapter:
         else:
             raise ValueError(f"Unsupported database type: {self.database_type}")
 
+    @staticmethod
+    def _backup_dir() -> Path:
+        """Where backups go: BACKUP_DIR if set, otherwise beside the SQLite database."""
+        if settings.BACKUP_DIR:
+            return Path(settings.BACKUP_DIR)
+        return Path(settings.SQLITE_PATH).parent
+
     def _backup_sqlite(self, timestamp: str) -> Path:
         """Snapshot the SQLite database with SQLite's online backup API.
 
@@ -93,7 +100,7 @@ class DatabaseBackupAdapter:
         if not db_path.exists():
             raise FileNotFoundError(f"SQLite database not found: {db_path}")
 
-        backup_dir = Path(settings.SQLITE_PATH).parent  # the data directory
+        backup_dir = self._backup_dir()
         make_private_dir(backup_dir)
         backup_path = backup_dir / f"{db_path.name}.bak-{timestamp}"
         # Write under another name first so a failed backup never looks like a finished one.
@@ -139,7 +146,7 @@ class DatabaseBackupAdapter:
 
     def _backup_postgres(self, timestamp: str) -> Path:
         """Backup PostgreSQL database using pg_dump"""
-        backup_dir = Path(settings.SQLITE_PATH).parent  # the data directory
+        backup_dir = self._backup_dir()
         make_private_dir(backup_dir)
         backup_path = backup_dir / f"forgetful-pg-{timestamp}.sql"
         # pg_dump would create the file with the umask's permissions (usually world-readable).

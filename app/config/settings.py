@@ -66,6 +66,11 @@ class Settings(BaseSettings):
     SQLITE_PATH: str = str(_default_data_dir / "forgetful.db")  # Platform-specific path
     SQLITE_MEMORY: bool = False  # Use :memory: database (for testing)
 
+    # Backup Configuration (re-embed backups, SQLite and Postgres)
+    # Empty keeps backups in the directory of SQLITE_PATH. Point this at persistent storage
+    # when that directory is not (e.g. a Postgres deployment in a container).
+    BACKUP_DIR: str = ""
+
     DB_LOGGING: bool = False
 
     # Auth Configuration

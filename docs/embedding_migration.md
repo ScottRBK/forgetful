@@ -107,7 +107,7 @@ Creates a timestamped backup of your database:
 - **SQLite**: Takes a consistent snapshot of the database with SQLite's online backup, including changes that are still in the WAL, and writes it as one file, `forgetful.db.bak-YYYYMMDD-HHMMSS`
 - **PostgreSQL**: Runs `pg_dump --clean --if-exists` to `forgetful-pg-YYYYMMDD-HHMMSS.sql`
 
-The backup is kept alongside your database. Backups contain all of your data, so they are created readable by their owner only (`0600`, in a `0700` directory if Forgetful creates it). In-memory SQLite databases skip this step.
+The backup is kept alongside your database, in the directory of `SQLITE_PATH`, unless [`BACKUP_DIR`](./configuration.md#backup_dir) points elsewhere. Backups contain all of your data, so they are created readable by their owner only (`0600`, in a `0700` directory if Forgetful creates it). In-memory SQLite databases skip this step.
 
 ### Step 3: Update Vector Schema
 
@@ -322,6 +322,14 @@ Make sure your updated `.env` is mounted in the container before running.
 ### PostgreSQL Backup Requirements
 
 For PostgreSQL backups to work in Docker, the container needs `pg_dump` and `psql` available. The standard Forgetful Docker image includes these tools. If using a custom image, ensure the PostgreSQL client tools are installed.
+
+### Where Docker Backups Are Kept
+
+The backup is written inside the `forgetful-service` container, so it must be on a volume to outlive the container.
+
+- `docker-compose.yml` and `docker-compose.postgres.yml` set `BACKUP_DIR=/app/backups` and mount the named volume `forgetful_backups` there, so backups survive `docker compose up --force-recreate` and image upgrades. Copy one out with `docker compose cp forgetful-service:/app/backups/. ./backups`.
+- `docker-compose.sqlite.yml` keeps SQLite backups next to the database, in the `./data` volume.
+- With your own compose file or `docker run`, mount a volume and set `BACKUP_DIR` to it, otherwise the backup is lost with the container.
 
 ---
 

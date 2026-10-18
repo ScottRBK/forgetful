@@ -48,6 +48,7 @@ async def database(tmp_path, monkeypatch, umask022):
     monkeypatch.setattr(settings, "DATABASE", "SQLite")  # a developer's configuration may differ
     monkeypatch.setattr(settings, "SQLITE_MEMORY", False)
     monkeypatch.setattr(settings, "SQLITE_PATH", str(db_path))
+    monkeypatch.setattr(settings, "BACKUP_DIR", "")
     adapter = SqliteDatabaseAdapter()
     try:
         await adapter.init_db()
@@ -118,6 +119,7 @@ def test_backup_stays_consistent_while_another_connection_commits(tmp_path, monk
     """Copying the .db and then the -wal can pair files from different moments."""
     db_path = tmp_path / "forgetful.db"
     monkeypatch.setattr(settings, "SQLITE_PATH", str(db_path))
+    monkeypatch.setattr(settings, "BACKUP_DIR", "")
     rows, payload = 2000, b"x" * 3000
 
     def insert_pair(conn):
@@ -177,6 +179,23 @@ def test_backup_stays_consistent_while_another_connection_commits(tmp_path, monk
         writer.join()
 
     assert not problems, f"inconsistent backup: {problems}"
+
+
+async def test_backup_dir_setting_moves_sqlite_backups_and_restore_reads_them(
+    database, tmp_path, monkeypatch,
+):
+    adapter, db_path = database
+    target = tmp_path / "persistent" / "backups"
+    monkeypatch.setattr(settings, "BACKUP_DIR", str(target))
+    backups = DatabaseBackupAdapter("SQLite")
+
+    backup = backups.create_backup("20260101-000000")
+
+    assert backup.parent == target
+    await add_user(adapter, "Added Later")
+    await adapter.dispose()
+    backups.restore_backup(backup)
+    assert read_names(db_path) == ["Secret Name"]
 
 
 @posix_only

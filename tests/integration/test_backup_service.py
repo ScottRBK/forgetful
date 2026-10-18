@@ -41,6 +41,7 @@ async def test_sqlite_backup_creates_copy(temp_db):
         mock_settings.DATABASE = "SQLite"
         mock_settings.SQLITE_PATH = str(temp_db)
         mock_settings.SQLITE_MEMORY = False
+        mock_settings.BACKUP_DIR = ""
 
         service = create_backup_service(database_type="SQLite")
         backup_path = await service.create_backup()
@@ -57,6 +58,7 @@ async def test_sqlite_restore_overwrites_current(temp_db):
         mock_settings.DATABASE = "SQLite"
         mock_settings.SQLITE_PATH = str(temp_db)
         mock_settings.SQLITE_MEMORY = False
+        mock_settings.BACKUP_DIR = ""
 
         service = create_backup_service(database_type="SQLite")
 
@@ -81,6 +83,7 @@ async def test_backup_path_contains_timestamp(temp_db):
         mock_settings.DATABASE = "SQLite"
         mock_settings.SQLITE_PATH = str(temp_db)
         mock_settings.SQLITE_MEMORY = False
+        mock_settings.BACKUP_DIR = ""
 
         service = create_backup_service(database_type="SQLite")
         backup_path = await service.create_backup()
@@ -109,7 +112,8 @@ async def test_sqlite_backup_includes_wal_data_without_extra_files(temp_db):
             mock_settings.DATABASE = "SQLite"
             mock_settings.SQLITE_PATH = str(temp_db)
             mock_settings.SQLITE_MEMORY = False
-    
+            mock_settings.BACKUP_DIR = ""
+
             service = create_backup_service(database_type="SQLite")
             backup_path = await service.create_backup()
 
@@ -134,6 +138,7 @@ async def test_backup_missing_db_raises(tmp_path):
         mock_settings.DATABASE = "SQLite"
         mock_settings.SQLITE_PATH = str(tmp_path / "nonexistent.db")
         mock_settings.SQLITE_MEMORY = False
+        mock_settings.BACKUP_DIR = ""
 
         service = create_backup_service(database_type="SQLite")
 

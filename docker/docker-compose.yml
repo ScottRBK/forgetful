@@ -17,6 +17,10 @@ services:
     env_file:
       - path: .env
         required: false
+    environment:
+      # Re-embed backups go to a volume, so they survive `docker compose up --force-recreate`
+      # and image upgrades (see docs/embedding_migration.md).
+      BACKUP_DIR: /app/backups
     networks:
       - "forgetful"
     healthcheck:
@@ -24,11 +28,12 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
-      start_period: 90s 
-    # Uncomment for development hot reload
-    # volumes:
-    #   - ../app:/app/app
-    #   - ../main.py:/app/main.py
+      start_period: 90s
+    volumes:
+      - forgetful_backups:/app/backups
+      # Uncomment for development hot reload
+      #   - ../app:/app/app
+      #   - ../main.py:/app/main.py
      
   forgetful-db:
     image: pgvector/pgvector:pg16
@@ -51,7 +56,8 @@ services:
 
 
 volumes:
-  forgetful_db_data: 
+  forgetful_db_data:
+  forgetful_backups:
 
     
     

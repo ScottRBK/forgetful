@@ -13,6 +13,12 @@ services:
     env_file:
       - path: .env
         required: false
+    environment:
+      # Re-embed backups of the Postgres database go to a volume, so they survive
+      # `docker compose up --force-recreate` and image upgrades (see docs/embedding_migration.md).
+      BACKUP_DIR: /app/backups
+    volumes:
+      - forgetful_backups:/app/backups
     networks:
       - forgetful
     depends_on:
@@ -46,3 +52,4 @@ services:
 
 volumes:
   forgetful_db_data:
+  forgetful_backups:

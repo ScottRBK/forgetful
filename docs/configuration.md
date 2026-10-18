@@ -197,6 +197,14 @@ Forgetful provides three Docker Compose configurations:
 
 ### Common Database Settings
 
+#### `BACKUP_DIR`
+- **Default**: empty (next to the SQLite database, in the directory of `SQLITE_PATH`)
+- **Description**: Directory for the backups that `--re-embed` takes before changing anything (SQLite snapshot or PostgreSQL `pg_dump`)
+- **Notes**:
+  - Created as `0700` if missing; the backup files themselves are `0600`
+  - Must be persistent storage. `docker-compose.yml` and `docker-compose.postgres.yml` set it to `/app/backups`, a named volume, because the default location (`/app/data`) is not a volume in a PostgreSQL deployment
+- **Example**: `BACKUP_DIR=/var/backups/forgetful`
+
 #### `DB_LOGGING`
 - **Default**: `false`
 - **Description**: Enable SQL query logging for debugging (applies to both SQLite and PostgreSQL)

@@ -23,7 +23,7 @@ posix_only = pytest.mark.skipif(sys.platform == "win32", reason="POSIX permissio
 
 @pytest.fixture
 def backup_directory(tmp_path, monkeypatch):
-    monkeypatch.setattr(settings, "SQLITE_PATH", str(tmp_path / "backups" / "forgetful.db"))
+    monkeypatch.setattr(settings, "BACKUP_DIR", str(tmp_path / "backups"))
     return tmp_path / "backups"
 
 
