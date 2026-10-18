@@ -257,7 +257,7 @@ The CI test job runs the latter; [validation notes](docs/dev/architecture-tests.
 | Integration | [tests/integration](tests/integration) uses stubbed I/O for service workflows. Start at [test_memory_service.py:16](tests/integration/test_memory_service.py#L16), [test_bootstrap.py](tests/integration/test_bootstrap.py), and the scope, CLI, task, skill, graph, and event-bus tests. Run `uv run pytest tests/integration/`. |
 | SQLite E2E | [tests/e2e_sqlite](tests/e2e_sqlite) exercises the stack with in-memory SQLite; [conftest.py:157](tests/e2e_sqlite/conftest.py#L157) builds the app and controls optional features. Run `uv run pytest tests/e2e_sqlite/`. |
 | PostgreSQL E2E | [tests/e2e](tests/e2e) exercises the PostgreSQL stack; [conftest.py:265](tests/e2e/conftest.py#L265) manages the Docker database fixture. Run `uv run pytest -m e2e` with Docker available. |
-| Agent walkthroughs | [test_harness/walkthrough.py:128](test_harness/walkthrough.py#L128) orchestrates agent sessions; this is evaluation infrastructure, not a production request path. Generated run workspaces are excluded from the map. |
+| Agent walkthroughs | [test_harness/walkthrough.py:207](test_harness/walkthrough.py#L207) orchestrates agent sessions; this is evaluation infrastructure, not a production request path. Generated run workspaces are excluded from the map. |
 
 Backend-sensitive changes should exercise both relevant E2E suites; contract/business-rule changes
 should first use the focused integration tests. Source links identify tests, not evidence that those
