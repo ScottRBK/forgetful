@@ -705,7 +705,7 @@ class TestGraphEntityEdges:
         # Count entity_relationship edges between A and B
         min_id = min(entity_a_id, entity_b_id)
         max_id = max(entity_a_id, entity_b_id)
-        expected_edge_id = f"entity_{min_id}_entity_{max_id}"
+        expected_edge_id = f"entity_{min_id}_entity_{max_id}_partners_with"
 
         matching_edges = [
             e for e in data["edges"]

@@ -247,10 +247,12 @@ def register(mcp: FastMCP):
             for rel in entity_relationships:
                 # Only add edge if both entities are in result set
                 if rel.source_entity_id in seen_entity_ids and rel.target_entity_id in seen_entity_ids:
-                    # Canonical edge ID for deduplication (bidirectional visualization)
+                    # Canonical edge ID for deduplication (bidirectional visualization): a pair may
+                    # hold several relationship types, so only the same type in the opposite
+                    # direction is a duplicate
                     min_id = min(rel.source_entity_id, rel.target_entity_id)
                     max_id = max(rel.source_entity_id, rel.target_entity_id)
-                    edge_id = f"entity_{min_id}_entity_{max_id}"
+                    edge_id = f"entity_{min_id}_entity_{max_id}_{rel.relationship_type}"
 
                     if edge_id not in seen_edge_ids:
                         seen_edge_ids.add(edge_id)
@@ -926,7 +928,7 @@ def register(mcp: FastMCP):
             if rel.source_entity_id in seen_entity_ids and rel.target_entity_id in seen_entity_ids:
                 min_id = min(rel.source_entity_id, rel.target_entity_id)
                 max_id = max(rel.source_entity_id, rel.target_entity_id)
-                edge_id = f"entity_{min_id}_entity_{max_id}"
+                edge_id = f"entity_{min_id}_entity_{max_id}_{rel.relationship_type}"
 
                 if edge_id not in seen_edge_ids:
                     seen_edge_ids.add(edge_id)

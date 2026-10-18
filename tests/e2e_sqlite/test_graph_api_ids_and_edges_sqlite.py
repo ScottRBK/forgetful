@@ -166,3 +166,89 @@ class TestSubgraphNodeIds:
         assert response.json() == {"error": "Internal server error"}
         assert "secret" not in response.text
         assert "parameters" not in response.text
+
+
+# ============================================================================
+# Entity relationship edges: one per (pair, relationship type)
+# ============================================================================
+
+
+class TestEntityRelationshipEdges:
+    @pytest.mark.asyncio
+    async def test_subgraph_keeps_distinct_types_in_the_same_direction(self, http_client):
+        a = await _create_entity(http_client, "A")
+        b = await _create_entity(http_client, "B")
+        await _create_relationship(http_client, a, b, "knows")
+        await _create_relationship(http_client, a, b, "mentors")
+
+        response = await http_client.get(f"/api/v1/graph/subgraph?node_id=entity_{a}")
+
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert _relationship_types(data) == ["knows", "mentors"]
+        assert data["meta"]["entity_relationship_count"] == 2
+        edge_ids = [e["id"] for e in data["edges"]]
+        assert len(edge_ids) == len(set(edge_ids))
+
+    @pytest.mark.asyncio
+    async def test_subgraph_keeps_distinct_types_in_opposite_directions(self, http_client):
+        a = await _create_entity(http_client, "A")
+        b = await _create_entity(http_client, "B")
+        await _create_relationship(http_client, a, b, "works_with")
+        await _create_relationship(http_client, b, a, "manages")
+
+        response = await http_client.get(f"/api/v1/graph/subgraph?node_id=entity_{a}")
+
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert _relationship_types(data) == ["manages", "works_with"]
+        assert data["meta"]["entity_relationship_count"] == 2
+
+    @pytest.mark.asyncio
+    async def test_subgraph_still_merges_reverse_edges_of_the_same_type(self, http_client):
+        a = await _create_entity(http_client, "A")
+        b = await _create_entity(http_client, "B")
+        await _create_relationship(http_client, a, b, "partners_with")
+        await _create_relationship(http_client, b, a, "partners_with")
+
+        response = await http_client.get(f"/api/v1/graph/subgraph?node_id=entity_{a}")
+
+        assert len(_entity_edges(response.json())) == 1
+
+    @pytest.mark.asyncio
+    async def test_full_graph_keeps_distinct_types(self, http_client):
+        a = await _create_entity(http_client, "A")
+        b = await _create_entity(http_client, "B")
+        await _create_relationship(http_client, a, b, "knows")
+        await _create_relationship(http_client, a, b, "mentors")
+        await _create_relationship(http_client, b, a, "knows")
+
+        response = await http_client.get("/api/v1/graph?node_types=entity")
+
+        assert response.status_code == 200, response.text
+        data = response.json()
+        # knows (both directions merged) + mentors
+        assert _relationship_types(data) == ["knows", "mentors"]
+        assert data["meta"]["entity_relationship_count"] == 2
+        edge_ids = [e["id"] for e in data["edges"]]
+        assert len(edge_ids) == len(set(edge_ids))
+
+    @pytest.mark.asyncio
+    async def test_memory_subgraph_keeps_distinct_types(self, http_client):
+        memory_id = await _create_memory(http_client, "Center memory")
+        a = await _create_entity(http_client, "A")
+        b = await _create_entity(http_client, "B")
+        for entity_id in (a, b):
+            response = await http_client.post(
+                f"/api/v1/entities/{entity_id}/memories", json={"memory_id": memory_id},
+            )
+            assert response.status_code in (200, 201), response.text
+        await _create_relationship(http_client, a, b, "knows")
+        await _create_relationship(http_client, a, b, "mentors")
+
+        response = await http_client.get(f"/api/v1/graph/memory/{memory_id}")
+
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert _relationship_types(data) == ["knows", "mentors"]
+        assert data["meta"]["entity_relationship_count"] == 2

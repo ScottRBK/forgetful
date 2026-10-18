@@ -886,10 +886,11 @@ class GraphService:
             )
             for rel in entity_relationships:
                 if rel.source_entity_id in entity_id_set and rel.target_entity_id in entity_id_set:
-                    # Canonical edge ID for deduplication
+                    # Canonical edge ID for deduplication: a pair may hold several relationship
+                    # types, so only the same type in the opposite direction is a duplicate
                     min_id = min(rel.source_entity_id, rel.target_entity_id)
                     max_id = max(rel.source_entity_id, rel.target_entity_id)
-                    edge_id = f"entity_{min_id}_entity_{max_id}"
+                    edge_id = f"entity_{min_id}_entity_{max_id}_{rel.relationship_type}"
 
                     if edge_id not in seen_edge_ids:
                         seen_edge_ids.add(edge_id)
