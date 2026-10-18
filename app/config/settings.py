@@ -240,6 +240,7 @@ class Settings(BaseSettings):
     RERANKING_PROVIDER: str = "FastEmbed"        # FastEmbed | HTTP
     RERANKING_URL: str = ""                      # custom endpoints (e.g. http://localhost:8080/v1/rerank)
     RERANKING_API_KEY: str = ""
+    RERANKING_TIMEOUT: float = Field(default=60.0, gt=0, allow_inf_nan=False)  # HTTP rerank request timeout (seconds)
     RERANKING_MODEL: str = "Xenova/ms-marco-MiniLM-L-12-v2"
     # Local FastEmbed only; HTTP concurrency is controlled by the remote server.
     RERANKING_THREADS: int = Field(default=1, ge=1)  # ONNX inference threads

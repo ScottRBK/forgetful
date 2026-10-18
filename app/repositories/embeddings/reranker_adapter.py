@@ -116,10 +116,12 @@ class HttpRerankAdapter:
             model: str | None = None,
             url: str | None = None,
             api_key: str | None = None,
+            timeout: float | None = None,
     ):
         self.model = model if model is not None else settings.RERANKING_MODEL
         self.url = url if url is not None else settings.RERANKING_URL
         self.api_key = api_key if api_key is not None else settings.RERANKING_API_KEY
+        self.timeout = timeout if timeout is not None else settings.RERANKING_TIMEOUT
 
         if not self.url.strip():
             raise ValueError(
@@ -147,7 +149,9 @@ class HttpRerankAdapter:
         }
 
         async with httpx.AsyncClient() as client:
-            response = await client.post(url=self.url, headers=headers, json=payload)
+            response = await client.post(
+                url=self.url, headers=headers, json=payload, timeout=self.timeout,
+            )
             response.raise_for_status()
 
         response_json = response.json()

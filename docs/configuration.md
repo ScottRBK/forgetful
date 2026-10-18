@@ -1161,6 +1161,13 @@ it stays available here as an optional provider. Restart the service after chang
 - **Security**: **Keep this secret** - never commit to version control
 - **Example**: `RERANKING_API_KEY=your-api-key-here`
 
+#### `RERANKING_TIMEOUT`
+- **Default**: `60`
+- **Values**: Positive number of seconds
+- **Description**: How long an HTTP re-ranking request may take (connect, send, and wait for the response) before the search fails
+- **Note**: Only used when `RERANKING_PROVIDER=HTTP`. Raise it for CPU-only rerank servers or services that load their model on first use, since each search scores up to `DENSE_SEARCH_CANDIDATES` documents in one request. Earlier versions allowed only 5 seconds and this was not configurable
+- **Example**: `RERANKING_TIMEOUT=120`
+
 ### FastEmbed Cache Configuration
 
 #### `FASTEMBED_CACHE_DIR`
