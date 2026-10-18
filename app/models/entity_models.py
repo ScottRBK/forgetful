@@ -5,11 +5,12 @@ that can be linked to memories and related to each other through a knowledge gra
 """
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Any
+from typing import Any, ClassVar
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.config.settings import settings
+from app.models.storable import StorableInput
 
 
 class EntityType(StrEnum):
@@ -388,7 +389,7 @@ class EntityListResponse(BaseModel):
 
 # Entity Relationship Models
 
-class EntityRelationshipCreate(BaseModel):
+class EntityRelationshipCreate(StorableInput):
     """Request model for creating an entity relationship
 
     Relationships form a knowledge graph connecting entities with typed,
@@ -470,7 +471,7 @@ class EntityRelationshipCreate(BaseModel):
         return self
 
 
-class EntityRelationshipUpdate(BaseModel):
+class EntityRelationshipUpdate(StorableInput):
     """Request model for updating an entity relationship
 
     Follows PATCH semantics: only provided fields are updated.
@@ -545,6 +546,9 @@ class EntityRelationship(EntityRelationshipCreate):
     - get_entity_relationships: When retrieving relationships for an entity
     - update_entity_relationship: After successfully updating a relationship
     """
+    # Relationships stored before NaN/NUL were refused (SQLite accepted them) stay readable
+    enforce_storage_limits: ClassVar[bool] = False
+
     id: int = Field(
         ...,
         description="Unique relationship identifier (auto-generated)",

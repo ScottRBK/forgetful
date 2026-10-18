@@ -7,13 +7,15 @@ the Agent Skills open standard (agentskills.io).
 
 import re
 from datetime import UTC, datetime
+from typing import ClassVar
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.config.settings import settings
+from app.models.storable import StorableInput
 
 
-class SkillCreate(BaseModel):
+class SkillCreate(StorableInput):
     """Request model for creating a skill
 
     Skills are what make up procedural memory and provide steps and examples
@@ -129,7 +131,7 @@ class SkillCreate(BaseModel):
         return cleaned
 
 
-class SkillUpdate(BaseModel):
+class SkillUpdate(StorableInput):
     """Request model for updating a skill.
 
     Follows PATCH semantics: only provided fields are updated.
@@ -205,6 +207,9 @@ class Skill(SkillCreate):
     Extends SkillCreate with system-generated fields (id and timestamps).
     Used for responses that include full Skill detail.
     """
+    # Skills stored before NaN/NUL were refused (SQLite accepted them) stay readable
+    enforce_storage_limits: ClassVar[bool] = False
+
     id: int = Field(..., description="Unique identifier (auto-generated)")
     created_at: datetime = Field(default_factory=lambda: datetime.now(tz=UTC), frozen=True)
     updated_at: datetime = Field(default_factory=lambda: datetime.now(tz=UTC))
