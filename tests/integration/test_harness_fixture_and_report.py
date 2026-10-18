@@ -8,11 +8,13 @@ must build the same on every developer machine, whatever git config or hook envi
 surrounds the harness. No docker and no model calls: the session runner is a stub that
 plays the agent by writing (or sabotaging) the files the real one would.
 """
+import ast
 import json
 import os
 import stat
 import subprocess
 import sys
+import textwrap
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -828,3 +830,128 @@ def test_replace_tree_swaps_whatever_the_agent_left_for_a_fresh_copy(tmp_path, o
     (root / "dest" / "stale.txt").write_text("agent")
     replace_tree(source, root / "dest", root)
     assert not (root / "dest" / "stale.txt").exists()
+
+
+# --------------------------------------------------------------------------------------
+# The files exchanged with the sandbox are UTF-8, whatever the host locale says
+# --------------------------------------------------------------------------------------
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
+LOCALE_CHILD = textwrap.dedent(
+    r"""
+    import asyncio, json, locale, sys
+    from pathlib import Path
+
+    from test_harness.config import HarnessConfig
+    from test_harness.server import ThrowawayForgetful
+    from test_harness.walkthrough import SessionOutcome, Walkthrough
+
+    if sys.flags.utf8_mode or locale.getencoding().lower().replace("-", "") == "utf8":
+        sys.exit(77)  # this platform cannot be made to default to a non-UTF-8 codec
+
+    work, skills_src = Path(sys.argv[1]), Path(sys.argv[2])
+    seeded = []
+
+    class Agent:
+        async def run_session(self, *, skill, skill_dir, workspace, prompt, timeout):
+            events = [
+                {"type": "error", "content": "boom \u2014 \u201cquoted\u201d"},
+                {"type": "result", "content": "ok"},
+            ]
+            lines = [json.dumps(event, ensure_ascii=False) for event in events]
+            (skill_dir / "events.jsonl").write_bytes("\n".join(lines).encode("utf-8"))
+            report = {
+                "skill": skill, "verdict": "issues",
+                "issues": [{"severity": "minor", "what": "smart \u201cquotes\u201d \u2014 here"}],
+            }
+            (workspace / "report.json").write_bytes(
+                json.dumps(report, ensure_ascii=False).encode("utf-8"),
+            )
+            return SessionOutcome(kind="ran")
+
+    async def main():
+        server = ThrowawayForgetful(run_dir=work)
+
+        async def fake_execute(tool_name, arguments):
+            seeded.append(arguments["skill_md_content"])
+
+        server.execute = fake_execute
+        await server.seed_skills(skills_src, ["forgetful-recall"])
+        config = HarnessConfig(skills=["forgetful-recall"], skills_dir=skills_src)
+        run_dir = work / "run"
+        run_dir.mkdir()
+        results = await Walkthrough(config, Agent(), "http://x", run_dir).run()
+        copied = (run_dir / "skills" / "forgetful-recall" / "workspace" / "SKILL.md").read_bytes()
+        meta = (run_dir / "skills" / "forgetful-recall" / "meta.json").read_bytes()
+        print(json.dumps({
+            "codec": locale.getencoding(),
+            "seeded": seeded,
+            "copied": copied.decode("utf-8"),
+            "report_status": results[0].report_load.status,
+            "what": results[0].report_load.report.issues[0].what,
+            "error": results[0].error,
+            "meta_error": json.loads(meta.decode("utf-8"))["error"],
+        }))
+
+    asyncio.run(main())
+    """,
+)
+
+
+def test_exchanged_files_are_utf8_even_when_the_host_codec_is_not(tmp_path):
+    # Arrange: a child interpreter whose default text codec is ASCII (UTF-8 mode off, C
+    # locale; on Windows the ANSI code page already is non-UTF-8), and a SKILL.md with
+    # characters outside it, as every shipped skill has
+    skill_text = "---\nname: forgetful-recall\n---\nterminal \u2014 \u201cinstall\u201d, local\n"
+    skills_src = tmp_path / "skills_src"
+    (skills_src / "forgetful-recall").mkdir(parents=True)
+    (skills_src / "forgetful-recall" / "SKILL.md").write_bytes(skill_text.encode("utf-8"))
+    env = {k: v for k, v in os.environ.items() if k not in {"PYTHONUTF8", "PYTHONIOENCODING"}}
+    env.update(
+        PYTHONUTF8="0", PYTHONCOERCECLOCALE="0", LC_ALL="C", LANG="C",
+        PYTHONPATH=os.pathsep.join([str(REPO_ROOT), env.get("PYTHONPATH", "")]),
+    )
+
+    # Act
+    child = subprocess.run(
+        [sys.executable, "-c", LOCALE_CHILD, str(tmp_path), str(skills_src)],
+        cwd=REPO_ROOT, env=env, capture_output=True, check=False,
+    )
+
+    # Assert
+    if child.returncode == 77:
+        pytest.skip("cannot force a non-UTF-8 default codec here")
+    assert child.returncode == 0, child.stderr.decode("utf-8", errors="replace")
+    out = json.loads(child.stdout)
+    assert out["seeded"] == [skill_text]
+    assert out["copied"] == skill_text
+    assert out["report_status"] == "ok"
+    assert out["what"] == "smart \u201cquotes\u201d \u2014 here"
+    assert out["error"] == out["meta_error"] == "boom \u2014 \u201cquoted\u201d"
+
+
+def test_every_harness_text_file_call_names_its_encoding():
+    # Arrange: the call sites the child above does not reach (requirements.lock, the
+    # in-container runner, server.log, run.json, fixture files) are covered statically
+    offenders = []
+    for source in sorted((REPO_ROOT / "test_harness").rglob("*.py")):
+        if "runs" in source.relative_to(REPO_ROOT).parts:
+            continue  # generated run artifacts, not harness code
+        for node in ast.walk(ast.parse(source.read_text(encoding="utf-8"))):
+            if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+                continue
+            name, owner = node.func.attr, node.func.value
+            if name == "open" and isinstance(owner, ast.Name) and owner.id == "os":
+                continue  # os.open is fd-level
+            text_mode = name in {"read_text", "write_text"} or (
+                name == "open"
+                and not any(
+                    isinstance(arg, ast.Constant) and "b" in str(arg.value) for arg in node.args
+                )
+            )
+            if text_mode and "encoding" not in {kw.arg for kw in node.keywords}:
+                offenders.append(f"{source.relative_to(REPO_ROOT)}:{node.lineno}")
+
+    # Act / Assert
+    assert offenders == []

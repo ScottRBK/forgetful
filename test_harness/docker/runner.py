@@ -46,7 +46,7 @@ def _attach_debug_log(path: Path) -> None:
     """agent-shell's DEBUG stream carries full command args; tool_use events only
     carry tool names. The debug log is what the post-run analysis greps."""
     logger = logging.getLogger("agent_shell")
-    handler = logging.FileHandler(path)
+    handler = logging.FileHandler(path, encoding="utf-8")
     handler.setLevel(logging.DEBUG)
     handler.setFormatter(logging.Formatter("%(asctime)s %(name)s %(levelname)s %(message)s"))
     logger.addHandler(handler)
@@ -55,10 +55,10 @@ def _attach_debug_log(path: Path) -> None:
 
 async def run_session(skill_dir: Path) -> None:
     shell = _shell()
-    prompt = (skill_dir / "prompt.txt").read_text()
+    prompt = (skill_dir / "prompt.txt").read_text(encoding="utf-8")
     _attach_debug_log(skill_dir / "debug.log")
     disallowed = [name for name in os.environ.get("DISALLOWED_TOOLS", "").split(",") if name]
-    with (skill_dir / "events.jsonl").open("w") as event_log:
+    with (skill_dir / "events.jsonl").open("w", encoding="utf-8") as event_log:
         stream = shell.stream(
             cwd=str(skill_dir / "workspace"),
             prompt=prompt,

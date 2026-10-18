@@ -145,7 +145,7 @@ def ensure_image(rebuild: bool = False, log=print) -> None:
         except docker.errors.ImageNotFound:
             log(f"{IMAGE} not found - first build pulls node and the locked deps")
 
-    (_DOCKER_DIR / "requirements.lock").write_text(requirements)
+    (_DOCKER_DIR / "requirements.lock").write_text(requirements, encoding="utf-8")
     log(f"building {IMAGE} ...")
     build = subprocess.run(
         [

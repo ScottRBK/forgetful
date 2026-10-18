@@ -125,7 +125,7 @@ def _build_fixture_repo(root: Path) -> None:
     for name, content in _FIXTURE_FILES.items():
         path = root / name
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(content)
+        path.write_text(content, encoding="utf-8")
 
     with tempfile.TemporaryDirectory(prefix="uat-fixture-git-") as home:
         env = _hermetic_git_env(Path(home))
@@ -313,4 +313,4 @@ class Walkthrough:
                 for r in results
             ],
         }
-        (self.run_dir / "run.json").write_text(json.dumps(summary, indent=2))
+        (self.run_dir / "run.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")

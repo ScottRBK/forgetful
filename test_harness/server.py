@@ -84,7 +84,7 @@ class ThrowawayForgetful:
                 "forgetful console script not on PATH - run the harness via `uv run`",
             )
         self.port = _ephemeral_port()
-        self._log_file = (self.run_dir / "server.log").open("w")
+        self._log_file = (self.run_dir / "server.log").open("w", encoding="utf-8")
         self.process = subprocess.Popen(
             [binary, "serve", "--transport", "http", "--host", "127.0.0.1",
              "--port", str(self.port)],
@@ -138,7 +138,7 @@ class ThrowawayForgetful:
         """Import canonical SKILL.md files; the store then holds the docs under review."""
         seeded = []
         for name in names:
-            skill_md = (skills_dir / name / "SKILL.md").read_text()
+            skill_md = (skills_dir / name / "SKILL.md").read_text(encoding="utf-8")
             try:
                 seeded.append(
                     await self.execute("import_skill", {"skill_md_content": skill_md}),
