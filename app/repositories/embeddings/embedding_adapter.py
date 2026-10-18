@@ -51,7 +51,8 @@ class FastEmbeddingAdapter(EmbeddingsAdapter):
 
     async def generate_embedding(self, text: str) -> list[float]:
         try:
-            embeddings = list(self.model.embed(text))
+            # Inference is CPU bound and synchronous: keep it off the event loop.
+            embeddings = await asyncio.to_thread(lambda: list(self.model.embed(text)))
         except Exception:
             logger.error("Error generating embeddings", exc_info=True, extra={
                 "embedding provider": "fastembed",
@@ -103,7 +104,10 @@ class AzureOpenAIAdapter(EmbeddingsAdapter):
             kwargs["dimensions"] = settings.EMBEDDING_DIMENSIONS
 
         try:
-            response = self.client.embeddings.create(**kwargs)
+            response = await asyncio.to_thread(
+                self.client.embeddings.create,
+                **kwargs,
+            )
         except Exception:
             logger.error("Error generatring embeddings", exc_info=True, extra={
                 "embedding provider": "Azure",

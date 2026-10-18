@@ -4,12 +4,15 @@ Each adapter is driven with its real SDK client where possible. Only the HTTP
 transport is replaced by an in-process fake endpoint, so no network access or
 provider account is needed.
 """
+import asyncio
 import functools
 import json
 import logging
+import threading
 from unittest.mock import MagicMock
 
 import httpx
+import openai
 import pytest
 
 from app.bootstrap import get_embedding_adapter
@@ -241,3 +244,97 @@ async def test_azure_adapter_omits_dimensions_when_unsupported(fake_azure, monke
     assert len(embedding) == 1536
     assert "dimensions" not in fake_azure.bodies[0]
     assert adapter.supports_dimensions is False
+
+
+# --------------------------------------------------------------------------
+# Blocking inference / HTTP calls are offloaded from the event loop
+# --------------------------------------------------------------------------
+GATE_TIMEOUT = 2.0
+
+
+class Gate:
+    """Blocks the thread that calls block() until the test releases it.
+
+    The test releases the gate from a coroutine. That can only happen while the
+    call is in flight if the event loop stays free, so a call that blocks the
+    loop thread leaves the gate closed until GATE_TIMEOUT expires.
+    """
+
+    def __init__(self):
+        self.started = threading.Event()
+        self.release = threading.Event()
+        self.released_in_time = False
+
+    def block(self):
+        self.started.set()
+        self.released_in_time = self.release.wait(timeout=GATE_TIMEOUT)
+
+
+async def call_while_gated(call, gate: Gate):
+    task = asyncio.create_task(call())
+    while not gate.started.is_set():
+        await asyncio.sleep(0.001)
+    gate.release.set()
+    return await task
+
+
+class GatedModel:
+    """Stand-in for a fastembed TextEmbedding whose inference blocks on a gate."""
+
+    def __init__(self, gate: Gate):
+        self.gate = gate
+
+    def embed(self, text):
+        self.gate.block()
+        yield [0.25, 0.5]
+
+
+class FailingModel:
+    def embed(self, text):
+        raise RuntimeError("onnx session failed")
+        yield  # pragma: no cover - makes this a generator like fastembed's embed()
+
+
+def fastembed_adapter(model) -> ea.FastEmbeddingAdapter:
+    adapter = ea.FastEmbeddingAdapter.__new__(ea.FastEmbeddingAdapter)
+    adapter.model = model
+    return adapter
+
+
+async def test_fastembed_adapter_does_not_block_the_event_loop():
+    gate = Gate()
+    adapter = fastembed_adapter(GatedModel(gate))
+
+    embedding = await call_while_gated(lambda: adapter.generate_embedding("hi"), gate)
+
+    assert gate.released_in_time, "FastEmbed inference ran on the event loop thread"
+    assert embedding == [0.25, 0.5]
+
+
+async def test_fastembed_adapter_still_propagates_inference_errors(caplog):
+    adapter = fastembed_adapter(FailingModel())
+
+    with caplog.at_level(logging.ERROR, logger=ea.logger.name):
+        with pytest.raises(RuntimeError, match="onnx session failed"):
+            await adapter.generate_embedding("hi")
+
+    assert "Error generating embeddings" in caplog.text
+
+
+async def test_azure_adapter_does_not_block_the_event_loop(fake_azure):
+    gate = Gate()
+    fake_azure.on_request = gate.block
+    adapter = ea.AzureOpenAIAdapter()
+
+    embedding = await call_while_gated(lambda: adapter.generate_embedding("hi"), gate)
+
+    assert gate.released_in_time, "Azure HTTP request ran on the event loop thread"
+    assert len(embedding) == 1536
+
+
+async def test_azure_adapter_still_propagates_api_errors(fake_azure, monkeypatch):
+    fake_azure.rejects_dimensions = True
+    adapter = ea.AzureOpenAIAdapter()
+
+    with pytest.raises(openai.BadRequestError):
+        await adapter.generate_embedding("hi")
