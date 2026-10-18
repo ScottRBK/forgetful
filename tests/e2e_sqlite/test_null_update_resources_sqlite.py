@@ -1,7 +1,10 @@
-"""E2E tests for REST PUT bodies that change nothing (in-memory SQLite).
+"""E2E tests for explicit nulls in REST PUT bodies (in-memory SQLite).
 
-A PUT that repeats the stored values, or sends an empty body, must leave the
-record alone: ``updated_at`` stays, and a skill description is not embedded again.
+Every update model documents "Unchanged if null". A client that sends
+``{"tags": null}`` (for example a form that serialises a cleared field as null)
+must not damage the record: on SQLite a null list column used to be stored as
+JSON ``null`` and the record could no longer be read, updated or deleted, and
+NOT NULL columns raised ``IntegrityError`` (HTTP 500).
 """
 import base64
 from dataclasses import dataclass
@@ -151,6 +154,109 @@ async def _get(http_client, resource, resource_id):
     response = await http_client.get(f"{resource.base}/{resource_id}")
     assert response.status_code == 200, response.text
     return response.json()
+
+
+@pytest.mark.parametrize(("resource", "field"), FIELD_CASES)
+async def test_put_null_field_is_ignored(http_client, resource, field):
+    """PUT {field: null} succeeds, changes nothing and leaves the record usable."""
+    resource_id = await _create(http_client, resource)
+    before = await _get(http_client, resource, resource_id)
+
+    response = await http_client.put(f"{resource.base}/{resource_id}", json={field: None})
+
+    assert response.status_code == 200, response.text
+    assert await _get(http_client, resource, resource_id) == before
+    assert (await http_client.get(resource.base)).status_code == 200
+    deleted = await http_client.delete(f"{resource.base}/{resource_id}")
+    assert deleted.status_code == 200, deleted.text
+
+
+@pytest.mark.parametrize("resource", RESOURCES, ids=lambda resource: resource.name)
+async def test_put_all_nulls_changes_nothing(http_client, resource):
+    resource_id = await _create(http_client, resource)
+    before = await _get(http_client, resource, resource_id)
+
+    response = await http_client.put(
+        f"{resource.base}/{resource_id}", json=dict.fromkeys(resource.null_fields),
+    )
+
+    assert response.status_code == 200, response.text
+    assert await _get(http_client, resource, resource_id) == before
+
+
+@pytest.mark.parametrize("resource", RESOURCES, ids=lambda resource: resource.name)
+async def test_put_value_next_to_null_applies_only_the_value(http_client, resource):
+    resource_id = await _create(http_client, resource)
+    before = await _get(http_client, resource, resource_id)
+    other_nulls = [field for field in resource.null_fields if field != resource.same_field]
+    new_value = "Renamed" if resource.name != "file" else "renamed.txt"
+    if resource.name == "skill":
+        new_value = "renamed-skill"
+    body = {**dict.fromkeys(other_nulls), resource.same_field: new_value}
+
+    response = await http_client.put(f"{resource.base}/{resource_id}", json=body)
+
+    assert response.status_code == 200, response.text
+    after = await _get(http_client, resource, resource_id)
+    assert after[resource.same_field] == new_value
+    for field in other_nulls:
+        assert after[field] == before[field], f"{field} changed"
+
+
+@pytest.mark.parametrize(
+    ("resource_name", "field"),
+    [("project", "notes"), ("project", "repo_name"), ("entity", "notes"), ("document", "filename")],
+)
+async def test_empty_string_still_clears_optional_field(http_client, resource_name, field):
+    """Null is ignored, but the documented way to clear a field keeps working."""
+    resource = next(item for item in RESOURCES if item.name == resource_name)
+    payload = {**resource.payload, field: "some value"}
+    created = await http_client.post(resource.base, json=payload)
+    assert created.status_code == 201, created.text
+    resource_id = created.json()["id"]
+
+    response = await http_client.put(f"{resource.base}/{resource_id}", json={field: ""})
+
+    assert response.status_code == 200, response.text
+    assert (await _get(http_client, resource, resource_id))[field] is None
+
+
+async def test_put_null_strength_keeps_relationship_value(http_client):
+    source = (await http_client.post("/api/v1/entities", json={
+        "name": "Source", "entity_type": "Organization",
+    })).json()["id"]
+    target = (await http_client.post("/api/v1/entities", json={
+        "name": "Target", "entity_type": "Team",
+    })).json()["id"]
+    created = await http_client.post(f"/api/v1/entities/{source}/relationships", json={
+        "target_entity_id": target, "relationship_type": "manages", "strength": 0.7, "confidence": 0.9,
+    })
+    assert created.status_code == 201, created.text
+    relationship_id = created.json()["id"]
+
+    response = await http_client.put(
+        f"/api/v1/entities/relationships/{relationship_id}",
+        json={"relationship_type": None, "strength": None, "confidence": None, "metadata": None},
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["relationship_type"] == "manages"
+    assert body["strength"] == 0.7
+    assert body["confidence"] == 0.9
+    listed = (await http_client.get(f"/api/v1/entities/{source}/relationships")).json()
+    assert [item["strength"] for item in listed["relationships"]] == [0.7]
+
+
+async def test_skill_null_description_is_not_re_embedded(http_client, embedding_adapter):
+    skill = next(item for item in RESOURCES if item.name == "skill")
+    skill_id = await _create(http_client, skill)
+    calls = embedding_adapter.calls
+
+    response = await http_client.put(f"{skill.base}/{skill_id}", json={"description": None})
+
+    assert response.status_code == 200, response.text
+    assert embedding_adapter.calls == calls
 
 
 # ---------------------------------------------------------------------------

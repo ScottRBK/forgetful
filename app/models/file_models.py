@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.config.settings import settings
+from app.models.patch_models import PatchModel
 
 
 class FileCreate(BaseModel):
@@ -121,7 +122,7 @@ class FileCreate(BaseModel):
         return v
 
 
-class FileUpdate(BaseModel):
+class FileUpdate(PatchModel):
     """Request model for updating a file
 
     Follows PATCH semantics: only provided fields are updated.

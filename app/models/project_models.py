@@ -4,6 +4,7 @@ from enum import StrEnum
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.config.settings import settings
+from app.models.patch_models import PatchModel
 
 
 class ProjectType(StrEnum):
@@ -126,7 +127,7 @@ class ProjectCreate(BaseModel):
         return stripped or None
 
 
-class ProjectUpdate(BaseModel):
+class ProjectUpdate(PatchModel):
     """Request model for updating a project
 
     Follows PATCH semantics: only provided fields are updated.

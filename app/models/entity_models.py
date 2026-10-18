@@ -10,6 +10,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.config.settings import settings
+from app.models.patch_models import PatchModel
 
 
 class EntityType(StrEnum):
@@ -155,7 +156,7 @@ class EntityCreate(BaseModel):
         return self
 
 
-class EntityUpdate(BaseModel):
+class EntityUpdate(PatchModel):
     """Request model for updating an entity
 
     Follows PATCH semantics: only provided fields are updated.
@@ -470,7 +471,7 @@ class EntityRelationshipCreate(BaseModel):
         return self
 
 
-class EntityRelationshipUpdate(BaseModel):
+class EntityRelationshipUpdate(PatchModel):
     """Request model for updating an entity relationship
 
     Follows PATCH semantics: only provided fields are updated.

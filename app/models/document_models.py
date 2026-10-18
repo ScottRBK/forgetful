@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.config.settings import settings
+from app.models.patch_models import PatchModel
 
 
 class DocumentCreate(BaseModel):
@@ -127,7 +128,7 @@ class DocumentCreate(BaseModel):
         return None
 
 
-class DocumentUpdate(BaseModel):
+class DocumentUpdate(PatchModel):
     """Request model for updating a document
 
     Follows PATCH semantics: only provided fields are updated.

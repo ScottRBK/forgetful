@@ -59,6 +59,16 @@ See [FastMCP Auth Documentation](https://fastmcp.wiki/en/servers/auth/authentica
 | 422 | Unprocessable Entity (`InvalidStateTransitionError`, `DependencyNotMetError`) |
 | 500 | Internal Server Error |
 
+## Update Requests (PUT)
+
+`PUT` endpoints for projects, entities, entity relationships, documents, code artifacts, files and skills
+use PATCH semantics: send only the fields you want to change.
+
+- A field that is omitted or sent as `null` is left unchanged. A body that changes nothing returns the
+  current record and does not modify `updated_at`.
+- Optional text fields that can be cleared, such as a project's `notes`, are cleared by sending an empty
+  string. Lists (`tags`, `aka`) are replaced by what you send, so `[]` clears them.
+
 ---
 
 ## Health

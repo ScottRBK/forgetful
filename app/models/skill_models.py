@@ -11,6 +11,7 @@ from datetime import UTC, datetime
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.config.settings import settings
+from app.models.patch_models import PatchModel
 
 
 class SkillCreate(BaseModel):
@@ -129,7 +130,7 @@ class SkillCreate(BaseModel):
         return cleaned
 
 
-class SkillUpdate(BaseModel):
+class SkillUpdate(PatchModel):
     """Request model for updating a skill.
 
     Follows PATCH semantics: only provided fields are updated.

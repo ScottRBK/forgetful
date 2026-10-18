@@ -1,11 +1,14 @@
-"""Integration tests: an update that changes nothing is a no-op.
+"""Integration tests: an explicit null in an update means "unchanged".
 
-The memory, project, plan and task services return the existing record when an
-update carries no change. The document, code artifact, entity, file and skill
-services used to call the repository anyway, which bumped ``updated_at`` (and
-re-embedded a skill description) without emitting any activity event.
+Every ``*Update`` model documents "None/omitted fields remain unchanged".
+The MCP adapters strip ``None`` before building the model, but REST clients
+(``PUT {"tags": null}``) and direct callers can hand a literal null to the
+model, where it used to count as an explicitly set field. It was then written
+to the row (NOT NULL violations, or JSON null in list columns that made the
+record unreadable and undeletable) and ignored by the no-op detection.
 
-These tests run the services against the in-memory stub repositories.
+These tests run the services against the in-memory stub repositories, which
+apply updates the same way as the real ones (``model_dump(exclude_unset=True)``).
 """
 import asyncio
 import base64
@@ -14,11 +17,12 @@ from typing import Any
 
 import pytest
 
-from app.models.activity_models import EntityType
+from app.models.activity_models import ActionType, EntityType
 from app.models.code_artifact_models import CodeArtifactCreate, CodeArtifactUpdate
 from app.models.document_models import DocumentCreate, DocumentUpdate
 from app.models.entity_models import (
     EntityCreate,
+    EntityRelationshipUpdate,
     EntityUpdate,
 )
 from app.models.entity_models import EntityType as EntityKind
@@ -245,6 +249,94 @@ def _ids(cases):
 
 
 # ---------------------------------------------------------------------------
+# Update models: a literal null is not a change request
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("case", CASES, ids=_ids(CASES))
+def test_update_model_ignores_explicit_null(case):
+    update = case.model(**case.null_fields)
+
+    assert update.model_fields_set == set()
+    assert update.model_dump(exclude_unset=True) == {}
+
+
+@pytest.mark.parametrize("case", CASES, ids=_ids(CASES))
+def test_update_model_keeps_real_values_next_to_nulls(case):
+    update = case.model(**case.nulls_besides_change(), **case.change)
+
+    assert update.model_fields_set == set(case.change)
+    assert update.model_dump(exclude_unset=True) == case.change
+
+
+def test_relationship_update_ignores_explicit_null():
+    update = EntityRelationshipUpdate(relationship_type=None, strength=None, confidence=None)
+
+    assert update.model_fields_set == set()
+
+
+@pytest.mark.parametrize(
+    ("model", "field"),
+    [
+        (ProjectUpdate, "notes"),
+        (ProjectUpdate, "repo_name"),
+        (ProjectUpdate, "last_encoding_point"),
+        (EntityUpdate, "notes"),
+        (DocumentUpdate, "filename"),
+    ],
+)
+def test_empty_string_still_clears_optional_fields(model, field):
+    """The documented way to clear an optional field is the empty string."""
+    update = model(**{field: ""})
+
+    assert field in update.model_fields_set
+    assert update.model_dump(exclude_unset=True) == {field: None}
+
+
+# ---------------------------------------------------------------------------
+# Services: nothing is written, nothing is emitted
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("case", CASES, ids=_ids(CASES))
+async def test_service_update_with_only_nulls_leaves_record_untouched(case, test_user, request):
+    service, bus = request.getfixturevalue(case.fixture)
+    created = await case.create(service, test_user.id)
+    before = (await case.get(service, test_user.id, created.id)).model_dump(mode="json")
+    bus.collected_events.clear()
+    await asyncio.sleep(0.002)
+
+    result = await case.update(service, test_user.id, created.id, case.model(**case.null_fields))
+
+    after = (await case.get(service, test_user.id, created.id)).model_dump(mode="json")
+    assert after == before
+    assert result.model_dump(mode="json") == before
+    assert bus.collected_events == []
+
+
+@pytest.mark.parametrize("case", CASES, ids=_ids(CASES))
+async def test_service_update_applies_value_and_ignores_null_sibling(case, test_user, request):
+    service, bus = request.getfixturevalue(case.fixture)
+    created = await case.create(service, test_user.id)
+    before = (await case.get(service, test_user.id, created.id)).model_dump(mode="json")
+    bus.collected_events.clear()
+
+    await case.update(service, test_user.id, created.id, case.model(**case.nulls_besides_change(), **case.change))
+
+    after = (await case.get(service, test_user.id, created.id)).model_dump(mode="json")
+    for field, value in after.items():
+        if field in case.change:
+            assert value == case.change[field]
+        elif field != "updated_at":
+            assert value == before[field], f"{field} changed"
+    assert len(bus.collected_events) == 1
+    event = bus.collected_events[0]
+    assert event.entity_type == case.entity_type
+    assert event.action == ActionType.UPDATED
+    assert set(event.changes) == set(case.change)
+
+
+# ---------------------------------------------------------------------------
 # Services: an update that changes nothing is a no-op
 # ---------------------------------------------------------------------------
 
@@ -293,5 +385,6 @@ async def test_skill_noop_update_does_not_touch_repository(mock_skill_repository
     mock_skill_repository.update_skill = spy
 
     await service.update_skill(test_user.id, skill.id, SkillUpdate(description="Does a thing"))
+    await service.update_skill(test_user.id, skill.id, SkillUpdate(description=None))
 
     assert calls == []

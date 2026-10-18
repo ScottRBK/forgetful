@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.config.settings import settings
+from app.models.patch_models import PatchModel
 
 
 class CodeArtifactCreate(BaseModel):
@@ -113,7 +114,7 @@ class CodeArtifactCreate(BaseModel):
         return cleaned
 
 
-class CodeArtifactUpdate(BaseModel):
+class CodeArtifactUpdate(PatchModel):
     """Request model for updating a code artifact
 
     Follows PATCH semantics: only provided fields are updated.
