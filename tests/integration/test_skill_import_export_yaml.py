@@ -387,3 +387,93 @@ async def test_anchor_without_alias_is_still_accepted(test_skill_service):
     skill = await test_skill_service.import_skill(uuid4(), skill_md)
 
     assert skill.description == "Anchor only"
+
+
+# ---------------------------------------------------------------------------
+# Normalisation of imported values
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("Read Write", ["Read", "Write"]),
+        ("Bash(git:*) Read", ["Bash(git:*)", "Read"]),
+        ("Read, Write,Grep", ["Read", "Write", "Grep"]),
+        ("Bash(git commit:*) Read", ["Bash(git commit:*)", "Read"]),
+        ("Bash(a, b:*)  Read", ["Bash(a, b:*)", "Read"]),
+        ("  Read  ", ["Read"]),
+        ('""', []),
+    ],
+    ids=["spaces", "parens", "commas", "space-in-parens", "comma-in-parens", "padding", "empty"],
+)
+async def test_import_splits_string_form_allowed_tools(
+    test_skill_service, value, expected,
+):
+    skill_md = _md(f"name: at-skill\ndescription: ok\nallowed-tools: {value}")
+
+    skill = await test_skill_service.import_skill(uuid4(), skill_md)
+
+    assert skill.allowed_tools == expected
+
+
+async def test_import_keeps_list_form_allowed_tools(test_skill_service):
+    skill_md = _md("name: at-list\ndescription: ok\nallowed-tools:\n  - Bash(git commit:*)\n  - Read")
+
+    skill = await test_skill_service.import_skill(uuid4(), skill_md)
+
+    assert skill.allowed_tools == ["Bash(git commit:*)", "Read"]
+
+
+async def test_import_keeps_timestamps_as_text(test_skill_service):
+    skill_md = _md(
+        "name: sk-date\n"
+        "description: 2024-01-15\n"
+        "metadata:\n"
+        "  updated: 2024-01-15\n"
+        "  stamp: 2024-01-15 10:00:00\n"
+        "  zulu: 2024-01-15T10:00:00Z\n"
+        "  nested:\n"
+        "    - 2024-02-01\n"
+        "  2024-03-01: key",
+    )
+
+    skill = await test_skill_service.import_skill(uuid4(), skill_md)
+
+    assert skill.description == "2024-01-15"
+    assert skill.metadata == {
+        "updated": "2024-01-15",
+        "stamp": "2024-01-15 10:00:00",
+        "zulu": "2024-01-15T10:00:00Z",
+        "nested": ["2024-02-01"],
+        "2024-03-01": "key",
+    }
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["!!set {a, b}", "!!binary aGVsbG8="],
+    ids=["set", "binary"],
+)
+async def test_import_rejects_non_json_metadata(test_skill_service, value):
+    skill_md = _md(f"name: odd-meta\ndescription: d\nmetadata:\n  k: {value}")
+
+    with pytest.raises(ValueError, match="metadata"):
+        await test_skill_service.import_skill(uuid4(), skill_md)
+
+
+async def test_import_export_roundtrip_keeps_native_scalars(test_skill_service):
+    _, imported = await _roundtrip(
+        test_skill_service,
+        metadata={"count": 3, "ratio": 1.5, "flag": True, "none": None, "list": [1, "a"]},
+        allowed_tools=["Bash(git commit:*)", "Read"],
+        license="MIT",
+        compatibility="Python 3.12+",
+    )
+
+    assert imported.metadata == {
+        "count": 3, "ratio": 1.5, "flag": True, "none": None, "list": [1, "a"],
+    }
+    assert imported.allowed_tools == ["Bash(git commit:*)", "Read"]
+    assert imported.license == "MIT"
+    assert imported.compatibility == "Python 3.12+"

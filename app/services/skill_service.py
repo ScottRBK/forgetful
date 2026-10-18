@@ -6,6 +6,7 @@ This service implements functionality for managing skills:
     - Import/export in Agent Skills markdown format
     - Project association
 """
+import json
 import re
 from typing import TYPE_CHECKING
 from uuid import UUID
@@ -48,13 +49,16 @@ _FRONTMATTER_CLOSE_RE = re.compile(r"^---[ \t]*(?:\r?\n|\Z)", re.MULTILINE)
 # YAML line breaks only; str.splitlines() also splits on U+2028, U+2029, U+0085, ...
 _YAML_LINE_BREAK_RE = re.compile(r"\r\n|\r|\n")
 _YAML_COMMENT_RE = re.compile(r"\s#")
+# One allowed tool: parenthesised patterns such as Bash(git commit:*) stay whole.
+_ALLOWED_TOOL_RE = re.compile(r"(?:\([^)]*\)|[^\s,])+")
 
 
 class _FrontmatterLoader(yaml.SafeLoader):
     """SafeLoader for untrusted SKILL.md frontmatter.
 
     Aliases are rejected: they turn a few hundred bytes into billions of nodes
-    once the value is serialised.
+    once the value is serialised. ISO dates stay text, because the Agent Skills
+    format is string based and JSON columns cannot store date objects.
     """
 
     def compose_node(
@@ -70,6 +74,16 @@ class _FrontmatterLoader(yaml.SafeLoader):
                 self.peek_event().start_mark,
             )
         return super().compose_node(parent, index)
+
+
+_FrontmatterLoader.yaml_implicit_resolvers = {
+    first_char: [
+        (tag, pattern)
+        for tag, pattern in resolvers
+        if tag != "tag:yaml.org,2002:timestamp"
+    ]
+    for first_char, resolvers in yaml.SafeLoader.yaml_implicit_resolvers.items()
+}
 
 
 def _quote_unquoted_frontmatter_scalars(raw: str) -> str:
@@ -167,6 +181,17 @@ def _parse_frontmatter(raw: str) -> object:
 
     detail = "nested too deeply" if isinstance(error, RecursionError) else str(error)
     raise ValueError(f"Invalid YAML frontmatter: {detail}") from error
+
+
+def _ensure_json_compatible_metadata(metadata: object) -> None:
+    """Reject metadata the JSON column cannot store (for example a YAML !!set)."""
+    try:
+        json.dumps(metadata)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            "Invalid YAML frontmatter: metadata must contain only strings, numbers, "
+            "booleans, null, lists and mappings",
+        ) from exc
 
 
 class SkillService:
@@ -624,12 +649,17 @@ class SkillService:
 
         # Map allowed-tools (hyphenated standard) to allowed_tools (underscored)
         allowed_tools = frontmatter.get("allowed-tools")
+        if isinstance(allowed_tools, str):
+            # Agent Skills writes allowed-tools as a space separated string
+            allowed_tools = _ALLOWED_TOOL_RE.findall(allowed_tools)
         tags = frontmatter.get("tags", [])
 
         if not name:
             raise ValueError("Skill frontmatter must include 'name'")
         if not description:
             raise ValueError("Skill frontmatter must include 'description'")
+        if metadata is not None:
+            _ensure_json_compatible_metadata(metadata)
 
         skill_data = SkillCreate(
             name=name,

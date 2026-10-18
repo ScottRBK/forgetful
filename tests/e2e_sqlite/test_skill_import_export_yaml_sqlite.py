@@ -59,6 +59,39 @@ async def test_rest_import_malformed_yaml_returns_400(http_client, description):
     assert "Invalid YAML frontmatter" in response.json()["error"]
 
 
+async def test_rest_import_unquoted_date_metadata_is_stored_as_text(http_client):
+    skill_md = (
+        "---\nname: sk-date\ndescription: d\nmetadata:\n  updated: 2024-01-15\n"
+        "  stamp: 2024-01-15 10:00:00\n---\nbody\n"
+    )
+
+    response = await _import(http_client, skill_md)
+
+    assert response.status_code == 201, response.text
+    assert response.json()["metadata"] == {
+        "updated": "2024-01-15",
+        "stamp": "2024-01-15 10:00:00",
+    }
+
+
+async def test_rest_import_non_json_metadata_returns_400(http_client):
+    skill_md = "---\nname: odd-meta\ndescription: d\nmetadata:\n  k: !!set {a, b}\n---\nbody\n"
+
+    response = await _import(http_client, skill_md)
+
+    assert response.status_code == 400, response.text
+    assert "metadata" in response.json()["error"]
+
+
+async def test_rest_import_string_allowed_tools(http_client):
+    skill_md = "---\nname: at-skill\ndescription: ok\nallowed-tools: Bash(git:*) Read\n---\nbody\n"
+
+    response = await _import(http_client, skill_md)
+
+    assert response.status_code == 201, response.text
+    assert response.json()["allowed_tools"] == ["Bash(git:*)", "Read"]
+
+
 async def test_rest_import_alias_bomb_is_rejected_quickly(http_client):
     lines = [
         "name: alias-bomb",
