@@ -415,13 +415,18 @@ default, or against a remote deployment.
   before use:
   - **Scheme**: when omitted, `http://` is assumed for loopback hosts
     (`localhost`, `127.0.0.1`, `[::1]`) and `https://` for every other host (secure by
-    default). An explicit `http://`/`https://` scheme is kept as given; any other scheme
-    (e.g. `ftp://`) is rejected.
-  - **Mount path**: when the URL has no path, the default `/mcp` mount path is appended.
-    An explicit path is left untouched.
+    default). An explicit `http://`/`https://` scheme is kept (and lower-cased, so
+    `HTTPS://host` works); any other scheme (e.g. `ftp://`) is rejected.
+  - **Mount path**: when the URL has no path, the default `/mcp` mount path is set. An
+    explicit path is left untouched, and a query string or fragment is preserved, so
+    normalizing an already-normalized URL changes nothing.
 
   So `localhost:8020` becomes `http://localhost:8020/mcp` and `forgetful.example.com`
   becomes `https://forgetful.example.com/mcp`.
+
+  Do not put credentials in the URL (`https://user:password@host`). `forgetful auth
+  login` drops them before saving the URL, and `auth status` and CLI error messages mask
+  them. Use `FORGETFUL_TOKEN` (below) or the browser OAuth flow to authenticate.
 - **Set by**: `forgetful auth login --server URL` (written to `~/.config/forgetful/.env`),
   or manually via shell env / any `.env` file in the standard list.
 
@@ -431,6 +436,15 @@ default, or against a remote deployment.
 - **Purpose**: Bearer token for headless/CI use of the CLI against an authenticated
   deployment. Read from the shell environment only - deliberately never stored in
   `.env` files or the token cache. When unset, the CLI uses the browser OAuth flow.
+
+### Remote request timeouts
+
+The CLI bounds how long it waits on a remote deployment, so a URL that answers with a
+non-MCP page (reverse-proxy error page, SPA catch-all, wrong `--server`) fails with
+`Error: ...` and exit code 1 instead of hanging. The MCP handshake gets 30 seconds and
+each request 300 seconds. The browser OAuth flow (`auth login`, or any command run
+without `FORGETFUL_TOKEN`) gets 360 seconds for both, to leave room for the interactive
+login.
 
 ### Configuration precedence (highest wins)
 
