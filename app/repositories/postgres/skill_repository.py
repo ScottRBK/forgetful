@@ -253,6 +253,19 @@ class PostgresSkillRepository:
             NotFoundError: If skill not found or not owned by user
         """
         try:
+            update_data = skill_data.model_dump(exclude_unset=True)
+
+            # Map Pydantic 'metadata' field to ORM 'skill_metadata' column
+            if "metadata" in update_data:
+                update_data["skill_metadata"] = update_data.pop("metadata")
+
+            # Regenerate embedding if description changed. This runs before the
+            # session opens so no pooled connection is held while the provider runs.
+            if "description" in update_data:
+                embedding_text = build_skill_embedding_text(skill_data)
+                embedding = await self.embedding_adapter.generate_embedding(embedding_text)
+                update_data["embedding"] = embedding
+
             async with self.db_adapter.session(user_id) as session:
                 stmt = select(SkillsTable).where(
                     SkillsTable.id == skill_id,
@@ -264,18 +277,6 @@ class PostgresSkillRepository:
 
                 if not skill_table:
                     raise NotFoundError(f"Skill {skill_id} not found")
-
-                update_data = skill_data.model_dump(exclude_unset=True)
-
-                # Map Pydantic 'metadata' field to ORM 'skill_metadata' column
-                if "metadata" in update_data:
-                    update_data["skill_metadata"] = update_data.pop("metadata")
-
-                # Regenerate embedding if description changed
-                if "description" in update_data:
-                    embedding_text = build_skill_embedding_text(skill_data)
-                    embedding = await self.embedding_adapter.generate_embedding(embedding_text)
-                    update_data["embedding"] = embedding
 
                 for field, value in update_data.items():
                     setattr(skill_table, field, value)
@@ -391,15 +392,19 @@ class PostgresSkillRepository:
                 if not skills:
                     return []
 
-                # Apply cross-encoder reranking if available
-                if self.rerank_adapter is not None and len(skills) > k:
-                    documents = [s.description for s in skills]
-                    ranked = await self.rerank_adapter.rerank(
-                        query=query, documents=documents,
-                    )
-                    skills = [skills[idx] for idx, score in ranked[:k]]
+                # Materialise the results inside the session so its connection is
+                # released before the (slow, external) reranker is awaited.
+                summaries = [SkillSummary.model_validate(s) for s in skills]
 
-                return [SkillSummary.model_validate(s) for s in skills]
+            # Apply cross-encoder reranking if available
+            if self.rerank_adapter is not None and len(summaries) > k:
+                documents = [s.description for s in summaries]
+                ranked = await self.rerank_adapter.rerank(
+                    query=query, documents=documents,
+                )
+                summaries = [summaries[idx] for idx, _score in ranked[:k]]
+
+            return summaries
 
         except Exception as e:
             logger.error(
