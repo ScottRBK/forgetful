@@ -4,11 +4,16 @@ Covers frontmatter delimiting, body fidelity, YAML error handling, resource
 limits and normalisation of imported values. All tests run against the real
 SkillService with the in-memory skill repository.
 """
+import time
 from uuid import uuid4
 
 import pytest
+import yaml
 
 from app.models.skill_models import SkillCreate
+from app.services.skill_service import (
+    _quote_unquoted_frontmatter_scalars,
+)
 
 
 async def _roundtrip(service, **fields) -> tuple[str, object]:
@@ -178,3 +183,207 @@ async def test_import_whitespace_only_body_is_still_rejected(test_skill_service)
         await test_skill_service.import_skill(
             uuid4(), "---\nname: empty\ndescription: No body\n---\n   \n",
         )
+
+
+# ---------------------------------------------------------------------------
+# Folded / commented / unicode frontmatter values
+# ---------------------------------------------------------------------------
+
+
+async def test_roundtrip_long_description_with_url(test_skill_service):
+    description = (
+        "See https://example.com/docs/guide for details and use this skill "
+        "whenever the user asks about the complete workflow of deployments"
+    )
+    compatibility = (
+        "Requires network access to https://pypi.org/simple and a recent "
+        "interpreter with the packaging tools installed locally"
+    )
+
+    exported, imported = await _roundtrip(
+        test_skill_service, description=description, compatibility=compatibility,
+    )
+
+    assert "\n  " in exported  # long plain scalars are folded by the dumper
+    assert imported.description == description
+    assert imported.compatibility == compatibility
+
+
+@pytest.mark.parametrize("char", [" ", " "])
+async def test_roundtrip_preserves_unicode_line_separators(test_skill_service, char):
+    description = f"aa{char}bb"
+
+    _, imported = await _roundtrip(
+        test_skill_service,
+        description=description,
+        tags=[f"t{char}1"],
+        metadata={"k": f"v{char}w"},
+    )
+
+    assert imported.description == description
+    assert imported.tags == [f"t{char}1"]
+    assert imported.metadata == {"k": f"v{char}w"}
+
+
+async def test_import_quoted_value_with_unicode_separator_is_untouched(
+    test_skill_service,
+):
+    skill_md = _md('name: sep-char\ndescription: "line one line two"')
+
+    skill = await test_skill_service.import_skill(uuid4(), skill_md)
+
+    assert skill.description == "line one line two"
+
+
+async def test_fallback_quoting_keeps_unicode_separator_in_other_lines(
+    test_skill_service,
+):
+    skill_md = _md(
+        "name: fallback\n"
+        "description: Use when X. Keywords: foo, bar.\n"
+        'license: "MIT or Apache"',
+    )
+
+    skill = await test_skill_service.import_skill(uuid4(), skill_md)
+
+    assert skill.description == "Use when X. Keywords: foo, bar."
+    assert skill.license == "MIT or Apache"
+
+
+@pytest.mark.parametrize(
+    ("frontmatter", "expected"),
+    [
+        (
+            "name: my-skill  # note: slug used in URLs\ndescription: Does things",
+            {"name": "my-skill", "description": "Does things"},
+        ),
+        (
+            "name: lic\ndescription: d\nlicense: MIT # see: LICENSE file",
+            {"license": "MIT"},
+        ),
+        (
+            "name: meta\ndescription: d\nmetadata: # optional: key-value pairs\n  author: me",
+            {"metadata": {"author": "me"}},
+        ),
+        (
+            "name: tools\ndescription: d\nallowed-tools: # tools: whitelisted\n  - Read",
+            {"allowed_tools": ["Read"]},
+        ),
+        (
+            "name: both\ndescription: Use when X. Keywords: foo # note: bar",
+            {"description": "Use when X. Keywords: foo"},
+        ),
+    ],
+    ids=["name", "license", "metadata", "allowed-tools", "colon-value-and-comment"],
+)
+async def test_import_ignores_trailing_comments_containing_colons(
+    test_skill_service, frontmatter, expected,
+):
+    skill = await test_skill_service.import_skill(uuid4(), _md(frontmatter))
+
+    for field, value in expected.items():
+        assert getattr(skill, field) == value
+
+
+def test_quoting_helper_keeps_comment_out_of_quoted_value():
+    quoted = _quote_unquoted_frontmatter_scalars(
+        "description: Use when X. Keywords: foo # trailing: note",
+    )
+
+    assert yaml.safe_load(quoted) == {"description": "Use when X. Keywords: foo"}
+
+
+def test_quoting_helper_leaves_comment_only_values_unchanged():
+    raw = "metadata: # optional: key-value pairs\n  author: me"
+
+    assert _quote_unquoted_frontmatter_scalars(raw) == raw
+
+
+def test_quoting_helper_does_not_split_on_unicode_line_separators():
+    raw = "name: x\ndescription: 'aa   bb'\nnote: 'c d\u0085e'"
+
+    assert _quote_unquoted_frontmatter_scalars(raw) == raw
+
+
+# ---------------------------------------------------------------------------
+# YAML errors become ValueError
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "description",
+    [
+        "[WIP] deploy things",
+        "`deploy` things",
+        "@deploy things",
+        "*bold* deploy things",
+        "!important deploy things",
+    ],
+    ids=["bracket", "backtick", "at", "alias", "tag"],
+)
+async def test_malformed_yaml_raises_value_error(test_skill_service, description):
+    skill_md = _md(f"name: broken\ndescription: {description}")
+
+    with pytest.raises(ValueError, match="Invalid YAML frontmatter"):
+        await test_skill_service.import_skill(uuid4(), skill_md)
+
+
+async def test_malformed_yaml_with_fixable_line_reports_remaining_error(
+    test_skill_service,
+):
+    skill_md = _md("name: broken\ndescription: Keywords: a, b\nlicense: [MIT] or later")
+
+    with pytest.raises(ValueError, match="Invalid YAML frontmatter"):
+        await test_skill_service.import_skill(uuid4(), skill_md)
+
+
+# ---------------------------------------------------------------------------
+# Resource limits
+# ---------------------------------------------------------------------------
+
+
+def _alias_bomb(levels: int) -> str:
+    lines = [
+        "name: alias-bomb",
+        "description: harmless looking skill",
+        "a0: &a0 [" + ",".join(["x"] * 10) + "]",
+    ]
+    for i in range(1, levels):
+        lines.append(f"a{i}: &a{i} [" + ",".join([f"*a{i - 1}"] * 10) + "]")
+    lines.append(f"metadata: {{k: *a{levels - 1}}}")
+    return _md("\n".join(lines))
+
+
+async def test_alias_bomb_is_rejected_quickly(test_skill_service):
+    skill_md = _alias_bomb(8)
+    assert len(skill_md) < 600
+
+    started = time.perf_counter()
+    with pytest.raises(ValueError, match="aliases"):
+        await test_skill_service.import_skill(uuid4(), skill_md)
+
+    assert time.perf_counter() - started < 1.0
+
+
+async def test_oversized_frontmatter_is_rejected(test_skill_service):
+    padding = "\n".join(f"    key{i}: {'v' * 60}" for i in range(400))
+    skill_md = _md(f"name: huge\ndescription: Too much metadata\nmetadata:\n  pad: |\n{padding}")
+
+    with pytest.raises(ValueError, match="too large"):
+        await test_skill_service.import_skill(uuid4(), skill_md)
+
+
+async def test_deeply_nested_frontmatter_raises_value_error(test_skill_service):
+    nested = "[" * 3000 + "]" * 3000
+    skill_md = _md(f"name: deep\ndescription: d\nmetadata: {{k: {nested}}}")
+
+    with pytest.raises(ValueError, match="Invalid YAML frontmatter"):
+        await test_skill_service.import_skill(uuid4(), skill_md)
+
+
+async def test_anchor_without_alias_is_still_accepted(test_skill_service):
+    skill_md = _md("name: anchored\ndescription: &d Anchor only")
+
+    skill = await test_skill_service.import_skill(uuid4(), skill_md)
+
+    assert skill.description == "Anchor only"

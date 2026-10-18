@@ -40,37 +40,73 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Frontmatter is a handful of short fields; the cap only bounds hostile input.
+_FRONTMATTER_MAX_CHARS = 16_384
 
 _FRONTMATTER_OPEN_RE = re.compile(r"---[ \t]*\r?\n")
 _FRONTMATTER_CLOSE_RE = re.compile(r"^---[ \t]*(?:\r?\n|\Z)", re.MULTILINE)
+# YAML line breaks only; str.splitlines() also splits on U+2028, U+2029, U+0085, ...
+_YAML_LINE_BREAK_RE = re.compile(r"\r\n|\r|\n")
+_YAML_COMMENT_RE = re.compile(r"\s#")
+
+
+class _FrontmatterLoader(yaml.SafeLoader):
+    """SafeLoader for untrusted SKILL.md frontmatter.
+
+    Aliases are rejected: they turn a few hundred bytes into billions of nodes
+    once the value is serialised.
+    """
+
+    def compose_node(
+        self,
+        parent: yaml.Node | None,
+        index: yaml.Node | int | None,
+    ) -> yaml.Node | None:
+        if self.check_event(yaml.AliasEvent):
+            raise yaml.composer.ComposerError(
+                None,
+                None,
+                "aliases are not supported in skill frontmatter",
+                self.peek_event().start_mark,
+            )
+        return super().compose_node(parent, index)
 
 
 def _quote_unquoted_frontmatter_scalars(raw: str) -> str:
-    """Quote scalar frontmatter values that contain unescaped colons."""
+    """Quote scalar frontmatter values that contain unescaped colons.
+
+    Trailing ``# comments`` are kept out of the quoted value, and the text is
+    only split on YAML line breaks so other characters are never altered.
+    """
     quoted_lines: list[str] = []
-    for line in raw.splitlines():
+    changed = False
+    for line in _YAML_LINE_BREAK_RE.split(raw):
         match = re.match(r"^([A-Za-z0-9_-]+):\s+(.*)$", line)
         if not match:
             quoted_lines.append(line)
             continue
 
         key, value = match.group(1), match.group(2)
-        if not value:
+        if not value or value.startswith("#"):
             quoted_lines.append(line)
             continue
 
-        stripped = value.lstrip()
-        if stripped.startswith(("[", "{", "|", ">", '"', "'")):
+        comment_match = _YAML_COMMENT_RE.search(value)
+        comment_start = comment_match.start() if comment_match else len(value)
+        scalar, comment = value[:comment_start].rstrip(), value[comment_start:]
+
+        if scalar.startswith(("[", "{", "|", ">", '"', "'")):
             quoted_lines.append(line)
             continue
 
-        if ":" in value:
-            escaped = value.replace("\\", "\\\\").replace('"', '\\"')
-            quoted_lines.append(f'{key}: "{escaped}"')
+        if ":" in scalar:
+            escaped = scalar.replace("\\", "\\\\").replace('"', '\\"')
+            quoted_lines.append(f'{key}: "{escaped}"{comment}')
+            changed = True
         else:
             quoted_lines.append(line)
 
-    return "\n".join(quoted_lines)
+    return "\n".join(quoted_lines) if changed else raw
 
 
 def _split_frontmatter(skill_md: str) -> tuple[str, str]:
@@ -94,6 +130,43 @@ def _split_frontmatter(skill_md: str) -> tuple[str, str]:
     if not body.strip():
         body = ""
     return text[opening.end():closing.start()].rstrip(" \t\r\n"), body
+
+
+def _load_frontmatter(raw: str) -> object:
+    loader = _FrontmatterLoader(raw)
+    try:
+        return loader.get_single_data()
+    finally:
+        loader.dispose()
+
+
+def _parse_frontmatter(raw: str) -> object:
+    """Parse raw frontmatter, raising ValueError when it is not valid YAML.
+
+    Valid YAML is parsed as written. Only when that fails are unquoted colons
+    in scalar values quoted, to accept hand-written files such as
+    ``description: Use when X. Keywords: a, b``.
+    """
+    if len(raw) > _FRONTMATTER_MAX_CHARS:
+        raise ValueError(
+            "Invalid YAML frontmatter: frontmatter is too large "
+            f"(max {_FRONTMATTER_MAX_CHARS} characters)",
+        )
+
+    try:
+        return _load_frontmatter(raw)
+    except (yaml.YAMLError, RecursionError) as exc:
+        error = exc
+
+    quoted = _quote_unquoted_frontmatter_scalars(raw)
+    if quoted != raw:
+        try:
+            return _load_frontmatter(quoted)
+        except (yaml.YAMLError, RecursionError) as exc:
+            error = exc
+
+    detail = "nested too deeply" if isinstance(error, RecursionError) else str(error)
+    raise ValueError(f"Invalid YAML frontmatter: {detail}") from error
 
 
 class SkillService:
@@ -530,7 +603,7 @@ class SkillService:
             Created Skill
 
         Raises:
-            ValueError: If frontmatter is missing or malformed
+            ValueError: If frontmatter is missing, malformed or too large
         """
         logger.info(
             "importing skill from markdown",
@@ -538,8 +611,7 @@ class SkillService:
         )
 
         frontmatter_raw, body = _split_frontmatter(skill_md_content)
-
-        frontmatter = yaml.safe_load(_quote_unquoted_frontmatter_scalars(frontmatter_raw))
+        frontmatter = _parse_frontmatter(frontmatter_raw)
         if not isinstance(frontmatter, dict):
             raise ValueError("Invalid YAML frontmatter: expected a mapping")
 
