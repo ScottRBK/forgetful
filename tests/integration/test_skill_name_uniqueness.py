@@ -6,6 +6,7 @@ import pytest
 
 from app.exceptions import ConflictError, NotFoundError
 from app.models.skill_models import SkillCreate, SkillUpdate
+from app.repositories.postgres.postgres_tables import SkillsTable
 from app.services.skill_service import SkillService
 from tests.integration.conftest import InMemorySkillRepository
 
@@ -85,3 +86,12 @@ class TestWriteTimeConflicts:
 
         with pytest.raises(ValueError, match="'racing' already exists"):
             await service.update_skill(user_id, created.id, SkillUpdate(name="racing"))
+
+
+def test_postgres_allowed_tools_has_no_python_default():
+    # The ORM drops an explicit None for ARRAY columns, so a Python default would turn
+    # "no tool restriction" (NULL) into an empty array on PostgreSQL.
+    column = SkillsTable.__table__.c.allowed_tools
+
+    assert column.nullable
+    assert column.default is None

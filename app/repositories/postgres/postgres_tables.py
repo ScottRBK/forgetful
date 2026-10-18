@@ -744,7 +744,9 @@ class SkillsTable(Base):
     content: Mapped[str] = mapped_column(Text, nullable=False)
     license: Mapped[str] = mapped_column(String(100), nullable=True)
     compatibility: Mapped[str] = mapped_column(String(500), nullable=True)
-    allowed_tools: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=True, default=list)
+    # No Python default: the ORM drops an explicit None for ARRAY, so a default would
+    # store an empty array (a restriction) instead of NULL (unrestricted).
+    allowed_tools: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=True)
     skill_metadata: Mapped[dict] = mapped_column(JSONB, nullable=True)
     tags: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=False)
     importance: Mapped[int] = mapped_column(Integer, default=7, nullable=False)
