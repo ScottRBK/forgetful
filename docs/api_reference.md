@@ -976,6 +976,13 @@ This is the recommended endpoint for graph visualization with depth-limited trav
 | `node_types` | string | `memory,entity,project,document,code_artifact` | Comma-separated list of types to traverse |
 | `max_nodes` | int | 200 | Maximum nodes to return (max 500) |
 
+`node_id` must be `<type>_<id>` with an ASCII decimal id of at most 2147483647; leading zeros
+are accepted and `meta.center_node_id` always reports the canonical form (`memory_001` becomes
+`memory_1`). A malformed or out-of-range `node_id` returns `400`, an unknown node `404`. Entity
+relationship edges are returned one per entity pair and relationship type (edge `id`
+`entity_<min>_entity_<max>_<relationship_type>`); the same type stored in both directions is
+merged into one edge.
+
 **Response:**
 ```json
 {
