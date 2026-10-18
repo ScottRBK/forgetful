@@ -91,6 +91,7 @@ class AzureOpenAIAdapter(EmbeddingsAdapter):
             api_version=settings.AZURE_API_VERSION,
             azure_endpoint=settings.AZURE_ENDPOINT,
             api_key=settings.AZURE_API_KEY,
+            timeout=settings.EMBEDDING_REQUEST_TIMEOUT_SECONDS,
         )
         self.model = settings.AZURE_DEPLOYMENT
         self.supports_dimensions = settings.AZURE_SUPPORTS_DIMENSIONS
@@ -136,7 +137,12 @@ class GoogleEmbeddingsAdapter(EmbeddingsAdapter):
         if not api_key:
             raise ValueError("GOOGLE_AI_API_KEY must be configured for GoogleEmbeddingsAdapter")
 
-        self.client = genai.Client(api_key=api_key)
+        self.client = genai.Client(
+            api_key=api_key,
+            http_options=types.HttpOptions(
+                timeout=max(1, round(settings.EMBEDDING_REQUEST_TIMEOUT_SECONDS * 1000)),  # milliseconds
+            ),
+        )
 
     async def generate_embedding(self, text: str) -> list[float]:
         try:
@@ -184,7 +190,10 @@ class OpenAIEmbeddingsAdapter(EmbeddingsAdapter):
             else:
                 raise ValueError("OPENAI_API_KEY must be configured for OpenAIEmbeddingsAdapter")
 
-        client_kwargs = {"api_key": api_key}
+        client_kwargs = {
+            "api_key": api_key,
+            "timeout": settings.EMBEDDING_REQUEST_TIMEOUT_SECONDS,
+        }
         if base_url:
             client_kwargs["base_url"] = base_url
 
@@ -227,7 +236,10 @@ class OllamaEmbeddingsAdapter(EmbeddingsAdapter):
             "embedding_model": settings.EMBEDDING_MODEL,
             "base_url": redact_url(settings.OLLAMA_BASE_URL),
         })
-        self.client = AsyncClient(host=settings.OLLAMA_BASE_URL)
+        self.client = AsyncClient(
+            host=settings.OLLAMA_BASE_URL,
+            timeout=settings.EMBEDDING_REQUEST_TIMEOUT_SECONDS,
+        )
         self.model = settings.EMBEDDING_MODEL
 
     async def generate_embedding(self, text: str) -> list[float]:

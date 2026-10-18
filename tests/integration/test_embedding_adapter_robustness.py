@@ -8,12 +8,15 @@ import asyncio
 import functools
 import json
 import logging
+import socket
 import threading
+import time
 from unittest.mock import MagicMock
 
 import httpx
 import openai
 import pytest
+from pydantic import ValidationError
 
 from app.bootstrap import get_embedding_adapter
 from app.config import logging_config
@@ -338,3 +341,139 @@ async def test_azure_adapter_still_propagates_api_errors(fake_azure, monkeypatch
 
     with pytest.raises(openai.BadRequestError):
         await adapter.generate_embedding("hi")
+
+
+# --------------------------------------------------------------------------
+# Provider clients give up on a stalled server (EMBEDDING_REQUEST_TIMEOUT_SECONDS)
+# --------------------------------------------------------------------------
+STALL_TIMEOUT = 0.3
+GIVE_UP_BOUND = 8.0
+
+
+class BlackHole:
+    """TCP listener that accepts connections and never answers."""
+
+    def __init__(self):
+        self.sock = socket.socket()
+        self.sock.bind(("127.0.0.1", 0))
+        self.sock.listen(16)
+        self.sock.settimeout(0.1)
+        self.port = self.sock.getsockname()[1]
+        self.accepted = 0
+        self._connections = []
+        self._stopped = threading.Event()
+        self._thread = threading.Thread(target=self._serve, daemon=True)
+        self._thread.start()
+
+    def _serve(self):
+        while not self._stopped.is_set():
+            try:
+                connection, _ = self.sock.accept()
+            except OSError:
+                continue
+            self.accepted += 1
+            self._connections.append(connection)
+
+    def close(self):
+        self._stopped.set()
+        self._thread.join(timeout=2)
+        for connection in self._connections:
+            connection.close()
+        self.sock.close()
+
+
+@pytest.fixture
+def stalled_server(monkeypatch):
+    for proxy in ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy", "ALL_PROXY", "all_proxy"):
+        monkeypatch.delenv(proxy, raising=False)
+    monkeypatch.setenv("NO_PROXY", "127.0.0.1,localhost")
+    monkeypatch.setattr(settings, "EMBEDDING_REQUEST_TIMEOUT_SECONDS", STALL_TIMEOUT)
+    server = BlackHole()
+    yield server
+    server.close()
+
+
+async def assert_gives_up(adapter, server: BlackHole):
+    """The call must fail on its own, well before the test's own safety bound."""
+    started = time.monotonic()
+    task = asyncio.ensure_future(adapter.generate_embedding("x"))
+    done, _ = await asyncio.wait({task}, timeout=GIVE_UP_BOUND)
+    elapsed = time.monotonic() - started
+    if not done:
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+        pytest.fail(f"still waiting after {elapsed:.1f}s on a stalled server")
+    assert server.accepted >= 1, "the adapter never connected to the stalled server"
+    assert task.exception() is not None
+
+
+def test_embedding_request_timeout_defaults_to_sixty_seconds(monkeypatch):
+    monkeypatch.delenv("EMBEDDING_REQUEST_TIMEOUT_SECONDS", raising=False)
+
+    assert Settings(_env_file=None).EMBEDDING_REQUEST_TIMEOUT_SECONDS == 60.0
+
+
+def test_embedding_request_timeout_reads_environment(monkeypatch):
+    monkeypatch.setenv("EMBEDDING_REQUEST_TIMEOUT_SECONDS", "12.5")
+
+    assert Settings(_env_file=None).EMBEDDING_REQUEST_TIMEOUT_SECONDS == 12.5
+
+
+@pytest.mark.parametrize("value", ["0", "-1", "inf", "nan", "soon"])
+def test_embedding_request_timeout_rejects_invalid_values(monkeypatch, value):
+    monkeypatch.setenv("EMBEDDING_REQUEST_TIMEOUT_SECONDS", value)
+
+    with pytest.raises(ValidationError, match="EMBEDDING_REQUEST_TIMEOUT_SECONDS"):
+        Settings(_env_file=None)
+
+
+def test_openai_client_uses_the_configured_timeout(monkeypatch):
+    monkeypatch.setattr(settings, "OPENAI_API_KEY", "sk-test")
+    monkeypatch.setattr(settings, "OPENAI_BASE_URL", "")
+    monkeypatch.setattr(settings, "EMBEDDING_REQUEST_TIMEOUT_SECONDS", 17.0)
+
+    adapter = ea.OpenAIEmbeddingsAdapter()
+
+    assert adapter.client.timeout == 17.0
+
+
+def test_azure_client_uses_the_configured_timeout(azure_config, monkeypatch):
+    monkeypatch.setattr(settings, "EMBEDDING_REQUEST_TIMEOUT_SECONDS", 17.0)
+
+    adapter = ea.AzureOpenAIAdapter()
+
+    assert adapter.client.timeout == 17.0
+
+
+def test_ollama_client_uses_the_configured_timeout(monkeypatch):
+    monkeypatch.setattr(settings, "EMBEDDING_REQUEST_TIMEOUT_SECONDS", 17.0)
+
+    adapter = ea.OllamaEmbeddingsAdapter()
+
+    assert adapter.client._client.timeout == httpx.Timeout(17.0)
+
+
+async def test_ollama_adapter_gives_up_on_stalled_server(stalled_server, monkeypatch):
+    monkeypatch.setattr(settings, "OLLAMA_BASE_URL", f"http://127.0.0.1:{stalled_server.port}")
+
+    await assert_gives_up(ea.OllamaEmbeddingsAdapter(), stalled_server)
+
+
+async def test_google_adapter_gives_up_on_stalled_server(stalled_server, monkeypatch):
+    monkeypatch.setenv("GOOGLE_GEMINI_BASE_URL", f"http://127.0.0.1:{stalled_server.port}")
+    monkeypatch.setattr(settings, "GOOGLE_AI_API_KEY", "dummy-key")
+
+    await assert_gives_up(ea.GoogleEmbeddingsAdapter(), stalled_server)
+
+
+async def test_openai_adapter_gives_up_on_stalled_server(stalled_server, monkeypatch):
+    monkeypatch.setattr(settings, "OPENAI_API_KEY", "sk-test")
+    monkeypatch.setattr(settings, "OPENAI_BASE_URL", f"http://127.0.0.1:{stalled_server.port}/v1")
+
+    await assert_gives_up(ea.OpenAIEmbeddingsAdapter(), stalled_server)
+
+
+async def test_azure_adapter_gives_up_on_stalled_server(stalled_server, azure_config, monkeypatch):
+    monkeypatch.setattr(settings, "AZURE_ENDPOINT", f"http://127.0.0.1:{stalled_server.port}")
+
+    await assert_gives_up(ea.AzureOpenAIAdapter(), stalled_server)

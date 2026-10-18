@@ -991,6 +991,13 @@ ACTIVITY_TRACK_READS=false
 - **Note**: Only used when `EMBEDDING_PROVIDER=FastEmbed`. Empty keeps FastEmbed's default provider selection. Same runtime requirements as [`RERANKING_ONNX_PROVIDERS`](#reranking_onnx_providers)
 - **Example**: `EMBEDDING_ONNX_PROVIDERS=DmlExecutionProvider,CPUExecutionProvider`
 
+### `EMBEDDING_REQUEST_TIMEOUT_SECONDS`
+- **Default**: `60`
+- **Values**: Positive number of seconds
+- **Description**: Per-request timeout for the remote embedding providers (Azure, Google, OpenAI and Ollama), so a server that accepts a connection but never answers fails the request instead of hanging it
+- **Note**: Ignored by FastEmbed (local). The OpenAI and Azure SDK clients retry failed requests twice, so a single call can take up to three times this value. Raise it if your server needs longer to answer, for example while an Ollama model is loading
+- **Example**: `EMBEDDING_REQUEST_TIMEOUT_SECONDS=120`
+
 ### `DENSE_SEARCH_CANDIDATES`
 - **Default**: `50`
 - **Description**: Number of candidates to retrieve from dense (embedding) search before re-ranking

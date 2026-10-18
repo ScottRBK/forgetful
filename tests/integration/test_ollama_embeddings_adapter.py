@@ -14,6 +14,7 @@ def mock_settings():
         mock.OLLAMA_BASE_URL = "http://localhost:11434"
         mock.EMBEDDING_MODEL = "nomic-embed-text"
         mock.EMBEDDING_DIMENSIONS = 768
+        mock.EMBEDDING_REQUEST_TIMEOUT_SECONDS = 45.0
         yield mock
 
 
@@ -28,14 +29,14 @@ def mock_ollama_client():
 
 
 def test_init_success(mock_settings, mock_ollama_client):
-    """Adapter initializes AsyncClient with correct host."""
+    """Adapter initializes AsyncClient with correct host and request timeout."""
     from app.repositories.embeddings.embedding_adapter import OllamaEmbeddingsAdapter
 
     mock_cls, _ = mock_ollama_client
 
     adapter = OllamaEmbeddingsAdapter()
 
-    mock_cls.assert_called_once_with(host="http://localhost:11434")
+    mock_cls.assert_called_once_with(host="http://localhost:11434", timeout=45.0)
     assert adapter.model == "nomic-embed-text"
 
 
