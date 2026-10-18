@@ -202,7 +202,8 @@ def register(mcp: FastMCP):
         """Stream activity events via Server-Sent Events (SSE).
 
         Events are filtered to only those belonging to the authenticated user.
-        Each event includes a sequence number for gap detection.
+        Each event includes a sequence number for gap detection; with
+        entity_type/action filters it counts only the events matching them.
         Requires ACTIVITY_ENABLED=true.
 
         Query params:
@@ -269,13 +270,13 @@ def register(mcp: FastMCP):
 
         async def event_generator():
             try:
-                async for event_dict in event_bus.subscribe_stream(user.id):
-                    # Apply optional filters
-                    if entity_type_filter and event_dict.get("entity_type") != entity_type_filter:
-                        continue
-                    if action_filter and event_dict.get("action") != action_filter:
-                        continue
-
+                # Filters are applied by the bus so that 'seq' only counts the
+                # events this stream is entitled to receive (a gap means loss).
+                async for event_dict in event_bus.subscribe_stream(
+                    user.id,
+                    entity_type=entity_type_filter or None,
+                    action=action_filter or None,
+                ):
                     yield {
                         "event": "activity",
                         "data": json.dumps(event_dict),

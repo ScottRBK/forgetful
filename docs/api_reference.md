@@ -1209,6 +1209,10 @@ data: {"seq": 2, "entity_type": "memory", "action": "updated", "entity_id": 42, 
 
 Each event includes a monotonically increasing `seq` field per user. Clients should track this to detect gaps (e.g., receiving seq 45 when last seen was 42 indicates missed events).
 
+When the stream is opened with `entity_type` and/or `action` filters, `seq` counts only the events
+that match them, so events excluded by a filter never appear as a gap and a gap always means a
+dropped event.
+
 **Gap Recovery:**
 
 On gap detection, fetch missed events via the REST API:

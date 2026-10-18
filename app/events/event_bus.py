@@ -24,6 +24,9 @@ logger = logging.getLogger(__name__)
 # Type alias for event handlers
 EventHandler = Callable[[ActivityEvent], Awaitable[None]]
 
+# SSE stream filter as (entity_type, action); None matches any value
+StreamFilter = tuple[str | None, str | None]
+
 
 class EventBus:
     """In-process async pub/sub event bus with pattern matching and SSE streaming.
@@ -63,9 +66,13 @@ class EventBus:
         self._subscribers: dict[str, list[EventHandler]] = {}
         self._pending_tasks: set[asyncio.Task[None]] = set()
 
-        # Queue-based SSE streaming (user_id -> queues)
-        self._stream_subscribers: dict[str, set[asyncio.Queue[dict[str, Any]]]] = {}
-        self._sequences: dict[str, int] = {}  # user_id -> next sequence number
+        # Queue-based SSE streaming (user_id -> queue -> stream filter)
+        self._stream_subscribers: dict[
+            str, dict[asyncio.Queue[dict[str, Any]], StreamFilter],
+        ] = {}
+        self._sequences: dict[str, int] = {}  # user_id -> last unfiltered sequence number
+        # (user_id, entity_type, action) -> last sequence number of a filtered stream
+        self._filtered_sequences: dict[tuple[str, str | None, str | None], int] = {}
         self._stream_lock = asyncio.Lock()
         self._max_queue_size = max_queue_size
 
@@ -211,6 +218,7 @@ class EventBus:
         self._subscribers.clear()
         self._stream_subscribers.clear()
         self._sequences.clear()
+        self._filtered_sequences.clear()
         logger.debug("EventBus cleared all subscribers")
 
     # =========================================================================
@@ -218,15 +226,23 @@ class EventBus:
     # =========================================================================
 
     async def subscribe_stream(
-        self, user_id: UUID,
+        self,
+        user_id: UUID,
+        entity_type: str | None = None,
+        action: str | None = None,
     ) -> AsyncGenerator[dict[str, Any], None]:
         """Subscribe to events for a user via async generator (for SSE streaming).
 
-        Events are filtered to only those belonging to the specified user.
-        Each event includes a sequence number for gap detection.
+        Events are filtered to only those belonging to the specified user, and
+        optionally to one entity type and/or action. Each event includes a
+        sequence number for gap detection. The sequence numbers of a stream
+        count only the events matching its filters, so an event excluded by a
+        filter never shows up as a gap; only a lost (dropped) event does.
 
         Args:
             user_id: User ID to filter events for
+            entity_type: Only deliver events of this entity type (None = all)
+            action: Only deliver events with this action (None = all)
 
         Yields:
             Event dictionaries with 'seq' field for gap detection
@@ -242,8 +258,8 @@ class EventBus:
 
         async with self._stream_lock:
             if user_id_str not in self._stream_subscribers:
-                self._stream_subscribers[user_id_str] = set()
-            self._stream_subscribers[user_id_str].add(queue)
+                self._stream_subscribers[user_id_str] = {}
+            self._stream_subscribers[user_id_str][queue] = (entity_type, action)
 
         logger.info(
             "SSE subscriber connected",
@@ -260,7 +276,7 @@ class EventBus:
         finally:
             async with self._stream_lock:
                 if user_id_str in self._stream_subscribers:
-                    self._stream_subscribers[user_id_str].discard(queue)
+                    self._stream_subscribers[user_id_str].pop(queue, None)
                     if not self._stream_subscribers[user_id_str]:
                         del self._stream_subscribers[user_id_str]
             logger.info(
@@ -271,8 +287,9 @@ class EventBus:
     async def _emit_to_streams(self, event: ActivityEvent) -> None:
         """Push event to all stream subscribers for this user.
 
-        Adds a sequence number for client gap detection.
-        Drops events if queue is full (backpressure).
+        Adds a sequence number for client gap detection. A stream with
+        filters is numbered independently, counting only the events that match
+        them. Drops events if queue is full (backpressure).
 
         Args:
             event: The activity event to push
@@ -283,19 +300,27 @@ class EventBus:
         user_id_str = event.user_id
         seq = self._next_seq(user_id_str)
 
-        # Create event dict with sequence number
-        event_dict = {"seq": seq, **event.model_dump(mode="json")}
-
         async with self._stream_lock:
-            queues = list(self._stream_subscribers.get(user_id_str, set()))
+            subscribers = list(self._stream_subscribers.get(user_id_str, {}).items())
 
-        if not queues:
+        if not subscribers:
             return
 
+        payload = event.model_dump(mode="json")
+        event_by_filter: dict[StreamFilter, dict[str, Any]] = {}
         dropped_count = 0
-        for queue in queues:
+        for queue, stream_filter in subscribers:
+            if not self._matches_filter(stream_filter, payload):
+                continue
+            if stream_filter not in event_by_filter:
+                stream_seq = (
+                    seq
+                    if stream_filter == (None, None)
+                    else self._next_filtered_seq(user_id_str, stream_filter)
+                )
+                event_by_filter[stream_filter] = {"seq": stream_seq, **payload}
             try:
-                queue.put_nowait(event_dict)
+                queue.put_nowait(event_by_filter[stream_filter])
             except asyncio.QueueFull:
                 dropped_count += 1
 
@@ -310,8 +335,26 @@ class EventBus:
                 },
             )
 
+    @staticmethod
+    def _matches_filter(stream_filter: StreamFilter, payload: dict[str, Any]) -> bool:
+        """Check whether an event payload passes a stream's entity_type/action filter."""
+        entity_type, action = stream_filter
+        if entity_type is not None and payload.get("entity_type") != entity_type:
+            return False
+        return action is None or payload.get("action") == action
+
+    def _next_filtered_seq(self, user_id: str, stream_filter: StreamFilter) -> int:
+        """Get the next sequence number for a filtered stream of a user.
+
+        Counts only the events matching the filter, so streams that share a
+        filter see identical numbers and a gap always means a dropped event.
+        """
+        key = (user_id, *stream_filter)
+        self._filtered_sequences[key] = self._filtered_sequences.get(key, 0) + 1
+        return self._filtered_sequences[key]
+
     def _next_seq(self, user_id: str) -> int:
-        """Get the next sequence number for a user.
+        """Get the next sequence number for a user's unfiltered stream.
 
         Sequence numbers are monotonically increasing per user.
         They reset when the server restarts.
@@ -342,7 +385,7 @@ class EventBus:
         return sum(len(queues) for queues in self._stream_subscribers.values())
 
     def get_current_seq(self, user_id: str) -> int:
-        """Get the current sequence number for a user (for debugging/monitoring).
+        """Get the current unfiltered sequence number for a user (for debugging/monitoring).
 
         Args:
             user_id: User ID string
