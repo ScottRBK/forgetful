@@ -6,7 +6,9 @@ This service implements functionality for managing skills:
     - Import/export in Agent Skills markdown format
     - Project association
 """
+import asyncio
 import re
+from contextlib import nullcontext
 from typing import TYPE_CHECKING
 from uuid import UUID
 
@@ -14,7 +16,7 @@ import yaml
 
 from app.config.logging_config import logging
 from app.config.settings import settings
-from app.exceptions import NotFoundError
+from app.exceptions import ConflictError, NotFoundError
 from app.models.activity_models import (
     ActionType,
     ActivityEvent,
@@ -89,7 +91,17 @@ class SkillService:
         """
         self.skill_repo = skill_repo
         self._event_bus = event_bus
+        self._name_locks: dict[UUID, asyncio.Lock] = {}
         logger.info("Skill service initialized")
+
+    def _name_lock(self, user_id: UUID) -> asyncio.Lock:
+        """Per-user lock around a name check and the write that claims the name.
+
+        The unique index is what guarantees uniqueness across processes; this stops
+        requests of one process from racing each other, which would otherwise make the
+        losing write roll back a connection shared with the winner.
+        """
+        return self._name_locks.setdefault(user_id, asyncio.Lock())
 
     async def _emit_event(
         self,
@@ -130,6 +142,10 @@ class SkillService:
 
         await self._event_bus.emit(event)
 
+    @staticmethod
+    def _name_taken_error(name: str) -> ValueError:
+        return ValueError(f"A skill named '{name}' already exists")
+
     async def create_skill(
         self,
         user_id: UUID,
@@ -143,6 +159,9 @@ class SkillService:
 
         Returns:
             Created Skill with generated ID and timestamps
+
+        Raises:
+            ValueError: If the user already has a skill with this name
         """
         logger.info(
             "creating skill",
@@ -152,16 +171,20 @@ class SkillService:
             },
         )
 
-        # Enforce unique skill name per user
-        if await self.skill_repo.skill_name_exists(user_id, skill_data.name):
-            msg = f"A skill named '{skill_data.name}' already exists"
-            raise ValueError(msg)
-
         skill_data = apply_provenance_defaults(skill_data)
-        skill = await self.skill_repo.create_skill(
-            user_id=user_id,
-            skill_data=skill_data,
-        )
+        async with self._name_lock(user_id):
+            # Enforce unique skill name per user
+            if await self.skill_repo.skill_name_exists(user_id, skill_data.name):
+                raise self._name_taken_error(skill_data.name)
+
+            try:
+                skill = await self.skill_repo.create_skill(
+                    user_id=user_id,
+                    skill_data=skill_data,
+                )
+            except ConflictError as exc:
+                # Another process won the race between the check and the insert
+                raise self._name_taken_error(skill_data.name) from exc
 
         logger.info(
             "skill created",
@@ -318,6 +341,7 @@ class SkillService:
 
         Raises:
             NotFoundError: If skill not found or not owned by user
+            ValueError: If renaming to a name another skill of the user already has
         """
         logger.info(
             "updating skill",
@@ -343,11 +367,23 @@ class SkillService:
             input_model=skill_data, existing_model=existing_skill,
         )
 
-        skill = await self.skill_repo.update_skill(
-            user_id=user_id,
-            skill_id=skill_id,
-            skill_data=skill_data,
-        )
+        # A rename must keep the name unique per user, as create_skill enforces
+        renaming = skill_data.name is not None and skill_data.name != existing_skill.name
+        async with self._name_lock(user_id) if renaming else nullcontext():
+            if renaming and await self.skill_repo.skill_name_exists(
+                user_id, skill_data.name,
+            ):
+                raise self._name_taken_error(skill_data.name)
+
+            try:
+                skill = await self.skill_repo.update_skill(
+                    user_id=user_id,
+                    skill_id=skill_id,
+                    skill_data=skill_data,
+                )
+            except ConflictError as exc:
+                # Another process took the name after the check above
+                raise self._name_taken_error(skill_data.name) from exc
 
         logger.info(
             "skill updated",

@@ -204,6 +204,8 @@ def register(mcp: FastMCP):
             )
         except NotFoundError:
             return JSONResponse({"error": "Skill not found"}, status_code=404)
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         return JSONResponse(skill.model_dump(mode="json"))
 

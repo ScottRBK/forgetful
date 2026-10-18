@@ -804,6 +804,7 @@ class SkillsTable(Base):
         Index("ix_skills_user_id", "user_id"),
         Index("ix_skills_project_id", "project_id"),
         Index("ix_skills_name", "name"),
+        Index("ix_skills_user_name", "user_id", "name", unique=True),
         Index("ix_skills_tags", "tags", postgresql_using="gin"),
         Index("ix_skills_importance", "importance"),
         Index("ix_skills_embedding", "embedding", postgresql_using="hnsw", postgresql_ops={"embedding": "vector_cosine_ops"}),

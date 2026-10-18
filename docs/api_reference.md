@@ -786,9 +786,11 @@ Create a new skill.
 }
 ```
 
+Skill names are unique per user. Creating a skill whose name is already in use returns `400`.
+
 ### PUT /api/v1/skills/{id}
 
-Update an existing skill (PATCH semantics).
+Update an existing skill (PATCH semantics). Renaming a skill to a name another of your skills already uses returns `400`.
 
 ### DELETE /api/v1/skills/{id}
 

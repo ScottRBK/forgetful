@@ -38,6 +38,7 @@ class SkillRepository(Protocol):
 
         Raises:
             ValidationError: If skill_data is invalid
+            ConflictError: If the user already has a skill with this name
         """
         ...
 
@@ -115,6 +116,7 @@ class SkillRepository(Protocol):
         Raises:
             NotFoundError: If skill not found or not owned by user
             ValidationError: If update data is invalid
+            ConflictError: If renaming to a name another skill of the user already has
         """
         ...
 

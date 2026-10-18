@@ -814,6 +814,7 @@ class SkillsTable(Base):
         Index("ix_skills_user_id", "user_id"),
         Index("ix_skills_project_id", "project_id"),
         Index("ix_skills_name", "name"),
+        Index("ix_skills_user_name", "user_id", "name", unique=True),
         Index("ix_skills_importance", "importance"),
         # No GIN/HNSW indexes - SQLite doesn't support these
     )
