@@ -1,8 +1,11 @@
-"""Integration tests for the sort option validation in MemoryService.list_memories.
+"""Integration tests for argument handling in the memory tool adapters.
 
-The service is shared by the MCP adapter, the REST routes and the CLI, so it is the
-single place where sort_by / sort_order are normalised and validated.
+Covers the coercion helpers, the sort option validation in MemoryService.list_memories
+(shared by the MCP adapter, the REST routes and the CLI), and a guard that rejecting
+unknown parameters never rejects a parameter documented in the tool metadata.
 """
+import inspect
+from unittest.mock import MagicMock
 from uuid import uuid4
 
 import pytest
@@ -13,6 +16,89 @@ from app.models.memory_models import (
     MemoryCreate,
 )
 from app.routes.api import memories as memories_routes
+from app.routes.mcp.tool_adapters import (
+    _coerce_bool,
+    _coerce_int,
+    _coerce_str_list,
+    _reject_unknown_args,
+    create_memory_adapters,
+)
+from app.routes.mcp.tool_metadata_registry import register_memory_tools_metadata
+from app.routes.mcp.tool_registry import ToolRegistry
+
+# ---------------------------------------------------------------------------
+# coercion helpers
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [(5, 5), ("5", 5), (" 5 ", 5), (5.0, 5), (-3, -3), ("-3", -3)],
+)
+def test_coerce_int_accepts_integral_values(value, expected):
+    assert _coerce_int(value, "limit") == expected
+
+
+@pytest.mark.parametrize(
+    ("value", "message"),
+    [
+        (None, "limit cannot be None"),
+        (True, "limit must be an integer"),
+        (2.5, "limit must be an integer"),
+        (float("nan"), "limit must be an integer"),
+        ("", "limit cannot be empty string"),
+        ("abc", "limit must be a valid integer"),
+        ("1.5", "limit must be a valid integer"),
+        ([1], "limit must be an integer"),
+    ],
+)
+def test_coerce_int_rejects_everything_else_naming_the_parameter(value, message):
+    with pytest.raises(ValueError, match=message):
+        _coerce_int(value, "limit")
+
+
+@pytest.mark.parametrize(
+    "value",
+    [False, 0, "false", "False", "FALSE", " false ", "0", "no", "off", "f", "n"],
+)
+def test_coerce_bool_false_spellings(value):
+    assert _coerce_bool(value, "include_obsolete") is False
+
+
+@pytest.mark.parametrize(
+    "value",
+    [True, 1, "true", "True", "TRUE", " true ", "1", "yes", "on", "t", "y"],
+)
+def test_coerce_bool_true_spellings(value):
+    assert _coerce_bool(value, "include_obsolete") is True
+
+
+@pytest.mark.parametrize("value", [None, "", "maybe", 2, -1, 1.0, [], {}])
+def test_coerce_bool_rejects_non_boolean_values(value):
+    with pytest.raises(ValueError, match="include_obsolete must be a boolean"):
+        _coerce_bool(value, "include_obsolete")
+
+
+def test_coerce_str_list_accepts_collections_of_strings():
+    assert _coerce_str_list(["a", "ai"], "tags") == ["a", "ai"]
+    assert _coerce_str_list(("a",), "tags") == ["a"]
+    assert _coerce_str_list([], "tags") == []
+
+
+@pytest.mark.parametrize("value", ["ai", b"ai", [1, 2], ["a", 1], {"a": 1}, 5])
+def test_coerce_str_list_rejects_a_bare_string_and_non_string_items(value):
+    with pytest.raises(ValueError, match="tags must be a list of strings"):
+        _coerce_str_list(value, "tags")
+
+
+def test_reject_unknown_args_is_silent_without_extras():
+    _reject_unknown_args("get_memory", {})
+
+
+def test_reject_unknown_args_names_every_unexpected_parameter_sorted():
+    with pytest.raises(ValueError, match=r"update_memory got unexpected parameter\(s\): bar, foo"):
+        _reject_unknown_args("update_memory", {"foo": 1, "bar": 2})
+
 
 # ---------------------------------------------------------------------------
 # sort option validation in MemoryService.list_memories
@@ -108,3 +194,24 @@ async def test_list_memories_rejects_invalid_sort_by(test_memory_service, sort_b
 def test_shared_sort_constants_match_the_rest_route():
     assert set(VALID_SORT_BY) == memories_routes.VALID_SORT_BY
     assert set(VALID_SORT_ORDER) == memories_routes.VALID_SORT_ORDER
+
+
+# ---------------------------------------------------------------------------
+# rejecting unknown parameters must never reject a documented parameter
+# ---------------------------------------------------------------------------
+
+
+def test_every_documented_memory_tool_parameter_is_accepted_by_its_adapter():
+    adapters = create_memory_adapters(MagicMock(), MagicMock(), MagicMock())
+    registry = ToolRegistry()
+    register_memory_tools_metadata(registry, adapters)
+
+    rejected = {}
+    for name in adapters:
+        tool = registry.get_tool(name)
+        accepted = inspect.signature(tool.implementation).parameters
+        missing = [p.name for p in tool.metadata.parameters if p.name not in accepted]
+        if missing:
+            rejected[name] = missing
+
+    assert rejected == {}

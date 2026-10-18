@@ -1,8 +1,8 @@
 """Postgres e2e tests for argument handling in the memory tool adapters.
 
 The PostgreSQL repository shares the sort handling changed for the memory listing, so
-these tests exercise it against a real database: sort options are case-insensitive and
-unknown values raise instead of silently falling back.
+these tests exercise it against a real database: sort options are case-insensitive,
+unknown values raise instead of silently falling back, and textual booleans are parsed.
 """
 import json
 from uuid import uuid4
@@ -102,3 +102,30 @@ async def test_repository_refuses_unknown_sort_options_instead_of_falling_back_e
 
     with pytest.raises(ValueError, match=message):
         await repo.list_memories(user_id=uuid4(), limit=10, sort_by=sort_by, sort_order=sort_order)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("include_obsolete", ["false", "False", "0", "no", False])
+async def test_include_obsolete_false_strings_hide_obsolete_memories_e2e(mcp_client, include_obsolete):
+    memory_id = await _create_memory(mcp_client, "pg obsolete")
+    await _exec(mcp_client, "mark_memory_obsolete", {"memory_id": memory_id, "reason": "test"})
+
+    assert await _recent_ids(mcp_client, include_obsolete=include_obsolete) == []
+    assert await _recent_ids(mcp_client, include_obsolete="true") == [memory_id]
+
+
+@pytest.mark.asyncio
+async def test_string_project_id_filters_on_that_project_e2e(mcp_client):
+    project_ids = []
+    for i in range(12):
+        result = await _exec(mcp_client, "create_project", {
+            "name": f"pg-adapter-args-project-{i}",
+            "description": f"project {i}",
+            "project_type": "development",
+        })
+        project_ids.append(json.loads(result.content[0].text)["id"])
+    in_last = await _create_memory(mcp_client, "pg in last", project_ids=[project_ids[11]])
+    await _create_memory(mcp_client, "pg in first", project_ids=[project_ids[0]])
+    await _create_memory(mcp_client, "pg in second", project_ids=[project_ids[1]])
+
+    assert await _recent_ids(mcp_client, project_ids=str(project_ids[11])) == [in_last]

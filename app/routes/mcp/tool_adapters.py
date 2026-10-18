@@ -98,6 +98,52 @@ def _coerce_int_ids(vals: Any, param_name: str = "ids") -> list[int]:
     return [_coerce_int_id(vals, param_name)]
 
 
+def _coerce_int(val: Any, param_name: str) -> int:
+    """Validate and convert a numeric tool argument (limit, offset, k, importance...) to int.
+
+    Follows the same rules as ``_coerce_int_id``: ints, integral floats and numeric
+    strings are accepted; None, booleans, fractional floats and other types raise
+    ValueError with a message naming the parameter.
+    """
+    return _coerce_int_id(val, param_name)
+
+
+_TRUE_STRINGS = frozenset({"true", "t", "yes", "y", "on", "1"})
+_FALSE_STRINGS = frozenset({"false", "f", "no", "n", "off", "0"})
+
+
+def _coerce_bool(val: Any, param_name: str) -> bool:
+    """Validate and convert a boolean tool argument without treating "false" as truthy.
+
+    Accepts real booleans, the integers 0/1 and the usual textual spellings
+    (case-insensitive, surrounding whitespace ignored); anything else raises ValueError.
+    """
+    if isinstance(val, bool):
+        return val
+    if isinstance(val, int) and val in (0, 1):
+        return bool(val)
+    if isinstance(val, str):
+        cleaned = val.strip().lower()
+        if cleaned in _TRUE_STRINGS:
+            return True
+        if cleaned in _FALSE_STRINGS:
+            return False
+    raise ValueError(f"{param_name} must be a boolean, got {val!r}")
+
+
+def _coerce_str_list(vals: Any, param_name: str) -> list[str]:
+    """Validate a list of strings, refusing a bare string that would be split into characters."""
+    if not isinstance(vals, (list, tuple, set)) or not all(isinstance(x, str) for x in vals):
+        raise ValueError(f"{param_name} must be a list of strings")
+    return list(vals)
+
+
+def _reject_unknown_args(tool_name: str, extra: dict[str, Any]) -> None:
+    """Raise ValueError naming any arguments a tool adapter does not support."""
+    if extra:
+        raise ValueError(f"{tool_name} got unexpected parameter(s): {', '.join(sorted(extra))}")
+
+
 # ============================================================================
 # User Tool Adapters
 # ============================================================================
@@ -187,11 +233,11 @@ class MemoryToolAdapters:
         user = await get_user_from_auth(ctx)
 
         if project_ids is not None:
-            project_ids = [_coerce_int_id(x, "project_ids") for x in project_ids]
+            project_ids = _coerce_int_ids(project_ids, "project_ids")
         if code_artifact_ids is not None:
-            code_artifact_ids = [_coerce_int_id(x, "code_artifact_ids") for x in code_artifact_ids]
+            code_artifact_ids = _coerce_int_ids(code_artifact_ids, "code_artifact_ids")
         if document_ids is not None:
-            document_ids = [_coerce_int_id(x, "document_ids") for x in document_ids]
+            document_ids = _coerce_int_ids(document_ids, "document_ids")
         if file_ids is not None:
             file_ids = _coerce_int_ids(file_ids, "file_ids")
 
@@ -276,13 +322,13 @@ class MemoryToolAdapters:
 
         user = await get_user_from_auth(ctx)
 
-        k = max(1, min(k, 20))
+        k = max(1, min(_coerce_int(k, "k"), 20))
 
         if importance_threshold is not None:
-            importance_threshold = max(1, min(importance_threshold, 10))
+            importance_threshold = max(1, min(_coerce_int(importance_threshold, "importance_threshold"), 10))
 
         if project_ids is not None:
-            project_ids = [_coerce_int_id(x, "project_ids") for x in project_ids]
+            project_ids = _coerce_int_ids(project_ids, "project_ids")
 
         result = await self.memory_service.query_memory(
             user_id=user.id,
@@ -337,6 +383,7 @@ class MemoryToolAdapters:
         **kwargs,
     ) -> MemoryUpdateResponse | None:
         """Adapter for update_memory tool"""
+        _reject_unknown_args("update_memory", kwargs)
         mid = memory_id if memory_id is not None else id
         if mid is None:
             raise ValueError("update_memory requires memory_id (or id)")
@@ -346,14 +393,14 @@ class MemoryToolAdapters:
         user = await get_user_from_auth(ctx)
 
         if importance is not None:
-            importance = max(1, min(importance, 10))
+            importance = max(1, min(_coerce_int(importance, "importance"), 10))
 
         if project_ids is not None:
-            project_ids = [_coerce_int_id(x, "project_ids") for x in project_ids]
+            project_ids = _coerce_int_ids(project_ids, "project_ids")
         if code_artifact_ids is not None:
-            code_artifact_ids = [_coerce_int_id(x, "code_artifact_ids") for x in code_artifact_ids]
+            code_artifact_ids = _coerce_int_ids(code_artifact_ids, "code_artifact_ids")
         if document_ids is not None:
-            document_ids = [_coerce_int_id(x, "document_ids") for x in document_ids]
+            document_ids = _coerce_int_ids(document_ids, "document_ids")
         if file_ids is not None:
             file_ids = _coerce_int_ids(file_ids, "file_ids")
 
@@ -422,6 +469,7 @@ class MemoryToolAdapters:
         **kwargs,
     ) -> dict:
         """Adapter for link_memories tool with alias resilience"""
+        _reject_unknown_args("link_memories", kwargs)
         src: int | None = None
         targets: list[int] = []
 
@@ -538,6 +586,7 @@ class MemoryToolAdapters:
         **kwargs,
     ) -> dict:
         """Adapter for unlink_memories tool with alias resilience"""
+        _reject_unknown_args("unlink_memories", kwargs)
         src: int | None = None
         targets: list[int] = []
 
@@ -641,6 +690,7 @@ class MemoryToolAdapters:
         **kwargs,
     ) -> Memory:
         """Adapter for get_memory tool"""
+        _reject_unknown_args("get_memory", kwargs)
         mid = memory_id if memory_id is not None else id
         if mid is None:
             raise ValueError("get_memory requires memory_id (or id)")
@@ -671,6 +721,7 @@ class MemoryToolAdapters:
         **kwargs,
     ) -> dict:
         """Adapter for mark_memory_obsolete tool"""
+        _reject_unknown_args("mark_memory_obsolete", kwargs)
         mid = memory_id if memory_id is not None else id
         if mid is None:
             raise ValueError("mark_memory_obsolete requires memory_id (or id)")
@@ -698,6 +749,7 @@ class MemoryToolAdapters:
         **kwargs,
     ) -> dict:
         """Adapter for unobsolete_memory tool"""
+        _reject_unknown_args("unobsolete_memory", kwargs)
         mid = memory_id if memory_id is not None else id
         if mid is None:
             raise ValueError("unobsolete_memory requires memory_id (or id)")
@@ -728,7 +780,10 @@ class MemoryToolAdapters:
     ) -> dict:
         """Adapter for get_recent_memories tool"""
         user = await get_user_from_auth(ctx)
-        limit, offset = clamp_list_pagination(limit, offset)
+        limit, offset = clamp_list_pagination(_coerce_int(limit, "limit"), _coerce_int(offset, "offset"))
+        include_obsolete = False if include_obsolete is None else _coerce_bool(include_obsolete, "include_obsolete")
+        if tags is not None:
+            tags = _coerce_str_list(tags, "tags")
 
         if importance_min is not None and (
             isinstance(importance_min, bool)
@@ -752,7 +807,7 @@ class MemoryToolAdapters:
             since = since.astimezone(UTC)
 
         if project_ids is not None:
-            project_ids = [_coerce_int_id(x, "project_ids") for x in project_ids]
+            project_ids = _coerce_int_ids(project_ids, "project_ids")
 
         logger.info(
             "MCP Tool -> get_recent_memories",
@@ -805,7 +860,7 @@ class MemoryToolAdapters:
         `rebuilt_ids`, `skipped_ids`, `failed`.
         """
         if memory_ids is not None:
-            memory_ids = [_coerce_int_id(x, "memory_ids") for x in memory_ids]
+            memory_ids = _coerce_int_ids(memory_ids, "memory_ids")
         if project_id is not None:
             project_id = _coerce_int_id(project_id, "project_id")
 
