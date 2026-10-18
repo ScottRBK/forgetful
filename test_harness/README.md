@@ -30,7 +30,11 @@ uv run python -m test_harness --timeout 600 --output /tmp/uat
 uv run python -m test_harness --rebuild-image                  # force image rebuild
 ```
 
-Flags > `TEST_HARNESS_*` env > defaults (`test_harness/config.py`). The walkthrough order
+Flags > `TEST_HARNESS_*` env > defaults (`test_harness/config.py`). `--timeout` /
+`TEST_HARNESS_SKILL_TIMEOUT` applies to every skill, including encode-repo, whose longer
+1800s default only applies when no timeout was given; it must be at least 1 second.
+
+The walkthrough order
 is fixed by data dependencies — write-skills populate the store the read-skills then
 query: `cli-setup → remember → entities → procedures → files → recall → explore →
 context-gather → encode-repo`. `forgetful-mcp-setup` is seeded but not walked: the MCP

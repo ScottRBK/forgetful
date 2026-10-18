@@ -14,6 +14,7 @@ this module is importable without the `harness` dependency group.
 """
 import asyncio
 import hashlib
+import math
 import shutil
 import subprocess
 import tempfile
@@ -56,9 +57,10 @@ def build_container_env(server_url: str) -> dict[str, str]:
 
 def exec_command(timeout: float, skill: str) -> list[str]:
     """Session command with the OS-level timeout: host-side cancellation cannot kill
-    a process inside the container (mem 1654), `timeout --kill-after` can."""
+    a process inside the container, `timeout --kill-after` can. Rounded up and floored
+    at 1s: `timeout 0` means no limit at all."""
     return [
-        "timeout", "--kill-after=30s", str(int(timeout)),
+        "timeout", "--kill-after=30s", str(max(1, math.ceil(timeout))),
         "python", "-u", f"{HARNESS_MOUNT}/runner.py",
         "--skill-dir", f"{SKILLS_MOUNT}/{skill}",
     ]

@@ -5,6 +5,7 @@ story first, the write-heavy skills populate the store, then the read skills con
 they wrote. A skills filter selects from this order; it never reorders it. mcp-setup is
 deliberately absent: it belongs to the MCP surface pass, a reserved (unimplemented) axis.
 """
+import math
 from pathlib import Path
 from typing import Literal
 
@@ -24,6 +25,14 @@ SKILL_ORDER: tuple[str, ...] = (
 )
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
+
+
+def _require_enforceable_timeout(seconds: float) -> float:
+    # GNU `timeout 0` means "no limit" and the duration is whole seconds, so anything
+    # below 1 (or nan/inf) would silently disable the in-container kill.
+    if not (math.isfinite(seconds) and seconds >= 1):
+        raise ValueError(f"timeout must be a finite number of seconds >= 1, got {seconds}")
+    return seconds
 
 
 class HarnessConfig(BaseSettings):
@@ -49,6 +58,18 @@ class HarnessConfig(BaseSettings):
             )
         return value
 
+    @field_validator("skill_timeout")
+    @classmethod
+    def _global_timeout_is_enforceable(cls, value: float) -> float:
+        return _require_enforceable_timeout(value)
+
+    @field_validator("skill_timeouts")
+    @classmethod
+    def _per_skill_timeouts_are_enforceable(cls, value: dict[str, float]) -> dict[str, float]:
+        for seconds in value.values():
+            _require_enforceable_timeout(seconds)
+        return value
+
     @field_validator("skills")
     @classmethod
     def _subset_of_walkthrough_order(cls, value: list[str]) -> list[str]:
@@ -60,4 +81,9 @@ class HarnessConfig(BaseSettings):
         return [name for name in SKILL_ORDER if name in value]
 
     def timeout_for(self, skill: str) -> float:
+        # An explicit global timeout (flag or env) is the operator's answer for every
+        # skill; the built-in per-skill defaults only apply when none was given. Explicit
+        # per-skill timeouts still win for their own skill.
+        if "skill_timeout" in self.model_fields_set and "skill_timeouts" not in self.model_fields_set:
+            return self.skill_timeout
         return self.skill_timeouts.get(skill, self.skill_timeout)
