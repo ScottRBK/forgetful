@@ -4,11 +4,13 @@ Network-free: FastEmbed's cross-encoder is replaced by a recorder and HTTP traff
 httpx mock transports or a throw-away loopback server.
 """
 
+import httpx
 import pytest
 
 from app.config.settings import settings
 from app.repositories.embeddings.reranker_adapter import (
     FastEmbedCrossEncoderAdapter,
+    HttpRerankAdapter,
 )
 
 RERANK_URL = "https://reranker.test/v1/rerank"
@@ -25,6 +27,19 @@ def cross_encoder_calls(monkeypatch):
 
     monkeypatch.setattr("fastembed.rerank.cross_encoder.TextCrossEncoder", create_encoder)
     return calls
+
+
+@pytest.fixture
+def http_reranker(monkeypatch):
+    """Build HttpRerankAdapter instances whose requests are answered by ``handler``."""
+    client_class = httpx.AsyncClient
+
+    def install(handler):
+        transport = httpx.MockTransport(handler)
+        monkeypatch.setattr(httpx, "AsyncClient", lambda: client_class(transport=transport))
+        return HttpRerankAdapter(model="m", url=RERANK_URL, api_key="")
+
+    return install
 
 
 def test_local_reranker_loads_model_from_configured_cache_dir(
@@ -46,5 +61,31 @@ def test_local_reranker_prefers_explicit_cache_dir(monkeypatch, tmp_path, cross_
     FastEmbedCrossEncoderAdapter(model="m", cache_dir=explicit)
 
     assert cross_encoder_calls[0]["cache_dir"] == explicit
+
+
+async def test_http_reranker_returns_results_by_descending_score(http_reranker):
+    def handler(_request):
+        return httpx.Response(200, json={"results": [
+            {"index": 0, "relevance_score": 0.1},
+            {"index": 1, "relevance_score": 0.9},
+            {"index": 2, "relevance_score": 0.5},
+        ]})
+
+    adapter = http_reranker(handler)
+
+    assert await adapter.rerank("q", ["a", "b", "c"]) == [(1, 0.9), (2, 0.5), (0, 0.1)]
+
+
+async def test_http_reranker_keeps_server_order_for_tied_scores(http_reranker):
+    def handler(_request):
+        return httpx.Response(200, json={"results": [
+            {"index": 2, "relevance_score": 0.5},
+            {"index": 0, "relevance_score": 0.5},
+            {"index": 1, "relevance_score": 0.7},
+        ]})
+
+    adapter = http_reranker(handler)
+
+    assert await adapter.rerank("q", ["a", "b", "c"]) == [(1, 0.7), (2, 0.5), (0, 0.5)]
 
 

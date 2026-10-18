@@ -147,7 +147,13 @@ class HttpRerankAdapter:
 
         response_json = response.json()
 
-        ranked = [(r["index"], r["relevance_score"]) for r in response_json["results"]]
+        # The /v1/rerank schema does not promise sorted results (some servers answer in
+        # document order), but callers keep the first k entries as the best ones.
+        ranked = sorted(
+            ((r["index"], float(r["relevance_score"])) for r in response_json["results"]),
+            key=lambda pair: pair[1],
+            reverse=True,
+        )
 
         return ranked
 

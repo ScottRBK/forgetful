@@ -3,6 +3,10 @@
 Only the embedding provider and the cross-encoder are stubbed, so these tests drive the real
 candidate fetch, rerank hand-off and truncation in ``search_scored`` and ``search_skills``.
 """
+import json
+import math
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import pytest
 
@@ -10,6 +14,7 @@ from app.config.settings import settings
 from app.models.memory_models import MemoryCreate
 from app.models.skill_models import SkillCreate
 from app.models.user_models import UserCreate
+from app.repositories.embeddings.reranker_adapter import HttpRerankAdapter
 from app.repositories.sqlite.memory_repository import SqliteMemoryRepository
 from app.repositories.sqlite.skill_repository import SqliteSkillRepository
 from app.repositories.sqlite.sqlite_adapter import SqliteDatabaseAdapter
@@ -24,6 +29,22 @@ class FixedEmbeddings:
     async def generate_embedding(self, text):
         vector = [0.0] * DIMENSIONS
         vector[0] = 1.0
+        return vector
+
+
+class AngleEmbeddings:
+    """The query sits at angle 0 and memories at increasing angles (alpha is closest)."""
+
+    ANGLES = {"alpha": 0.1, "beta": 0.5, "BESTMATCH": 1.0}
+
+    async def generate_embedding(self, text):
+        angle = 0.0
+        for key, theta in self.ANGLES.items():
+            if key in text:
+                angle = theta
+        vector = [0.0] * DIMENSIONS
+        vector[0] = math.cos(angle)
+        vector[1] = math.sin(angle)
         return vector
 
 
@@ -170,3 +191,56 @@ async def test_skill_search_still_reranks_when_k_is_within_dense_candidates(
     assert len(found) == 3
 
 
+class _IndexOrderRerankHandler(BaseHTTPRequestHandler):
+    """A /v1/rerank server that answers in document order instead of score order."""
+
+    def do_POST(self):  # noqa: N802
+        body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+        results = [
+            {"index": index, "relevance_score": 0.95 if "BESTMATCH" in document else 0.05}
+            for index, document in enumerate(body["documents"])
+        ]
+        payload = json.dumps({"results": results}).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
+
+    def log_message(self, *args):
+        pass
+
+
+@pytest.fixture
+def index_order_rerank_url():
+    server = HTTPServer(("127.0.0.1", 0), _IndexOrderRerankHandler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        yield f"http://127.0.0.1:{server.server_port}/v1/rerank"
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+async def test_http_reranker_answering_in_document_order_still_picks_best_match(
+    sqlite_env, monkeypatch, index_order_rerank_url,
+):
+    adapter, user_id = sqlite_env
+    monkeypatch.setattr(settings, "DENSE_SEARCH_CANDIDATES", 20)
+    repo = SqliteMemoryRepository(
+        db_adapter=adapter,
+        embedding_adapter=AngleEmbeddings(),
+        rerank_adapter=HttpRerankAdapter(model="m", url=index_order_rerank_url, api_key=""),
+    )
+    for word in ("alpha", "beta", "BESTMATCH"):
+        await repo.create_memory(user_id, MemoryCreate(
+            title=f"{word} memory", content=f"content about {word}", context="context",
+            keywords=[word], tags=["t"], importance=7,
+        ))
+
+    found = await _search_memories(repo, user_id, k=1)
+
+    assert len(found) == 1
+    memory, score = found[0]
+    assert "BESTMATCH" in memory.title
+    assert score.rerank_score == pytest.approx(0.95)
