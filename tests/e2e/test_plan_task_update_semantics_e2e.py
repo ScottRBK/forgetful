@@ -57,6 +57,27 @@ async def _create_task(mcp_client, criteria=()):
     return plan_id, task["id"], criterion_ids
 
 
+# ---- Criteria keep creation order ----
+
+async def test_task_criteria_keep_creation_order_after_update_e2e(mcp_client):
+    _, task_id, criterion_ids = await _create_task(mcp_client, ["c1", "c2", "c3"])
+
+    await _call(mcp_client, "verify_criterion", {"criterion_id": criterion_ids[0], "met": True})
+
+    task = (await _call(mcp_client, "get_task", {"task_id": task_id})).data
+    assert [c["description"] for c in task["criteria"]] == ["c1", "c2", "c3"]
+
+
+async def test_task_criteria_keep_creation_order_after_several_updates_e2e(mcp_client):
+    _, task_id, criterion_ids = await _create_task(mcp_client, ["c1", "c2", "c3"])
+
+    await _call(mcp_client, "verify_criterion", {"criterion_id": criterion_ids[0], "met": True})
+    await _call(mcp_client, "verify_criterion", {"criterion_id": criterion_ids[1], "met": True})
+
+    task = (await _call(mcp_client, "get_task", {"task_id": task_id})).data
+    assert [c["id"] for c in task["criteria"]] == criterion_ids
+
+
 # ---- met_at records the first transition to met ----
 
 async def test_repeated_verify_keeps_original_met_at_e2e(mcp_client):

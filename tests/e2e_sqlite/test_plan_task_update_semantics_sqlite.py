@@ -290,3 +290,15 @@ async def test_description_edit_of_met_criterion_keeps_met_at(http_client):
     assert edited["met_at"] == met["met_at"]
 
 
+# ---- Criteria keep creation order ----
+
+@pytest.mark.asyncio
+async def test_task_criteria_keep_creation_order_after_update(mcp_client):
+    task_id, criterion_ids = await _mcp_task_with_criteria(mcp_client, ["c1", "c2", "c3"])
+
+    await _call(mcp_client, "verify_criterion", {
+        "criterion_id": criterion_ids[0], "met": True,
+    })
+
+    task = (await _call(mcp_client, "get_task", {"task_id": task_id})).data
+    assert [c["description"] for c in task["criteria"]] == ["c1", "c2", "c3"]

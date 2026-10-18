@@ -1093,6 +1093,7 @@ class TasksTable(Base):
         "CriteriaTable",
         back_populates="task",
         cascade="all, delete-orphan",
+        order_by="CriteriaTable.created_at, CriteriaTable.id",
     )
 
     @property
