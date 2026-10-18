@@ -22,6 +22,10 @@ async def _create_memory(http_client, **overrides) -> int:
     return response.json()["id"]
 
 
+async def _obsolete(http_client, memory_id, body=None):
+    return await http_client.request("DELETE", f"{API}/{memory_id}", json=body)
+
+
 @pytest.mark.e2e
 @pytest.mark.parametrize(("field", "label"), [
     ("project_ids", "Projects"),
@@ -62,3 +66,22 @@ async def test_create_response_reports_linked_skill_ids(http_client):
 
     assert response.status_code == 201, response.text
     assert response.json()["skill_ids"] == [skill.json()["id"]]
+
+
+@pytest.mark.e2e
+async def test_delete_errors_are_client_errors(http_client):
+    memory_id = await _create_memory(http_client)
+
+    missing = await _obsolete(http_client, 999999)
+    assert missing.status_code == 404
+    assert missing.json() == {"error": "Memory not found"}
+
+    for superseded_by in (999999,):
+        unknown = await _obsolete(http_client, memory_id, {"reason": "r", "superseded_by": superseded_by})
+        assert unknown.status_code == 404, unknown.text
+        assert unknown.json() == {"error": f"Superseding memory {superseded_by} not found"}
+
+    bad_type = await _obsolete(http_client, memory_id, {"reason": "r", "superseded_by": "abc"})
+    assert bad_type.status_code == 400
+
+    assert (await http_client.get(f"{API}/{memory_id}")).json()["is_obsolete"] is False

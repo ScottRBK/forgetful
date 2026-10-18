@@ -484,7 +484,7 @@ class SqliteMemoryRepository:
                 )
                 superseding_result = await session.execute(superseding_stmt)
                 if not superseding_result.scalar_one_or_none():
-                    raise NotFoundError(f"Superseding memory {superseded_by} not found")
+                    raise AssociationNotFoundError(f"Superseding memory {superseded_by} not found")
 
             stmt = (
                 update(MemoryTable)

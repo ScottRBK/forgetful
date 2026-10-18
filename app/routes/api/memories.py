@@ -296,12 +296,20 @@ def register(mcp: FastMCP):
             reason = "Marked obsolete via API"
             superseded_by = None
 
-        success = await mcp.memory_service.mark_memory_obsolete(
-            user_id=user.id,
-            memory_id=memory_id,
-            reason=reason,
-            superseded_by=superseded_by,
-        )
+        if superseded_by is not None and (isinstance(superseded_by, bool) or not isinstance(superseded_by, int)):
+            return JSONResponse({"error": "superseded_by must be an integer memory id"}, status_code=400)
+
+        try:
+            success = await mcp.memory_service.mark_memory_obsolete(
+                user_id=user.id,
+                memory_id=memory_id,
+                reason=reason,
+                superseded_by=superseded_by,
+            )
+        except AssociationNotFoundError as e:
+            return JSONResponse({"error": str(e)}, status_code=404)
+        except NotFoundError:
+            return JSONResponse({"error": "Memory not found"}, status_code=404)
 
         if not success:
             return JSONResponse({"error": "Memory not found"}, status_code=404)

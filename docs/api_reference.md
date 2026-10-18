@@ -305,6 +305,10 @@ Mark a memory as obsolete (soft delete).
 }
 ```
 
+**Errors:**
+- `400` when `superseded_by` is not an integer.
+- `404` with `Memory not found` when the memory does not exist, or with `Superseding memory {id} not found` when `superseded_by` does not reference one of your memories.
+
 ### POST /api/v1/memories/search
 
 Semantic search across memories.
