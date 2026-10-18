@@ -192,6 +192,19 @@ async def _count_without_migrating(embeddings_adapter):
         await db_adapter.dispose()
 
 
+def _tolerate_unencodable_output():
+    """Escape, instead of failing on, characters the console codec cannot encode.
+
+    Provider errors, paths and model names can hold any text. A legacy codec (cp1252 on a
+    redirected Windows pipe, or PYTHONIOENCODING) would otherwise raise UnicodeEncodeError from
+    print(), in the middle of the recovery below.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(errors="backslashreplace")
+
+
 def _install_stop_handlers(loop, on_stop, signals=(signal.SIGINT, signal.SIGTERM)):
     """Call on_stop on the event loop when one of the signals arrives; return an undo callable.
 
@@ -231,6 +244,7 @@ async def _restore_backup(db_adapter, backup_service, backup_path):
 
 async def _run_reembed(args):
     """Run the re-embedding workflow"""
+    _tolerate_unencodable_output()
     from app.config.logging_config import configure_logging, shutdown_logging
     configure_logging(log_level="INFO", log_format="console")
     atexit.register(shutdown_logging)
@@ -379,8 +393,11 @@ async def _run_reembed(args):
         raise
     except Exception as e:
         restoring = True
-        print(f"\n  ERROR: {e}")
-        await _restore_backup(db_adapter, backup_service, backup_path)
+        try:
+            print(f"\n  ERROR: {e}")
+        finally:
+            # Report first, but a report that fails (closed pipe, console) must not skip the restore.
+            await _restore_backup(db_adapter, backup_service, backup_path)
         raise
     finally:
         restore_signal_handlers()

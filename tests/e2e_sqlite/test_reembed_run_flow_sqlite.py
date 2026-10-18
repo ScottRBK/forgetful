@@ -403,6 +403,24 @@ class TestRecovery:
         assert "RuntimeError" not in stderr, report
         await assert_originals_restored(repos["memory"], user_id, originals)
 
+    async def test_unencodable_error_text_does_not_prevent_the_restore(self, backup_database):
+        # Arrange: a console that cannot print the provider's error message (Windows pipe).
+        adapter, repos = backup_database
+        user_id, originals = await seed_memories(repos)
+        await adapter.dispose()
+        process = await start_child("unencodable", encoding="cp1252")
+
+        # Act
+        stdout, stderr = await finish_child(process, encoding="cp1252")
+
+        # Assert: recovery ran, the real error is reported, and the data is back.
+        report = stdout + stderr
+        assert process.returncode not in (0, None), report
+        assert "UnicodeEncodeError" not in stderr, report
+        assert "ERROR: \\u901f\\u7387\\u9650\\u5236 \\u2192 retry later" in stdout, report
+        assert "Database returned to pre-migration state." in stdout, report
+        await assert_originals_restored(repos["memory"], user_id, originals)
+
 
 @pytest.mark.skipif(not hasattr(signal, "SIGUSR1"), reason="needs POSIX signals")
 class TestStopHandlers:
