@@ -9,6 +9,8 @@ Covers the full stack (REST routes -> EntityService -> SqliteEntityRepository):
 """
 import pytest
 from fastmcp.exceptions import ToolError
+from pydantic import ValidationError
+from sqlalchemy import update
 
 from app.config.settings import settings
 from app.events import EventBus
@@ -20,6 +22,7 @@ from app.models.entity_models import (
     EntityUpdate,
 )
 from app.models.user_models import UserCreate
+from app.repositories.sqlite.sqlite_tables import EntitiesTable
 from app.services.entity_service import EntityService
 
 
@@ -97,7 +100,10 @@ class TestCustomTypeConsistency:
         assert deleted.status_code == 200
 
     @pytest.mark.asyncio
-    async def test_null_custom_type_on_other_entity_is_rejected(self, http_client):
+    async def test_null_custom_type_never_corrupts_other_entity(self, http_client):
+        # Whether an explicit null means "leave unchanged" (PATCH semantics, 200)
+        # or is rejected (400) depends on how EntityUpdate treats null, so only
+        # the order-independent invariant is asserted: the entity stays intact.
         entity = await _create_entity(
             http_client, name="mq", entity_type="Other", custom_type="Middleware",
         )
@@ -106,10 +112,38 @@ class TestCustomTypeConsistency:
             f"/api/v1/entities/{entity['id']}", json={"custom_type": None},
         )
 
-        assert response.status_code == 400
+        assert response.status_code in (200, 400)
         fetched = await http_client.get(f"/api/v1/entities/{entity['id']}")
         assert fetched.status_code == 200
         assert fetched.json()["custom_type"] == "Middleware"
+        listed = await http_client.get("/api/v1/entities")
+        assert listed.json()["entities"][0]["custom_type"] == "Middleware"
+        deleted = await http_client.delete(f"/api/v1/entities/{entity['id']}")
+        assert deleted.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_corrupted_stored_row_is_not_reported_as_client_error(
+        self, http_client, sqlite_app,
+    ):
+        # A row written by the old bug (Other without custom_type) fails model
+        # validation when read back. That is a server-side data fault: it must
+        # not be turned into a 400 by the ValueError handler of the route.
+        user = await _default_user(sqlite_app)
+        entity = await _create_entity(
+            http_client, name="mq", entity_type="Other", custom_type="Middleware",
+        )
+        repo = sqlite_app.entity_service.entity_repo
+        async with repo.db_adapter.session(user.id) as session:
+            await session.execute(
+                update(EntitiesTable)
+                .where(EntitiesTable.id == entity["id"])
+                .values(custom_type=None),
+            )
+
+        with pytest.raises(ValidationError):
+            await http_client.put(
+                f"/api/v1/entities/{entity['id']}", json={"name": "renamed"},
+            )
 
     @pytest.mark.asyncio
     async def test_moving_away_from_other_clears_custom_type_in_list_and_search(

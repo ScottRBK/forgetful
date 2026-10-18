@@ -185,6 +185,10 @@ def register(mcp: FastMCP):
             )
         except NotFoundError as e:
             return JSONResponse({"error": str(e)}, status_code=404)
+        except ValidationError:
+            # A stored row that fails model validation is a server-side data
+            # fault, not a bad request (ValidationError is a ValueError subclass)
+            raise
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=400)
 

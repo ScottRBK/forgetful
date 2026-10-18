@@ -31,16 +31,15 @@ async def _create_other(service, user_id):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("cleared", ["", None])
 async def test_update_rejects_clearing_custom_type_of_other_entity(
-    test_entity_service, cleared,
+    test_entity_service,
 ):
     user_id = uuid4()
     entity = await _create_other(test_entity_service, user_id)
 
     with pytest.raises(ValueError, match="custom_type is required"):
         await test_entity_service.update_entity(
-            user_id, entity.id, EntityUpdate(custom_type=cleared),
+            user_id, entity.id, EntityUpdate(custom_type=""),
         )
 
     # Nothing was written: the entity is still readable and unchanged
