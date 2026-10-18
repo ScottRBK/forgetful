@@ -303,3 +303,33 @@ async def test_criterion_and_dependency_mutations_reach_the_activity_log(
         (EntityType.TASK, ActionType.UPDATED, task.id),
     }
     assert sorted(next(iter(e.changes)) for e in new_events) == ["criterion"] * 3 + ["dependency"] * 2
+
+
+# ---------------------------------------------------------------------------
+# Plan status follows task reopening and gates task work
+# ---------------------------------------------------------------------------
+
+
+async def test_reopening_a_finished_task_reactivates_the_completed_plan(stack):
+    service = stack.task_service
+    first = await stack.new_task("first")
+    second = await stack.new_task("second")
+    for task in (first, second):
+        doing = await service.claim_task(stack.user_id, task.id, "agent", expected_version=1)
+        await service.transition_task(stack.user_id, task.id, TaskState.DONE, expected_version=doing.version)
+    assert (await stack.plan_service.get_plan(stack.user_id, stack.plan_id)).status == PlanStatus.COMPLETED
+
+    finished = await service.get_task(stack.user_id, first.id)
+    await service.transition_task(stack.user_id, first.id, TaskState.TODO, expected_version=finished.version)
+
+    assert (await stack.plan_service.get_plan(stack.user_id, stack.plan_id)).status == PlanStatus.ACTIVE
+
+
+async def test_unfinished_task_cannot_be_claimed_in_a_completed_plan(stack):
+    task = await stack.new_task("late")
+    await stack.plan_service.update_plan(
+        stack.user_id, stack.plan_id, PlanUpdate(status=PlanStatus.COMPLETED),
+    )
+
+    with pytest.raises(InvalidStateTransitionError, match="completed status"):
+        await stack.task_service.claim_task(stack.user_id, task.id, "agent", expected_version=1)

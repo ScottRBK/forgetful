@@ -568,3 +568,45 @@ async def test_criterion_and_dependency_mutations_reach_the_activity_log(evented
         if "dependency" in e.changes and e.changes["dependency"]["old"] is None
     )
     assert linked.snapshot["dependency_ids"] == [prerequisite.id]
+
+
+# ---------------------------------------------------------------------------
+# Plan status follows task reopening and gates task work
+# ---------------------------------------------------------------------------
+
+
+async def test_rest_reopening_a_task_reactivates_the_completed_plan(http_client):
+    (plan_id,) = await _rest_project_and_plans(http_client)
+    first = await _rest_task(http_client, plan_id, "first")
+    second = await _rest_task(http_client, plan_id, "second")
+    for task in (first, second):
+        assert (await _rest_transition(http_client, task["id"], "doing")).status_code == 200
+        assert (await _rest_transition(http_client, task["id"], "done")).status_code == 200
+    assert (await http_client.get(f"/api/v1/plans/{plan_id}")).json()["status"] == "completed"
+
+    reopened = await _rest_transition(http_client, first["id"], "todo")
+
+    assert reopened.status_code == 200, reopened.text
+    assert (await http_client.get(f"/api/v1/plans/{plan_id}")).json()["status"] == "active"
+    claim = await http_client.post(
+        f"/api/v1/tasks/{first['id']}/claim",
+        json={"agent_id": "agent", "version": reopened.json()["version"]},
+    )
+    assert claim.status_code == 200, claim.text
+    assert claim.json()["state"] == "doing"
+
+
+async def test_rest_work_on_a_manually_completed_plan_is_unprocessable(http_client):
+    (plan_id,) = await _rest_project_and_plans(http_client)
+    task = await _rest_task(http_client, plan_id, "unfinished")
+    done = await http_client.put(f"/api/v1/plans/{plan_id}", json={"status": "completed"})
+    assert done.status_code == 200, done.text
+
+    claim = await http_client.post(
+        f"/api/v1/tasks/{task['id']}/claim", json={"agent_id": "agent", "version": task["version"]},
+    )
+    transition = await _rest_transition(http_client, task["id"], "doing")
+    create = await http_client.post("/api/v1/tasks", json={"plan_id": plan_id, "title": "new"})
+
+    assert (claim.status_code, transition.status_code, create.status_code) == (422, 422, 422)
+    assert (await http_client.get(f"/api/v1/tasks/{task['id']}")).json()["state"] == "todo"

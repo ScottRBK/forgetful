@@ -286,6 +286,9 @@ class TaskService:
                 f"Valid transitions: {[s.value for s in valid_targets]}",
             )
 
+        # A finished plan only takes back work by reopening one of its finished tasks
+        reopens_plan = await self._check_plan_accepts_task_change(user_id, task.plan_id, current_state)
+
         # If → doing or done: validate all dependencies are done. Re-checked on done because
         # an edge can be added, or a prerequisite reopened, while the task is in progress.
         if new_state in (TaskState.DOING, TaskState.DONE):
@@ -321,6 +324,9 @@ class TaskService:
         if new_state in (TaskState.DONE, TaskState.CANCELLED):
             await self._check_plan_auto_completion(user_id, task.plan_id)
 
+        if reopens_plan:
+            await self._reopen_plan(user_id, task.plan_id)
+
         return updated
 
     async def claim_task(
@@ -351,6 +357,8 @@ class TaskService:
             raise InvalidStateTransitionError(
                 f"Cannot claim task in {current_state.value} state. Must be todo or waiting.",
             )
+
+        await self._check_plan_accepts_task_change(user_id, task.plan_id, current_state)
 
         # Validate dependencies met
         await self._validate_dependencies_met(user_id, task)
@@ -571,6 +579,43 @@ class TaskService:
                 f"Task {dep_task_id} belongs to plan {dep_task.plan_id}, "
                 f"not plan {expected_plan_id}. Dependencies must be within the same plan.",
             )
+
+    async def _check_plan_accepts_task_change(
+        self, user_id: UUID, plan_id: int, current_state: TaskState,
+    ) -> bool:
+        """Refuse task state changes in archived or completed plans, like create_task does.
+
+        A completed plan still accepts the reopening of one of its finished (done or
+        cancelled) tasks; the return value is True when that happens and the caller must
+        move the plan back to active once the task change succeeded.
+        """
+        try:
+            plan = await self.plan_service.get_plan(user_id=user_id, plan_id=plan_id)
+        except NotFoundError:
+            return False
+
+        plan_status = PlanStatus(plan.status)
+        if plan_status == PlanStatus.ARCHIVED:
+            raise InvalidStateTransitionError(
+                f"Cannot change task state in plan in {plan_status.value} status",
+            )
+        if plan_status == PlanStatus.COMPLETED:
+            if current_state in (TaskState.DONE, TaskState.CANCELLED):
+                return True
+            raise InvalidStateTransitionError(
+                f"Cannot change task state in plan in {plan_status.value} status. "
+                f"Reopen a done or cancelled task first to resume work.",
+            )
+        return False
+
+    async def _reopen_plan(self, user_id: UUID, plan_id: int) -> None:
+        """Move a completed plan back to active after one of its tasks was reopened."""
+        logger.info("reopening plan", extra={"plan_id": plan_id})
+        await self.plan_service.update_plan(
+            user_id=user_id,
+            plan_id=plan_id,
+            plan_data=PlanUpdate(status=PlanStatus.ACTIVE),
+        )
 
     async def _check_plan_auto_completion(self, user_id: UUID, plan_id: int) -> None:
         """If all tasks in the plan are done/cancelled (with at least one done),

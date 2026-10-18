@@ -402,3 +402,107 @@ async def test_no_task_event_for_noop_or_rejected_mutations(evented_task_service
         await service.add_dependency(user_id, task.id, task.id)
 
     assert bus.collected_events == []
+
+
+# ---------------------------------------------------------------------------
+# Plan status follows task reopening and gates task work
+# ---------------------------------------------------------------------------
+
+
+async def _plan_status(plan_service, user_id, plan_id):
+    return (await plan_service.get_plan(user_id=user_id, plan_id=plan_id)).status
+
+
+async def _completed_plan(task_service, plan_service, user_id):
+    """An active plan whose two tasks are finished, so it auto-completed."""
+    plan = await _active_plan(plan_service, user_id)
+    first = await _task(task_service, user_id, plan.id, "first")
+    second = await _task(task_service, user_id, plan.id, "second")
+    await _finish(task_service, user_id, first)
+    await _finish(task_service, user_id, second)
+    assert await _plan_status(plan_service, user_id, plan.id) == PlanStatus.COMPLETED
+    return plan, first, second
+
+
+@pytest.mark.asyncio
+async def test_reopening_a_done_task_reopens_the_completed_plan(test_task_service):
+    task_service, plan_service = test_task_service
+    user_id = uuid4()
+    plan, first, _second = await _completed_plan(task_service, plan_service, user_id)
+
+    reopened = await _move(task_service, user_id, first, TaskState.TODO)
+
+    assert reopened.state == TaskState.TODO
+    assert await _plan_status(plan_service, user_id, plan.id) == PlanStatus.ACTIVE
+    claimed = await task_service.claim_task(
+        user_id=user_id, task_id=first.id, agent_id="agent", expected_version=reopened.version,
+    )
+    assert claimed.state == TaskState.DOING
+    await _move(task_service, user_id, first, TaskState.DONE)
+    assert await _plan_status(plan_service, user_id, plan.id) == PlanStatus.COMPLETED
+
+
+@pytest.mark.asyncio
+async def test_reinstating_a_cancelled_task_reopens_the_completed_plan(test_task_service):
+    task_service, plan_service = test_task_service
+    user_id = uuid4()
+    plan = await _active_plan(plan_service, user_id)
+    finished = await _task(task_service, user_id, plan.id, "finished")
+    dropped = await _task(task_service, user_id, plan.id, "dropped")
+    await _finish(task_service, user_id, finished)
+    await _move(task_service, user_id, dropped, TaskState.CANCELLED)
+    assert await _plan_status(plan_service, user_id, plan.id) == PlanStatus.COMPLETED
+
+    await _move(task_service, user_id, dropped, TaskState.TODO)
+
+    assert await _plan_status(plan_service, user_id, plan.id) == PlanStatus.ACTIVE
+
+
+@pytest.mark.asyncio
+async def test_failed_reopen_leaves_the_plan_completed(test_task_service):
+    task_service, plan_service = test_task_service
+    user_id = uuid4()
+    plan, first, _second = await _completed_plan(task_service, plan_service, user_id)
+
+    with pytest.raises(ConflictError):
+        await task_service.transition_task(
+            user_id=user_id, task_id=first.id, new_state=TaskState.TODO, expected_version=1,
+        )
+
+    assert await _plan_status(plan_service, user_id, plan.id) == PlanStatus.COMPLETED
+
+
+@pytest.mark.asyncio
+async def test_unfinished_task_cannot_be_started_in_a_completed_plan(test_task_service):
+    task_service, plan_service = test_task_service
+    user_id = uuid4()
+    plan = await _active_plan(plan_service, user_id)
+    task = await _task(task_service, user_id, plan.id, "late")
+    await plan_service.update_plan(
+        user_id=user_id, plan_id=plan.id, plan_data=PlanUpdate(status=PlanStatus.COMPLETED),
+    )
+
+    with pytest.raises(InvalidStateTransitionError, match="completed status"):
+        await task_service.claim_task(user_id=user_id, task_id=task.id, agent_id="a", expected_version=1)
+    with pytest.raises(InvalidStateTransitionError, match="completed status"):
+        await _move(task_service, user_id, task, TaskState.DOING)
+
+    assert (await task_service.get_task(user_id=user_id, task_id=task.id)).state == TaskState.TODO
+
+
+@pytest.mark.asyncio
+async def test_task_state_cannot_change_in_an_archived_plan(test_task_service):
+    task_service, plan_service = test_task_service
+    user_id = uuid4()
+    plan = await _active_plan(plan_service, user_id)
+    task = await _task(task_service, user_id, plan.id, "t")
+    await plan_service.update_plan(
+        user_id=user_id, plan_id=plan.id, plan_data=PlanUpdate(status=PlanStatus.ARCHIVED),
+    )
+
+    with pytest.raises(InvalidStateTransitionError, match="archived status"):
+        await task_service.claim_task(user_id=user_id, task_id=task.id, agent_id="a", expected_version=1)
+    with pytest.raises(InvalidStateTransitionError, match="archived status"):
+        await _move(task_service, user_id, task, TaskState.CANCELLED)
+
+    assert await _plan_status(plan_service, user_id, plan.id) == PlanStatus.ARCHIVED
