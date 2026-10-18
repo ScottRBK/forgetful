@@ -2009,11 +2009,12 @@ class InMemoryTaskRepository(TaskRepository):
             raise NotFoundError(f"Criterion with id {criterion_id} not found")
 
         update_data = criterion_data.model_dump(exclude_unset=True)
+        was_met = criterion.met and criterion.met_at is not None
         for field, value in update_data.items():
             setattr(criterion, field, value)
 
-        # Auto-set met_at when met changes to True
-        if criterion_data.met is True:
+        # Stamp met_at only when met actually changes to True (mirrors the real repositories)
+        if criterion_data.met is True and not was_met:
             criterion.met_at = datetime.now(UTC)
         elif criterion_data.met is False:
             criterion.met_at = None

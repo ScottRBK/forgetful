@@ -1675,7 +1675,8 @@ Update a criterion (e.g., mark it as met).
 | `description` | string | Updated description |
 | `met` | bool | Whether the criterion has been met |
 
-Fields that are omitted or sent as `null` are left unchanged.
+Fields that are omitted or sent as `null` are left unchanged. `met_at` records when the criterion
+first became met; repeating `met: true` keeps it, and `met: false` clears it.
 
 **Response:** Updated criterion object
 

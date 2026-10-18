@@ -7,6 +7,7 @@ Covers PATCH-style updates over REST and MCP:
 - task criteria keep their creation order after one of them is updated
 """
 
+import asyncio
 
 import pytest
 from fastmcp.exceptions import ToolError
@@ -230,5 +231,62 @@ async def test_update_plan_tool_for_missing_plan_is_a_tool_error(mcp_client):
 async def test_update_task_tool_for_missing_task_is_a_tool_error(mcp_client):
     with pytest.raises(ToolError, match="not found"):
         await _call(mcp_client, "update_task", {"task_id": MISSING_ID, "title": "x"})
+
+
+# ---- met_at records the first transition to met ----
+
+@pytest.mark.asyncio
+async def test_repeated_verify_keeps_original_met_at(mcp_client):
+    task_id, (criterion_id,) = await _mcp_task_with_criteria(mcp_client, ["tests pass"])
+
+    first = (await _call(mcp_client, "verify_criterion", {
+        "criterion_id": criterion_id, "met": True,
+    })).data
+    await asyncio.sleep(0.02)
+    second = (await _call(mcp_client, "verify_criterion", {
+        "criterion_id": criterion_id, "met": True,
+    })).data
+
+    assert first["met"] is True
+    assert first["met_at"] is not None
+    assert second["met"] is True
+    assert second["met_at"] == first["met_at"]
+
+
+@pytest.mark.asyncio
+async def test_met_at_is_cleared_and_restamped_on_real_transitions(mcp_client):
+    task_id, (criterion_id,) = await _mcp_task_with_criteria(mcp_client, ["tests pass"])
+
+    first = (await _call(mcp_client, "verify_criterion", {
+        "criterion_id": criterion_id, "met": True,
+    })).data
+    cleared = (await _call(mcp_client, "verify_criterion", {
+        "criterion_id": criterion_id, "met": False,
+    })).data
+    await asyncio.sleep(0.02)
+    again = (await _call(mcp_client, "verify_criterion", {
+        "criterion_id": criterion_id, "met": True,
+    })).data
+
+    assert cleared["met"] is False
+    assert cleared["met_at"] is None
+    assert again["met"] is True
+    assert again["met_at"] is not None
+    assert again["met_at"] != first["met_at"]
+
+
+@pytest.mark.asyncio
+async def test_description_edit_of_met_criterion_keeps_met_at(http_client):
+    plan = await _rest_active_plan(http_client)
+    task = await _rest_task(http_client, plan["id"])
+    criterion = await _rest_criterion(http_client, task["id"])
+    met = (await http_client.put(f"/api/v1/criteria/{criterion['id']}", json={"met": True})).json()
+
+    edited = (await http_client.put(
+        f"/api/v1/criteria/{criterion['id']}", json={"description": "reworded", "met": True},
+    )).json()
+
+    assert edited["description"] == "reworded"
+    assert edited["met_at"] == met["met_at"]
 
 

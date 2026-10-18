@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import case, delete, literal, or_, select, update
 from sqlalchemy.orm import selectinload
 
 from app.config.logging_config import logging
@@ -297,8 +297,16 @@ class PostgresTaskRepository:
                     raise NotFoundError(f"Criterion with id {criterion_id} not found")
                 return Criterion.model_validate(c)
 
+            # Stamp met_at only when met actually changes to True. Repeating met=True keeps
+            # the original time; the CASE reads the stored row, so it is atomic with the UPDATE.
             if update_data.get("met") is True:
-                update_data["met_at"] = datetime.now(UTC)
+                update_data["met_at"] = case(
+                    (
+                        or_(CriteriaTable.met.is_(False), CriteriaTable.met_at.is_(None)),
+                        literal(datetime.now(UTC), type_=CriteriaTable.met_at.type),
+                    ),
+                    else_=CriteriaTable.met_at,
+                )
             elif update_data.get("met") is False:
                 update_data["met_at"] = None
 

@@ -9,6 +9,7 @@ depends on the PostgreSQL repositories:
 - updating a missing plan or task is a not-found error
 """
 
+import asyncio
 
 import pytest
 from fastmcp.exceptions import ToolError
@@ -54,6 +55,42 @@ async def _create_task(mcp_client, criteria=()):
         })
         criterion_ids.append(added.data["id"])
     return plan_id, task["id"], criterion_ids
+
+
+# ---- met_at records the first transition to met ----
+
+async def test_repeated_verify_keeps_original_met_at_e2e(mcp_client):
+    _, _, (criterion_id,) = await _create_task(mcp_client, ["tests pass"])
+
+    first = (await _call(mcp_client, "verify_criterion", {
+        "criterion_id": criterion_id, "met": True,
+    })).data
+    await asyncio.sleep(0.02)
+    second = (await _call(mcp_client, "verify_criterion", {
+        "criterion_id": criterion_id, "met": True,
+    })).data
+
+    assert first["met_at"] is not None
+    assert second["met_at"] == first["met_at"]
+
+
+async def test_met_at_is_cleared_and_restamped_on_real_transitions_e2e(mcp_client):
+    _, _, (criterion_id,) = await _create_task(mcp_client, ["tests pass"])
+
+    first = (await _call(mcp_client, "verify_criterion", {
+        "criterion_id": criterion_id, "met": True,
+    })).data
+    cleared = (await _call(mcp_client, "verify_criterion", {
+        "criterion_id": criterion_id, "met": False,
+    })).data
+    await asyncio.sleep(0.02)
+    again = (await _call(mcp_client, "verify_criterion", {
+        "criterion_id": criterion_id, "met": True,
+    })).data
+
+    assert cleared["met_at"] is None
+    assert again["met_at"] is not None
+    assert again["met_at"] != first["met_at"]
 
 
 # ---- Explicit null means "unchanged" ----

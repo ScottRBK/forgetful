@@ -1945,7 +1945,7 @@ Mark an acceptance criterion as met or unmet.
 - `met` (required): Whether the criterion is met (`true`/`false`)
 
 **Returns:**
-- Updated criterion object
+- Updated criterion object (`met_at` records when the criterion first became met; verifying it as met again keeps that time, and `met: false` clears it)
 
 **Example:**
 ```python
