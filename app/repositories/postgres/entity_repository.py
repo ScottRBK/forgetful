@@ -43,6 +43,30 @@ class PostgresEntityRepository:
         self.db_adapter = db_adapter
         logger.info("Postgres entity repository initialized")
 
+    async def _get_owned_projects(
+        self,
+        session,
+        user_id: UUID,
+        project_ids: list[int],
+    ) -> list[ProjectsTable]:
+        """Load the user's projects for project_ids
+
+        Raises:
+            NotFoundError: If any id does not exist or is not owned by the user
+        """
+        stmt = select(ProjectsTable).where(
+            ProjectsTable.id.in_(project_ids),
+            ProjectsTable.user_id == user_id,
+        )
+        result = await session.execute(stmt)
+        projects = list(result.scalars().all())
+
+        missing_ids = set(project_ids) - {p.id for p in projects}
+        if missing_ids:
+            raise NotFoundError(f"Projects not found: {sorted(missing_ids)}")
+
+        return projects
+
     # Entity CRUD operations
 
     async def create_entity(
@@ -83,16 +107,10 @@ class PostgresEntityRepository:
 
                 # Handle project associations (many-to-many)
                 if entity_data.project_ids:
-                    # Fetch project objects for the provided IDs
-                    projects_stmt = select(ProjectsTable).where(
-                        ProjectsTable.id.in_(entity_data.project_ids),
-                        ProjectsTable.user_id == user_id,
+                    # Assign projects to the entity (unknown/foreign IDs are rejected)
+                    entity_table.projects = await self._get_owned_projects(
+                        session, user_id, entity_data.project_ids,
                     )
-                    projects_result = await session.execute(projects_stmt)
-                    projects = projects_result.scalars().all()
-
-                    # Assign projects to the entity
-                    entity_table.projects = list(projects)
 
                 session.add(entity_table)
                 await session.commit()
@@ -101,6 +119,8 @@ class PostgresEntityRepository:
                 # Convert ORM to Pydantic
                 return Entity.model_validate(entity_table)
 
+        except NotFoundError:
+            raise
         except Exception as e:
             logger.error(
                 "Failed to create entity",
@@ -374,16 +394,10 @@ class PostgresEntityRepository:
 
                 # Update project associations if provided
                 if project_ids is not None:
-                    # Fetch project objects for the provided IDs
-                    projects_stmt = select(ProjectsTable).where(
-                        ProjectsTable.id.in_(project_ids),
-                        ProjectsTable.user_id == user_id,
+                    # Replace existing projects with new ones (unknown/foreign IDs are rejected)
+                    entity_table.projects = await self._get_owned_projects(
+                        session, user_id, project_ids,
                     )
-                    projects_result = await session.execute(projects_stmt)
-                    projects = projects_result.scalars().all()
-
-                    # Replace existing projects with new ones
-                    entity_table.projects = list(projects)
 
                 # Update timestamp
                 entity_table.updated_at = datetime.now(UTC)

@@ -151,10 +151,13 @@ def register(mcp: FastMCP):
         except ValidationError as e:
             return JSONResponse({"error": e.errors()}, status_code=400)
 
-        entity = await mcp.entity_service.create_entity(
-            user_id=user.id,
-            entity_data=entity_data,
-        )
+        try:
+            entity = await mcp.entity_service.create_entity(
+                user_id=user.id,
+                entity_data=entity_data,
+            )
+        except NotFoundError as e:
+            return JSONResponse({"error": str(e)}, status_code=404)
 
         return JSONResponse(entity.model_dump(mode="json"), status_code=201)
 
@@ -180,8 +183,8 @@ def register(mcp: FastMCP):
                 entity_id=entity_id,
                 entity_data=update_data,
             )
-        except NotFoundError:
-            return JSONResponse({"error": "Entity not found"}, status_code=404)
+        except NotFoundError as e:
+            return JSONResponse({"error": str(e)}, status_code=404)
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=400)
 

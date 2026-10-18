@@ -120,6 +120,10 @@ class EntityService:
 
         Returns:
             Created Entity with generated ID and timestamps
+
+        Raises:
+            NotFoundError: If entity_data.project_ids references a project that
+                does not exist or is not owned by user
         """
         logger.info(
             "creating entity",
@@ -408,7 +412,8 @@ class EntityService:
             Updated Entity
 
         Raises:
-            NotFoundError: If entity not found or not owned by user
+            NotFoundError: If entity not found or not owned by user,
+                or if project_ids reference projects that do not exist
             ValueError: If the update would leave an 'Other' entity without custom_type
         """
         logger.info(
