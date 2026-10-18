@@ -159,7 +159,10 @@ monkeypatch the singleton.
 | `forgetful project list` | 5 | → `list_projects` |
 
 Global flags on tool commands: `--server URL`, `--local`, `--json`. Top level: `--version`.
-`-p/--project` accepts an id or a name (non-numeric values resolved via `list_projects`).
+`-p/--project` accepts an id or a name, resolved via `list_projects`: a digit-only value is an id when a
+project has that id (otherwise it is tried as a name), names match exact-case first and then
+case-insensitively, and several equally good matches are an error asking for the numeric id.
+An empty value is rejected as an unknown project.
 Exact curated flag→argument mappings are settled test-first in phase 5.
 
 ### 4.2 Legacy dispatch (back-compat, permanent)

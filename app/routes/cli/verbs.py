@@ -21,16 +21,51 @@ class CliError(Exception):
     """User-facing verb failure; the command runner maps it onto exit code 1."""
 
 
-async def resolve_project(executor, value: str) -> int:
-    """Resolve a -p/--project value: numeric ids pass through, names via list_projects."""
-    if value.isdigit():
-        return int(value)
+def _pick_project(value: str, matches: list[dict]) -> int:
+    """Pick the single project a name resolved to; project names are not unique.
 
+    Several matches narrow to the only active one when there is exactly one, otherwise
+    the choice is ambiguous and the user is asked to pass the numeric id.
+    """
+    if len(matches) > 1:
+        active = [project for project in matches if project.get("status") == "active"]
+        if len(active) == 1:
+            matches = active
+    if len(matches) > 1:
+        candidates = ", ".join(
+            f"#{project['id']} ({project.get('status', '?')})"
+            for project in sorted(matches, key=lambda project: project["id"])
+        )
+        raise CliError(
+            f"Ambiguous project '{value}': matches {candidates}. Use the numeric id.",
+        )
+    return matches[0]["id"]
+
+
+async def resolve_project(executor, value: str) -> int:
+    """Resolve a -p/--project value to a project id.
+
+    A value of ASCII digits is an id when a project has that id; if none does it is
+    tried as a project name, and when no name matches either it passes through so the
+    server reports the missing id. Names match exact-case first, then
+    case-insensitively; several equally good matches raise CliError.
+    """
     listing = to_jsonable(await executor.execute("list_projects", {}))
     projects = listing.get("projects", [])
-    for project in projects:
-        if project["name"].lower() == value.lower():
-            return project["id"]
+
+    is_id = value.isascii() and value.isdecimal()
+    if is_id and any(project["id"] == int(value) for project in projects):
+        return int(value)
+
+    exact = [project for project in projects if project["name"] == value]
+    if exact:
+        return _pick_project(value, exact)
+    folded = [project for project in projects if project["name"].lower() == value.lower()]
+    if folded:
+        return _pick_project(value, folded)
+
+    if is_id:
+        return int(value)
 
     names = ", ".join(sorted(project["name"] for project in projects)) or "none"
     raise CliError(f"Unknown project '{value}'. Available projects: {names}")
@@ -57,7 +92,7 @@ async def _memory_search(executor, args) -> tuple[Any, str]:
     }
     if args.limit is not None:
         arguments["k"] = args.limit
-    if args.project:
+    if args.project is not None:
         arguments["project_ids"] = [await resolve_project(executor, args.project)]
 
     payload = to_jsonable(await executor.execute("query_memory", arguments))
@@ -73,7 +108,7 @@ async def _memory_save(executor, args) -> tuple[Any, str]:
         "tags": [],
         "importance": args.importance,
     }
-    if args.project:
+    if args.project is not None:
         arguments["project_ids"] = [await resolve_project(executor, args.project)]
 
     payload = to_jsonable(await executor.execute("create_memory", arguments))
@@ -89,7 +124,7 @@ async def _memory_get(executor, args) -> tuple[Any, str]:
 
 async def _memory_recent(executor, args) -> tuple[Any, str]:
     arguments: dict[str, Any] = {"limit": args.limit}
-    if args.project:
+    if args.project is not None:
         arguments["project_ids"] = [await resolve_project(executor, args.project)]
 
     payload = to_jsonable(await executor.execute("get_recent_memories", arguments))

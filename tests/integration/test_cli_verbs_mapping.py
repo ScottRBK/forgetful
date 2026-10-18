@@ -47,10 +47,11 @@ async def test_search_maps_flags_onto_query_memory_arguments():
         ["memory", "search", "dns fix", "-n", "5", "-c", "debugging wsl", "-p", "3"],
     ))
 
-    assert executor.calls == [(
-        "query_memory",
-        {"query": "dns fix", "query_context": "debugging wsl", "k": 5, "project_ids": [3]},
-    )]
+    # a numeric -p is checked against the project listing first (digit-only names), then passes through
+    assert executor.calls == [
+        ("list_projects", {}),
+        ("query_memory", {"query": "dns fix", "query_context": "debugging wsl", "k": 5, "project_ids": [3]}),
+    ]
 
 
 async def test_search_omits_optional_flags_when_only_context_given():
@@ -78,7 +79,7 @@ async def test_save_maps_flags_onto_create_memory_arguments():
         ["memory", "save", "some content", "--title", "T", "--importance", "8", "-p", "3"],
     ))
 
-    tool_name, arguments = executor.calls[0]
+    tool_name, arguments = executor.calls[-1]
     assert tool_name == "create_memory"
     assert arguments["title"] == "T"
     assert arguments["content"] == "some content"
