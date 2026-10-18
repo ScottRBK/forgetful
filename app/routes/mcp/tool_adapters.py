@@ -13,7 +13,11 @@ from fastmcp.exceptions import ToolError
 
 from app.config.logging_config import logging
 from app.config.settings import settings
-from app.exceptions import WritePluginRejectedError, WritePluginUnavailableError
+from app.exceptions import (
+    NotFoundError,
+    WritePluginRejectedError,
+    WritePluginUnavailableError,
+)
 from app.middleware.auth import get_user_from_auth
 from app.models.code_artifact_models import (
     CodeArtifact,
@@ -969,6 +973,9 @@ class ProjectToolAdapters:
             project_id=project_id,
             project_data=project_data,
         )
+
+        if project is None:
+            raise NotFoundError(f"Project with id {project_id} not found")
 
         return project
 
