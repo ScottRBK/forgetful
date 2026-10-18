@@ -6,7 +6,10 @@ Covers the document, code artifact, entity, file and project tools reached throu
 import base64
 
 import pytest
+from fastmcp import Client, FastMCP
 from fastmcp.exceptions import ToolError
+
+from app.routes.mcp import skill_tools
 
 FILE_DATA = base64.b64encode(b"hello").decode("utf-8")
 
@@ -108,3 +111,48 @@ async def test_get_entity_relationships_direction_is_normalised_or_rejected(mcp_
     for unknown in ("sideways", "in"):
         with pytest.raises(ToolError, match="direction"):
             await count(unknown)
+
+
+@pytest.fixture
+async def legacy_skill_client(sqlite_app, mcp_client):
+    """The unmounted legacy skill tool module wired to the real services."""
+    legacy = FastMCP("legacy-skill-tools")
+    legacy.user_service = sqlite_app.user_service
+    legacy.skill_service = sqlite_app.skill_service
+    skill_tools.register(legacy)
+    async with Client(legacy) as client:
+        yield client
+
+
+@pytest.mark.asyncio
+async def test_legacy_skill_unlink_reports_whether_a_link_was_removed(
+    legacy_skill_client, mcp_client,
+):
+    """The legacy tools return the service confirmation, not an always-truthy wrapper."""
+    skill = await call(
+        mcp_client, "create_skill", name="legacy-skill", description="d", content="# body",
+    )
+    skill_id = skill.data["id"]
+    memory_id = await make_memory(mcp_client)
+
+    linked = await legacy_skill_client.call_tool(
+        "link_skill_to_memory", {"skill_id": skill_id, "memory_id": memory_id},
+    )
+    assert linked.data["skill_id"] == skill_id
+    assert linked.data["memory_id"] == memory_id
+    assert "success" not in linked.data
+
+    first = await legacy_skill_client.call_tool(
+        "unlink_skill_from_memory", {"skill_id": skill_id, "memory_id": memory_id},
+    )
+    second = await legacy_skill_client.call_tool(
+        "unlink_skill_from_memory", {"skill_id": skill_id, "memory_id": memory_id},
+    )
+    assert first.data["unlinked"] is True
+    assert second.data["unlinked"] is False
+
+    never_linked = await legacy_skill_client.call_tool(
+        "unlink_skill_from_file", {"skill_id": skill_id, "file_id": 999},
+    )
+    assert never_linked.data["unlinked"] is False
+    assert never_linked.data["file_id"] == 999

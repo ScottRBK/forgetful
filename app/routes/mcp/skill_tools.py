@@ -634,7 +634,7 @@ def register(mcp: FastMCP):
             ctx: Context (automatically injected)
 
         Returns:
-            Confirmation dict with success status
+            Confirmation dict with the linked IDs
 
         Raises:
             ToolError: If skill or memory not found or not owned by user
@@ -648,13 +648,11 @@ def register(mcp: FastMCP):
 
         try:
             skill_service = ctx.fastmcp.skill_service
-            success = await skill_service.link_skill_to_memory(
+            return await skill_service.link_skill_to_memory(
                 user_id=user.id,
                 skill_id=skill_id,
                 memory_id=memory_id,
             )
-
-            return {"success": success}
 
         except NotFoundError as e:
             raise ToolError(str(e))
@@ -685,7 +683,7 @@ def register(mcp: FastMCP):
             ctx: Context (automatically injected)
 
         Returns:
-            Confirmation dict with success status (True if removed, False if didn't exist)
+            Confirmation dict with the IDs and an 'unlinked' flag (False if no link existed)
 
         Raises:
             ToolError: If unlinking fails
@@ -699,13 +697,11 @@ def register(mcp: FastMCP):
 
         try:
             skill_service = ctx.fastmcp.skill_service
-            success = await skill_service.unlink_skill_from_memory(
+            return await skill_service.unlink_skill_from_memory(
                 user_id=user.id,
                 skill_id=skill_id,
                 memory_id=memory_id,
             )
-
-            return {"success": success}
 
         except Exception as e:
             logger.error("Failed to unlink skill from memory", exc_info=True)
@@ -734,7 +730,7 @@ def register(mcp: FastMCP):
             ctx: Context (automatically injected)
 
         Returns:
-            Confirmation dict with success status
+            Confirmation dict with the linked IDs
 
         Raises:
             ToolError: If skill or file not found or not owned by user
@@ -748,13 +744,11 @@ def register(mcp: FastMCP):
 
         try:
             skill_service = ctx.fastmcp.skill_service
-            success = await skill_service.link_skill_to_file(
+            return await skill_service.link_skill_to_file(
                 user_id=user.id,
                 skill_id=skill_id,
                 file_id=file_id,
             )
-
-            return {"success": success}
 
         except NotFoundError as e:
             raise ToolError(str(e))
@@ -785,7 +779,7 @@ def register(mcp: FastMCP):
             ctx: Context (automatically injected)
 
         Returns:
-            Confirmation dict with success status
+            Confirmation dict with the IDs and an 'unlinked' flag (False if no link existed)
 
         Raises:
             ToolError: If unlinking fails
@@ -799,13 +793,11 @@ def register(mcp: FastMCP):
 
         try:
             skill_service = ctx.fastmcp.skill_service
-            success = await skill_service.unlink_skill_from_file(
+            return await skill_service.unlink_skill_from_file(
                 user_id=user.id,
                 skill_id=skill_id,
                 file_id=file_id,
             )
-
-            return {"success": success}
 
         except Exception as e:
             logger.error("Failed to unlink skill from file", exc_info=True)
@@ -834,7 +826,7 @@ def register(mcp: FastMCP):
             ctx: Context (automatically injected)
 
         Returns:
-            Confirmation dict with success status
+            Confirmation dict with the linked IDs
 
         Raises:
             ToolError: If skill or code artifact not found or not owned by user
@@ -848,13 +840,11 @@ def register(mcp: FastMCP):
 
         try:
             skill_service = ctx.fastmcp.skill_service
-            success = await skill_service.link_skill_to_code_artifact(
+            return await skill_service.link_skill_to_code_artifact(
                 user_id=user.id,
                 skill_id=skill_id,
                 code_artifact_id=code_artifact_id,
             )
-
-            return {"success": success}
 
         except NotFoundError as e:
             raise ToolError(str(e))
@@ -885,7 +875,7 @@ def register(mcp: FastMCP):
             ctx: Context (automatically injected)
 
         Returns:
-            Confirmation dict with success status
+            Confirmation dict with the IDs and an 'unlinked' flag (False if no link existed)
 
         Raises:
             ToolError: If unlinking fails
@@ -899,13 +889,11 @@ def register(mcp: FastMCP):
 
         try:
             skill_service = ctx.fastmcp.skill_service
-            success = await skill_service.unlink_skill_from_code_artifact(
+            return await skill_service.unlink_skill_from_code_artifact(
                 user_id=user.id,
                 skill_id=skill_id,
                 code_artifact_id=code_artifact_id,
             )
-
-            return {"success": success}
 
         except Exception as e:
             logger.error("Failed to unlink skill from code artifact", exc_info=True)
@@ -934,7 +922,7 @@ def register(mcp: FastMCP):
             ctx: Context (automatically injected)
 
         Returns:
-            Confirmation dict with success status
+            Confirmation dict with the linked IDs
 
         Raises:
             ToolError: If skill or document not found or not owned by user
@@ -948,13 +936,11 @@ def register(mcp: FastMCP):
 
         try:
             skill_service = ctx.fastmcp.skill_service
-            success = await skill_service.link_skill_to_document(
+            return await skill_service.link_skill_to_document(
                 user_id=user.id,
                 skill_id=skill_id,
                 document_id=document_id,
             )
-
-            return {"success": success}
 
         except NotFoundError as e:
             raise ToolError(str(e))
@@ -985,7 +971,7 @@ def register(mcp: FastMCP):
             ctx: Context (automatically injected)
 
         Returns:
-            Confirmation dict with success status
+            Confirmation dict with the IDs and an 'unlinked' flag (False if no link existed)
 
         Raises:
             ToolError: If unlinking fails
@@ -999,13 +985,11 @@ def register(mcp: FastMCP):
 
         try:
             skill_service = ctx.fastmcp.skill_service
-            success = await skill_service.unlink_skill_from_document(
+            return await skill_service.unlink_skill_from_document(
                 user_id=user.id,
                 skill_id=skill_id,
                 document_id=document_id,
             )
-
-            return {"success": success}
 
         except Exception as e:
             logger.error("Failed to unlink skill from document", exc_info=True)
