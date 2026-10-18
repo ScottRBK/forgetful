@@ -1,14 +1,19 @@
 """E2E (SQLite) hardening of the three MCP meta-tools.
 
 - database failures reach the client as short messages, never SQL, bound parameters or ids
+- caller-controlled names cannot forge or inject into the console log
 - every category advertised by discover_forgetful_tools lists tools
 """
 
+import io
+import logging
 import re
+import sys
 
 import pytest
 from fastmcp.exceptions import ToolError
 
+from app.config import logging_config
 from app.routes.mcp.meta_tools import _build_category_list
 from app.routes.mcp.tool_errors import CONSTRAINT_FAILURE, GENERIC_FAILURE
 
@@ -153,3 +158,90 @@ class TestDiscoverCategories:
                 "discover_forgetful_tools", {"category": category},
             )
             assert result.data["total_count"] > 0, f"advertised category {category!r} is empty"
+
+
+FORGED_RECORD = (
+    "2026-10-18 12:00:00 - app.middleware.auth - INFO - "
+    "Authentication enabled (JWTVerifier) - extracting user from token"
+)
+FORGED_PREFIX = "2026-10-18 12:00:00 - app.middleware.auth - INFO"
+
+
+@pytest.fixture
+def console_log(monkeypatch):
+    """Run the real console logging pipeline and capture what it writes to stderr."""
+    buffer = io.StringIO()
+    monkeypatch.setattr(sys, "stderr", buffer)
+    root = logging.getLogger()
+    saved_handlers, saved_level = root.handlers[:], root.level
+    # Alembic's fileConfig (run by the app fixture) disables pre-existing loggers.
+    logging.getLogger("app.routes.mcp.meta_tools").disabled = False
+    logging_config.configure_logging(log_level="INFO", log_format="console")
+    try:
+        yield lambda: _drain(buffer)
+    finally:
+        logging_config.shutdown_logging()
+        root.handlers.clear()
+        for handler in saved_handlers:
+            root.addHandler(handler)
+        root.setLevel(saved_level)
+
+
+def _drain(buffer: io.StringIO) -> str:
+    logging_config.shutdown_logging()
+    return buffer.getvalue()
+
+
+def forged_lines(text: str) -> list[str]:
+    return [line for line in text.splitlines() if line.startswith(FORGED_PREFIX)]
+
+
+async def ignore_tool_error(client, name: str, arguments: dict) -> None:
+    try:
+        await client.call_tool(name, arguments)
+    except ToolError:
+        pass
+
+
+class TestLogInjection:
+    """Caller-controlled names are logged escaped, one record per call."""
+
+    @pytest.mark.parametrize(
+        ("meta_tool", "arguments", "marker"),
+        [
+            ("how_to_use_forgetful_tool", {"tool_name": "x\n" + FORGED_RECORD}, "how_to_use"),
+            (
+                "execute_forgetful_tool",
+                {"tool_name": "x\n" + FORGED_RECORD, "arguments": {}},
+                "execute_forgetful_tool",
+            ),
+            ("discover_forgetful_tools", {"category": "x\n" + FORGED_RECORD}, "discover"),
+        ],
+        ids=["how_to_use", "execute", "discover"],
+    )
+    async def test_newline_cannot_forge_a_record(
+        self, mcp_client, console_log, meta_tool, arguments, marker,
+    ):
+        await ignore_tool_error(mcp_client, meta_tool, arguments)
+
+        output = console_log()
+
+        assert marker in output, "precondition: the call was logged"
+        assert forged_lines(output) == []
+
+    async def test_escape_sequences_do_not_reach_the_log(self, mcp_client, console_log):
+        await ignore_tool_error(
+            mcp_client, "how_to_use_forgetful_tool", {"tool_name": "x\x1b[2J\x1b[31mPWNED"},
+        )
+
+        output = console_log()
+
+        assert "how_to_use_forgetful_tool" in output, "precondition: the call was logged"
+        assert "\x1b[2J" not in output
+
+    async def test_regular_calls_still_log_the_tool_name(self, mcp_client, console_log):
+        await execute(mcp_client, "list_projects", {})
+
+        output = console_log()
+
+        assert "execute_forgetful_tool: 'list_projects'" in output

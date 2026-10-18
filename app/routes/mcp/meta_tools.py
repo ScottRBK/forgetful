@@ -490,17 +490,17 @@ def register(mcp: FastMCP):
         try:
             registry = ctx.fastmcp.registry
             permitted, _ = get_effective_scopes(ctx)
-            logger.info(f"discover_forgetful_tools: category={category}")
+            logger.info("discover_forgetful_tools: category=%r", category)
 
             result = build_discovery_payload(registry, permitted, category)
 
-            logger.info(f"discover_forgetful_tools: returned {result['total_count']} tools")
+            logger.info("discover_forgetful_tools: returned %d tools", result["total_count"])
             return result
 
         except ToolError:
             raise
         except Exception as e:
-            logger.error(f"discover_forgetful_tools failed: {e}", exc_info=True)
+            logger.error("discover_forgetful_tools failed: %r", e, exc_info=True)
             raise ToolError(f"Failed to discover tools: {client_error_detail(e)}")
 
     discover_forgetful_tools.__doc__ = discover_doc
@@ -528,16 +528,16 @@ def register(mcp: FastMCP):
         try:
             registry = ctx.fastmcp.registry
             permitted, _ = get_effective_scopes(ctx)
-            logger.info(f"how_to_use_forgetful_tool: tool_name={tool_name}")
+            logger.info("how_to_use_forgetful_tool: tool_name=%r", tool_name)
 
             detailed_info = build_tool_documentation(registry, permitted, tool_name)
-            logger.info(f"how_to_use_forgetful_tool: returned docs for {tool_name}")
+            logger.info("how_to_use_forgetful_tool: returned docs for %r", tool_name)
             return detailed_info
 
         except ToolError:
             raise
         except Exception as e:
-            logger.error(f"how_to_use_forgetful_tool failed for {tool_name}: {e}", exc_info=True)
+            logger.error("how_to_use_forgetful_tool failed for %r: %r", tool_name, e, exc_info=True)
             raise ToolError(
                 f"Failed to get documentation for '{tool_name}': {client_error_detail(e)}",
             )
@@ -554,7 +554,7 @@ def register(mcp: FastMCP):
         try:
             registry = ctx.fastmcp.registry
             permitted, _ = get_effective_scopes(ctx)
-            logger.info(f"execute_forgetful_tool: {tool_name}, args={list(arguments.keys())}")
+            logger.info("execute_forgetful_tool: %r, args=%r", tool_name, list(arguments.keys()))
 
             ensure_tool_executable(registry, permitted, tool_name)
 
@@ -567,13 +567,13 @@ def register(mcp: FastMCP):
                 arguments=arguments,
             )
 
-            logger.info(f"execute_forgetful_tool: {tool_name} executed successfully")
+            logger.info("execute_forgetful_tool: %r executed successfully", tool_name)
             return result
 
         except ToolError:
             raise
         except Exception as e:
-            logger.error(f"execute_forgetful_tool failed for {tool_name}: {e}", exc_info=True)
+            logger.error("execute_forgetful_tool failed for %r: %r", tool_name, e, exc_info=True)
             raise ToolError(f"Failed to execute '{tool_name}': {client_error_detail(e)}")
 
     execute_forgetful_tool.__doc__ = execute_doc
