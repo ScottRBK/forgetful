@@ -6,6 +6,7 @@ guarantee that the Memory response model never enforces them, so stored rows
 stay readable after a limit is lowered.
 """
 
+import json
 
 import pytest
 from pydantic import ValidationError
@@ -46,6 +47,61 @@ def _stored_row(**overrides) -> dict:
     }
     data.update(overrides)
     return data
+
+
+# ============================================================================
+# Whitespace-only text
+# ============================================================================
+
+
+@pytest.mark.parametrize("blank", BLANKS)
+@pytest.mark.parametrize("field", ["title", "content"])
+def test_create_rejects_whitespace_only_required_text(field, blank):
+    with pytest.raises(ValidationError) as exc_info:
+        _create(**{field: blank})
+
+    assert exc_info.value.errors()[0]["loc"] == (field,)
+    assert "cannot be empty or whitespace only" in exc_info.value.errors()[0]["msg"]
+
+
+@pytest.mark.parametrize("blank", BLANKS)
+@pytest.mark.parametrize("field", ["title", "content", "context"])
+def test_update_rejects_whitespace_only_text(field, blank):
+    with pytest.raises(ValidationError) as exc_info:
+        MemoryUpdate(**{field: blank})
+
+    assert exc_info.value.errors()[0]["loc"] == (field,)
+    assert "cannot be empty or whitespace only" in exc_info.value.errors()[0]["msg"]
+
+
+def test_create_still_allows_empty_context():
+    """Context was optional text on create and stays so."""
+    assert _create(context="   ").context == "   "
+    assert _create(context="").context == ""
+
+
+def test_update_with_no_text_fields_is_still_valid():
+    update = MemoryUpdate(importance=9)
+
+    assert update.title is None
+    assert update.content is None
+    assert update.context is None
+
+
+def test_non_blank_text_is_kept_verbatim():
+    """Only blank values are rejected; indentation and trailing newlines are content."""
+    content = "    indented code\n\n"
+
+    assert _create(content=content).content == content
+    assert MemoryUpdate(content=content).content == content
+
+
+def test_blank_text_errors_are_json_serialisable():
+    """Clients receive ``e.errors()`` as the 400 body, so it must be plain JSON."""
+    with pytest.raises(ValidationError) as exc_info:
+        _create(title="   ")
+
+    json.dumps(exc_info.value.errors())
 
 
 def test_list_cleaning_is_unchanged():

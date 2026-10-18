@@ -78,7 +78,7 @@ without reading other memories? Is it ONE decision, fact, or pattern? A sprawlin
 overview" fails the test — split it.
 
 - Ideal content is 200–400 words. Limits: title ≤200 chars, content ≤2000, context ≤500,
-  keywords ≤10, tags ≤10.
+  keywords ≤10, tags ≤10. Title and content must not be blank.
 - Set `importance` from the rubric below. About 70% of memories belong at 7–8; reserve 9–10.
 
 | Band | Use for |

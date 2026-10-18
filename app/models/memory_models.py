@@ -1,8 +1,61 @@
 from datetime import UTC, datetime
+from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    ValidationInfo,
+    field_validator,
+)
+from pydantic_core import PydanticCustomError
 
 from app.config.settings import settings
+
+# Write-time rules for request models (MemoryCreate, MemoryUpdate).
+#
+# They are attached to the *types* of the request fields rather than to validators so
+# that the Memory response model, which re-declares those fields as plain types, never
+# enforces them: rows stored under an older or looser rule must stay readable.
+#
+# Violations raise PydanticCustomError instead of ValueError: the message stays clean
+# ("title cannot be empty ...", no "Value error, " prefix) and the error context holds
+# plain values, whereas a ValueError puts the exception object there, which cannot be
+# serialised by anything that returns ``e.errors()`` to a client.
+
+
+def _reject_blank(value: str, info: ValidationInfo) -> str:
+    """Reject text that is empty after trimming; the value itself is kept verbatim"""
+    if not value.strip():
+        raise PydanticCustomError(
+            "blank_text",
+            "{field} cannot be empty or whitespace only",
+            {"field": info.field_name},
+        )
+    return value
+
+
+# Text that must carry content: blank values pass min_length=1 but are meaningless. The
+# length constraints live in the type, ahead of the validators, so pydantic applies them
+# to the str schema itself and keeps its usual "String should have at most N characters"
+# errors even when the field is Optional.
+_Title = Annotated[
+    str,
+    StringConstraints(min_length=1, max_length=settings.MEMORY_TITLE_MAX_LENGTH),
+    AfterValidator(_reject_blank),
+]
+_Content = Annotated[
+    str,
+    StringConstraints(min_length=1, max_length=settings.MEMORY_CONTENT_MAX_LENGTH),
+    AfterValidator(_reject_blank),
+]
+_Context = Annotated[
+    str,
+    StringConstraints(min_length=1, max_length=settings.MEMORY_CONTEXT_MAX_LENGTH),
+    AfterValidator(_reject_blank),
+]
 
 
 class MemoryCreate(BaseModel):
@@ -17,16 +70,12 @@ class MemoryCreate(BaseModel):
         Good (atomic): "TTS engine preferences: XTTS-v2"
         Bad (mega): "Complete TTS evaluation with all pros/cons/results" 
     """
-    title: str = Field(
+    title: _Title = Field(
         ...,
-        min_length=1,
-        max_length=settings.MEMORY_TITLE_MAX_LENGTH,
         description="Concise, scannable title (5-50 words). Examples: 'Python QueueHandler prevents asyncio blocking', 'TTS preference: XTTS-v2'",
     )
-    content: str = Field(
+    content: _Content = Field(
         ...,
-        min_length=1,
-        max_length=settings.MEMORY_CONTENT_MAX_LENGTH,
         description="ONE concept, self-contained (max ~400 words). If >300 words, use create_document and extract atomic memories instead.",
     )
     context: str = Field(
@@ -137,22 +186,16 @@ class MemoryCreate(BaseModel):
 
 class MemoryUpdate(BaseModel):
     """Request model for updating a memory"""
-    title: str | None = Field(
+    title: _Title | None = Field(
         None,
-        min_length=1,
-        max_length=settings.MEMORY_TITLE_MAX_LENGTH,
         description="New title (5-50 words, scannable). Unchanged if null.",
     )
-    content: str | None = Field(
+    content: _Content | None = Field(
         None,
-        min_length=1,
-        max_length=settings.MEMORY_CONTENT_MAX_LENGTH,
         description="New content (ONE concept, max ~400 words). Unchanged if null.",
     )
-    context: str | None = Field(
+    context: _Context | None = Field(
         None,
-        min_length=1,
-        max_length=settings.MEMORY_CONTEXT_MAX_LENGTH,
         description="New context (WHY/HOW/WHAT for auto-linking). Unchanged if null.",
     )
     keywords: list[str] | None = Field(

@@ -241,6 +241,10 @@ returns **400** with `{"error": "<plugin message>"}`; failure/timeout returns **
 | `encoding_agent` | string | Agent/process that created this memory (max 100 chars) |
 | `encoding_version` | string | Version of encoding process/prompt (max 50 chars) |
 
+**Validation:** `title` and `content` must not be blank (whitespace only). Invalid requests return
+`400` with a list of errors (`loc`, `msg`, `type`). `PUT /api/v1/memories/{id}` applies the same
+rules to the fields it receives, and also rejects a blank `context`.
+
 **Response (201):**
 ```json
 {

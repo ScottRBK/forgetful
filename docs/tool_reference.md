@@ -184,6 +184,8 @@ Create an atomic memory with automatic linking to related memories.
 - `encoding_agent` (optional): Agent/process that created this memory (max 100 chars)
 - `encoding_version` (optional): Version of encoding process/prompt (max 50 chars)
 
+Blank (whitespace-only) `title` and `content` values are rejected.
+
 **Returns:**
 - `id`: Created memory ID
 - `title`: Created memory title
@@ -287,10 +289,10 @@ Update existing memory fields (PATCH semantics - only updates provided fields).
 
 **Parameters:**
 - `memory_id` (required): Memory ID
-- `title` (optional): Updated title
-- `content` (optional): Updated content
+- `title` (optional): Updated title (must not be blank)
+- `content` (optional): Updated content (must not be blank)
 - `importance` (optional): Updated importance score
-- `context` (optional): Updated context
+- `context` (optional): Updated context (must not be blank)
 - `keywords` (optional): Updated keywords
 - `tags` (optional): Updated tags
 - `file_ids` (optional): Replaces existing file links; `[]` clears them; omit to leave them unchanged
