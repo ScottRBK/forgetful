@@ -66,6 +66,225 @@ async def make_memory(client):
     return result.data["id"]
 
 
+ID_TOOL_CASES = [
+    pytest.param(
+        make_document, "get_document", "document_id",
+        [("get_document", {}), ("update_document", {"title": "changed"}),
+         ("delete_document", {})],
+        id="document",
+    ),
+    pytest.param(
+        make_code_artifact, "get_code_artifact", "artifact_id",
+        [("get_code_artifact", {}), ("update_code_artifact", {"title": "changed"}),
+         ("delete_code_artifact", {})],
+        id="code_artifact",
+    ),
+    pytest.param(
+        make_entity, "get_entity", "entity_id",
+        [("get_entity", {}), ("update_entity", {"name": "changed"}),
+         ("delete_entity", {}), ("get_entity_relationships", {}),
+         ("get_entity_memories", {})],
+        id="entity",
+    ),
+    pytest.param(
+        make_file, "get_file", "file_id",
+        [("get_file", {}), ("update_file", {"filename": "changed.txt"}),
+         ("delete_file", {})],
+        id="file",
+    ),
+]
+
+
+INVALID_IDS = [True, 1.9, "not-an-id", [1], {"id": 1}, None]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("invalid_id", INVALID_IDS, ids=repr)
+@pytest.mark.parametrize(("create", "get_tool", "id_arg", "tools"), ID_TOOL_CASES)
+async def test_tools_reject_invalid_ids_and_leave_object_intact(
+    mcp_client, create, get_tool, id_arg, tools, invalid_id,
+):
+    """Invalid ids give a parameter error (like the project tools) and delete nothing."""
+    object_id = await create(mcp_client)
+    assert object_id == 1
+
+    for tool_name, extra in tools:
+        with pytest.raises(ToolError, match=f"{id_arg} (must|cannot)") as excinfo:
+            await call(mcp_client, tool_name, **{id_arg: invalid_id}, **extra)
+        message = str(excinfo.value)
+        assert "[SQL:" not in message
+        assert "[parameters:" not in message
+
+    survivor = await call(mcp_client, get_tool, **{id_arg: object_id})
+    assert survivor.data["id"] == object_id
+
+
+@pytest.mark.asyncio
+async def test_numeric_string_and_integral_float_ids_are_accepted(mcp_client):
+    """'1' and 1.0 identify object 1, just as they do for the project tools."""
+    document_id = await make_document(mcp_client)
+    entity_id = await make_entity(mcp_client)
+
+    assert (await call(mcp_client, "get_document", document_id=str(document_id))).data["id"] == 1
+    assert (await call(mcp_client, "get_entity", entity_id=float(entity_id))).data["id"] == 1
+
+    deleted = await call(mcp_client, "delete_document", document_id=f" {document_id} ")
+    assert deleted.data["success"] is True
+    assert deleted.data["deleted_id"] == document_id
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("tool_name", "arguments", "param"),
+    [
+        ("link_entity_to_memory", {"entity_id": 1, "memory_id": True}, "memory_id"),
+        ("unlink_entity_from_memory", {"entity_id": True, "memory_id": 1}, "entity_id"),
+        ("link_entity_to_project", {"entity_id": 1, "project_id": True}, "project_id"),
+        ("unlink_entity_from_project", {"entity_id": 1, "project_id": 1.5}, "project_id"),
+        (
+            "create_entity_relationship",
+            {"source_entity_id": True, "target_entity_id": 2, "relationship_type": "knows"},
+            "source_entity_id",
+        ),
+        (
+            "create_entity_relationship",
+            {"source_entity_id": 1, "target_entity_id": "x", "relationship_type": "knows"},
+            "target_entity_id",
+        ),
+        ("update_entity_relationship", {"relationship_id": True, "strength": 0.5},
+         "relationship_id"),
+        ("delete_entity_relationship", {"relationship_id": True}, "relationship_id"),
+        ("get_memory_entities", {"memory_id": True}, "memory_id"),
+    ],
+)
+async def test_entity_link_and_relationship_tools_reject_invalid_ids(
+    mcp_client, tool_name, arguments, param,
+):
+    await make_entity(mcp_client, name="one")
+    await make_entity(mcp_client, name="two")
+    await make_project(mcp_client)
+    await make_memory(mcp_client)
+
+    with pytest.raises(ToolError, match=f"{param} (must|cannot)"):
+        await call(mcp_client, tool_name, **arguments)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("tool_name", "extra"),
+    [
+        ("create_document", {"title": "t", "description": "d", "content": "c"}),
+        ("create_code_artifact",
+         {"title": "t", "description": "d", "code": "x", "language": "python"}),
+        ("create_file",
+         {"filename": "f.txt", "description": "d", "data": FILE_DATA,
+          "mime_type": "text/plain"}),
+        ("create_entity", {"name": "n", "entity_type": "Organization"}),
+    ],
+)
+async def test_create_tools_reject_boolean_project_reference(mcp_client, tool_name, extra):
+    """project_id=True must not silently link the new object to project 1."""
+    await make_project(mcp_client)
+    argument = "project_ids" if tool_name == "create_entity" else "project_id"
+    value = [True] if tool_name == "create_entity" else True
+
+    with pytest.raises(ToolError, match=f"{argument} (must|cannot)"):
+        await call(mcp_client, tool_name, **extra, **{argument: value})
+
+
+@pytest.mark.asyncio
+async def test_update_tools_reject_boolean_project_reference(mcp_client):
+    await make_project(mcp_client)
+    document_id = await make_document(mcp_client)
+    entity_id = await make_entity(mcp_client)
+
+    with pytest.raises(ToolError, match="project_id (must|cannot)"):
+        await call(mcp_client, "update_document", document_id=document_id, project_id=True)
+    with pytest.raises(ToolError, match="project_ids (must|cannot)"):
+        await call(mcp_client, "update_entity", entity_id=entity_id, project_ids=[True])
+
+    document = await call(mcp_client, "get_document", document_id=document_id)
+    assert document.data["project_id"] is None
+
+
+@pytest.mark.asyncio
+async def test_list_id_does_not_leak_sql_or_user_id(mcp_client):
+    """A list id is a parameter error, not a driver error echoing statement and user id."""
+    await make_entity(mcp_client)
+
+    with pytest.raises(ToolError) as excinfo:
+        await call(mcp_client, "get_entity", entity_id=[1])
+
+    message = str(excinfo.value)
+    assert "entity_id" in message
+    assert "SELECT" not in message
+    assert "[parameters:" not in message
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("make", "list_tool", "key"),
+    [
+        (make_document, "list_documents", "documents"),
+        (make_code_artifact, "list_code_artifacts", "code_artifacts"),
+        (make_entity, "list_entities", "entities"),
+        (make_file, "list_files", "files"),
+    ],
+)
+async def test_list_tools_treat_scalar_tags_string_as_one_tag(mcp_client, make, list_tool, key):
+    """tags='adr' filters on the tag 'adr' instead of the letters 'a', 'd', 'r'."""
+    await make(mcp_client, tags=["adr"])
+    await make(mcp_client, tags=["other"])
+
+    as_list = await call(mcp_client, list_tool, tags=["adr"])
+    as_string = await call(mcp_client, list_tool, tags="adr")
+
+    assert as_list.data["total_count"] == 1
+    assert as_string.data["total_count"] == 1
+    assert as_string.data[key][0]["tags"] == ["adr"]
+
+    with pytest.raises(ToolError, match="tags must be a list of strings"):
+        await call(mcp_client, list_tool, tags=5)
+
+
+@pytest.mark.asyncio
+async def test_search_entities_treats_scalar_tags_string_as_one_tag(mcp_client):
+    await make_entity(mcp_client, name="Acme Tagged", tags=["adr"])
+    await make_entity(mcp_client, name="Acme Plain", tags=["other"])
+
+    result = await call(mcp_client, "search_entities", query="Acme", tags="adr")
+
+    assert [entity["name"] for entity in result.data["entities"]] == ["Acme Tagged"]
+    assert result.data["filters"]["tags"] == ["adr"]
+
+
+@pytest.mark.asyncio
+async def test_list_filters_validate_project_ids_and_project_id(mcp_client):
+    """Scalar project ids work as one-item lists and bad ids are parameter errors."""
+    project_id = await make_project(mcp_client)
+    await make_entity(mcp_client, name="in project", project_ids=[project_id])
+    await make_entity(mcp_client, name="no project")
+    await make_document(mcp_client, project_id=project_id)
+    await make_document(mcp_client)
+
+    scalar = await call(mcp_client, "list_entities", project_ids=str(project_id))
+    listed = await call(mcp_client, "list_entities", project_ids=[project_id])
+    assert scalar.data["total_count"] == 1
+    assert listed.data["total_count"] == 1
+
+    with pytest.raises(ToolError, match="project_ids (must|cannot)"):
+        await call(mcp_client, "list_entities", project_ids=[True])
+    with pytest.raises(ToolError, match="project_id (must|cannot)"):
+        await call(mcp_client, "list_documents", project_id=True)
+    with pytest.raises(ToolError, match="project_id (must|cannot)"):
+        await call(mcp_client, "list_code_artifacts", project_id=1.5)
+    with pytest.raises(ToolError, match="project_id (must|cannot)"):
+        await call(mcp_client, "list_files", project_id="x")
+
+    by_project = await call(mcp_client, "list_documents", project_id=str(project_id))
+    assert by_project.data["total_count"] == 1
+
+
 @pytest.mark.asyncio
 async def test_update_project_missing_project_is_not_found_error(mcp_client):
     """Updating a project that does not exist is an error, not a successful null result."""

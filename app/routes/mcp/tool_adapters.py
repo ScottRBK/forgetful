@@ -102,6 +102,34 @@ def _coerce_int_ids(vals: Any, param_name: str = "ids") -> list[int]:
     return [_coerce_int_id(vals, param_name)]
 
 
+def _coerce_optional_int_id(val: Any, param_name: str = "id") -> int | None:
+    """Like _coerce_int_id, but leaves an omitted (None) optional ID as None."""
+    return None if val is None else _coerce_int_id(val, param_name)
+
+
+def _coerce_optional_int_ids(vals: Any, param_name: str = "ids") -> list[int] | None:
+    """Like _coerce_int_ids, but leaves an omitted (None) optional filter as None."""
+    return None if vals is None else _coerce_int_ids(vals, param_name)
+
+
+def _coerce_str_list(vals: Any, param_name: str = "tags") -> list[str] | None:
+    """Validate an optional list-of-strings filter.
+
+    A bare string is treated as a one-item list (instead of being iterated per
+    character); anything that is not a string or a collection of strings is rejected.
+    """
+    if vals is None:
+        return None
+    if isinstance(vals, str):
+        return [vals]
+    if not isinstance(vals, (list, tuple, set)):
+        raise ValueError(f"{param_name} must be a list of strings, got {type(vals).__name__}")
+    items = list(vals)
+    if not all(isinstance(item, str) for item in items):
+        raise ValueError(f"{param_name} must contain only strings")
+    return items
+
+
 # ============================================================================
 # User Tool Adapters
 # ============================================================================
@@ -1079,6 +1107,7 @@ class CodeArtifactToolAdapters:
         agent_model: str | None = None,
     ) -> CodeArtifact:
         """Adapter for create_code_artifact tool"""
+        project_id = _coerce_optional_int_id(project_id, "project_id")
         user = await get_user_from_auth(ctx)
 
         artifact_data = CodeArtifactCreate(
@@ -1107,6 +1136,7 @@ class CodeArtifactToolAdapters:
 
     async def get_code_artifact(self, artifact_id: int, ctx: Context) -> CodeArtifact:
         """Adapter for get_code_artifact tool"""
+        artifact_id = _coerce_int_id(artifact_id, "artifact_id")
         user = await get_user_from_auth(ctx)
 
         artifact = await self.code_artifact_service.get_code_artifact(
@@ -1123,6 +1153,8 @@ class CodeArtifactToolAdapters:
         tags: list[str] | None = None,
     ) -> dict:
         """Adapter for list_code_artifacts tool"""
+        project_id = _coerce_optional_int_id(project_id, "project_id")
+        tags = _coerce_str_list(tags, "tags")
         user = await get_user_from_auth(ctx)
 
         result = await self.code_artifact_service.list_code_artifacts(
@@ -1156,6 +1188,8 @@ class CodeArtifactToolAdapters:
         agent_model: str | None = None,
     ) -> CodeArtifact:
         """Adapter for update_code_artifact tool"""
+        artifact_id = _coerce_int_id(artifact_id, "artifact_id")
+        project_id = _coerce_optional_int_id(project_id, "project_id")
         user = await get_user_from_auth(ctx)
 
         updated_dict = filter_none_values(
@@ -1188,6 +1222,7 @@ class CodeArtifactToolAdapters:
 
     async def delete_code_artifact(self, artifact_id: int, ctx: Context) -> dict:
         """Adapter for delete_code_artifact tool"""
+        artifact_id = _coerce_int_id(artifact_id, "artifact_id")
         user = await get_user_from_auth(ctx)
 
         result = await self.code_artifact_service.delete_code_artifact(
@@ -1245,6 +1280,7 @@ class DocumentToolAdapters:
         agent_model: str | None = None,
     ) -> Document:
         """Adapter for create_document tool"""
+        project_id = _coerce_optional_int_id(project_id, "project_id")
         user = await get_user_from_auth(ctx)
 
         document_data = DocumentCreate(
@@ -1274,6 +1310,7 @@ class DocumentToolAdapters:
 
     async def get_document(self, document_id: int, ctx: Context) -> Document:
         """Adapter for get_document tool"""
+        document_id = _coerce_int_id(document_id, "document_id")
         user = await get_user_from_auth(ctx)
 
         document = await self.document_service.get_document(
@@ -1290,6 +1327,8 @@ class DocumentToolAdapters:
         tags: list[str] | None = None,
     ) -> dict:
         """Adapter for list_documents tool"""
+        project_id = _coerce_optional_int_id(project_id, "project_id")
+        tags = _coerce_str_list(tags, "tags")
         user = await get_user_from_auth(ctx)
 
         result = await self.document_service.list_documents(
@@ -1324,6 +1363,8 @@ class DocumentToolAdapters:
         agent_model: str | None = None,
     ) -> Document:
         """Adapter for update_document tool"""
+        document_id = _coerce_int_id(document_id, "document_id")
+        project_id = _coerce_optional_int_id(project_id, "project_id")
         user = await get_user_from_auth(ctx)
 
         updated_dict = filter_none_values(
@@ -1357,6 +1398,7 @@ class DocumentToolAdapters:
 
     async def delete_document(self, document_id: int, ctx: Context) -> dict:
         """Adapter for delete_document tool"""
+        document_id = _coerce_int_id(document_id, "document_id")
         user = await get_user_from_auth(ctx)
 
         result = await self.document_service.delete_document(
@@ -1414,6 +1456,7 @@ class EntityToolAdapters:
         agent_model: str | None = None,
     ) -> Entity:
         """Adapter for create_entity tool"""
+        project_ids = _coerce_optional_int_ids(project_ids, "project_ids")
         user = await get_user_from_auth(ctx)
 
         # Use filter_none_values to avoid passing None for fields with defaults
@@ -1445,6 +1488,7 @@ class EntityToolAdapters:
 
     async def get_entity(self, entity_id: int, ctx: Context) -> Entity:
         """Adapter for get_entity tool"""
+        entity_id = _coerce_int_id(entity_id, "entity_id")
         user = await get_user_from_auth(ctx)
 
         entity = await self.entity_service.get_entity(
@@ -1461,6 +1505,8 @@ class EntityToolAdapters:
         tags: list[str] | None = None,
     ) -> dict:
         """Adapter for list_entities tool"""
+        project_ids = _coerce_optional_int_ids(project_ids, "project_ids")
+        tags = _coerce_str_list(tags, "tags")
         user = await get_user_from_auth(ctx)
 
         # Convert string to enum if provided
@@ -1486,6 +1532,7 @@ class EntityToolAdapters:
         limit: int = 20,
     ) -> dict:
         """Adapter for search_entities tool"""
+        tags = _coerce_str_list(tags, "tags")
         user = await get_user_from_auth(ctx)
 
         # Convert string to enum if provided
@@ -1529,6 +1576,8 @@ class EntityToolAdapters:
         agent_model: str | None = None,
     ) -> Entity:
         """Adapter for update_entity tool"""
+        entity_id = _coerce_int_id(entity_id, "entity_id")
+        project_ids = _coerce_optional_int_ids(project_ids, "project_ids")
         user = await get_user_from_auth(ctx)
 
         updated_dict = filter_none_values(
@@ -1562,6 +1611,7 @@ class EntityToolAdapters:
 
     async def delete_entity(self, entity_id: int, ctx: Context) -> dict:
         """Adapter for delete_entity tool"""
+        entity_id = _coerce_int_id(entity_id, "entity_id")
         user = await get_user_from_auth(ctx)
 
         result = await self.entity_service.delete_entity(
@@ -1574,6 +1624,8 @@ class EntityToolAdapters:
         self, entity_id: int, memory_id: int, ctx: Context,
     ) -> dict:
         """Adapter for link_entity_to_memory tool"""
+        entity_id = _coerce_int_id(entity_id, "entity_id")
+        memory_id = _coerce_int_id(memory_id, "memory_id")
         user = await get_user_from_auth(ctx)
 
         result = await self.entity_service.link_entity_to_memory(
@@ -1586,6 +1638,8 @@ class EntityToolAdapters:
         self, entity_id: int, memory_id: int, ctx: Context,
     ) -> dict:
         """Adapter for unlink_entity_from_memory tool"""
+        entity_id = _coerce_int_id(entity_id, "entity_id")
+        memory_id = _coerce_int_id(memory_id, "memory_id")
         user = await get_user_from_auth(ctx)
 
         result = await self.entity_service.unlink_entity_from_memory(
@@ -1598,6 +1652,8 @@ class EntityToolAdapters:
         self, entity_id: int, project_id: int, ctx: Context,
     ) -> dict:
         """Adapter for link_entity_to_project tool"""
+        entity_id = _coerce_int_id(entity_id, "entity_id")
+        project_id = _coerce_int_id(project_id, "project_id")
         user = await get_user_from_auth(ctx)
 
         result = await self.entity_service.link_entity_to_project(
@@ -1610,6 +1666,8 @@ class EntityToolAdapters:
         self, entity_id: int, project_id: int, ctx: Context,
     ) -> dict:
         """Adapter for unlink_entity_from_project tool"""
+        entity_id = _coerce_int_id(entity_id, "entity_id")
+        project_id = _coerce_int_id(project_id, "project_id")
         user = await get_user_from_auth(ctx)
 
         result = await self.entity_service.unlink_entity_from_project(
@@ -1638,6 +1696,8 @@ class EntityToolAdapters:
         agent_model: str | None = None,
     ) -> EntityRelationship:
         """Adapter for create_entity_relationship tool"""
+        source_entity_id = _coerce_int_id(source_entity_id, "source_entity_id")
+        target_entity_id = _coerce_int_id(target_entity_id, "target_entity_id")
         user = await get_user_from_auth(ctx)
 
         relationship_data = EntityRelationshipCreate(
@@ -1671,6 +1731,7 @@ class EntityToolAdapters:
         relationship_type: str | None = None,
     ) -> dict:
         """Adapter for get_entity_relationships tool"""
+        entity_id = _coerce_int_id(entity_id, "entity_id")
         user = await get_user_from_auth(ctx)
 
         result = await self.entity_service.get_entity_relationships(
@@ -1701,6 +1762,7 @@ class EntityToolAdapters:
         agent_model: str | None = None,
     ) -> EntityRelationship:
         """Adapter for update_entity_relationship tool"""
+        relationship_id = _coerce_int_id(relationship_id, "relationship_id")
         user = await get_user_from_auth(ctx)
 
         updated_dict = filter_none_values(
@@ -1732,6 +1794,7 @@ class EntityToolAdapters:
         self, relationship_id: int, ctx: Context,
     ) -> dict:
         """Adapter for delete_entity_relationship tool"""
+        relationship_id = _coerce_int_id(relationship_id, "relationship_id")
         user = await get_user_from_auth(ctx)
 
         result = await self.entity_service.delete_entity_relationship(
@@ -1742,6 +1805,7 @@ class EntityToolAdapters:
 
     async def get_entity_memories(self, entity_id: int, ctx: Context) -> dict:
         """Adapter for get_entity_memories tool"""
+        entity_id = _coerce_int_id(entity_id, "entity_id")
         user = await get_user_from_auth(ctx)
 
         memory_ids, count, memories = await self.entity_service.get_entity_memories(
@@ -1756,6 +1820,7 @@ class EntityToolAdapters:
 
     async def get_memory_entities(self, memory_id: int, ctx: Context) -> dict:
         """Adapter for get_memory_entities tool"""
+        memory_id = _coerce_int_id(memory_id, "memory_id")
         user = await get_user_from_auth(ctx)
 
         entity_ids, count, entities = await self.entity_service.get_memory_entities(
@@ -2182,6 +2247,7 @@ class FileToolAdapters:
         """Adapter for create_file tool"""
         from app.models.file_models import FileCreate
 
+        project_id = _coerce_optional_int_id(project_id, "project_id")
         user = await get_user_from_auth(ctx)
 
         file_data = FileCreate(
@@ -2210,6 +2276,7 @@ class FileToolAdapters:
 
     async def get_file(self, file_id: int, ctx: Context):
         """Adapter for get_file tool"""
+        file_id = _coerce_int_id(file_id, "file_id")
         user = await get_user_from_auth(ctx)
 
         file = await self.file_service.get_file(
@@ -2226,6 +2293,8 @@ class FileToolAdapters:
         tags: list[str] | None = None,
     ) -> dict:
         """Adapter for list_files tool"""
+        project_id = _coerce_optional_int_id(project_id, "project_id")
+        tags = _coerce_str_list(tags, "tags")
         user = await get_user_from_auth(ctx)
 
         result = await self.file_service.list_files(
@@ -2261,6 +2330,8 @@ class FileToolAdapters:
         """Adapter for update_file tool"""
         from app.models.file_models import FileUpdate
 
+        file_id = _coerce_int_id(file_id, "file_id")
+        project_id = _coerce_optional_int_id(project_id, "project_id")
         user = await get_user_from_auth(ctx)
 
         updated_dict = filter_none_values(
@@ -2293,6 +2364,7 @@ class FileToolAdapters:
 
     async def delete_file(self, file_id: int, ctx: Context) -> dict:
         """Adapter for delete_file tool"""
+        file_id = _coerce_int_id(file_id, "file_id")
         user = await get_user_from_auth(ctx)
 
         result = await self.file_service.delete_file(
