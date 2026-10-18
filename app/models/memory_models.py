@@ -120,17 +120,12 @@ class MemoryCreate(BaseModel):
 
     @field_validator("keywords", "tags")
     @classmethod
-    def validate_lists(cls, v, info):
-        """Ensure the list doesn't contain empty strings and respect max count"""
-        cleaned = [item.strip() for item in v if item.strip()]
+    def validate_lists(cls, v):
+        """Ensure the list doesn't contain empty strings
 
-        field_name = info.field_name
-        max_count = settings.MEMORY_KEYWORDS_MAX_COUNT if field_name == "keywords" else settings.MEMORY_TAGS_MAX_COUNT
-
-        if len(cleaned) > max_count:
-            raise ValueError(f"Too many {field_name} ({len(cleaned)}, max {max_count})")
-
-        return cleaned
+        The maximum count is enforced by the field's max_length, which is checked first.
+        """
+        return [item.strip() for item in v if item.strip()]
 
     @field_validator("source_files")
     @classmethod
@@ -246,20 +241,15 @@ class MemoryUpdate(BaseModel):
 
     @field_validator("keywords", "tags")
     @classmethod
-    def validate_lists(cls, v, info):
-        """Ensure the list doesn't contain empty strings and respect max count"""
+    def validate_lists(cls, v):
+        """Ensure the list doesn't contain empty strings
+
+        The maximum count is enforced by the field's max_length, which is checked first.
+        """
         if v is None:
             return None  # Keep None for optional fields in update model
 
-        cleaned = [item.strip() for item in v if item.strip()]
-
-        field_name = info.field_name
-        max_count = settings.MEMORY_KEYWORDS_MAX_COUNT if field_name == "keywords" else settings.MEMORY_TAGS_MAX_COUNT
-
-        if len(cleaned) > max_count:
-            raise ValueError(f"Too many {field_name} ({len(cleaned)}, max {max_count})")
-
-        return cleaned
+        return [item.strip() for item in v if item.strip()]
 
     @field_validator("source_files")
     @classmethod
@@ -271,6 +261,18 @@ class MemoryUpdate(BaseModel):
 
 class Memory(MemoryCreate):
     id: int
+    # Limits apply when a memory is written, not when it is read: the settings behind them
+    # can be lowered after data was stored, and older versions accepted blank text. The
+    # request fields that carry a write-time rule are therefore re-declared as plain types.
+    title: str = Field(..., description=MemoryCreate.model_fields["title"].description)
+    content: str = Field(..., description=MemoryCreate.model_fields["content"].description)
+    context: str = Field(..., description=MemoryCreate.model_fields["context"].description)
+    keywords: list[str] = Field(..., description=MemoryCreate.model_fields["keywords"].description)
+    tags: list[str] = Field(..., description=MemoryCreate.model_fields["tags"].description)
+    source_files: list[str] | None = Field(
+        default=None,
+        description=MemoryCreate.model_fields["source_files"].description,
+    )
     created_at: datetime = Field(default_factory=lambda: datetime.now(tz=UTC), frozen=True)
     updated_at: datetime = Field(default_factory=lambda: datetime.now(tz=UTC))
     project_ids: list[int] = Field(default_factory=list)
