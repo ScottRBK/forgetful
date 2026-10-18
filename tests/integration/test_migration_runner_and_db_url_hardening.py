@@ -1,14 +1,17 @@
-"""Database URL handling, without a running database.
+"""Database URL handling and alembic.ini safety, without a running database.
 
 - credentials with URL-special characters survive the round trip into SQLAlchemy
 - a `%` in the URL no longer breaks Alembic's ConfigParser-backed options
 - alembic/env.py builds the same escaped URL for its own (command line) engine
+- alembic.ini never puts the working directory on sys.path
 """
 
+import sys
 from pathlib import Path
 
 import pytest
 from alembic.config import Config
+from alembic.script import ScriptDirectory
 from sqlalchemy.engine import make_url
 
 from alembic import command
@@ -141,3 +144,24 @@ class TestEnvPyDatabaseUrl:
             command.upgrade(Config(str(ALEMBIC_INI)), "head", sql=True)
 
         assert_url_matches_settings(captured["url"])
+
+
+class TestAlembicDoesNotTrustWorkingDirectory:
+    def test_configured_sys_path_entries_are_absolute_and_inside_the_project(self):
+        entries = Config(str(ALEMBIC_INI)).get_prepend_sys_paths_list() or []
+
+        for entry in entries:
+            assert Path(entry).is_absolute(), f"cwd-relative sys.path entry: {entry!r}"
+            assert Path(entry).resolve() == ALEMBIC_INI.parent, entry
+
+    def test_script_directory_does_not_prepend_the_working_directory(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        # Drop any "" or "." left behind by earlier tests so only new entries are inspected.
+        monkeypatch.setattr(sys, "path", [p for p in sys.path if p not in ("", ".")])
+        before = list(sys.path)
+
+        ScriptDirectory.from_config(Config(str(ALEMBIC_INI)))
+
+        added = [entry for entry in sys.path if entry not in before]
+        assert [entry for entry in added if Path(entry).resolve() == tmp_path.resolve()] == []
+        assert "." not in sys.path
