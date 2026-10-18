@@ -3,11 +3,13 @@
 - The default HTTP serve path must run the shutdown teardown (dispose_runtime: drain
   pending activity handlers, dispose the database engine) when the process receives
   SIGTERM (what `docker stop` sends) or SIGINT, exactly like the CORS-enabled path.
+- The default HTTP serve path must keep uvicorn's lifecycle log lines (where it listens, that it
+  shut down); the startup migrations must not disable uvicorn's loggers.
 - Provenance defaults that the settings validator accepts must never break a create.
 
 The server tests boot the real app in a child process (signals cannot be delivered to an
-in-process server) with a recording wrapper around dispose_runtime, so they do not depend
-on log flushing during process death.
+in-process server) with a recording wrapper around dispose_runtime, so the teardown check does
+not depend on log flushing during process death. The log check reads the child's captured output.
 """
 import os
 import signal
@@ -17,6 +19,7 @@ import sys
 import textwrap
 import time
 from pathlib import Path
+from types import SimpleNamespace
 
 import httpx
 import pytest
@@ -89,12 +92,13 @@ def _wait_until_healthy(process: subprocess.Popen, port: int, log_path: Path, ti
     pytest.fail(f"server not healthy after {timeout}s:\n{log_path.read_text()[-3000:]}")
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="POSIX signal delivery")
-@pytest.mark.parametrize("sig", [signal.SIGTERM, signal.SIGINT], ids=["SIGTERM", "SIGINT"])
-def test_default_http_serve_disposes_runtime_on_shutdown_signal(tmp_path, sig):
-    """Regression: mcp.run() deferred the lifespan teardown until after uvicorn had re-raised the
-    signal, so SIGTERM killed the process with no cleanup and SIGINT cancelled it mid-dispose."""
-    # Arrange
+@pytest.fixture(scope="module", params=[signal.SIGTERM, signal.SIGINT], ids=["SIGTERM", "SIGINT"])
+def stopped_server(request, tmp_path_factory):
+    """Boots the real default-HTTP server, stops it with the signal, returns (dispose state, output)."""
+    if sys.platform == "win32":
+        pytest.skip("POSIX signal delivery")
+    sig = request.param
+    tmp_path = tmp_path_factory.mktemp(f"serve_{sig.name}")
     driver = tmp_path / "driver.py"
     driver.write_text(_SERVER_DRIVER)
     marker = tmp_path / "dispose.marker"
@@ -110,8 +114,6 @@ def test_default_http_serve_disposes_runtime_on_shutdown_signal(tmp_path, sig):
         )
     try:
         _wait_until_healthy(process, port, log_path)
-
-        # Act
         process.send_signal(sig)
         process.wait(timeout=30)
     finally:
@@ -119,9 +121,33 @@ def test_default_http_serve_disposes_runtime_on_shutdown_signal(tmp_path, sig):
             process.kill()
             process.wait(timeout=10)
 
-    # Assert
     state = marker.read_text() if marker.exists() else "never started"
-    assert state == "done", f"dispose_runtime {state} after {sig.name}:\n{log_path.read_text()[-3000:]}"
+    return SimpleNamespace(sig=sig, port=port, dispose_state=state, output=log_path.read_text())
+
+
+def test_default_http_serve_disposes_runtime_on_shutdown_signal(stopped_server):
+    """Regression: mcp.run() deferred the lifespan teardown until after uvicorn had re-raised the
+    signal, so SIGTERM killed the process with no cleanup and SIGINT cancelled it mid-dispose."""
+    assert stopped_server.dispose_state == "done", (
+        f"dispose_runtime {stopped_server.dispose_state} after {stopped_server.sig.name}:\n"
+        f"{stopped_server.output[-3000:]}"
+    )
+
+
+def test_default_http_serve_keeps_uvicorn_lifecycle_log_lines(stopped_server):
+    """Regression: uvicorn creates its loggers before the app lifespan runs, and Alembic's
+    fileConfig() (run by the startup migrations) disabled them, so the server never logged where
+    it was listening or that it had shut down."""
+    output = stopped_server.output
+    expected = [
+        "Application startup complete",
+        f"Uvicorn running on http://127.0.0.1:{stopped_server.port}",
+        "Shutting down",
+        "Application shutdown complete",
+        "Finished server process",
+    ]
+    missing = [line for line in expected if line not in output]
+    assert not missing, f"missing uvicorn log lines {missing} after {stopped_server.sig.name}:\n{output[-3000:]}"
 
 
 @pytest.mark.parametrize(("setting", "limit"), sorted(PROVENANCE_MAX_LENGTHS.items()))

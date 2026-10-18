@@ -33,7 +33,6 @@ import main
 from app import bootstrap
 from app.bootstrap import build_runtime, dispose_runtime
 from app.config import logging_config
-from app.config import settings as settings_module
 from app.config.settings import (
     POSTGRES_COLUMN_WIDTHS,
     PROVENANCE_MAX_LENGTHS,
@@ -369,10 +368,6 @@ def test_default_max_lengths_fit_the_postgres_columns(monkeypatch, caplog):
 
 def test_postgres_clamps_oversized_max_lengths_to_the_column_width(monkeypatch, caplog):
     overrides = {name: str(width * 2) for name, width in POSTGRES_COLUMN_WIDTHS.items()}
-    # Alembic's fileConfig() (run by any earlier runtime build) disables pre-existing loggers;
-    # at real startup Settings() is built first, so its warnings are always emitted.
-    monkeypatch.setattr(settings_module.logger, "disabled", False)
-
     with caplog.at_level(logging.WARNING):
         loaded = _settings(monkeypatch, DATABASE="Postgres", **overrides)
 

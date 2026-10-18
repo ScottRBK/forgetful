@@ -31,7 +31,9 @@ else:  # SQLite
 
 # Interpret the config file for Python logging
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # Migrations also run in-process at server startup, after uvicorn has created its loggers;
+    # the default disable_existing_loggers=True would silence them (listening and shutdown lines).
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 
 def run_migrations_offline() -> None:
