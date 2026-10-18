@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy.orm import defer
 
 from app.config.logging_config import logging
 from app.exceptions import NotFoundError
@@ -154,9 +155,11 @@ class PostgresDocumentRepository:
         """
         try:
             async with self.db_adapter.session(user_id) as session:
-                # Build query with filters
-                stmt = select(DocumentsTable).where(
-                    DocumentsTable.user_id == user_id,
+                # Build query with filters (content is not part of DocumentSummary)
+                stmt = (
+                    select(DocumentsTable)
+                    .options(defer(DocumentsTable.content))
+                    .where(DocumentsTable.user_id == user_id)
                 )
 
                 if project_id is not None:

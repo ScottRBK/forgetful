@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy.orm import defer
 
 from app.config.logging_config import logging
 from app.exceptions import NotFoundError
@@ -146,8 +147,11 @@ class SqliteFileRepository:
         """
         try:
             async with self.db_adapter.session(user_id) as session:
-                stmt = select(FilesTable).where(
-                    FilesTable.user_id == str(user_id),
+                # Skip the binary payload (FileSummary never exposes it)
+                stmt = (
+                    select(FilesTable)
+                    .options(defer(FilesTable.data))
+                    .where(FilesTable.user_id == str(user_id))
                 )
 
                 if project_id is not None:

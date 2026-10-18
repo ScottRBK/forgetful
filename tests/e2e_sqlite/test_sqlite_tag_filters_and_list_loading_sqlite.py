@@ -1,9 +1,13 @@
-"""E2E tests (service -> repository -> in-memory SQLite) for JSON tag filters.
+"""E2E tests (service -> repository -> in-memory SQLite) for tag filters and list loading.
 
-The SQLite ``tags`` filter of the document, code artifact, file and skill
-listings must be an exact, case-sensitive array membership test (the same
-contract as the PostgreSQL ``&&`` overlap): non-ASCII tags are found and
-``%``/``_``/quote characters in the filter have no special meaning.
+Covers two behaviours of the SQLite list_* queries for documents, code
+artifacts, files and skills:
+
+1. The ``tags`` filter must be an exact, case-sensitive array membership test
+   (the same contract as the PostgreSQL ``&&`` overlap): non-ASCII tags are
+   found, ``%``/``_``/quote characters in the filter have no special meaning.
+2. Summary listings must not fetch the heavy ``files.data`` /
+   ``documents.content`` columns that the summary models never expose.
 
 Runs fully offline: skills use a deterministic stub embedding adapter.
 """
@@ -15,6 +19,7 @@ from dataclasses import dataclass
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import event
 
 from app.config.settings import settings
 from app.models.code_artifact_models import CodeArtifactCreate
@@ -256,3 +261,86 @@ async def test_any_of_several_tags_matches_and_untagged_never_does(kind: Kind):
     assert await kind.list_labels(["one", "two"]) == {"one", "two"}
     assert await kind.list_labels(["missing", "three"]) == {"three"}
     assert await kind.list_labels(["missing"]) == set()
+
+
+# ---------------------------------------------------------------------------
+# Summary listings must not fetch heavy columns
+# ---------------------------------------------------------------------------
+
+
+def _capture_statements(adapter: SqliteDatabaseAdapter) -> list[str]:
+    statements: list[str] = []
+
+    @event.listens_for(adapter._engine.sync_engine, "before_cursor_execute")
+    def _grab(conn, cursor, statement, parameters, context, executemany):
+        statements.append(statement)
+
+    return statements
+
+
+def _selects_from(statements: list[str], table: str) -> list[str]:
+    return [
+        s
+        for s in statements
+        if s.lstrip().upper().startswith("SELECT") and f"FROM {table}" in s
+    ]
+
+
+async def test_list_files_does_not_select_blob_column(stack: Stack):
+    payload = base64.b64encode(b"\x01" * 4096).decode()
+    created = await stack.files.create_file(
+        stack.user_id,
+        FileCreate(
+            filename="blob.bin",
+            description="binary",
+            data=payload,
+            mime_type="application/octet-stream",
+            tags=["bin"],
+        ),
+    )
+    statements = _capture_statements(stack.adapter)
+
+    summaries = await stack.files.list_files(stack.user_id)
+
+    list_selects = _selects_from(statements, "files")
+    assert list_selects
+    assert not any("files.data" in s for s in list_selects), list_selects[0]
+    assert [s.id for s in summaries] == [created.id]
+    summary = summaries[0]
+    assert summary.filename == "blob.bin"
+    assert summary.mime_type == "application/octet-stream"
+    assert summary.size_bytes == 4096
+    assert summary.tags == ["bin"]
+
+    # The full record (with its data) is still retrievable
+    full = await stack.files.get_file(stack.user_id, created.id)
+    assert full.data == payload
+
+
+async def test_list_documents_does_not_select_content_column(stack: Stack):
+    created = await stack.documents.create_document(
+        stack.user_id,
+        DocumentCreate(
+            title="big",
+            description="long document",
+            content="x" * 5000,
+            tags=["long"],
+        ),
+    )
+    statements = _capture_statements(stack.adapter)
+
+    summaries = await stack.documents.list_documents(stack.user_id)
+
+    list_selects = _selects_from(statements, "documents")
+    assert list_selects
+    assert not any("documents.content" in s for s in list_selects), list_selects[0]
+    assert [s.id for s in summaries] == [created.id]
+    summary = summaries[0]
+    assert summary.title == "big"
+    assert summary.description == "long document"
+    assert summary.size_bytes == 5000
+    assert summary.tags == ["long"]
+
+    # The full record (with its content) is still retrievable
+    full = await stack.documents.get_document(stack.user_id, created.id)
+    assert full.content == "x" * 5000
