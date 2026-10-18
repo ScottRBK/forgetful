@@ -16,6 +16,7 @@ import asyncio
 import hashlib
 import shutil
 import subprocess
+import sys
 import tempfile
 from os import chmod
 from pathlib import Path
@@ -293,15 +294,30 @@ class AgentContainer:
         return self._client.api.exec_inspect(exec_id)["ExitCode"], buffer
 
     def stop(self) -> None:
-        import docker
+        """Release the container and the staged credential copies; idempotent, and
+        never raises for a docker failure."""
+        container, self._container = self._container, None
+        try:
+            if container is not None:
+                self._remove(container)
+        finally:
+            for staging in self._staged:
+                shutil.rmtree(staging, ignore_errors=True)
+            self._staged.clear()
 
-        if self._container is not None:
+    def _remove(self, container) -> None:
+        """Stop, then force-remove, as independent best-effort steps: a dead docker
+        daemon raises requests' transport errors (not DockerException) from either
+        call, and a failed stop must not leave the container undeleted."""
+        for step, action in (
+            ("stop", lambda: container.stop(timeout=5)),
+            ("remove", lambda: container.remove(force=True)),
+        ):
             try:
-                self._container.stop(timeout=5)
-                self._container.remove()
-            except docker.errors.DockerException:
-                pass
-            self._container = None
-        for staging in self._staged:
-            shutil.rmtree(staging, ignore_errors=True)
-        self._staged.clear()
+                action()
+            except Exception as exc:
+                print(
+                    f"warning: could not {step} container "
+                    f"forgetful-uat-{self.run_dir.name}: {exc}",
+                    file=sys.stderr,
+                )

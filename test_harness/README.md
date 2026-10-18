@@ -65,7 +65,9 @@ rebuilds automatically when the lock drifts (stale images have burned runs befor
    workspace (`SKILL.md` copy; `fixture-repo/` for encode-repo), wrapped in an
    OS-level `timeout --kill-after` — host-side cancellation cannot kill a process
    inside a container.
-5. Teardown container and server, then a summary table and `run.json`.
+5. Teardown container and server, then a summary table and `run.json`. Teardown is
+   best-effort and independent per resource: a docker failure never skips stopping the
+   server or deleting the staged credential copies.
 
 ## Artifacts
 

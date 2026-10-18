@@ -9,6 +9,7 @@ import argparse
 import asyncio
 import sys
 import time
+from contextlib import ExitStack
 from pathlib import Path
 
 from test_harness.config import HarnessConfig
@@ -70,15 +71,20 @@ async def _run(config: HarnessConfig) -> int:
     ensure_image(rebuild=config.rebuild_image)
 
     server = ThrowawayForgetful(run_dir=run_dir)
-    print("booting throwaway Forgetful ...")
-    server.start()
-    # From inside the container 127.0.0.1 is the container itself; Docker Desktop
-    # routes host.docker.internal back to the WSL host (verified empirically).
-    container = AgentContainer(
-        config, run_dir,
-        server_url=server.url.replace("127.0.0.1", "host.docker.internal"),
-    )
-    try:
+    # Teardown callbacks run last-in first-out and every one runs even when an earlier
+    # one raises, so a docker failure can never orphan the server process.
+    with ExitStack() as teardown:
+        teardown.callback(server.stop)
+        print("booting throwaway Forgetful ...")
+        server.start()
+        # From inside the container 127.0.0.1 is the container itself; Docker Desktop
+        # routes host.docker.internal back to the WSL host (verified empirically).
+        container = AgentContainer(
+            config, run_dir,
+            server_url=server.url.replace("127.0.0.1", "host.docker.internal"),
+        )
+        teardown.callback(container.stop)
+
         catalog = sorted(
             path.name for path in config.skills_dir.iterdir()
             if (path / "SKILL.md").is_file()
@@ -99,9 +105,6 @@ async def _run(config: HarnessConfig) -> int:
             print(f"walking {skill} ...")
             results.append(await walkthrough.run_skill(skill))
         walkthrough.write_summary(results)
-    finally:
-        container.stop()
-        server.stop()
 
     _print_summary(results, run_dir)
     return 0 if all(result.status == "completed" for result in results) else 1
