@@ -8,6 +8,7 @@ This service implements the primary functionality for the Forgetful Memory Syste
     - Retrieval with project associations
     - Usage tracking on read paths (forgetful-hulkito fork)
 """
+import asyncio
 from datetime import datetime
 from typing import TYPE_CHECKING
 from uuid import UUID
@@ -38,7 +39,7 @@ from app.utils.provenance import (
     apply_provenance_defaults_for_update,
 )
 from app.utils.pydantic_helper import filter_none_values, get_changed_fields
-from app.utils.token_counter import TokenCounter
+from app.utils.token_counter import get_token_counter
 
 if TYPE_CHECKING:
     from app.events import EventBus
@@ -757,9 +758,7 @@ class MemoryService:
 
         total_text = " ".join(text_parts)
 
-        token_counter = TokenCounter()
-
-        return token_counter.count_tokens(total_text)
+        return get_token_counter().count_tokens(total_text)
 
     async def truncate_memories_by_budget(
             self,
@@ -780,6 +779,9 @@ class MemoryService:
         """
         if not memories:
             return [], 0, False
+
+        # Loading the tokenizer can download it, keep that off the event loop
+        await asyncio.to_thread(get_token_counter)
 
         sorted_memories = sorted(
             memories,

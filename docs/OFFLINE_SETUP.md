@@ -139,8 +139,9 @@ Its default command uses `uv run --no-sync`, so starting a locally available ima
 not contact PyPI or rebuild the package. Building or downloading the image still needs
 internet access. Custom commands that use plain `uv run` must also include `--no-sync`.
 
-Embedding and reranking models are downloaded separately. Memory queries also require
-tiktoken's token-counting data, which uses a separate cache. Both caches must survive
+Embedding and reranking models are downloaded separately. Memory queries also use
+tiktoken's token-counting data, which uses a separate cache. Without it, queries still work
+but budget tokens with an approximate character-based estimate. Both caches must survive
 container recreation; restarting the same container alone does not test this.
 
 For the SQLite Compose deployment, `/app/data` is already mounted to `./data`. Set these
