@@ -84,12 +84,16 @@ class PlanService:
         )
         return plan
 
-    async def get_plan(self, user_id: UUID, plan_id: int) -> Plan:
+    async def get_plan(self, user_id: UUID, plan_id: int, track_read: bool = True) -> Plan:
+        """Get a plan by ID.
+
+        Set ``track_read=False`` for internal lookups so no read event is emitted.
+        """
         logger.info("getting plan", extra={"user_id": str(user_id), "plan_id": plan_id})
         plan = await self.plan_repo.get_plan_by_id(user_id=user_id, plan_id=plan_id)
         if plan:
             logger.info("plan retrieved", extra={"plan_id": plan_id})
-            if settings.ACTIVITY_TRACK_READS and self._event_bus:
+            if track_read and settings.ACTIVITY_TRACK_READS and self._event_bus:
                 await self._emit_event(
                     user_id=user_id,
                     entity_type=EntityType.PLAN,

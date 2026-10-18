@@ -86,7 +86,9 @@ class TaskService:
         logger.info("creating task", extra={"user_id": str(user_id), "plan_id": task_data.plan_id, "title": task_data.title})
 
         # Validate plan exists and is not COMPLETED/ARCHIVED
-        plan = await self.plan_service.get_plan(user_id=user_id, plan_id=task_data.plan_id)
+        plan = await self.plan_service.get_plan(
+            user_id=user_id, plan_id=task_data.plan_id, track_read=False,
+        )
 
         plan_status = PlanStatus(plan.status)
         if plan_status in (PlanStatus.COMPLETED, PlanStatus.ARCHIVED):
@@ -497,7 +499,9 @@ class TaskService:
 
         if all_terminal and has_done:
             try:
-                plan = await self.plan_service.get_plan(user_id=user_id, plan_id=plan_id)
+                plan = await self.plan_service.get_plan(
+                    user_id=user_id, plan_id=plan_id, track_read=False,
+                )
             except NotFoundError:
                 return
             if PlanStatus(plan.status) == PlanStatus.ACTIVE:

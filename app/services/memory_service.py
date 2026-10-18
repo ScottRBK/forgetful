@@ -609,8 +609,10 @@ class MemoryService:
         Raises:
             NotFoundError: If source memory doesn't exist
         """
-        # Verify source memory exists (raises NotFoundError if not)
-        await self.get_memory(user_id=user_id, memory_id=memory_id)
+        # Verify source memory exists (the repository raises NotFoundError if not).
+        # Go through the repository, not get_memory(): unlinking is not a read of the
+        # memory and must not emit a read event or bump access_count.
+        await self.memory_repo.get_memory_by_id(memory_id=memory_id, user_id=user_id)
 
         success = await self.memory_repo.unlink_memories(
             user_id=user_id,

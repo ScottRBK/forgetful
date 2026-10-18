@@ -186,12 +186,14 @@ class SkillService:
         self,
         user_id: UUID,
         skill_id: int,
+        track_read: bool = True,
     ) -> Skill:
         """Get skill by ID with ownership verification
 
         Args:
             user_id: User ID for ownership verification
             skill_id: Skill ID to retrieve
+            track_read: Set False for internal lookups so no read event is emitted
 
         Returns:
             Skill with full details
@@ -224,7 +226,7 @@ class SkillService:
         )
 
         # Emit read event (opt-in via ACTIVITY_TRACK_READS)
-        if settings.ACTIVITY_TRACK_READS and self._event_bus:
+        if track_read and settings.ACTIVITY_TRACK_READS and self._event_bus:
             await self._emit_event(
                 user_id=user_id,
                 entity_type=EntityType.SKILL,
@@ -629,7 +631,7 @@ class SkillService:
             Confirmation dict with linked IDs
         """
         # Verify skill exists
-        await self.get_skill(user_id=user_id, skill_id=skill_id)
+        await self.get_skill(user_id=user_id, skill_id=skill_id, track_read=False)
 
         return await self.skill_repo.link_skill_to_memory(
             user_id=user_id,
@@ -654,7 +656,7 @@ class SkillService:
             Confirmation dict
         """
         # Verify skill exists
-        await self.get_skill(user_id=user_id, skill_id=skill_id)
+        await self.get_skill(user_id=user_id, skill_id=skill_id, track_read=False)
 
         return await self.skill_repo.unlink_skill_from_memory(
             user_id=user_id,
@@ -678,7 +680,7 @@ class SkillService:
         Returns:
             Confirmation dict with linked IDs
         """
-        await self.get_skill(user_id=user_id, skill_id=skill_id)
+        await self.get_skill(user_id=user_id, skill_id=skill_id, track_read=False)
 
         return await self.skill_repo.link_skill_to_file(
             user_id=user_id,
@@ -702,7 +704,7 @@ class SkillService:
         Returns:
             Confirmation dict
         """
-        await self.get_skill(user_id=user_id, skill_id=skill_id)
+        await self.get_skill(user_id=user_id, skill_id=skill_id, track_read=False)
 
         return await self.skill_repo.unlink_skill_from_file(
             user_id=user_id,
@@ -726,7 +728,7 @@ class SkillService:
         Returns:
             Confirmation dict with linked IDs
         """
-        await self.get_skill(user_id=user_id, skill_id=skill_id)
+        await self.get_skill(user_id=user_id, skill_id=skill_id, track_read=False)
 
         return await self.skill_repo.link_skill_to_code_artifact(
             user_id=user_id,
@@ -750,7 +752,7 @@ class SkillService:
         Returns:
             Confirmation dict
         """
-        await self.get_skill(user_id=user_id, skill_id=skill_id)
+        await self.get_skill(user_id=user_id, skill_id=skill_id, track_read=False)
 
         return await self.skill_repo.unlink_skill_from_code_artifact(
             user_id=user_id,
@@ -774,7 +776,7 @@ class SkillService:
         Returns:
             Confirmation dict with linked IDs
         """
-        await self.get_skill(user_id=user_id, skill_id=skill_id)
+        await self.get_skill(user_id=user_id, skill_id=skill_id, track_read=False)
 
         return await self.skill_repo.link_skill_to_document(
             user_id=user_id,
@@ -798,7 +800,7 @@ class SkillService:
         Returns:
             Confirmation dict
         """
-        await self.get_skill(user_id=user_id, skill_id=skill_id)
+        await self.get_skill(user_id=user_id, skill_id=skill_id, track_read=False)
 
         return await self.skill_repo.unlink_skill_from_document(
             user_id=user_id,
