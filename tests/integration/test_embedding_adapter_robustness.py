@@ -35,6 +35,18 @@ AZURE_CONFIG = {
 }
 
 
+@pytest.fixture
+def adapter_logs(monkeypatch, caplog):
+    """Capture the adapter module's log records at INFO.
+
+    Alembic's fileConfig() (run by any test that migrates a database) disables
+    every logger that already exists, so re-enable the adapter logger explicitly.
+    """
+    monkeypatch.setattr(ea.logger, "disabled", False)
+    with caplog.at_level(logging.INFO, logger=ea.logger.name):
+        yield caplog
+
+
 def _init_record(caplog: pytest.LogCaptureFixture, message: str) -> logging.LogRecord:
     matches = [r for r in caplog.records if r.getMessage() == message]
     assert matches, f"no '{message}' record was emitted"
@@ -71,45 +83,42 @@ def test_redact_url_never_raises_on_malformed_input(url):
     assert isinstance(redact_url(url), str)
 
 
-def test_openai_adapter_does_not_log_base_url_credentials(monkeypatch, caplog):
+def test_openai_adapter_does_not_log_base_url_credentials(monkeypatch, adapter_logs):
     base_url = f"https://alice:{SECRET}@llm.internal/v1"
     client_cls = MagicMock()
     monkeypatch.setattr(ea, "OpenAI", client_cls)
     monkeypatch.setattr(settings, "OPENAI_API_KEY", "sk-test")
     monkeypatch.setattr(settings, "OPENAI_BASE_URL", base_url)
 
-    with caplog.at_level(logging.INFO, logger=ea.logger.name):
-        ea.OpenAIEmbeddingsAdapter()
+    ea.OpenAIEmbeddingsAdapter()
 
-    record = _init_record(caplog, "Initialising OpenAI embeddings adapter")
+    record = _init_record(adapter_logs, "Initialising OpenAI embeddings adapter")
     assert record.base_url == "https://***:***@llm.internal/v1"
     assert SECRET not in _as_json_log_line(record)
     # The client itself must still receive the real, usable URL.
     assert client_cls.call_args.kwargs["base_url"] == base_url
 
 
-def test_openai_adapter_logs_default_when_no_base_url(monkeypatch, caplog):
+def test_openai_adapter_logs_default_when_no_base_url(monkeypatch, adapter_logs):
     monkeypatch.setattr(ea, "OpenAI", MagicMock())
     monkeypatch.setattr(settings, "OPENAI_API_KEY", "sk-test")
     monkeypatch.setattr(settings, "OPENAI_BASE_URL", "")
 
-    with caplog.at_level(logging.INFO, logger=ea.logger.name):
-        ea.OpenAIEmbeddingsAdapter()
+    ea.OpenAIEmbeddingsAdapter()
 
-    record = _init_record(caplog, "Initialising OpenAI embeddings adapter")
+    record = _init_record(adapter_logs, "Initialising OpenAI embeddings adapter")
     assert record.base_url == "(default)"
 
 
-def test_ollama_adapter_does_not_log_base_url_credentials(monkeypatch, caplog):
+def test_ollama_adapter_does_not_log_base_url_credentials(monkeypatch, adapter_logs):
     base_url = f"http://alice:{SECRET}@host:11434"
     client_cls = MagicMock()
     monkeypatch.setattr("ollama.AsyncClient", client_cls)
     monkeypatch.setattr(settings, "OLLAMA_BASE_URL", base_url)
 
-    with caplog.at_level(logging.INFO, logger=ea.logger.name):
-        ea.OllamaEmbeddingsAdapter()
+    ea.OllamaEmbeddingsAdapter()
 
-    record = _init_record(caplog, "Initialising Ollama embeddings adapter")
+    record = _init_record(adapter_logs, "Initialising Ollama embeddings adapter")
     assert record.base_url == "http://***:***@host:11434"
     assert SECRET not in _as_json_log_line(record)
     assert client_cls.call_args.kwargs["host"] == base_url
@@ -314,14 +323,13 @@ async def test_fastembed_adapter_does_not_block_the_event_loop():
     assert embedding == [0.25, 0.5]
 
 
-async def test_fastembed_adapter_still_propagates_inference_errors(caplog):
+async def test_fastembed_adapter_still_propagates_inference_errors(adapter_logs):
     adapter = fastembed_adapter(FailingModel())
 
-    with caplog.at_level(logging.ERROR, logger=ea.logger.name):
-        with pytest.raises(RuntimeError, match="onnx session failed"):
-            await adapter.generate_embedding("hi")
+    with pytest.raises(RuntimeError, match="onnx session failed"):
+        await adapter.generate_embedding("hi")
 
-    assert "Error generating embeddings" in caplog.text
+    assert "Error generating embeddings" in adapter_logs.text
 
 
 async def test_azure_adapter_does_not_block_the_event_loop(fake_azure):
