@@ -18,6 +18,7 @@ from app.models.entity_models import (
     EntityType,
     EntityUpdate,
 )
+from app.routes.mcp.tool_errors import client_error_detail
 from app.utils.pydantic_helper import filter_none_values
 
 logger = logging.getLogger(__name__)
@@ -143,7 +144,7 @@ def register(mcp: FastMCP):
 
         except Exception as e:
             logger.error("Failed to create entity", exc_info=True)
-            raise ToolError(f"Failed to create entity: {e!s}")
+            raise ToolError(f"Failed to create entity: {client_error_detail(e)}")
 
     @mcp.tool()
     async def get_entity(
@@ -189,7 +190,7 @@ def register(mcp: FastMCP):
             raise ToolError(str(e))
         except Exception as e:
             logger.error("Failed to get entity", exc_info=True)
-            raise ToolError(f"Failed to get entity: {e!s}")
+            raise ToolError(f"Failed to get entity: {client_error_detail(e)}")
 
     @mcp.tool()
     async def list_entities(
@@ -256,7 +257,7 @@ def register(mcp: FastMCP):
             raise ToolError(f"Invalid entity_type: {e}")
         except Exception as e:
             logger.error("Failed to list entities", exc_info=True)
-            raise ToolError(f"Failed to list entities: {e!s}")
+            raise ToolError(f"Failed to list entities: {client_error_detail(e)}")
 
     @mcp.tool()
     async def search_entities(
@@ -336,7 +337,7 @@ def register(mcp: FastMCP):
             raise ToolError(f"Invalid entity_type: {e}")
         except Exception as e:
             logger.error("Failed to search entities", exc_info=True)
-            raise ToolError(f"Failed to search entities: {e!s}")
+            raise ToolError(f"Failed to search entities: {client_error_detail(e)}")
 
     @mcp.tool()
     async def update_entity(
@@ -420,7 +421,7 @@ def register(mcp: FastMCP):
             raise ToolError(str(e))
         except Exception as e:
             logger.error("Failed to update entity", exc_info=True)
-            raise ToolError(f"Failed to update entity: {e!s}")
+            raise ToolError(f"Failed to update entity: {client_error_detail(e)}")
 
     @mcp.tool()
     async def delete_entity(
@@ -464,7 +465,7 @@ def register(mcp: FastMCP):
 
         except Exception as e:
             logger.error("Failed to delete entity", exc_info=True)
-            raise ToolError(f"Failed to delete entity: {e!s}")
+            raise ToolError(f"Failed to delete entity: {client_error_detail(e)}")
 
     # Entity-Memory linking tools
 
@@ -522,7 +523,7 @@ def register(mcp: FastMCP):
             raise ToolError(str(e))
         except Exception as e:
             logger.error("Failed to link entity to memory", exc_info=True)
-            raise ToolError(f"Failed to link entity to memory: {e!s}")
+            raise ToolError(f"Failed to link entity to memory: {client_error_detail(e)}")
 
     @mcp.tool()
     async def unlink_entity_from_memory(
@@ -567,7 +568,7 @@ def register(mcp: FastMCP):
 
         except Exception as e:
             logger.error("Failed to unlink entity from memory", exc_info=True)
-            raise ToolError(f"Failed to unlink entity from memory: {e!s}")
+            raise ToolError(f"Failed to unlink entity from memory: {client_error_detail(e)}")
 
     # Entity-Project linking tools
 
@@ -625,7 +626,7 @@ def register(mcp: FastMCP):
             raise ToolError(str(e))
         except Exception as e:
             logger.error("Failed to link entity to project", exc_info=True)
-            raise ToolError(f"Failed to link entity to project: {e!s}")
+            raise ToolError(f"Failed to link entity to project: {client_error_detail(e)}")
 
     @mcp.tool()
     async def unlink_entity_from_project(
@@ -670,7 +671,7 @@ def register(mcp: FastMCP):
 
         except Exception as e:
             logger.error("Failed to unlink entity from project", exc_info=True)
-            raise ToolError(f"Failed to unlink entity from project: {e!s}")
+            raise ToolError(f"Failed to unlink entity from project: {client_error_detail(e)}")
 
     # Entity Relationship tools
 
@@ -768,7 +769,7 @@ def register(mcp: FastMCP):
             raise ToolError(str(e))
         except Exception as e:
             logger.error("Failed to create entity relationship", exc_info=True)
-            raise ToolError(f"Failed to create entity relationship: {e!s}")
+            raise ToolError(f"Failed to create entity relationship: {client_error_detail(e)}")
 
     @mcp.tool()
     async def get_entity_relationships(
@@ -844,7 +845,7 @@ def register(mcp: FastMCP):
             raise ToolError(str(e))
         except Exception as e:
             logger.error("Failed to get entity relationships", exc_info=True)
-            raise ToolError(f"Failed to get entity relationships: {e!s}")
+            raise ToolError(f"Failed to get entity relationships: {client_error_detail(e)}")
 
     @mcp.tool()
     async def update_entity_relationship(
@@ -915,7 +916,7 @@ def register(mcp: FastMCP):
             raise ToolError(str(e))
         except Exception as e:
             logger.error("Failed to update entity relationship", exc_info=True)
-            raise ToolError(f"Failed to update entity relationship: {e!s}")
+            raise ToolError(f"Failed to update entity relationship: {client_error_detail(e)}")
 
     @mcp.tool()
     async def delete_entity_relationship(
@@ -959,7 +960,7 @@ def register(mcp: FastMCP):
 
         except Exception as e:
             logger.error("Failed to delete entity relationship", exc_info=True)
-            raise ToolError(f"Failed to delete entity relationship: {e!s}")
+            raise ToolError(f"Failed to delete entity relationship: {client_error_detail(e)}")
 
     @mcp.tool()
     async def get_entity_memories(
@@ -1026,4 +1027,4 @@ def register(mcp: FastMCP):
             raise ToolError(str(e))
         except Exception as e:
             logger.error("Failed to get entity memories", exc_info=True)
-            raise ToolError(f"Failed to get entity memories: {e!s}")
+            raise ToolError(f"Failed to get entity memories: {client_error_detail(e)}")

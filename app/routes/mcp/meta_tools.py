@@ -21,6 +21,7 @@ from app.config.logging_config import logging
 from app.config.settings import settings
 from app.models.tool_registry_models import ToolCategory
 from app.routes.mcp.scope_resolver import get_effective_scopes, get_required_scope
+from app.routes.mcp.tool_errors import client_error_detail
 
 logger = logging.getLogger(__name__)
 
@@ -500,7 +501,7 @@ def register(mcp: FastMCP):
             raise
         except Exception as e:
             logger.error(f"discover_forgetful_tools failed: {e}", exc_info=True)
-            raise ToolError(f"Failed to discover tools: {e!s}")
+            raise ToolError(f"Failed to discover tools: {client_error_detail(e)}")
 
     discover_forgetful_tools.__doc__ = discover_doc
     mcp.tool()(discover_forgetful_tools)
@@ -537,7 +538,9 @@ def register(mcp: FastMCP):
             raise
         except Exception as e:
             logger.error(f"how_to_use_forgetful_tool failed for {tool_name}: {e}", exc_info=True)
-            raise ToolError(f"Failed to get documentation for '{tool_name}': {e!s}")
+            raise ToolError(
+                f"Failed to get documentation for '{tool_name}': {client_error_detail(e)}",
+            )
 
     # -- execute_forgetful_tool --
     # Defined without @mcp.tool() so we can set docstring before registration
@@ -571,7 +574,7 @@ def register(mcp: FastMCP):
             raise
         except Exception as e:
             logger.error(f"execute_forgetful_tool failed for {tool_name}: {e}", exc_info=True)
-            raise ToolError(f"Failed to execute '{tool_name}': {e!s}")
+            raise ToolError(f"Failed to execute '{tool_name}': {client_error_detail(e)}")
 
     execute_forgetful_tool.__doc__ = execute_doc
     mcp.tool()(execute_forgetful_tool)
