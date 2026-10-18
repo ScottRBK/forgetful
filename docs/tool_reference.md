@@ -418,10 +418,12 @@ Soft delete a memory with audit trail and supersession tracking.
 **Parameters:**
 - `memory_id` (required): Memory ID to mark obsolete
 - `reason` (required): Reason for obsolescence
-- `superseded_by` (optional): ID of replacement memory
+- `superseded_by` (optional): ID of replacement memory (must be an existing memory other than `memory_id`)
 
 **Returns:**
 - Updated memory with obsolete flag
+
+**Errors:** fails if the memory is already obsolete (use `unobsolete_memory` first; the original reason and timestamp are kept), if `superseded_by` equals `memory_id`, or if either memory is not found.
 
 **Example:**
 ```python

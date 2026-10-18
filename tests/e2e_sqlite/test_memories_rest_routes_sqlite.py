@@ -7,8 +7,10 @@ Uses in-memory SQLite for test isolation. Covers:
   ``superseded_by`` values, self-supersede and repeated deletes
 """
 import pytest
+from fastmcp.exceptions import ToolError
 
 from app.config.settings import settings
+from app.exceptions import InvalidStateTransitionError
 
 API = "/api/v1/memories"
 
@@ -163,7 +165,7 @@ class TestDeleteMemoryErrors:
             assert still_active.json()["is_obsolete"] is False
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("superseded_by", [99999, -1])
+    @pytest.mark.parametrize("superseded_by", [99999, 0, -1])
     async def test_unknown_superseded_by_is_404_and_memory_stays_active(self, http_client, superseded_by):
         memory_id = await _create_memory(http_client)
 
@@ -197,3 +199,113 @@ class TestDeleteMemoryErrors:
         assert old["is_obsolete"] is True
         assert old["superseded_by"] == new_id
         assert old["obsolete_reason"] == "replaced"
+
+
+class TestObsoleteStateValidation:
+    """Soft delete rejects self-supersede and never rewrites an existing audit trail."""
+
+    @pytest.mark.asyncio
+    async def test_self_supersede_is_rejected(self, http_client):
+        memory_id = await _create_memory(http_client)
+
+        response = await _obsolete(http_client, memory_id, {"reason": "r", "superseded_by": memory_id})
+
+        assert response.status_code == 422, response.text
+        assert "itself" in response.json()["error"]
+        unchanged = (await http_client.get(f"{API}/{memory_id}")).json()
+        assert unchanged["is_obsolete"] is False
+        assert unchanged["superseded_by"] is None
+
+    @pytest.mark.asyncio
+    async def test_obsoleting_twice_keeps_the_first_reason_and_timestamp(self, http_client):
+        memory_id = await _create_memory(http_client)
+        first = await _obsolete(http_client, memory_id, {"reason": "first reason"})
+        assert first.status_code == 200
+        before = (await http_client.get(f"{API}/{memory_id}")).json()
+
+        second = await _obsolete(http_client, memory_id, {"reason": "second reason"})
+
+        assert second.status_code == 422, second.text
+        assert "already obsolete" in second.json()["error"]
+        after = (await http_client.get(f"{API}/{memory_id}")).json()
+        assert after["obsolete_reason"] == "first reason"
+        assert after["obsoleted_at"] == before["obsoleted_at"]
+
+    @pytest.mark.asyncio
+    async def test_repository_guard_rejects_second_obsolete_without_overwrite(self, http_client, sqlite_app):
+        """The UPDATE itself is guarded, so a race past the service check cannot overwrite history."""
+        memory_id = await _create_memory(http_client)
+        assert (await _obsolete(http_client, memory_id, {"reason": "first reason"})).status_code == 200
+        repo = sqlite_app.memory_service.memory_repo
+        user_id = await _default_user_id(sqlite_app)
+
+        with pytest.raises(InvalidStateTransitionError, match="already obsolete"):
+            await repo.mark_obsolete(user_id, memory_id, "second reason")
+
+        remaining = (await http_client.get(f"{API}/{memory_id}")).json()
+        assert remaining["obsolete_reason"] == "first reason"
+
+    @pytest.mark.asyncio
+    async def test_restore_then_obsolete_again_is_allowed(self, http_client, sqlite_app):
+        memory_id = await _create_memory(http_client)
+        assert (await _obsolete(http_client, memory_id, {"reason": "first"})).status_code == 200
+        await sqlite_app.memory_service.unobsolete_memory(
+            user_id=await _default_user_id(sqlite_app),
+            memory_id=memory_id,
+        )
+
+        again = await _obsolete(http_client, memory_id, {"reason": "second"})
+
+        assert again.status_code == 200
+        assert (await http_client.get(f"{API}/{memory_id}")).json()["obsolete_reason"] == "second"
+
+
+class TestObsoleteStateValidationViaMcpTool:
+    """The MCP tool shares the service rules, so it reports the same problems as errors."""
+
+    @staticmethod
+    async def _create(mcp_client, title: str) -> int:
+        result = await mcp_client.call_tool("execute_forgetful_tool", {
+            "tool_name": "create_memory",
+            "arguments": {**MEMORY, "title": title},
+        })
+        return result.data["id"]
+
+    @pytest.mark.asyncio
+    async def test_self_supersede_and_second_obsolete_are_tool_errors(self, mcp_client):
+        memory_id = await self._create(mcp_client, "MCP obsolete rules")
+
+        with pytest.raises(ToolError, match="cannot be superseded by itself"):
+            await mcp_client.call_tool("execute_forgetful_tool", {
+                "tool_name": "mark_memory_obsolete",
+                "arguments": {"memory_id": memory_id, "reason": "r", "superseded_by": memory_id},
+            })
+
+        first = await mcp_client.call_tool("execute_forgetful_tool", {
+            "tool_name": "mark_memory_obsolete",
+            "arguments": {"memory_id": memory_id, "reason": "first reason"},
+        })
+        assert first.data["success"] is True
+
+        with pytest.raises(ToolError, match="already obsolete"):
+            await mcp_client.call_tool("execute_forgetful_tool", {
+                "tool_name": "mark_memory_obsolete",
+                "arguments": {"memory_id": memory_id, "reason": "second reason"},
+            })
+
+        stored = await mcp_client.call_tool("execute_forgetful_tool", {
+            "tool_name": "get_memory",
+            "arguments": {"memory_id": memory_id},
+        })
+        assert stored.data["obsolete_reason"] == "first reason"
+
+
+async def _default_user_id(sqlite_app):
+    from app.models.user_models import UserCreate
+
+    user = await sqlite_app.user_service.get_or_create_user(user=UserCreate(
+        external_id=settings.DEFAULT_USER_ID,
+        name=settings.DEFAULT_USER_NAME,
+        email=settings.DEFAULT_USER_EMAIL,
+    ))
+    return user.id

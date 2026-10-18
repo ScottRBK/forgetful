@@ -76,7 +76,7 @@ async def test_delete_errors_are_client_errors(http_client):
     assert missing.status_code == 404
     assert missing.json() == {"error": "Memory not found"}
 
-    for superseded_by in (999999,):
+    for superseded_by in (999999, 0):
         unknown = await _obsolete(http_client, memory_id, {"reason": "r", "superseded_by": superseded_by})
         assert unknown.status_code == 404, unknown.text
         assert unknown.json() == {"error": f"Superseding memory {superseded_by} not found"}
@@ -85,3 +85,23 @@ async def test_delete_errors_are_client_errors(http_client):
     assert bad_type.status_code == 400
 
     assert (await http_client.get(f"{API}/{memory_id}")).json()["is_obsolete"] is False
+
+
+@pytest.mark.e2e
+async def test_self_supersede_and_second_obsolete_are_rejected(http_client):
+    memory_id = await _create_memory(http_client)
+
+    own = await _obsolete(http_client, memory_id, {"reason": "r", "superseded_by": memory_id})
+    assert own.status_code == 422, own.text
+    assert (await http_client.get(f"{API}/{memory_id}")).json()["is_obsolete"] is False
+
+    assert (await _obsolete(http_client, memory_id, {"reason": "first reason"})).status_code == 200
+    before = (await http_client.get(f"{API}/{memory_id}")).json()
+
+    second = await _obsolete(http_client, memory_id, {"reason": "second reason"})
+    assert second.status_code == 422, second.text
+    assert "already obsolete" in second.json()["error"]
+
+    after = (await http_client.get(f"{API}/{memory_id}")).json()
+    assert after["obsolete_reason"] == "first reason"
+    assert after["obsoleted_at"] == before["obsoleted_at"]

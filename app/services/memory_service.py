@@ -372,6 +372,11 @@ class MemoryService:
 
         Returns:
             True if marked obsolete, False if not found
+
+        Raises:
+            NotFoundError: If the memory (or the superseding memory) is not found
+            InvalidStateTransitionError: If the memory is already obsolete or would
+                be superseded by itself
         """
         logger.info("Marking memory as obsolete", extra={
             "memory_id": memory_id,
@@ -383,6 +388,13 @@ class MemoryService:
             memory_id=memory_id,
             user_id=user_id,
         )
+
+        if superseded_by == memory_id:
+            raise InvalidStateTransitionError(
+                f"Memory {memory_id} cannot be superseded by itself",
+            )
+        if memory and memory.is_obsolete:
+            raise InvalidStateTransitionError(f"Memory {memory_id} is already obsolete")
 
         success = await self.memory_repo.mark_obsolete(
             memory_id=memory_id,

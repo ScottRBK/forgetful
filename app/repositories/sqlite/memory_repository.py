@@ -11,7 +11,11 @@ from sqlalchemy.orm import selectinload
 
 from app.config.logging_config import logging
 from app.config.settings import settings
-from app.exceptions import AssociationNotFoundError, NotFoundError
+from app.exceptions import (
+    AssociationNotFoundError,
+    InvalidStateTransitionError,
+    NotFoundError,
+)
 from app.models.memory_models import Memory, MemoryCreate, MemoryScore, MemoryUpdate
 from app.protocols.embedding_protocol import EmbeddingsAdapter
 from app.repositories.embeddings.reranker_adapter import RerankAdapter
@@ -475,10 +479,11 @@ class SqliteMemoryRepository:
 
         Raises:
             NotFoundError: If memory not found or doesn't belong to user
-            NotFoundError: If superseded_by memory not found or doesn't belong to user
+            AssociationNotFoundError: If superseded_by memory not found or doesn't belong to user
+            InvalidStateTransitionError: If the memory is already obsolete
         """
         async with self.db_adapter.session(user_id) as session:
-            if superseded_by:
+            if superseded_by is not None:
                 superseding_stmt = select(MemoryTable).where(
                     MemoryTable.user_id == str(user_id), MemoryTable.id == superseded_by,
                 )
@@ -488,7 +493,11 @@ class SqliteMemoryRepository:
 
             stmt = (
                 update(MemoryTable)
-                .where(MemoryTable.user_id == str(user_id), MemoryTable.id == memory_id)
+                .where(
+                    MemoryTable.user_id == str(user_id),
+                    MemoryTable.id == memory_id,
+                    MemoryTable.is_obsolete.is_(False),
+                )
                 .values(
                     is_obsolete=True,
                     obsolete_reason=reason,
@@ -502,6 +511,13 @@ class SqliteMemoryRepository:
             obsoleted_memory = result.scalar_one_or_none()
 
             if not obsoleted_memory:
+                existing = await session.execute(
+                    select(MemoryTable.id).where(
+                        MemoryTable.user_id == str(user_id), MemoryTable.id == memory_id,
+                    ),
+                )
+                if existing.scalar_one_or_none() is not None:
+                    raise InvalidStateTransitionError(f"Memory {memory_id} is already obsolete")
                 raise NotFoundError(f"Memory {memory_id} not found")
 
             return True

@@ -13,6 +13,7 @@ from starlette.responses import JSONResponse
 
 from app.exceptions import (
     AssociationNotFoundError,
+    InvalidStateTransitionError,
     NotFoundError,
     WritePluginRejectedError,
     WritePluginUnavailableError,
@@ -310,6 +311,8 @@ def register(mcp: FastMCP):
             return JSONResponse({"error": str(e)}, status_code=404)
         except NotFoundError:
             return JSONResponse({"error": "Memory not found"}, status_code=404)
+        except InvalidStateTransitionError as e:
+            return JSONResponse({"error": str(e)}, status_code=422)
 
         if not success:
             return JSONResponse({"error": "Memory not found"}, status_code=404)

@@ -701,6 +701,13 @@ def register(mcp: FastMCP):
                 "error_message": str(e),
             })
             raise ToolError(f"VALIDATION_ERROR: {e!s}")
+        except InvalidStateTransitionError as e:
+            logger.debug("MCP Tool - mark_memory_obsolete validation error", extra={
+                "memory_id": memory_id,
+                "error_type": "InvalidStateTransitionError",
+                "error_message": str(e),
+            })
+            raise ToolError(f"VALIDATION_ERROR: {e!s}")
         except ValidationError as e:
             error_details = str(e)
             logger.debug("MCP Tool - mark_memory_obsolete validation error", extra={
