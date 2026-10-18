@@ -1,9 +1,10 @@
 from datetime import UTC, datetime
-from typing import Annotated
+from typing import Annotated, Any
 
 from pydantic import (
     AfterValidator,
     BaseModel,
+    BeforeValidator,
     ConfigDict,
     Field,
     StringConstraints,
@@ -37,6 +38,26 @@ def _reject_blank(value: str, info: ValidationInfo) -> str:
     return value
 
 
+def _reject_unencodable(value: Any, info: ValidationInfo) -> Any:
+    """Reject strings that cannot be encoded as UTF-8, such as a lone surrogate.
+
+    json.loads accepts escapes like "\\ud83d" and a bare str is passed through
+    unchecked, but the string can neither be encoded for a JSON response nor stored
+    safely. Runs before pydantic's own str validation so the outcome does not depend
+    on whether a length constraint happens to make pydantic decode the value.
+    """
+    if isinstance(value, str):
+        try:
+            value.encode("utf-8")
+        except UnicodeEncodeError:
+            raise PydanticCustomError(
+                "unencodable_text",
+                "{field} contains characters that cannot be encoded as UTF-8 (for example a lone surrogate)",
+                {"field": info.field_name},
+            ) from None
+    return value
+
+
 # Text that must carry content: blank values pass min_length=1 but are meaningless. The
 # length constraints live in the type, ahead of the validators, so pydantic applies them
 # to the str schema itself and keeps its usual "String should have at most N characters"
@@ -44,32 +65,40 @@ def _reject_blank(value: str, info: ValidationInfo) -> str:
 _Title = Annotated[
     str,
     StringConstraints(min_length=1, max_length=settings.MEMORY_TITLE_MAX_LENGTH),
+    BeforeValidator(_reject_unencodable),
     AfterValidator(_reject_blank),
 ]
 _Content = Annotated[
     str,
     StringConstraints(min_length=1, max_length=settings.MEMORY_CONTENT_MAX_LENGTH),
+    BeforeValidator(_reject_unencodable),
     AfterValidator(_reject_blank),
 ]
 _Context = Annotated[
     str,
     StringConstraints(min_length=1, max_length=settings.MEMORY_CONTEXT_MAX_LENGTH),
+    BeforeValidator(_reject_unencodable),
     AfterValidator(_reject_blank),
 ]
 
 # List items are trimmed before the cap is checked so that padding does not count towards
 # it. The cap also bounds the text that query_memory token-counts for every search hit.
+# The constraints come before the BeforeValidator on purpose: pydantic applies them to the
+# str schema only when they precede the validator that wraps it.
 _Keyword = Annotated[
     str,
     StringConstraints(strip_whitespace=True, max_length=settings.MEMORY_KEYWORD_MAX_LENGTH),
+    BeforeValidator(_reject_unencodable),
 ]
 _Tag = Annotated[
     str,
     StringConstraints(strip_whitespace=True, max_length=settings.MEMORY_TAG_MAX_LENGTH),
+    BeforeValidator(_reject_unencodable),
 ]
 _SourceFile = Annotated[
     str,
     StringConstraints(strip_whitespace=True, max_length=settings.MEMORY_SOURCE_FILE_MAX_LENGTH),
+    BeforeValidator(_reject_unencodable),
 ]
 
 

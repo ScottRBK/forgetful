@@ -136,6 +136,59 @@ class TestOversizedListItems:
         assert len(response.json()["primary_memories"]) == 3
 
 
+class TestUnencodableText:
+    """Lone surrogates from JSON escapes never reach the database."""
+
+    @pytest.mark.parametrize("body", [
+        b'{"title":"bad","content":"c","context":"x","keywords":["k"],"tags":["t"],"source_files":["src/a\\ud83d.py"]}',
+        b'{"title":"bad","content":"c","context":"x","keywords":["k\\ud800"],"tags":["t"]}',
+        b'{"title":"bad","content":"c","context":"x","keywords":["k"],"tags":["\\udfff"]}',
+        b'{"title":"b\\ud83dad","content":"c","context":"x","keywords":["k"],"tags":["t"]}',
+    ])
+    async def test_create_rejects_lone_surrogate_and_store_stays_readable(self, http_client, body):
+        response = await http_client.post("/api/v1/memories", content=body, headers=JSON_HEADERS)
+
+        assert response.status_code == 400
+        listing = await http_client.get("/api/v1/memories")
+        assert listing.status_code == 200
+        assert listing.json()["total"] == 0
+
+    async def test_update_rejects_lone_surrogate(self, http_client):
+        memory_id = await _create(http_client)
+
+        response = await http_client.put(
+            f"/api/v1/memories/{memory_id}",
+            content=b'{"source_files":["a\\ud83d"]}',
+            headers=JSON_HEADERS,
+        )
+
+        assert response.status_code == 400
+        assert "cannot be encoded as UTF-8" in response.json()["error"][0]["msg"]
+        stored = await http_client.get(f"/api/v1/memories/{memory_id}")
+        assert stored.status_code == 200
+        assert stored.json()["source_files"] is None
+
+    async def test_search_rejects_lone_surrogate_query(self, http_client):
+        response = await http_client.post(
+            "/api/v1/memories/search",
+            content=b'{"query":"find \\ud83d","query_context":"ctx"}',
+            headers=JSON_HEADERS,
+        )
+
+        assert response.status_code == 400
+
+    async def test_paired_surrogate_escape_is_stored_as_the_real_character(self, http_client):
+        response = await http_client.post(
+            "/api/v1/memories",
+            content=json.dumps(_payload(), ensure_ascii=True).replace("Python", "Python \\ud83d\\ude00").encode(),
+            headers=JSON_HEADERS,
+        )
+
+        assert response.status_code == 201
+        stored = (await http_client.get(f"/api/v1/memories/{response.json()['id']}")).json()
+        assert stored["title"] == "Python \U0001f600 logging"
+
+
 class TestStoredRowsStayReadable:
     """The Memory response model must not enforce write-time rules."""
 

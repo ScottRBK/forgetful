@@ -163,6 +163,62 @@ def test_list_cleaning_is_unchanged():
 
 
 # ============================================================================
+# Strings that cannot be encoded as UTF-8
+# ============================================================================
+
+UNENCODABLE_LIST_FIELDS = [
+    {"keywords": [LONE_SURROGATE]},
+    {"tags": [LONE_SURROGATE]},
+    {"source_files": [f"src/{LONE_SURROGATE}.py"]},
+]
+# Plain str fields are already rejected by pydantic itself; pinned here so the whole
+# model keeps rejecting unencodable text if pydantic ever stops doing so.
+UNENCODABLE_TEXT_FIELDS = [
+    {"title": LONE_SURROGATE},
+    {"content": LONE_SURROGATE},
+    {"context": LONE_SURROGATE},
+    {"source_repo": LONE_SURROGATE},
+    {"source_url": LONE_SURROGATE},
+    {"encoding_agent": LONE_SURROGATE},
+    {"agent_id": LONE_SURROGATE},
+]
+
+
+@pytest.mark.parametrize("overrides", UNENCODABLE_LIST_FIELDS, ids=lambda o: next(iter(o)))
+def test_list_items_reject_lone_surrogates(overrides):
+    """A lone surrogate in a JSON column used to be stored and then broke every response."""
+    field = next(iter(overrides))
+    for build in (_create, lambda **kw: MemoryUpdate(**kw)):
+        with pytest.raises(ValidationError) as exc_info:
+            build(**overrides)
+
+        error = exc_info.value.errors()[0]
+        assert error["loc"][0] == field
+        assert error["type"] == "unencodable_text"
+        assert "cannot be encoded as UTF-8" in error["msg"]
+        json.dumps(exc_info.value.errors())
+
+
+@pytest.mark.parametrize("overrides", UNENCODABLE_TEXT_FIELDS, ids=lambda o: next(iter(o)))
+def test_text_fields_reject_lone_surrogates(overrides):
+    with pytest.raises(ValidationError):
+        _create(**overrides)
+    with pytest.raises(ValidationError):
+        MemoryUpdate(**overrides)
+
+
+def test_valid_non_ascii_and_astral_text_is_accepted():
+    """Surrogate *pairs* decode to real characters and must keep working."""
+    text = "naive cafe é 日本語 \U0001f600"
+    memory = _create(title=text, content=text, keywords=[text], tags=["\U0001f600"], source_files=[text])
+
+    assert memory.title == text
+    assert memory.keywords == [text]
+    assert json.loads('{"v": "\\ud83d\\ude00"}')["v"] == "\U0001f600"
+    assert _create(content=json.loads('{"v": "\\ud83d\\ude00"}')["v"]).content == "\U0001f600"
+
+
+# ============================================================================
 # Memory (response model) never enforces write-time rules
 # ============================================================================
 

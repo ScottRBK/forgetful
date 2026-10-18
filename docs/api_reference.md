@@ -242,8 +242,9 @@ returns **400** with `{"error": "<plugin message>"}`; failure/timeout returns **
 | `encoding_version` | string | Version of encoding process/prompt (max 50 chars) |
 
 **Validation:** `title` and `content` must not be blank (whitespace only); each `keywords` and
-`tags` item is limited to 100 characters (`MEMORY_KEYWORD_MAX_LENGTH`, `MEMORY_TAG_MAX_LENGTH`).
-Invalid requests return `400` with a list of errors (`loc`, `msg`, `type`).
+`tags` item is limited to 100 characters (`MEMORY_KEYWORD_MAX_LENGTH`, `MEMORY_TAG_MAX_LENGTH`);
+strings that cannot be encoded as UTF-8, such as a lone surrogate from a `"\ud83d"` escape, are
+rejected. Invalid requests return `400` with a list of errors (`loc`, `msg`, `type`).
 `PUT /api/v1/memories/{id}` applies the same rules to the fields it receives, and also rejects a
 blank `context`.
 

@@ -184,7 +184,8 @@ Create an atomic memory with automatic linking to related memories.
 - `encoding_agent` (optional): Agent/process that created this memory (max 100 chars)
 - `encoding_version` (optional): Version of encoding process/prompt (max 50 chars)
 
-Blank (whitespace-only) `title` and `content` values are rejected.
+Blank (whitespace-only) `title` and `content` values are rejected, as are strings that cannot be
+encoded as UTF-8 (for example a lone surrogate).
 
 **Returns:**
 - `id`: Created memory ID
