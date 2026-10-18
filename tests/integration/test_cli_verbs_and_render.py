@@ -224,3 +224,47 @@ async def test_save_confirmation_keeps_plugin_warnings_as_escaped_single_lines()
     assert lines[1].startswith("Warning: Check the source.")
     assert len(lines) == 2
     assert not RAW_CONTROL.search(human)
+
+
+# -- obsolete marker ------------------------------------------------------------------
+
+
+def test_memory_detail_flags_obsolete_memory_with_reason_and_replacement():
+    output = render.render_memory_detail({
+        "id": 1,
+        "title": "R1",
+        "importance": 5,
+        "content": "stale",
+        "is_obsolete": True,
+        "obsolete_reason": "wrong, replaced",
+        "superseded_by": 7,
+    })
+
+    lines = output.splitlines()
+    assert lines[0] == "Memory 1: R1"
+    assert lines[1] == "OBSOLETE: wrong, replaced (superseded by memory 7)"
+
+
+def test_memory_detail_flags_obsolete_memory_without_reason_or_replacement():
+    output = render.render_memory_detail(
+        {"id": 1, "title": "R1", "is_obsolete": True, "obsolete_reason": None, "superseded_by": None},
+    )
+
+    assert output.splitlines()[1] == "OBSOLETE: no reason recorded"
+
+
+def test_memory_detail_does_not_flag_active_memories():
+    output = render.render_memory_detail(
+        {"id": 1, "title": "R1", "is_obsolete": False, "obsolete_reason": None},
+    )
+
+    assert "OBSOLETE" not in output
+    assert "OBSOLETE" not in render.render_memory_detail({"id": 2, "title": "No flag"})
+
+
+def test_obsolete_reason_is_escaped_too():
+    output = render.render_memory_detail(
+        {"id": 1, "title": "R1", "is_obsolete": True, "obsolete_reason": "bad\x1b[2J\nreason"},
+    )
+
+    assert output.splitlines()[1] == "OBSOLETE: bad\\x1b[2J\\nreason"

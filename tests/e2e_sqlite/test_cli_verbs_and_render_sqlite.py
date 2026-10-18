@@ -171,3 +171,17 @@ def test_recent_and_get_never_replay_stored_control_characters(cli_env, monkeypa
     assert code == 0, err
     assert not RAW_CONTROL.search(out.replace("\n", ""))
     assert "second line" in out.splitlines()[-1]
+
+
+def test_memory_get_flags_obsolete_memory(cli_env, monkeypatch, capsys):
+    code, out, err = invoke_cli(monkeypatch, capsys, ["memory", "save", "remote content", "--title", "R1"])
+    assert code == 0, err
+    memory_id = int(out.split("memory ")[1].split(":")[0])
+    reason = "wrong, replaced"
+    _call_json(monkeypatch, capsys, "mark_memory_obsolete", {"memory_id": memory_id, "reason": reason})
+
+    code, out, err = invoke_cli(monkeypatch, capsys, ["memory", "get", str(memory_id)])
+
+    assert code == 0, err
+    assert out.splitlines()[0] == f"Memory {memory_id}: R1"
+    assert out.splitlines()[1] == f"OBSOLETE: {reason}"

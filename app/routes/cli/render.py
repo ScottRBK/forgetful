@@ -72,10 +72,20 @@ def render_memory_lines(memories: list[dict]) -> str:
     )
 
 
+def _obsolete_line(memory: dict) -> str:
+    reason = memory.get("obsolete_reason")
+    line = f"OBSOLETE: {sanitize_line(reason) if reason else 'no reason recorded'}"
+    if memory.get("superseded_by") is not None:
+        line += f" (superseded by memory {memory['superseded_by']})"
+    return line
+
+
 def render_memory_detail(memory: dict) -> str:
     """Multi-line detail view for a single memory; obsolete memories are flagged."""
     tags = ", ".join(sanitize_line(tag) for tag in memory.get("tags") or []) or "-"
     lines = [f"Memory {memory['id']}: {sanitize_line(memory['title'])}"]
+    if memory.get("is_obsolete"):
+        lines.append(_obsolete_line(memory))
     lines.extend([
         f"Importance: {memory.get('importance', '?')}    Tags: {tags}",
         f"Context: {sanitize_line(memory.get('context') or '-')}",
