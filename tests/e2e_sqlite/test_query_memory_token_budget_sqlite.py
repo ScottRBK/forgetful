@@ -141,3 +141,42 @@ async def test_configured_budget_truncates_mcp_results(mcp_client, http_client, 
 
     assert 0 < result["token_count"] <= 3000
     assert result["truncated"] is True
+
+
+@pytest.mark.asyncio
+async def test_explicit_links_to_other_primaries_do_not_use_up_link_quota(mcp_client, monkeypatch):
+    monkeypatch.setattr(settings, "MEMORY_NUM_AUTO_LINK", 0)
+    primaries = [await _create(mcp_client, f"Primary {i}", 9) for i in range(4)]
+    others = [await _create(mcp_client, f"Other {i}", 5) for i in range(6)]
+    # The first primary is linked to the 3 other primaries (importance 9) and 6 non-primaries (importance 5)
+    await _call(mcp_client, "link_memories", {"memory_id": primaries[0], "related_ids": primaries[1:] + others})
+
+    result = await _call(mcp_client, "query_memory", {
+        "query": "Query text", "query_context": "looking up memories", "k": 4, "max_links_per_primary": 3,
+    })
+
+    assert sorted(m["id"] for m in result["primary_memories"]) == sorted(primaries)
+    linked_ids = [lm["memory"]["id"] for lm in result["linked_memories"]]
+    assert len(linked_ids) == 3
+    assert set(linked_ids) <= set(others)
+
+
+@pytest.mark.asyncio
+async def test_auto_links_to_other_primaries_do_not_use_up_link_quota(mcp_client, monkeypatch):
+    monkeypatch.setattr(settings, "MEMORY_NUM_AUTO_LINK", 3)
+    primaries = [await _create(mcp_client, f"Primary {i}", 8) for i in range(4)]
+    others = [await _create(mcp_client, f"Other {i}", 5) for i in range(4)]
+    non_primary_neighbours = 0
+    for primary_id in primaries:
+        memory = await _call(mcp_client, "get_memory", {"memory_id": primary_id})
+        non_primary_neighbours += len(set(memory["linked_memory_ids"]) & set(others))
+    assert non_primary_neighbours > 0, "setup: no primary was auto-linked to a non-primary memory"
+
+    result = await _call(mcp_client, "query_memory", {
+        "query": "Query text", "query_context": "looking up memories", "k": 4, "max_links_per_primary": 3,
+    })
+
+    assert sorted(m["id"] for m in result["primary_memories"]) == sorted(primaries)
+    linked_ids = [lm["memory"]["id"] for lm in result["linked_memories"]]
+    assert linked_ids
+    assert set(linked_ids) <= set(others)

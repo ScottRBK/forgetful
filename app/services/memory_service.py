@@ -646,6 +646,9 @@ class MemoryService:
     ) -> list[LinkedMemory]:
         """Fetch linked memories for each primary result
 
+        Primary results and memories already linked from an earlier primary are excluded
+        before the per-primary cap is applied, so they never consume its quota.
+
         Args:
             user_id: User ID for whom to link the memories for
             primary memories: list of the primary Memories objects to link from
@@ -664,6 +667,7 @@ class MemoryService:
                     user_id=user_id,
                     project_ids=project_ids,
                     max_links=max_links_per_primary,
+                    exclude_ids=sorted(seen_ids),
                 )
 
                 for linked_memory in links:

@@ -268,3 +268,52 @@ class TestTruncatedFlagForCountLimit:
         assert len(result.primary_memories) == 5
         assert len(result.linked_memories) == 5
         assert result.truncated is False
+
+
+class TestLinkQuotaNotSpentOnPrimaries:
+    @pytest.mark.asyncio
+    async def test_primaries_do_not_consume_max_links_per_primary(
+        self, test_memory_service, mock_memory_repository,
+    ):
+        user_id = uuid4()
+        primaries = [
+            await mock_memory_repository.create_memory(user_id, _memory(f"primary {i}", importance=9))
+            for i in range(4)
+        ]
+        others = [
+            await mock_memory_repository.create_memory(user_id, _memory(f"other {i}", importance=5))
+            for i in range(6)
+        ]
+        # The first primary is linked to the 3 other primaries and to 6 non-primary memories
+        await mock_memory_repository.create_links_batch(
+            user_id, primaries[0].id, [m.id for m in primaries[1:] + others],
+        )
+
+        result = await test_memory_service.query_memory(
+            user_id, _query(k=4, include_links=True, max_links_per_primary=3),
+        )
+
+        assert sorted(m.id for m in result.primary_memories) == sorted(m.id for m in primaries)
+        linked_ids = [lm.memory.id for lm in result.linked_memories]
+        assert len(linked_ids) == 3
+        assert set(linked_ids) <= {m.id for m in others}
+        assert {lm.link_source_id for lm in result.linked_memories} == {primaries[0].id}
+
+    @pytest.mark.asyncio
+    async def test_linked_memory_claimed_by_earlier_primary_does_not_consume_next_quota(
+        self, test_memory_service, mock_memory_repository,
+    ):
+        user_id = uuid4()
+        first = await mock_memory_repository.create_memory(user_id, _memory("primary first", importance=9))
+        second = await mock_memory_repository.create_memory(user_id, _memory("primary second", importance=8))
+        shared = await mock_memory_repository.create_memory(user_id, _memory("shared", importance=5))
+        spare = await mock_memory_repository.create_memory(user_id, _memory("spare", importance=4))
+        await mock_memory_repository.create_links_batch(user_id, first.id, [shared.id])
+        await mock_memory_repository.create_links_batch(user_id, second.id, [shared.id, spare.id])
+
+        result = await test_memory_service.query_memory(
+            user_id, _query(k=2, include_links=True, max_links_per_primary=1),
+        )
+
+        linked = {lm.memory.id: lm.link_source_id for lm in result.linked_memories}
+        assert linked == {shared.id: first.id, spare.id: second.id}

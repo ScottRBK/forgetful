@@ -681,6 +681,7 @@ class SqliteMemoryRepository:
         memory_id: int,
         project_ids: list[int] | None,
         max_links: int = 5,
+        exclude_ids: list[int] | None = None,
     ) -> list[Memory]:
         """Get memories linked to a specific memory (1-hop neighbors)
 
@@ -689,6 +690,7 @@ class SqliteMemoryRepository:
             memory_id: Memory ID of the memory to retrieve linked memories for
             max_links: Maximum number of linked memories to return
             project_ids: Optional to filter linked memories for projects
+            exclude_ids: Optional memory IDs to leave out, applied before max_links
 
         Returns:
             List of linked Memory objects
@@ -716,6 +718,9 @@ class SqliteMemoryRepository:
                 MemoryTable.is_obsolete.is_(False),
             )
         )
+
+        if exclude_ids:
+            stmt = stmt.where(MemoryTable.id.not_in(exclude_ids))
 
         if project_ids:
             stmt = stmt.join(MemoryTable.projects).where(ProjectsTable.id.in_(project_ids)).distinct()

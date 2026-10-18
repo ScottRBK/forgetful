@@ -452,12 +452,16 @@ class InMemoryMemoryRepository(MemoryRepository):
         memory_id: int,
         project_ids: list[int] | None,
         max_links: int = 5,
+        exclude_ids: list[int] | None = None,
     ) -> list[Memory]:
         """Get linked memories (1-hop neighbors)"""
         linked_ids = self._links.get(memory_id, set())
 
         memories = []
         for linked_id in linked_ids:
+            if exclude_ids and linked_id in exclude_ids:
+                continue
+
             memory = await self.get_memory_by_id(user_id, linked_id)
             if memory:
                 # Filter out obsolete memories (soft delete)

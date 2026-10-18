@@ -93,6 +93,7 @@ class MemoryRepository(Protocol):
             memory_id: int,
             project_ids: list[int] | None,
             max_links: int = 5,
+            exclude_ids: list[int] | None = None,
     ) -> list[Memory]:
         ...
     async def find_similar_memories(
