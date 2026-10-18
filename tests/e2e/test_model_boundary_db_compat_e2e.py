@@ -7,8 +7,11 @@ cannot exceed roughly 2.7KB. Each of these used to surface as an unhandled async
 tests/e2e_sqlite/test_model_boundary_db_compat_sqlite.py.
 """
 import json
+import random
 
 import pytest
+
+from app.config.settings import settings
 
 pytestmark = [pytest.mark.e2e, pytest.mark.asyncio(loop_scope="session")]
 
@@ -16,6 +19,12 @@ JSON = {"content-type": "application/json"}
 NUL = "\u0000"
 INT32_MAX = 2_147_483_647
 SKILL = {"name": "a-skill", "description": "d", "content": "c"}
+
+
+def _incompressible(length: int) -> str:
+    """Four-byte characters in a fixed random order: PostgreSQL cannot compress this"""
+    rng = random.Random(7)
+    return "".join(chr(rng.randrange(0x1F300, 0x1F64F)) for _ in range(length))
 
 
 def _raw_json(payload, token):
@@ -102,6 +111,33 @@ class TestSkill:
             f"/api/v1/skills/{created.json()['id']}", json={"metadata": {"k": f"a{NUL}"}},
         )
         assert updated.status_code == 400, updated.text
+
+    async def test_tag_too_long_to_index_is_refused_on_create_and_update(self, http_client):
+        refused = await http_client.post("/api/v1/skills", json={
+            "name": "a-skill", "description": "d", "content": "c", "tags": [_incompressible(1500)],
+        })
+        assert refused.status_code == 400, refused.text
+
+        created = await http_client.post("/api/v1/skills", json={
+            "name": "a-skill", "description": "d", "content": "c", "tags": ["ok"],
+        })
+        updated = await http_client.put(
+            f"/api/v1/skills/{created.json()['id']}", json={"tags": [_incompressible(1500)]},
+        )
+        assert updated.status_code == 400, updated.text
+
+    async def test_tag_at_the_default_limit_can_be_indexed(self, http_client):
+        # The default limit has to stay below what the GIN index accepts, even for the
+        # widest, least compressible characters
+        tag = _incompressible(settings.SKILL_TAG_MAX_LENGTH)
+
+        response = await http_client.post("/api/v1/skills", json={
+            "name": "a-skill", "description": "d", "content": "c", "tags": [tag, "other"],
+        })
+
+        assert response.status_code == 201, response.text
+        assert response.json()["tags"] == [tag, "other"]
+
 
 class TestPlanning:
     async def test_nul_character_is_refused(self, http_client):

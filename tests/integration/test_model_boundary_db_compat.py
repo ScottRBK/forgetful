@@ -12,6 +12,7 @@ import json
 import pytest
 from pydantic import ValidationError
 
+from app.config.settings import settings
 from app.models.entity_models import (
     EntityRelationship,
     EntityRelationshipCreate,
@@ -142,14 +143,53 @@ class TestSkill:
         assert _rejected(SkillUpdate, payload)[0]["loc"] == loc
 
     def test_response_model_still_reads_rows_stored_earlier(self):
+        long_tag = "t" * (settings.SKILL_TAG_MAX_LENGTH + 50)
         row = {**SKILL, "content": f"a{NUL}b", "id": 1, "created_at": NOW, "updated_at": NOW}
-        skill = Skill(**row, metadata={"x": float("nan")})
+        skill = Skill(**row, tags=[long_tag], metadata={"x": float("nan")})
+        assert skill.tags == [long_tag]
         assert skill.content == f"a{NUL}b"
 
     def test_storable_values_are_unchanged(self):
         skill = SkillCreate(**SKILL, metadata={"score": 1.5, "t": ["a", 2]}, tags=["x", "y"])
         assert skill.metadata == {"score": 1.5, "t": ["a", 2]}
         assert skill.tags == ["x", "y"]
+
+
+class TestSkillTagLength:
+    """skills.tags carries a GIN index, so one oversized tag fails the whole INSERT."""
+
+    def test_default_limit_is_well_below_the_index_key_limit(self):
+        # 4 bytes per character in UTF-8, index key limit about 2700 bytes
+        assert 0 < settings.SKILL_TAG_MAX_LENGTH * 4 < 2700
+
+    def test_create_accepts_tag_at_the_limit_and_rejects_one_more(self):
+        limit = settings.SKILL_TAG_MAX_LENGTH
+        assert SkillCreate(**SKILL, tags=["t" * limit]).tags == ["t" * limit]
+        errors = _rejected(SkillCreate, {**SKILL, "tags": ["ok", "t" * (limit + 1)]})
+        assert errors[0]["loc"] == ("tags",)
+        assert errors[0]["type"] == "tag_too_long"
+        assert str(limit) in errors[0]["msg"]
+
+    def test_update_accepts_tag_at_the_limit_and_rejects_one_more(self):
+        limit = settings.SKILL_TAG_MAX_LENGTH
+        assert SkillUpdate(tags=["t" * limit]).tags == ["t" * limit]
+        assert _rejected(SkillUpdate, {"tags": ["t" * (limit + 1)]})[0]["type"] == "tag_too_long"
+
+    def test_padding_does_not_count_towards_the_limit(self):
+        limit = settings.SKILL_TAG_MAX_LENGTH
+        assert SkillCreate(**SKILL, tags=["  " + "t" * limit + "  "]).tags == ["t" * limit]
+        assert SkillUpdate(tags=[" " + "t" * limit + " "]).tags == ["t" * limit]
+
+    def test_the_limit_is_configurable(self, monkeypatch):
+        monkeypatch.setattr(settings, "SKILL_TAG_MAX_LENGTH", 5)
+        assert SkillCreate(**SKILL, tags=["abcde"]).tags == ["abcde"]
+        assert _rejected(SkillCreate, {**SKILL, "tags": ["abcdef"]})[0]["type"] == "tag_too_long"
+        assert _rejected(SkillUpdate, {"tags": ["abcdef"]})[0]["type"] == "tag_too_long"
+
+    def test_existing_count_limit_still_applies(self):
+        too_many = [f"t{i}" for i in range(settings.SKILL_TAGS_MAX_COUNT + 1)]
+        with pytest.raises(ValidationError):
+            SkillCreate(**SKILL, tags=too_many)
 
 
 class TestPlanningText:

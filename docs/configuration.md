@@ -753,6 +753,11 @@ These settings control the procedural memory (skills) feature.
 - **Description**: Maximum number of tags per skill
 - **Example**: `SKILL_TAGS_MAX_COUNT=10`
 
+### `SKILL_TAG_MAX_LENGTH`
+- **Default**: `255`
+- **Description**: Maximum characters per skill tag. Longer tags are rejected with a validation error. Tags are GIN indexed in PostgreSQL, which cannot index a key above roughly 2.7KB, so keep this below 600 (up to 4 bytes per character)
+- **Example**: `SKILL_TAG_MAX_LENGTH=255`
+
 ---
 
 ## Entity Configuration

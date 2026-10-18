@@ -11,6 +11,8 @@ import json
 import pytest
 from fastmcp.exceptions import ToolError
 
+from app.config.settings import settings
+
 JSON = {"content-type": "application/json"}
 NUL = "\u0000"
 INT32_MAX = 2_147_483_647
@@ -192,6 +194,24 @@ class TestSkill:
 
         _assert_skill_rejected(response, "description", "nul_character")
 
+    async def test_tag_longer_than_the_limit_is_refused_on_create_and_update(self, http_client):
+        limit = settings.SKILL_TAG_MAX_LENGTH
+        refused = await http_client.post("/api/v1/skills", json={
+            "name": "a-skill", "description": "d", "content": "c", "tags": ["x" * 3000],
+        })
+        _assert_skill_rejected(refused, "tags", "tag_too_long")
+
+        accepted = await http_client.post("/api/v1/skills", json={
+            "name": "a-skill", "description": "d", "content": "c", "tags": ["x" * limit],
+        })
+        assert accepted.status_code == 201, accepted.text
+
+        updated = await http_client.put(
+            f"/api/v1/skills/{accepted.json()['id']}", json={"tags": ["y" * (limit + 1)]},
+        )
+        _assert_skill_rejected(updated, "tags", "tag_too_long")
+
+
 class TestPlanning:
     async def test_task_text_with_nul_is_refused(self, http_client):
         plan_id = await _plan(http_client)
@@ -271,3 +291,12 @@ class TestMcpTools:
                 "arguments": {"name": "a-skill", "description": "d", "content": f"a{NUL}b"},
             })
 
+    async def test_create_skill_with_oversized_tag_is_refused(self, mcp_client):
+        with pytest.raises(ToolError):
+            await mcp_client.call_tool("execute_forgetful_tool", {
+                "tool_name": "create_skill",
+                "arguments": {
+                    "name": "a-skill", "description": "d", "content": "c",
+                    "tags": ["x" * (settings.SKILL_TAG_MAX_LENGTH + 1)],
+                },
+            })

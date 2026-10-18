@@ -10,9 +10,26 @@ from datetime import UTC, datetime
 from typing import ClassVar
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic_core import PydanticCustomError
 
 from app.config.settings import settings
 from app.models.storable import StorableInput
+
+
+def _check_tag_length(tags: list[str]) -> None:
+    """Refuse tags too long to index
+
+    skills.tags carries a GIN index on PostgreSQL, which cannot index a key above roughly
+    2.7KB, so one oversized tag would fail the whole write with a driver error.
+    PydanticCustomError keeps the error context JSON serialisable for the routes.
+    """
+    limit = settings.SKILL_TAG_MAX_LENGTH
+    if any(len(tag) > limit for tag in tags):
+        raise PydanticCustomError(
+            "tag_too_long",
+            "Tags are limited to {limit} characters each",
+            {"limit": limit},
+        )
 
 
 class SkillCreate(StorableInput):
@@ -128,6 +145,9 @@ class SkillCreate(StorableInput):
         if len(cleaned) > settings.SKILL_TAGS_MAX_COUNT:
             raise ValueError(f"Maximum {settings.SKILL_TAGS_MAX_COUNT} tags allowed")
 
+        if cls.enforce_storage_limits:
+            _check_tag_length(cleaned)
+
         return cleaned
 
 
@@ -198,6 +218,9 @@ class SkillUpdate(StorableInput):
         if len(cleaned) > settings.SKILL_TAGS_MAX_COUNT:
             raise ValueError(f"Maximum {settings.SKILL_TAGS_MAX_COUNT} tags allowed")
 
+        if cls.enforce_storage_limits:
+            _check_tag_length(cleaned)
+
         return cleaned
 
 
@@ -207,7 +230,7 @@ class Skill(SkillCreate):
     Extends SkillCreate with system-generated fields (id and timestamps).
     Used for responses that include full Skill detail.
     """
-    # Skills stored before NaN/NUL were refused (SQLite accepted them) stay readable
+    # Skills stored before NaN/NUL and oversized tags were refused stay readable
     enforce_storage_limits: ClassVar[bool] = False
 
     id: int = Field(..., description="Unique identifier (auto-generated)")

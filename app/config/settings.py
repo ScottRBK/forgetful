@@ -189,6 +189,7 @@ class Settings(BaseSettings):
     SKILL_COMPATIBILITY_MAX_LENGTH: int = 500
     SKILL_ALLOWED_TOOLS_MAX_LENGTH: int = 2000
     SKILL_TAGS_MAX_COUNT: int = 10
+    SKILL_TAG_MAX_LENGTH: int = 255          # skills.tags is GIN indexed (key limit ~2.7KB)
 
     # Provenance Defaults (auto-applied to all writes when set via MCP env config)
     ENCODING_AGENT: str = ""        # Software running the agent (e.g., "OpenCode")
