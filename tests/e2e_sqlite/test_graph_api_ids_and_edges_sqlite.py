@@ -252,3 +252,22 @@ class TestEntityRelationshipEdges:
         data = response.json()
         assert _relationship_types(data) == ["knows", "mentors"]
         assert data["meta"]["entity_relationship_count"] == 2
+
+
+# ============================================================================
+# Bulk linking with ids that cannot exist
+# ============================================================================
+
+
+@pytest.mark.usefixtures("no_auto_link")
+class TestLinkMemoriesWithImpossibleIds:
+    @pytest.mark.asyncio
+    async def test_out_of_range_target_is_skipped_and_the_rest_linked(self, http_client):
+        for n in range(1, 5):
+            await _create_memory(http_client, f"Memory {n}")
+
+        linked = await _link(http_client, 1, [4, 2**70, 3])
+
+        assert linked == [4, 3]
+        stored = await http_client.get("/api/v1/memories/1")
+        assert sorted(stored.json()["linked_memory_ids"]) == [3, 4]

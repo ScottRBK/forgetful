@@ -810,6 +810,14 @@ class SqliteMemoryRepository:
         if not target_ids:
             return []
 
+        # SQLite integers are signed 64-bit and sqlite3 raises OverflowError for a larger value
+        # instead of matching no row. Such ids cannot exist, so skip them like unknown ids; an error
+        # mid-loop would abort the batch after earlier links were already committed.
+        max_storable_id = 2**63 - 1
+        if not 0 < source_id <= max_storable_id:
+            return []
+        target_ids = [target_id for target_id in target_ids if 0 < target_id <= max_storable_id]
+
         links_created = []
 
         for target_id in target_ids:

@@ -6,9 +6,18 @@ Covers, without any network access or embedding model:
 - SqliteMemoryRepository.create_links_batch: ids that cannot be stored as an
   integer are skipped like unknown ids instead of aborting the batch half way.
 """
+import hashlib
+import random
+from datetime import UTC, datetime
+from uuid import uuid4
 
 import pytest
+from sqlalchemy import text
 
+from app.config.settings import settings
+from app.models.memory_models import MemoryCreate
+from app.repositories.sqlite.memory_repository import SqliteMemoryRepository
+from app.repositories.sqlite.sqlite_adapter import SqliteDatabaseAdapter
 from app.services.graph_service import MAX_NODE_ID, GraphService
 
 NODE_TYPES = [
@@ -83,3 +92,126 @@ def test_parse_node_id_error_message_shows_id_placeholders():
         assert f"'{node_type}_{{id}}'" in message
     assert "{{" not in message
     assert "}}" not in message
+
+
+# ---- SqliteMemoryRepository.create_links_batch ----
+
+class _StaticEmbeddingAdapter:
+    """Deterministic, offline embedding adapter for sqlite-vec."""
+
+    def __init__(self, dimensions: int = 384):
+        self.dimensions = dimensions
+
+    async def generate_embedding(self, text: str) -> list[float]:
+        seed = int(hashlib.md5(text.encode()).hexdigest()[:8], 16)
+        rng = random.Random(seed)
+        vec = [rng.random() for _ in range(self.dimensions)]
+        magnitude = sum(x * x for x in vec) ** 0.5 or 1.0
+        return [x / magnitude for x in vec]
+
+
+@pytest.fixture
+async def sqlite_repo():
+    original_sqlite_memory = settings.SQLITE_MEMORY
+    original_database = settings.DATABASE
+    original_dims = settings.EMBEDDING_DIMENSIONS
+
+    settings.DATABASE = "SQLite"
+    settings.SQLITE_MEMORY = True
+    settings.EMBEDDING_DIMENSIONS = 384
+
+    db_adapter = SqliteDatabaseAdapter()
+    await db_adapter.init_db()
+    repo = SqliteMemoryRepository(
+        db_adapter=db_adapter,
+        embedding_adapter=_StaticEmbeddingAdapter(dimensions=384),
+        rerank_adapter=None,
+    )
+
+    try:
+        yield repo, db_adapter
+    finally:
+        try:
+            await db_adapter.dispose()
+        except Exception:  # noqa: BLE001
+            pass
+        settings.DATABASE = original_database
+        settings.SQLITE_MEMORY = original_sqlite_memory
+        settings.EMBEDDING_DIMENSIONS = original_dims
+
+
+async def _seed_memories(repo, db_adapter, count):
+    user_id = uuid4()
+    now = datetime.now(UTC).isoformat()
+    async with db_adapter.system_session() as session:
+        await session.execute(
+            text(
+                "INSERT INTO users (id, external_id, name, email, created_at, updated_at) "
+                "VALUES (:id, :external_id, :name, :email, :created_at, :updated_at)",
+            ),
+            {
+                "id": str(user_id),
+                "external_id": f"ext-{user_id}",
+                "name": "Test User",
+                "email": "test@example.com",
+                "created_at": now,
+                "updated_at": now,
+            },
+        )
+
+    memories = []
+    for i in range(count):
+        memories.append(
+            await repo.create_memory(
+                user_id=user_id,
+                memory=MemoryCreate(
+                    title=f"M{i}",
+                    content=f"content {i}",
+                    context=f"ctx {i}",
+                    keywords=[f"k{i}"],
+                    tags=[f"t{i}"],
+                    importance=5,
+                ),
+            ),
+        )
+    return user_id, [memory.id for memory in memories]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "bad_id",
+    [2**63, 2**70, -(2**63) - 1, 0, -5],
+    ids=["int64-overflow", "2**70", "below-int64", "zero", "negative"],
+)
+async def test_create_links_batch_skips_unstorable_target_ids(sqlite_repo, bad_id):
+    repo, db_adapter = sqlite_repo
+    user_id, ids = await _seed_memories(repo, db_adapter, count=4)
+    source, first, _unused, last = ids
+
+    linked = await repo.create_links_batch(user_id, source, [last, bad_id, first])
+
+    assert linked == [last, first]
+    stored = await repo.get_memory_by_id(user_id, source)
+    assert sorted(stored.linked_memory_ids) == sorted([first, last])
+
+
+@pytest.mark.asyncio
+async def test_create_links_batch_skips_largest_int64_target_as_not_found(sqlite_repo):
+    repo, db_adapter = sqlite_repo
+    user_id, ids = await _seed_memories(repo, db_adapter, count=3)
+
+    linked = await repo.create_links_batch(user_id, ids[0], [2**63 - 1, ids[1]])
+
+    assert linked == [ids[1]]
+
+
+@pytest.mark.asyncio
+async def test_create_links_batch_with_unstorable_source_links_nothing(sqlite_repo):
+    repo, db_adapter = sqlite_repo
+    user_id, ids = await _seed_memories(repo, db_adapter, count=2)
+
+    assert await repo.create_links_batch(user_id, 2**70, ids) == []
+
+    for memory_id in ids:
+        stored = await repo.get_memory_by_id(user_id, memory_id)
+        assert stored.linked_memory_ids == []
