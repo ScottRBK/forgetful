@@ -9,6 +9,7 @@ factory (app/config/auth.py) with stubbed verifiers and an in-memory user reposi
 - TOKEN_CACHE_ENABLED=false also disables the introspection verifier's own cache
 - non-string identity claims (e.g. a numeric sub) are normalised to strings
 """
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -17,7 +18,8 @@ from starlette.requests import Request
 
 from app.config.auth import build_auth_provider
 from app.config.settings import settings
-from app.middleware.auth import TokenCache, get_user_from_request
+from app.middleware import auth as auth_middleware
+from app.middleware.auth import TokenCache, get_user_from_auth, get_user_from_request
 from app.models.user_models import User
 
 INTROSPECTION_CLASS = "fastmcp.server.auth.providers.introspection.IntrospectionTokenVerifier"
@@ -225,3 +227,47 @@ def test_introspection_cache_configured_when_token_cache_enabled(MockIntrospecti
     assert kwargs["max_cache_size"] == 2000
 
 
+# ============================================
+# Non-string identity claims
+# ============================================
+
+
+@pytest.mark.asyncio
+async def test_get_user_from_request_accepts_numeric_claims(test_user_service):
+    verifier = AsyncMock()
+    verifier.verify_token = AsyncMock(
+        return_value=make_access_token({"sub": 12345, "name": 678, "email": 9}),
+    )
+    mcp = MockFastMCP(test_user_service, auth_provider=verifier)
+
+    user = await get_user_from_request(create_mock_request("numeric-token"), mcp)
+
+    assert user.external_id == "12345"
+    assert user.name == "678"
+    assert user.email == "9"
+
+
+@pytest.mark.asyncio
+async def test_get_user_from_request_numeric_sub_derives_default_name_and_email(test_user_service):
+    verifier = AsyncMock()
+    verifier.verify_token = AsyncMock(return_value=make_access_token({"sub": 12345}))
+    mcp = MockFastMCP(test_user_service, auth_provider=verifier)
+
+    user = await get_user_from_request(create_mock_request("numeric-token"), mcp)
+
+    assert user.external_id == "12345"
+    assert user.name == "User 12345"
+    assert user.email == "12345@oauth.local"
+
+
+@pytest.mark.asyncio
+async def test_get_user_from_auth_accepts_numeric_claims(test_user_service):
+    ctx = SimpleNamespace(fastmcp=SimpleNamespace(user_service=test_user_service, auth=object()))
+    token = make_access_token({"sub": 12345, "name": 678, "email": 9})
+
+    with patch.object(auth_middleware, "get_access_token", return_value=token):
+        user = await get_user_from_auth(ctx)
+
+    assert user.external_id == "12345"
+    assert user.name == "678"
+    assert user.email == "9"

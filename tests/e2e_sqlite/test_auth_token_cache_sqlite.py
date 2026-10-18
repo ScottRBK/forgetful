@@ -204,3 +204,19 @@ async def test_zero_max_size_cache_does_not_break_authenticated_requests(http_cl
     assert jwt_app.token_cache.stats["size"] == 0
 
 
+# ============================================
+# Non-string identity claims
+# ============================================
+
+
+@pytest.mark.asyncio
+async def test_numeric_sub_token_provisions_a_user_instead_of_401(http_client, jwt_app, jwt_keys):
+    headers = bearer(mint(jwt_keys, 12345))
+
+    response = await http_client.get("/api/v1/memories", headers=headers)
+
+    assert response.status_code == 200, response.text
+    user = await jwt_app.user_service.user_repo.get_user_by_external_id("12345")
+    assert user is not None
+    assert user.name == "User 12345"
+    assert user.email == "12345@oauth.local"

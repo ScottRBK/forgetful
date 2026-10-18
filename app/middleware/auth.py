@@ -166,10 +166,11 @@ async def get_user_from_auth(ctx: Context) -> User:
 
     email = claims.get("email") or f"{sub}@oauth.local"
 
+    # Some IdPs emit non-string claims (e.g. a numeric sub); UserCreate requires strings
     user = UserCreate(
-        external_id=sub,
-        name=name,
-        email=email,
+        external_id=str(sub),
+        name=str(name),
+        email=str(email),
     )
     return await user_service.get_or_create_user(user=user)
 
@@ -244,7 +245,8 @@ async def get_user_from_request(request: Request, mcp: FastMCP) -> User:
     name = claims.get("name") or claims.get("preferred_username") or claims.get("login") or f"User {sub}"
     email = claims.get("email") or f"{sub}@oauth.local"
 
-    user_data = UserCreate(external_id=sub, name=name, email=email)
+    # Some IdPs emit non-string claims (e.g. a numeric sub); UserCreate requires strings
+    user_data = UserCreate(external_id=str(sub), name=str(name), email=str(email))
     user = await user_service.get_or_create_user(user=user_data)
 
     # Cache the validated user
