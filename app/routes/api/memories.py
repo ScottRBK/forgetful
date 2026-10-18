@@ -4,7 +4,6 @@ Phase 1 of the Web UI foundation (Issue #3).
 Provides CRUD operations for memories with pagination, filtering, and semantic search.
 """
 import logging
-from typing import Any
 
 from fastmcp import FastMCP
 from pydantic import ValidationError
@@ -23,7 +22,7 @@ from app.models.memory_models import (
     MemoryQueryRequest,
     MemoryUpdate,
 )
-from app.routes.api.validation import validation_error_response
+from app.routes.api.validation import parse_int_param, validation_error_response
 from app.routes.write_plugin_responses import (
     MemoryCreateWriteResponse,
     MemoryUpdateResponse,
@@ -34,29 +33,6 @@ logger = logging.getLogger(__name__)
 # Valid values for query parameters
 VALID_SORT_BY = {"created_at", "updated_at", "importance"}
 VALID_SORT_ORDER = {"asc", "desc"}
-
-
-def parse_int_param(params: Any, name: str, default: int | None = None) -> int | None:
-    """Parse integer query parameter with strict validation.
-
-    Args:
-        params: Query params object
-        name: Parameter name
-        default: Default value if param not provided
-
-    Returns:
-        Parsed integer or default
-
-    Raises:
-        ValueError: If value is not a valid integer
-    """
-    raw = params.get(name)
-    if raw is None:
-        return default
-    try:
-        return int(raw)
-    except (ValueError, TypeError):
-        raise ValueError(f"Invalid value for '{name}': must be an integer")
 
 
 def register(mcp: FastMCP):

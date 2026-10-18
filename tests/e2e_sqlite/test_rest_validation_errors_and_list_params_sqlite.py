@@ -1,4 +1,4 @@
-"""E2E tests for REST validation error responses.
+"""E2E tests for REST validation error responses and list/search parameter bounds.
 
 Uses in-memory SQLite for test isolation.
 
@@ -10,6 +10,8 @@ import pytest
 from fastmcp import Client
 from httpx import ASGITransport, AsyncClient
 
+BIG = 10**30
+INT64_MAX = 2**63 - 1
 JSON_HEADERS = {"content-type": "application/json"}
 
 
@@ -32,6 +34,16 @@ async def _create_entity(api, name="Entity"):
     return await _create(
         api, "/api/v1/entities", {"name": name, "entity_type": "Individual"},
     )
+
+
+async def _create_skill(api, name="skill-one"):
+    return await _create(api, "/api/v1/skills", {
+        "name": name,
+        "description": f"Deploy docker application {name}",
+        "content": "# Skill\n\nsteps",
+        "tags": ["t"],
+        "importance": 7,
+    })
 
 
 def _assert_validation_error(response, label):
@@ -201,3 +213,146 @@ class TestNonFiniteNumbers:
             '{"title":"t","description":"d","content":"c","confidence":NaN}'
         ))
         _assert_validation_error(document, "POST /documents confidence=NaN")
+
+
+class TestIntegerQueryParams:
+    """Query integers must be rejected with 400 when they cannot fit the database column."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("path", [
+        "/api/v1/documents",
+        "/api/v1/files",
+        "/api/v1/code-artifacts",
+        "/api/v1/skills",
+        "/api/v1/memories",
+    ])
+    async def test_list_project_id_out_of_range_returns_400(self, api, path):
+        response = await api.get(f"{path}?project_id={BIG}")
+        assert response.status_code == 400, f"{path}: {response.status_code}"
+        assert "project_id" in response.json()["error"]
+
+    @pytest.mark.asyncio
+    async def test_other_out_of_range_query_ints_return_400(self, api):
+        urls = [
+            f"/api/v1/skills?importance_threshold={BIG}",
+            f"/api/v1/skills/search?query=x&project_id={BIG}",
+            f"/api/v1/skills/search?query=x&k={BIG}",
+            f"/api/v1/entities?offset={2**63}",
+            f"/api/v1/memories?offset={2**63}",
+            f"/api/v1/memories?project_id=-{BIG}",
+        ]
+        for url in urls:
+            response = await api.get(url)
+            assert response.status_code == 400, f"{url}: {response.status_code}"
+            assert isinstance(response.json()["error"], str)
+
+    @pytest.mark.asyncio
+    async def test_boundary_values_and_empty_filters_still_accepted(self, api):
+        urls = [
+            f"/api/v1/documents?project_id={INT64_MAX}",
+            "/api/v1/documents?project_id=",
+            "/api/v1/files?project_id=",
+            "/api/v1/code-artifacts?project_id=",
+            "/api/v1/skills?project_id=&importance_threshold=",
+            f"/api/v1/entities?offset={INT64_MAX}",
+        ]
+        for url in urls:
+            response = await api.get(url)
+            assert response.status_code == 200, f"{url}: {response.status_code}"
+
+
+class TestLinkBodyIds:
+    """Ids in link request bodies must be integers within range; unknown ids stay 404."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("value", [BIG, -BIG, [1], {"a": 1}, "1", 1.5, True])
+    async def test_skill_link_routes_reject_invalid_ids(self, api, value):
+        skill_id = await _create_skill(api)
+        routes = {
+            "files": "file_id",
+            "documents": "document_id",
+            "code-artifacts": "code_artifact_id",
+        }
+        for route, key in routes.items():
+            response = await api.post(f"/api/v1/skills/{skill_id}/{route}", json={key: value})
+            assert response.status_code == 400, f"{route} {key}={value!r}: {response.status_code}"
+            assert key in response.json()["error"]
+
+    @pytest.mark.asyncio
+    async def test_skill_link_unknown_integer_id_is_still_404(self, api):
+        skill_id = await _create_skill(api)
+        response = await api.post(f"/api/v1/skills/{skill_id}/files", json={"file_id": 987654})
+        assert response.status_code == 404
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("value", [BIG, -BIG, [1], {"a": 1}, "1", 1.5, True])
+    async def test_entity_memory_link_rejects_invalid_memory_id(self, api, value):
+        entity_id = await _create_entity(api)
+        response = await api.post(
+            f"/api/v1/entities/{entity_id}/memories", json={"memory_id": value},
+        )
+        assert response.status_code == 400, f"memory_id={value!r}: {response.status_code}"
+        assert "memory_id" in response.json()["error"]
+
+    @pytest.mark.asyncio
+    async def test_entity_memory_link_unknown_integer_id_is_still_404(self, api):
+        entity_id = await _create_entity(api)
+        response = await api.post(
+            f"/api/v1/entities/{entity_id}/memories", json={"memory_id": 987654},
+        )
+        assert response.status_code == 404
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("value", [123, [1, 2], {"a": 1}, 1.5])
+    async def test_skill_import_rejects_non_string_skill_md(self, api, value):
+        response = await api.post("/api/v1/skills/import", json={"skill_md": value})
+        assert response.status_code == 400, f"skill_md={value!r}: {response.status_code}"
+        assert "skill_md" in response.json()["error"]
+
+
+class TestSearchLimits:
+    """limit/k below 1 must not turn into LIMIT -1 (unbounded) or LIMIT 0."""
+
+    @pytest.mark.asyncio
+    async def test_entity_search_limit_below_one_returns_400(self, api):
+        for index in range(3):
+            await _create_entity(api, f"Bulk{index}")
+
+        for limit in (-1, 0, -1000):
+            response = await api.post(
+                "/api/v1/entities/search", json={"query": "Bulk", "limit": limit},
+            )
+            assert response.status_code == 400, f"limit={limit}: {response.status_code}"
+            assert "limit must be between 1 and 100" in response.json()["error"]
+
+    @pytest.mark.asyncio
+    async def test_entity_search_valid_limits_still_work(self, api):
+        for index in range(3):
+            await _create_entity(api, f"Bulk{index}")
+
+        one = await api.post("/api/v1/entities/search", json={"query": "Bulk", "limit": 1})
+        assert one.status_code == 200
+        assert len(one.json()["entities"]) == 1
+
+        capped = await api.post(
+            "/api/v1/entities/search", json={"query": "Bulk", "limit": 1000},
+        )
+        assert capped.status_code == 200
+        assert len(capped.json()["entities"]) == 3
+
+        default = await api.post("/api/v1/entities/search", json={"query": "Bulk"})
+        assert default.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_skill_search_k_below_one_returns_400(self, api):
+        for index in range(3):
+            await _create_skill(api, f"deploy-skill-{index}")
+
+        for k in (-1, 0):
+            response = await api.get(f"/api/v1/skills/search?query=deploy+docker&k={k}")
+            assert response.status_code == 400, f"k={k}: {response.status_code}"
+            assert "Invalid k" in response.json()["error"]
+
+        valid = await api.get("/api/v1/skills/search?query=deploy+docker&k=2")
+        assert valid.status_code == 200
+        assert len(valid.json()["skills"]) == 2

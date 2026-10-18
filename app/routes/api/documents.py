@@ -16,7 +16,10 @@ from app.models.document_models import (
     DocumentCreate,
     DocumentUpdate,
 )
-from app.routes.api.validation import validation_error_response
+from app.routes.api.validation import (
+    parse_optional_int_query,
+    validation_error_response,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -39,19 +42,13 @@ def register(mcp: FastMCP):
             return JSONResponse({"error": str(e)}, status_code=401)
 
         params = request.query_params
-        project_id_str = params.get("project_id")
         document_type = params.get("document_type")
         tags_str = params.get("tags")
 
-        project_id = None
-        if project_id_str:
-            try:
-                project_id = int(project_id_str)
-            except ValueError:
-                return JSONResponse(
-                    {"error": f"Invalid project_id: {project_id_str}. Must be an integer."},
-                    status_code=400,
-                )
+        try:
+            project_id = parse_optional_int_query(params, "project_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
         tags = [t.strip() for t in tags_str.split(",")] if tags_str else None
 
         documents = await mcp.document_service.list_documents(

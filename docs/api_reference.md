@@ -532,6 +532,8 @@ Search entities by name.
 }
 ```
 
+`limit` defaults to 10 and values above 100 are capped at 100. A `limit` below 1 returns HTTP 400.
+
 ### POST /api/v1/entities/{id}/memories
 
 Link an entity to a memory.
@@ -759,7 +761,7 @@ Semantic search for skills by description similarity.
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `query` | string | (required) | Search query |
-| `k` | int | 5 | Number of results |
+| `k` | int | 5 | Number of results (at least 1; smaller values return HTTP 400) |
 | `project_id` | int | - | Filter by project |
 
 ### GET /api/v1/skills/{id}
@@ -1752,3 +1754,6 @@ For validation errors (400), the error may contain detailed field-level errors:
 ```
 
 Each entry contains only `type`, `loc` and `msg`; the rejected input value is not echoed back.
+Integer query parameters must fit in a signed 64-bit integer, and the identifiers in link request
+bodies (`file_id`, `document_id`, `code_artifact_id`, `memory_id`) must be JSON integers that fit
+too. Anything else returns HTTP 400 instead of reaching the database.

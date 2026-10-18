@@ -16,6 +16,11 @@ from app.models.skill_models import (
     SkillCreate,
     SkillUpdate,
 )
+from app.routes.api.validation import (
+    parse_int_query,
+    parse_optional_int_query,
+    validate_body_id,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -62,36 +67,21 @@ def register(mcp: FastMCP):
             return JSONResponse({"error": str(e)}, status_code=401)
 
         params = request.query_params
-        project_id_str = params.get("project_id")
         tags_str = params.get("tags")
-        importance_threshold_str = params.get("importance_threshold")
 
-        project_id = None
-        if project_id_str:
-            try:
-                project_id = int(project_id_str)
-            except ValueError:
-                return JSONResponse(
-                    {"error": f"Invalid project_id: {project_id_str}. Must be an integer."},
-                    status_code=400,
-                )
+        try:
+            project_id = parse_optional_int_query(params, "project_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         tags = [t.strip() for t in tags_str.split(",")] if tags_str else None
 
-        importance_threshold = None
-        if importance_threshold_str:
-            try:
-                importance_threshold = int(importance_threshold_str)
-            except ValueError:
-                msg = (
-                    f"Invalid importance_threshold: "
-                    f"{importance_threshold_str}. "
-                    f"Must be an integer."
-                )
-                return JSONResponse(
-                    {"error": msg},
-                    status_code=400,
-                )
+        try:
+            importance_threshold = parse_optional_int_query(
+                params, "importance_threshold",
+            )
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         skills = await mcp.skill_service.list_skills(
             user_id=user.id,
@@ -127,25 +117,18 @@ def register(mcp: FastMCP):
                 status_code=400,
             )
 
-        k_str = params.get("k", "5")
         try:
-            k = int(k_str)
-        except ValueError:
+            k = parse_int_query(params.get("k", "5"), "k")
+            project_id = parse_optional_int_query(params, "project_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
+
+        # A non-positive k would reach SQL as LIMIT -1 (unbounded) or LIMIT 0
+        if k < 1:
             return JSONResponse(
-                {"error": f"Invalid k: {k_str}. Must be an integer."},
+                {"error": f"Invalid k: {k}. Must be at least 1."},
                 status_code=400,
             )
-
-        project_id_str = params.get("project_id")
-        project_id = None
-        if project_id_str:
-            try:
-                project_id = int(project_id_str)
-            except ValueError:
-                return JSONResponse(
-                    {"error": f"Invalid project_id: {project_id_str}. Must be an integer."},
-                    status_code=400,
-                )
 
         skills = await mcp.skill_service.search_skills(
             user_id=user.id,
@@ -256,6 +239,12 @@ def register(mcp: FastMCP):
                 status_code=400,
             )
 
+        if not isinstance(skill_md, str):
+            return JSONResponse(
+                {"error": "skill_md must be a string"},
+                status_code=400,
+            )
+
         project_id = body.get("project_id")
         importance = body.get("importance", 7)
 
@@ -312,6 +301,11 @@ def register(mcp: FastMCP):
             return JSONResponse({"error": "file_id is required"}, status_code=400)
 
         try:
+            file_id = validate_body_id(file_id, "file_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
+
+        try:
             result = await mcp.skill_service.link_skill_to_file(
                 user_id=user.id,
                 skill_id=skill_id,
@@ -359,6 +353,11 @@ def register(mcp: FastMCP):
             code_artifact_id = body["code_artifact_id"]
         except (ValueError, KeyError):
             return JSONResponse({"error": "code_artifact_id is required"}, status_code=400)
+
+        try:
+            code_artifact_id = validate_body_id(code_artifact_id, "code_artifact_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             result = await mcp.skill_service.link_skill_to_code_artifact(
@@ -411,6 +410,11 @@ def register(mcp: FastMCP):
             document_id = body["document_id"]
         except (ValueError, KeyError):
             return JSONResponse({"error": "document_id is required"}, status_code=400)
+
+        try:
+            document_id = validate_body_id(document_id, "document_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             result = await mcp.skill_service.link_skill_to_document(

@@ -4,7 +4,6 @@ Phase 2 of the Web UI foundation (Issue #3).
 Provides CRUD operations for entities with relationships and memory links.
 """
 import logging
-from typing import Any
 
 from fastmcp import FastMCP
 from pydantic import ValidationError
@@ -21,32 +20,13 @@ from app.models.entity_models import (
     EntityType,
     EntityUpdate,
 )
-from app.routes.api.validation import validation_error_response
+from app.routes.api.validation import (
+    parse_int_param,
+    validate_body_id,
+    validation_error_response,
+)
 
 logger = logging.getLogger(__name__)
-
-
-def parse_int_param(params: Any, name: str, default: int | None = None) -> int | None:
-    """Parse integer query parameter with strict validation.
-
-    Args:
-        params: Query parameters object
-        name: Parameter name to extract
-        default: Default value if parameter not provided
-
-    Returns:
-        Parsed integer value or default
-
-    Raises:
-        ValueError: If value is not a valid integer
-    """
-    raw = params.get(name)
-    if raw is None:
-        return default
-    try:
-        return int(raw)
-    except (ValueError, TypeError):
-        raise ValueError(f"Invalid value for '{name}': must be an integer")
 
 
 def register(mcp: FastMCP):
@@ -225,6 +205,13 @@ def register(mcp: FastMCP):
         if not query:
             return JSONResponse({"error": "query is required"}, status_code=400)
 
+        # A non-positive limit would reach SQL as LIMIT -1 (unbounded) or LIMIT 0
+        if limit < 1:
+            return JSONResponse(
+                {"error": "limit must be between 1 and 100"},
+                status_code=400,
+            )
+
         # Convert string to EntityType enum if provided
         entity_type = None
         if entity_type_str:
@@ -267,6 +254,11 @@ def register(mcp: FastMCP):
 
         if not memory_id:
             return JSONResponse({"error": "memory_id is required"}, status_code=400)
+
+        try:
+            memory_id = validate_body_id(memory_id, "memory_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             success = await mcp.entity_service.link_entity_to_memory(
