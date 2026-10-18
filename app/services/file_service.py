@@ -112,7 +112,7 @@ class FileService:
         logger.info(
             "creating file",
             extra={
-                "filename": file_data.filename[:50],
+                "file_name": file_data.filename[:50],
                 "mime_type": file_data.mime_type,
                 "user_id": str(user_id),
             },

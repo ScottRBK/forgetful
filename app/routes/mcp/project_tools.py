@@ -416,7 +416,7 @@ def register(mcp: FastMCP):
             extra={
                 "status": status.value if status else None,
                 "repo_name": repo_name,
-                "name": name,
+                "name_filter": name,
             },
         )
 

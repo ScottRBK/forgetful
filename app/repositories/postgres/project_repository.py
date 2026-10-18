@@ -68,7 +68,7 @@ class PostgresProjectRepository:
                 "user_id": str(user_id),
                 "status": status.value if status else None,
                 "repo_name": repo_name,
-                "name": name,
+                "name_filter": name,
             },
         )
 
