@@ -446,7 +446,12 @@ default, or against a remote deployment.
 
 OAuth tokens are cached in `~/.config/forgetful/tokens/` (created `0700`) so the
 browser flow runs once, not per invocation. `forgetful auth logout` deletes this
-directory; the server-side session is untouched.
+directory (or, when it is a symlink, empties the directory it points at); the
+server-side session is untouched. The cache keeps working if the directory is moved
+(renamed home, bind mount, restored backup). `forgetful auth status` is read-only: it
+sends `FORGETFUL_TOKEN` or the cached access token as a plain bearer and never starts the
+browser flow, so an expired token is reported as not authenticated until you run
+`forgetful auth login` again.
 
 ---
 

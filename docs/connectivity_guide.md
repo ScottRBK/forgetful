@@ -385,7 +385,7 @@ forgetful auth login --server https://forgetful.example.com
 # registration), caches tokens in ~/.config/forgetful/tokens/, and saves
 # FORGETFUL_SERVER to ~/.config/forgetful/.env
 
-forgetful auth status    # server, authenticated user, cached credentials
+forgetful auth status    # server, authenticated user, cached credentials (read-only)
 forgetful memory search "deployment checklist" -c "release prep"   # runs remotely
 forgetful auth logout    # clears the local token cache
 ```
