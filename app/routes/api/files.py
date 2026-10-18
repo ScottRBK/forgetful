@@ -15,6 +15,7 @@ from app.models.file_models import (
     FileCreate,
     FileUpdate,
 )
+from app.routes.api.validation import validation_error_response
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +97,7 @@ def register(mcp: FastMCP):
             body = await request.json()
             file_data = FileCreate(**body)
         except ValidationError as e:
-            return JSONResponse({"error": e.errors()}, status_code=400)
+            return validation_error_response(e)
 
         file = await mcp.file_service.create_file(
             user_id=user.id,
@@ -119,7 +120,7 @@ def register(mcp: FastMCP):
             body = await request.json()
             update_data = FileUpdate(**body)
         except ValidationError as e:
-            return JSONResponse({"error": e.errors()}, status_code=400)
+            return validation_error_response(e)
 
         try:
             file = await mcp.file_service.update_file(

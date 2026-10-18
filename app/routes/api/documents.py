@@ -16,6 +16,7 @@ from app.models.document_models import (
     DocumentCreate,
     DocumentUpdate,
 )
+from app.routes.api.validation import validation_error_response
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +98,7 @@ def register(mcp: FastMCP):
             body = await request.json()
             document_data = DocumentCreate(**body)
         except ValidationError as e:
-            return JSONResponse({"error": e.errors()}, status_code=400)
+            return validation_error_response(e)
 
         document = await mcp.document_service.create_document(
             user_id=user.id,
@@ -120,7 +121,7 @@ def register(mcp: FastMCP):
             body = await request.json()
             update_data = DocumentUpdate(**body)
         except ValidationError as e:
-            return JSONResponse({"error": e.errors()}, status_code=400)
+            return validation_error_response(e)
 
         try:
             document = await mcp.document_service.update_document(

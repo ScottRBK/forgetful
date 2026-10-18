@@ -10,6 +10,7 @@ from starlette.responses import JSONResponse
 from app.exceptions import ConflictError, InvalidStateTransitionError, NotFoundError
 from app.middleware.auth import get_user_from_request
 from app.models.plan_models import PlanCreate, PlanStatus, PlanUpdate
+from app.routes.api.validation import validation_error_response
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +47,7 @@ def register(mcp: FastMCP):
                 external_ref=params.get("external_ref"),
             )
         except ValidationError as e:
-            return JSONResponse({"error": e.errors()}, status_code=400)
+            return validation_error_response(e)
         return JSONResponse({
             "plans": [p.model_dump(mode="json") for p in plans],
             "total": len(plans),
@@ -79,7 +80,7 @@ def register(mcp: FastMCP):
             body = await request.json()
             plan_data = PlanCreate(**body)
         except ValidationError as e:
-            return JSONResponse({"error": e.errors()}, status_code=400)
+            return validation_error_response(e)
 
         try:
             plan = await mcp.plan_service.create_plan(user_id=user.id, plan_data=plan_data)
@@ -101,7 +102,7 @@ def register(mcp: FastMCP):
             body = await request.json()
             update_data = PlanUpdate(**body)
         except ValidationError as e:
-            return JSONResponse({"error": e.errors()}, status_code=400)
+            return validation_error_response(e)
 
         try:
             plan = await mcp.plan_service.update_plan(

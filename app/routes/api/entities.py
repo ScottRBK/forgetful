@@ -21,6 +21,7 @@ from app.models.entity_models import (
     EntityType,
     EntityUpdate,
 )
+from app.routes.api.validation import validation_error_response
 
 logger = logging.getLogger(__name__)
 
@@ -149,7 +150,7 @@ def register(mcp: FastMCP):
             body = await request.json()
             entity_data = EntityCreate(**body)
         except ValidationError as e:
-            return JSONResponse({"error": e.errors()}, status_code=400)
+            return validation_error_response(e)
 
         entity = await mcp.entity_service.create_entity(
             user_id=user.id,
@@ -172,7 +173,7 @@ def register(mcp: FastMCP):
             body = await request.json()
             update_data = EntityUpdate(**body)
         except ValidationError as e:
-            return JSONResponse({"error": e.errors()}, status_code=400)
+            return validation_error_response(e)
 
         try:
             entity = await mcp.entity_service.update_entity(
@@ -367,7 +368,7 @@ def register(mcp: FastMCP):
             body["source_entity_id"] = source_entity_id
             relationship_data = EntityRelationshipCreate(**body)
         except ValidationError as e:
-            return JSONResponse({"error": e.errors()}, status_code=400)
+            return validation_error_response(e)
 
         try:
             relationship = await mcp.entity_service.create_entity_relationship(
@@ -393,7 +394,7 @@ def register(mcp: FastMCP):
             body = await request.json()
             update_data = EntityRelationshipUpdate(**body)
         except ValidationError as e:
-            return JSONResponse({"error": e.errors()}, status_code=400)
+            return validation_error_response(e)
 
         try:
             relationship = await mcp.entity_service.update_entity_relationship(

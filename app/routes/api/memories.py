@@ -23,6 +23,7 @@ from app.models.memory_models import (
     MemoryQueryRequest,
     MemoryUpdate,
 )
+from app.routes.api.validation import validation_error_response
 from app.routes.write_plugin_responses import (
     MemoryCreateWriteResponse,
     MemoryUpdateResponse,
@@ -193,7 +194,7 @@ def register(mcp: FastMCP):
             body = await request.json()
             memory_data = MemoryCreate(**body)
         except ValidationError as e:
-            return JSONResponse({"error": e.errors()}, status_code=400)
+            return validation_error_response(e)
         except Exception as e:
             return JSONResponse({"error": f"Invalid request body: {e!s}"}, status_code=400)
 
@@ -244,7 +245,7 @@ def register(mcp: FastMCP):
             body = await request.json()
             update_data = MemoryUpdate(**body)
         except ValidationError as e:
-            return JSONResponse({"error": e.errors()}, status_code=400)
+            return validation_error_response(e)
         except Exception as e:
             return JSONResponse({"error": f"Invalid request body: {e!s}"}, status_code=400)
 
@@ -314,7 +315,7 @@ def register(mcp: FastMCP):
             body = await request.json()
             query_request = MemoryQueryRequest(**body)
         except ValidationError as e:
-            return JSONResponse({"error": e.errors()}, status_code=400)
+            return validation_error_response(e)
         except Exception as e:
             return JSONResponse({"error": f"Invalid request body: {e!s}"}, status_code=400)
 

@@ -16,6 +16,7 @@ from app.models.code_artifact_models import (
     CodeArtifactCreate,
     CodeArtifactUpdate,
 )
+from app.routes.api.validation import validation_error_response
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +98,7 @@ def register(mcp: FastMCP):
             body = await request.json()
             artifact_data = CodeArtifactCreate(**body)
         except ValidationError as e:
-            return JSONResponse({"error": e.errors()}, status_code=400)
+            return validation_error_response(e)
 
         artifact = await mcp.code_artifact_service.create_code_artifact(
             user_id=user.id,
@@ -120,7 +121,7 @@ def register(mcp: FastMCP):
             body = await request.json()
             update_data = CodeArtifactUpdate(**body)
         except ValidationError as e:
-            return JSONResponse({"error": e.errors()}, status_code=400)
+            return validation_error_response(e)
 
         try:
             artifact = await mcp.code_artifact_service.update_code_artifact(

@@ -17,6 +17,7 @@ from app.models.project_models import (
     ProjectStatus,
     ProjectUpdate,
 )
+from app.routes.api.validation import validation_error_response
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +96,7 @@ def register(mcp: FastMCP):
             body = await request.json()
             project_data = ProjectCreate(**body)
         except ValidationError as e:
-            return JSONResponse({"error": e.errors(include_context=False)}, status_code=400)
+            return validation_error_response(e)
 
         project = await mcp.project_service.create_project(
             user_id=user.id,
@@ -118,7 +119,7 @@ def register(mcp: FastMCP):
             body = await request.json()
             update_data = ProjectUpdate(**body)
         except ValidationError as e:
-            return JSONResponse({"error": e.errors(include_context=False)}, status_code=400)
+            return validation_error_response(e)
 
         try:
             project = await mcp.project_service.update_project(
