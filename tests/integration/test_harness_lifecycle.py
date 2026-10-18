@@ -1,17 +1,20 @@
 """Integration tests for the harness run lifecycle (test_harness/__main__.py + container.py).
 
-Teardown order and exception safety plus SIGTERM handling, exercised without a docker
-daemon. Only the outside world is faked: the docker SDK (a daemon stand-in plus a fake
-`docker` module, since the optional `harness` dependency group is not installed here),
-the throwaway server and the agent walkthrough. `_run`, `main` and the real
-`AgentContainer` start/stop code paths are what run.
+Teardown order and exception safety, SIGTERM handling and Ctrl-C racing the container
+start, exercised without a docker daemon. Only the outside world is faked: the docker
+SDK (a daemon stand-in plus a fake `docker` module, since the optional `harness`
+dependency group is not installed here), the throwaway server and the agent
+walkthrough. `_run`, `main` and the real `AgentContainer` start/stop code paths are
+what run.
 """
+import asyncio
 import os
 import signal
 import subprocess
 import sys
 import tempfile
 import textwrap
+import threading
 import time
 import types
 from pathlib import Path
@@ -41,6 +44,18 @@ FAKE_DOCKER = types.ModuleType("docker")
 FAKE_DOCKER.errors = types.SimpleNamespace(
     DockerException=FakeDockerError, NotFound=FakeNotFound,
 )
+
+
+class Gate:
+    """Parks a worker thread at a chosen point until the test lets it go."""
+
+    def __init__(self):
+        self.entered = threading.Event()
+        self.release = threading.Event()
+
+    def block(self):
+        self.entered.set()
+        assert self.release.wait(15), "gate was never released"
 
 
 class FakeStream:
@@ -80,6 +95,8 @@ class FakeDaemon:
         self.stop_error: Exception | None = None
         self.remove_error: Exception | None = None
         self.server_reachable = True
+        self.wheel_gate: Gate | None = None
+        self.run_gate: Gate | None = None
         self.containers = types.SimpleNamespace(get=self._get, run=self._run)
         self.api = types.SimpleNamespace(
             exec_create=self._exec_create,
@@ -94,6 +111,8 @@ class FakeDaemon:
         raise FakeNotFound(name)
 
     def _run(self, **kwargs):
+        if self.run_gate is not None:
+            self.run_gate.block()
         item = FakeDockerContainer(self, kwargs["name"], kwargs)
         self.registry.append(item)
         self.created.append(item)
@@ -150,6 +169,8 @@ def env(tmp_path, monkeypatch):
     real_provision = container_mod.provision_agent
 
     def prepare_mount(run_dir):
+        if daemon.wheel_gate is not None:
+            daemon.wheel_gate.block()
         harness_dir = run_dir / "harness"
         harness_dir.mkdir(exist_ok=True)
         return harness_dir
@@ -268,6 +289,66 @@ def test_container_stop_is_best_effort_per_step(env, tmp_path, capsys, failing_s
         assert env.daemon.registry == [], "remove must still be attempted"
     assert env.staged_dirs() == [], "credential copies must always be deleted"
     assert "daemon gone" in capsys.readouterr().err
+
+
+# --- stop() racing a start() that is still in its worker thread --------------
+
+
+@pytest.mark.parametrize(
+    ("blocked_in", "expect_created"), [("wheel_build", 0), ("container_run", 1)],
+)
+async def test_interrupt_during_start_leaves_no_container_or_credentials(
+    env, monkeypatch, blocked_in, expect_created,
+):
+    # Arrange: start() runs in a worker thread that cannot be cancelled; park it
+    # where Ctrl-C hits in real life (the multi-second wheel build, or just before
+    # the container exists)
+    gate = Gate()
+    if blocked_in == "wheel_build":
+        env.daemon.wheel_gate = gate
+    else:
+        env.daemon.run_gate = gate
+    start_finished = threading.Event()
+    real_start = AgentContainer.start
+
+    def recording_start(self):
+        try:
+            real_start(self)
+        finally:
+            start_finished.set()
+
+    monkeypatch.setattr(AgentContainer, "start", recording_start)
+    task = asyncio.create_task(harness_main._run(env.config))
+    assert await asyncio.to_thread(gate.entered.wait, 10)
+
+    # Act: cancel (what Ctrl-C does), let teardown finish, then let the abandoned
+    # start() thread run on to the end
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    gate.release.set()
+    assert await asyncio.to_thread(start_finished.wait, 15)
+
+    # Assert
+    assert len(env.daemon.created) == expect_created
+    assert env.daemon.registry == [], "container created after stop() was leaked"
+    assert env.staged_dirs() == []
+    assert "server.stop" in env.events
+
+
+def test_stop_before_start_prevents_any_container(env, tmp_path):
+    # Arrange
+    (tmp_path / "run").mkdir()
+    container = AgentContainer(env.config, tmp_path / "run", "http://host.docker.internal:1")
+
+    # Act
+    container.stop()
+
+    # Assert: a start() that loses the race bails out instead of creating one
+    with pytest.raises(HarnessInfraError, match="shutting down"):
+        container.start()
+    assert env.daemon.created == []
+    assert env.staged_dirs() == []
 
 
 # --- SIGTERM takes the same teardown path as Ctrl-C --------------------------

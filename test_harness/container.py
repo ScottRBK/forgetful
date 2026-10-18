@@ -18,6 +18,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 from os import chmod
 from pathlib import Path
 
@@ -178,7 +179,10 @@ class AgentContainer:
     Created with the fenced environment baked in (the server URL must be known first),
     `sleep infinity` as PID 1, and the working tree installed on top of the image's
     locked deps. `stop()` is safe to call from a finally regardless of how far
-    `start()` got.
+    `start()` got - including while `start()` is still running in its worker thread
+    (a cancelled `asyncio.to_thread` cannot interrupt it): `stop()` raises a flag that
+    `start()` checks between its steps, and whichever side finds a container or staged
+    credential copy releases it.
     """
 
     def __init__(self, config: HarnessConfig, run_dir: Path, server_url: str):
@@ -188,18 +192,22 @@ class AgentContainer:
         self._staged: list[Path] = []
         self._client = None
         self._container = None
+        self._stopping = threading.Event()
+        self._lock = threading.Lock()
 
     def start(self) -> None:
         import docker
 
         self._client = _docker_client()
         volumes = provision_agent(self.config.agent_type, self._staged)
+        self._abort_if_stopping()
         skills_dir = self.run_dir / "skills"
         skills_dir.mkdir(exist_ok=True)
         volumes[str(skills_dir)] = {"bind": SKILLS_MOUNT, "mode": "rw"}
         volumes[str(_prepare_harness_mount(self.run_dir))] = {
             "bind": HARNESS_MOUNT, "mode": "ro",
         }
+        self._abort_if_stopping()
 
         name = f"forgetful-uat-{self.run_dir.name}"
         try:
@@ -225,6 +233,9 @@ class AgentContainer:
             )
         except docker.errors.DockerException as exc:
             raise HarnessInfraError(f"could not start {IMAGE}: {exc}") from exc
+        # stop() may have run while containers.run() was in flight and found nothing
+        # to remove; the container is assigned before this check, so one side sees it
+        self._abort_if_stopping()
 
         install = (
             "uv pip install --python /opt/venv/bin/python --no-deps --quiet "
@@ -294,16 +305,32 @@ class AgentContainer:
         return self._client.api.exec_inspect(exec_id)["ExitCode"], buffer
 
     def stop(self) -> None:
-        """Release the container and the staged credential copies; idempotent, and
-        never raises for a docker failure."""
-        container, self._container = self._container, None
+        """Release everything this object holds; idempotent and never raises for a
+        docker failure. Safe while `start()` is still running in another thread."""
+        self._stopping.set()
+        self._release()
+
+    def _abort_if_stopping(self) -> None:
+        """Called by `start()` between steps: bail out (cleaning up whatever it has
+        made so far) once `stop()` has been requested."""
+        if self._stopping.is_set():
+            self._release()
+            raise HarnessInfraError("container start abandoned: the harness is shutting down")
+
+    def _release(self) -> None:
+        with self._lock:
+            container, self._container = self._container, None
         try:
             if container is not None:
                 self._remove(container)
         finally:
-            for staging in self._staged:
+            # one at a time: start() may still be appending a staged dir
+            while True:
+                try:
+                    staging = self._staged.pop()
+                except IndexError:
+                    break
                 shutil.rmtree(staging, ignore_errors=True)
-            self._staged.clear()
 
     def _remove(self, container) -> None:
         """Stop, then force-remove, as independent best-effort steps: a dead docker

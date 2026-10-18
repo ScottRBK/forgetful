@@ -69,7 +69,8 @@ rebuilds automatically when the lock drifts (stale images have burned runs befor
    best-effort and independent per resource: a docker failure never skips stopping the
    server or deleting the staged credential copies. `SIGTERM` (`kill`, a CI cancel,
    `timeout`) takes the same path as Ctrl-C: the run is cancelled at its next await,
-   everything is torn down, and the process exits `143`.
+   everything is torn down, and the process exits `143`. A Ctrl-C during container
+   startup also removes a container that the start thread creates after the fact.
 
 ## Artifacts
 
