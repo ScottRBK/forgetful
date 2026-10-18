@@ -7,6 +7,7 @@ The token cache itself is the real on-disk FileTreeStore under tmp_path.
 """
 import asyncio
 import json
+import shutil
 import threading
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -326,3 +327,86 @@ async def test_auth_status_other_failures_are_still_not_authenticated(
     captured = capsys.readouterr()
     assert code == 1
     assert "Error: not authenticated: Client failed to connect" in captured.err
+
+
+# =============================================================================
+# token cache relocation (renamed home, bind mount, restored backup)
+# =============================================================================
+
+
+async def _seed_then_relocate(tmp_path: Path, url: str) -> Path:
+    old = tmp_path / "old_home" / "tokens"
+    await _seed_cache(old, url, access_token="portable-token")
+    new = tmp_path / "new_home" / "tokens"
+    new.parent.mkdir()
+    shutil.move(str(old), str(new))
+    return new
+
+
+async def test_relocated_token_cache_is_still_readable(tmp_path):
+    from app.routes.cli.auth_commands import _cached_access_token
+
+    url = "http://remote:8020/mcp"
+    cache = await _seed_then_relocate(tmp_path, url)
+
+    assert await _cached_access_token(url, cache) == "portable-token"
+
+
+async def test_relocated_token_cache_can_be_written_again(tmp_path):
+    from fastmcp.client.auth import OAuth
+    from mcp.shared.auth import OAuthToken
+
+    from app.routes.cli.token_storage import oauth_token_file_tree_store
+
+    url = "http://remote:8020/mcp"
+    cache = await _seed_then_relocate(tmp_path, url)
+    adapter = OAuth(
+        mcp_url=url, token_storage=oauth_token_file_tree_store(cache),
+    ).token_storage_adapter
+
+    await adapter.set_tokens(OAuthToken(access_token="rotated", token_type="Bearer"))
+
+    assert (await adapter.get_tokens()).access_token == "rotated"
+
+
+async def test_unmoved_token_cache_files_are_left_untouched(tmp_path):
+    from app.routes.cli.auth_commands import _cached_access_token
+
+    url = "http://remote:8020/mcp"
+    cache = tmp_path / "tokens"
+    await _seed_cache(cache, url, access_token="seeded")
+    before = _snapshot(cache)
+
+    assert await _cached_access_token(url, cache) == "seeded"
+    assert _snapshot(cache) == before
+
+
+async def test_auth_status_survives_relocated_cache(
+    tmp_path, monkeypatch, token_cache, stub_executor, capsys,
+):
+    url = "http://remote:8020/mcp"
+    cache = await _seed_then_relocate(tmp_path, url)
+    monkeypatch.setattr(auth_commands, "token_cache_dir", lambda: cache)
+
+    code = await auth_commands.status(server=url)
+
+    assert code == 0
+    assert stub_executor.built["token"] == "portable-token"
+
+
+async def test_auth_status_unreadable_cache_is_a_clean_error(
+    tmp_path, monkeypatch, token_cache, stub_executor, capsys,
+):
+    url = "http://remote:8020/mcp"
+    await _seed_cache(token_cache, url, access_token="seeded")
+    for info_file in token_cache.glob("*-info.json"):
+        info_file.write_text("{ not json")
+    monkeypatch.setattr(settings, "FORGETFUL_SERVER", url)
+
+    code = await _run_auth_command(_args(["auth", "status"]))
+
+    err = capsys.readouterr().err
+    assert code == 1
+    assert "token cache" in err
+    assert "forgetful auth logout" in err
+    assert "Traceback" not in err

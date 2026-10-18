@@ -141,7 +141,12 @@ async def status(*, server: str | None = None) -> int:
     token = bearer_token_from_env()
     cache = token_cache_dir()
     normalized_url = normalize_server_url(url)
-    cached_token = await _cached_access_token(normalized_url, cache)
+    try:
+        cached_token = await _cached_access_token(normalized_url, cache)
+    except Exception as exc:
+        print(f"Error: could not read the token cache at {cache}: {exc}", file=sys.stderr)
+        print("Run `forgetful auth logout` to reset it, then log in again.", file=sys.stderr)
+        return 1
 
     bearer = token or cached_token
     if bearer:
