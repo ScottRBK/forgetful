@@ -2031,7 +2031,8 @@ class InMemoryTaskRepository(TaskRepository):
     async def get_criterion_by_id(
         self, user_id: UUID, criterion_id: int,
     ) -> Criterion | None:
-        return self._criteria.get(user_id, {}).get(criterion_id)
+        criterion = self._criteria.get(user_id, {}).get(criterion_id)
+        return criterion.model_copy() if criterion else None  # a snapshot, like a database read
 
     async def get_criteria_for_task(
         self, user_id: UUID, task_id: int,

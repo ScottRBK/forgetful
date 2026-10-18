@@ -18,6 +18,7 @@ from app.exceptions import (
     InvalidStateTransitionError,
     NotFoundError,
 )
+from app.models.activity_models import ActionType, EntityType
 from app.models.plan_models import (
     CriterionCreate,
     CriterionUpdate,
@@ -34,6 +35,8 @@ pytestmark = [
     pytest.mark.e2e,
     pytest.mark.asyncio(loop_scope="session"),
 ]
+
+SETTINGS_OVERRIDE = {"ACTIVITY_ENABLED": True}
 
 
 @dataclass
@@ -269,3 +272,34 @@ async def test_criterion_of_a_done_task_is_frozen_and_lookup_is_user_scoped(stac
     with pytest.raises(InvalidStateTransitionError, match="completed task"):
         await service.delete_criterion(stack.user_id, criterion.id)
     assert (await service.get_task(stack.user_id, task.id)).criteria[0].met is True
+
+
+# ---------------------------------------------------------------------------
+# Criterion and dependency mutations are announced as task updates
+# ---------------------------------------------------------------------------
+
+
+async def test_criterion_and_dependency_mutations_reach_the_activity_log(
+    stack, postgres_app, wait_for_events,
+):
+    service = stack.task_service
+    task = await stack.new_task("t")
+    prerequisite = await stack.new_task("prerequisite")
+    await wait_for_events()
+    baseline = (await postgres_app.activity_service.get_activity(user_id=stack.user_id, limit=100)).events
+
+    criterion = await service.add_criterion(stack.user_id, task.id, CriterionCreate(description="holds"))
+    await service.update_criterion(stack.user_id, criterion.id, CriterionUpdate(met=True))
+    await service.add_dependency(stack.user_id, task.id, prerequisite.id)
+    await service.remove_dependency(stack.user_id, task.id, prerequisite.id)
+    await service.delete_criterion(stack.user_id, criterion.id)
+    await wait_for_events()
+
+    events = (await postgres_app.activity_service.get_activity(user_id=stack.user_id, limit=100)).events
+    baseline_ids = {e.id for e in baseline}
+    new_events = [e for e in events if e.id not in baseline_ids]
+    assert len(new_events) == 5
+    assert {(e.entity_type, e.action, e.entity_id) for e in new_events} == {
+        (EntityType.TASK, ActionType.UPDATED, task.id),
+    }
+    assert sorted(next(iter(e.changes)) for e in new_events) == ["criterion"] * 3 + ["dependency"] * 2

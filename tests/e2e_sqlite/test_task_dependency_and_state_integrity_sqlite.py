@@ -12,6 +12,7 @@ import pytest
 from fastmcp.exceptions import ToolError
 
 from app.config.settings import settings
+from app.events import EventBus
 from app.exceptions import (
     ConflictError,
     CyclicDependencyError,
@@ -19,6 +20,7 @@ from app.exceptions import (
     InvalidStateTransitionError,
     NotFoundError,
 )
+from app.models.activity_models import ActionType, EntityType
 from app.models.plan_models import (
     CriterionCreate,
     CriterionUpdate,
@@ -30,11 +32,13 @@ from app.models.plan_models import (
 )
 from app.models.project_models import ProjectCreate, ProjectType
 from app.models.user_models import UserCreate
+from app.repositories.sqlite.activity_repository import SqliteActivityRepository
 from app.repositories.sqlite.plan_repository import SqlitePlanRepository
 from app.repositories.sqlite.project_repository import SqliteProjectRepository
 from app.repositories.sqlite.sqlite_adapter import SqliteDatabaseAdapter
 from app.repositories.sqlite.task_repository import SqliteTaskRepository
 from app.repositories.sqlite.user_repository import SqliteUserRepository
+from app.services.activity_service import ActivityService
 from app.services.plan_service import PlanService
 from app.services.task_service import TaskService
 
@@ -53,6 +57,8 @@ class Stack:
     plan_service: PlanService
     task_service: TaskService
     task_repo: SqliteTaskRepository
+    bus: EventBus | None = None
+    activity: ActivityService | None = None
 
     async def new_task(self, title, **extra):
         return await self.task_service.create_task(
@@ -60,7 +66,7 @@ class Stack:
         )
 
 
-async def _build_stack(monkeypatch, *, db_path=None):
+async def _build_stack(monkeypatch, *, db_path=None, with_events=False):
     monkeypatch.setattr(settings, "DATABASE", "SQLite")
     monkeypatch.setattr(settings, "SQLITE_MEMORY", db_path is None)
     if db_path is not None:
@@ -73,14 +79,19 @@ async def _build_stack(monkeypatch, *, db_path=None):
     project = await SqliteProjectRepository(db_adapter=adapter).create_project(
         user.id, ProjectCreate(name="p", description="d", project_type=ProjectType.DEVELOPMENT),
     )
-    plan_service = PlanService(SqlitePlanRepository(db_adapter=adapter), event_bus=None)
+    bus = activity = None
+    if with_events:
+        bus = EventBus()
+        activity = ActivityService(SqliteActivityRepository(db_adapter=adapter))
+        bus.subscribe("*.*", activity.handle_event)  # same wiring as app/bootstrap.py
+    plan_service = PlanService(SqlitePlanRepository(db_adapter=adapter), event_bus=bus)
     task_repo = SqliteTaskRepository(db_adapter=adapter)
-    task_service = TaskService(task_repo, plan_service=plan_service, event_bus=None)
+    task_service = TaskService(task_repo, plan_service=plan_service, event_bus=bus)
     plan = await plan_service.create_plan(
         user.id, PlanCreate(title="plan", project_id=project.id, goal="g"),
     )
     await plan_service.update_plan(user.id, plan.id, PlanUpdate(status=PlanStatus.ACTIVE))
-    stack = Stack(user.id, project.id, plan.id, plan_service, task_service, task_repo)
+    stack = Stack(user.id, project.id, plan.id, plan_service, task_service, task_repo, bus, activity)
     return adapter, stack
 
 
@@ -89,6 +100,15 @@ async def stack(monkeypatch):
     """In-memory SQLite (one shared connection)."""
     adapter, built = await _build_stack(monkeypatch)
     yield built
+    await adapter.dispose()
+
+
+@pytest.fixture
+async def evented_stack(monkeypatch):
+    """In-memory SQLite with the real EventBus persisting activity, as bootstrap wires it."""
+    adapter, built = await _build_stack(monkeypatch, with_events=True)
+    yield built
+    await built.bus.wait_for_pending()
     await adapter.dispose()
 
 
@@ -508,3 +528,43 @@ async def test_rest_criterion_changes_on_a_done_task_are_unprocessable(http_clie
     assert deleted.status_code == 422, deleted.text
     final = (await http_client.get(f"/api/v1/tasks/{task['id']}")).json()
     assert [c["met"] for c in final["criteria"]] == [True]
+
+
+# ---------------------------------------------------------------------------
+# Criterion and dependency mutations are announced as task updates
+# ---------------------------------------------------------------------------
+
+
+async def test_criterion_and_dependency_mutations_reach_the_activity_log(evented_stack):
+    stack = evented_stack
+    service = stack.task_service
+    task = await stack.new_task("t")
+    prerequisite = await stack.new_task("prerequisite")
+    await stack.bus.wait_for_pending()
+    baseline = (await stack.activity.get_activity(user_id=stack.user_id, limit=100)).events
+
+    criterion = await service.add_criterion(stack.user_id, task.id, CriterionCreate(description="holds"))
+    await service.update_criterion(stack.user_id, criterion.id, CriterionUpdate(met=True))
+    await service.add_dependency(stack.user_id, task.id, prerequisite.id)
+    await service.remove_dependency(stack.user_id, task.id, prerequisite.id)
+    await service.delete_criterion(stack.user_id, criterion.id)
+    await stack.bus.wait_for_pending()
+
+    events = (await stack.activity.get_activity(user_id=stack.user_id, limit=100)).events
+    new_events = [e for e in events if e.id not in {b.id for b in baseline}]
+    assert len(new_events) == 5
+    assert {(e.entity_type, e.action, e.entity_id) for e in new_events} == {
+        (EntityType.TASK, ActionType.UPDATED, task.id),
+    }
+    assert sorted(next(iter(e.changes)) for e in new_events) == ["criterion"] * 3 + ["dependency"] * 2
+    added = next(
+        e for e in new_events
+        if "criterion" in e.changes and e.changes["criterion"]["old"] is None
+    )
+    assert added.changes["criterion"]["new"]["description"] == "holds"
+    assert [c["description"] for c in added.snapshot["criteria"]] == ["holds"]
+    linked = next(
+        e for e in new_events
+        if "dependency" in e.changes and e.changes["dependency"]["old"] is None
+    )
+    assert linked.snapshot["dependency_ids"] == [prerequisite.id]

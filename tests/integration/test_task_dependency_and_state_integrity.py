@@ -17,6 +17,7 @@ from app.exceptions import (
     InvalidStateTransitionError,
     NotFoundError,
 )
+from app.models.activity_models import ActionType, EntityType
 from app.models.plan_models import (
     CriterionCreate,
     CriterionUpdate,
@@ -26,6 +27,8 @@ from app.models.plan_models import (
     TaskCreate,
     TaskState,
 )
+from app.services.task_service import TaskService
+from tests.integration.conftest import CollectingEventBus
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -330,3 +333,72 @@ async def test_unknown_criterion_keeps_its_not_found_behaviour(test_task_service
     with pytest.raises(NotFoundError):
         await task_service.update_criterion(user_id, 999, CriterionUpdate(met=True))
     assert await task_service.delete_criterion(user_id, 999) is False
+
+
+# ---------------------------------------------------------------------------
+# Criterion and dependency mutations are announced as task updates
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def evented_task_service(mock_task_repository, test_plan_service):
+    bus = CollectingEventBus()
+    service = TaskService(mock_task_repository, plan_service=test_plan_service, event_bus=bus)
+    return service, test_plan_service, bus
+
+
+def _task_updates(bus, task_id):
+    return [
+        e for e in bus.collected_events
+        if e.entity_type == EntityType.TASK and e.action == ActionType.UPDATED and e.entity_id == task_id
+    ]
+
+
+@pytest.mark.asyncio
+async def test_criterion_and_dependency_mutations_emit_task_updated(evented_task_service):
+    service, plan_service, bus = evented_task_service
+    user_id = uuid4()
+    plan = await _active_plan(plan_service, user_id)
+    task = await _task(service, user_id, plan.id, "t")
+    prerequisite = await _task(service, user_id, plan.id, "prerequisite")
+    bus.collected_events.clear()
+
+    criterion = await service.add_criterion(user_id, task.id, CriterionCreate(description="holds"))
+    await service.update_criterion(user_id, criterion.id, CriterionUpdate(met=True))
+    await service.add_dependency(user_id, task.id, prerequisite.id)
+    await service.remove_dependency(user_id, task.id, prerequisite.id)
+    await service.delete_criterion(user_id, criterion.id)
+
+    events = _task_updates(bus, task.id)
+    assert len(events) == len(bus.collected_events) == 5
+    added, met, linked, unlinked, deleted = events
+    assert added.changes["criterion"]["old"] is None
+    assert added.changes["criterion"]["new"]["description"] == "holds"
+    assert [c["met"] for c in added.snapshot["criteria"]] == [False]
+    assert met.changes["criterion"]["old"]["met"] is False
+    assert met.changes["criterion"]["new"]["met"] is True
+    assert [c["met"] for c in met.snapshot["criteria"]] == [True]
+    assert linked.changes == {"dependency": {"old": None, "new": prerequisite.id}}
+    assert linked.snapshot["dependency_ids"] == [prerequisite.id]
+    assert unlinked.changes == {"dependency": {"old": prerequisite.id, "new": None}}
+    assert unlinked.snapshot["dependency_ids"] == []
+    assert deleted.changes["criterion"]["new"] is None
+    assert deleted.snapshot["criteria"] == []
+
+
+@pytest.mark.asyncio
+async def test_no_task_event_for_noop_or_rejected_mutations(evented_task_service):
+    service, plan_service, bus = evented_task_service
+    user_id = uuid4()
+    plan = await _active_plan(plan_service, user_id)
+    task = await _task(service, user_id, plan.id, "t", criteria=[CriterionCreate(description="holds")])
+    other = await _task(service, user_id, plan.id, "other")
+    bus.collected_events.clear()
+
+    await service.update_criterion(user_id, task.criteria[0].id, CriterionUpdate(met=False))
+    assert await service.remove_dependency(user_id, task.id, other.id) is False
+    assert await service.delete_criterion(user_id, 999) is False
+    with pytest.raises(CyclicDependencyError):
+        await service.add_dependency(user_id, task.id, task.id)
+
+    assert bus.collected_events == []

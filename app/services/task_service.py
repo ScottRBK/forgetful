@@ -85,6 +85,26 @@ class TaskService:
         )
         await self._event_bus.emit(event)
 
+    async def _emit_task_changed(self, user_id: UUID, task_id: int, changes: dict) -> None:
+        """Announce a criterion/dependency change as a TASK update with the refreshed snapshot.
+
+        criteria_met, criteria_total and blocked all derive from these rows, so activity and
+        SSE consumers need the new task state, not only the sibling row that changed.
+        """
+        if self._event_bus is None:
+            return
+        task = await self.task_repo.get_task_by_id(user_id=user_id, task_id=task_id)
+        if task is None:
+            return
+        await self._emit_event(
+            user_id=user_id,
+            entity_type=EntityType.TASK,
+            entity_id=task_id,
+            action=ActionType.UPDATED,
+            snapshot=task.model_dump(mode="json"),
+            changes=changes,
+        )
+
     async def create_task(self, user_id: UUID, task_data: TaskCreate) -> Task:
         """Create task with optional inline criteria and dependencies."""
         logger.info("creating task", extra={"user_id": str(user_id), "plan_id": task_data.plan_id, "title": task_data.title})
@@ -374,6 +394,9 @@ class TaskService:
             user_id=user_id, task_id=task_id, criterion_data=criterion_data,
         )
         logger.info("criterion added", extra={"criterion_id": criterion.id, "task_id": task_id})
+        await self._emit_task_changed(
+            user_id, task_id, {"criterion": {"old": None, "new": criterion.model_dump(mode="json")}},
+        )
         return criterion
 
     async def update_criterion(
@@ -387,15 +410,30 @@ class TaskService:
             user_id=user_id, criterion_id=criterion_id, criterion_data=criterion_data,
         )
         logger.info("criterion updated", extra={"criterion_id": criterion_id})
+        if (criterion.description, criterion.met) != (existing.description, existing.met):
+            await self._emit_task_changed(
+                user_id,
+                existing.task_id,
+                {"criterion": {
+                    "old": existing.model_dump(mode="json"),
+                    "new": criterion.model_dump(mode="json"),
+                }},
+            )
         return criterion
 
     async def delete_criterion(self, user_id: UUID, criterion_id: int) -> bool:
-        if await self._get_editable_criterion(user_id, criterion_id) is None:
+        existing = await self._get_editable_criterion(user_id, criterion_id)
+        if existing is None:
             return False
 
         success = await self.task_repo.delete_criterion(user_id=user_id, criterion_id=criterion_id)
         if success:
             logger.info("criterion deleted", extra={"criterion_id": criterion_id})
+            await self._emit_task_changed(
+                user_id,
+                existing.task_id,
+                {"criterion": {"old": existing.model_dump(mode="json"), "new": None}},
+            )
         return success
 
     # ---- Dependencies ----
@@ -429,6 +467,9 @@ class TaskService:
                 user_id=user_id, task_id=task_id, depends_on_task_id=depends_on_task_id,
             )
         logger.info("dependency added", extra={"task_id": task_id, "depends_on": depends_on_task_id})
+        await self._emit_task_changed(
+            user_id, task_id, {"dependency": {"old": None, "new": depends_on_task_id}},
+        )
         return dep
 
     async def remove_dependency(
@@ -439,6 +480,9 @@ class TaskService:
         )
         if success:
             logger.info("dependency removed", extra={"task_id": task_id, "depends_on": depends_on_task_id})
+            await self._emit_task_changed(
+                user_id, task_id, {"dependency": {"old": depends_on_task_id, "new": None}},
+            )
         return success
 
     # ---- Private Helpers ----
