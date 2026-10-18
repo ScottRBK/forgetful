@@ -373,7 +373,9 @@ def _legacy_launcher(argv):
     parser.add_argument(
         "--host",
         default=settings.SERVER_HOST,
-        help=f"HTTP host (default: {settings.SERVER_HOST})",
+        # %(default)s, not an f-string: argparse %-expands help, and a host such as
+        # "fe80::1%eth0" would otherwise be parsed as a format directive.
+        help="HTTP host (default: %(default)s)",
     )
     parser.add_argument(
         "--port",
