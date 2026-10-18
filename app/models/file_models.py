@@ -7,8 +7,34 @@ import base64
 from datetime import UTC, datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic_core import PydanticCustomError
 
 from app.config.settings import settings
+
+# Whitespace that MIME style encoders insert between base64 lines
+_BASE64_WHITESPACE = str.maketrans("", "", " \t\r\n")
+
+
+def _decode_base64(value: str) -> bytes:
+    """Strictly decode base64 file content, rejecting anything that is not real content
+
+    Characters outside the base64 alphabet are an error, not silently dropped, and the
+    decoded content must not be empty. PydanticCustomError keeps the error context JSON
+    serialisable for the REST routes that return ``ValidationError.errors()``.
+    """
+    try:
+        decoded = base64.b64decode(value.translate(_BASE64_WHITESPACE), validate=True)
+    except Exception:
+        raise PydanticCustomError(
+            "invalid_base64", "data must be valid base64-encoded content",
+        ) from None
+
+    if not decoded:
+        raise PydanticCustomError(
+            "empty_base64", "data must decode to non-empty content",
+        )
+
+    return decoded
 
 
 class FileCreate(BaseModel):
@@ -107,10 +133,7 @@ class FileCreate(BaseModel):
         if not v:
             return v
 
-        try:
-            decoded = base64.b64decode(v)
-        except Exception:
-            raise ValueError("data must be valid base64-encoded content")
+        decoded = _decode_base64(v)
 
         if len(decoded) > settings.FILE_MAX_SIZE_BYTES:
             raise ValueError(
@@ -216,10 +239,7 @@ class FileUpdate(BaseModel):
         if v is None:
             return v
 
-        try:
-            decoded = base64.b64decode(v)
-        except Exception:
-            raise ValueError("data must be valid base64-encoded content")
+        decoded = _decode_base64(v)
 
         if len(decoded) > settings.FILE_MAX_SIZE_BYTES:
             raise ValueError(
@@ -236,6 +256,12 @@ class File(FileCreate):
     Extends FileCreate with system-generated fields (id, size_bytes, timestamps).
     Used for responses that include full file details including base64 data.
     """
+    # Overrides FileCreate.data without min_length: zero-byte files stored before empty
+    # content was rejected must stay readable and deletable.
+    data: str = Field(
+        ...,
+        description="Base64-encoded file content.",
+    )
     id: int = Field(
         ...,
         description="Unique file identifier (auto-generated)",
