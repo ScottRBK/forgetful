@@ -120,6 +120,11 @@ class MemoryService:
             )
             logger.info("linked memory query completed", extra={"number of linked memories": len(linked_memories)})
 
+        # A request can lower the token budget but never exceed the server-wide limit
+        max_tokens = settings.MEMORY_TOKEN_BUDGET
+        if memory_query.token_context_threshold is not None:
+            max_tokens = min(memory_query.token_context_threshold, max_tokens)
+
         logger.info("applying token budget")
         (
             final_primaries,
@@ -129,7 +134,7 @@ class MemoryService:
         ) = await self._apply_token_budget(
             primary_memories=primary_memories,
             linked_memories=linked_memories,
-            max_tokens=settings.MEMORY_TOKEN_BUDGET,
+            max_tokens=max_tokens,
             max_memories=settings.MEMORY_MAX_MEMORIES,
         )
         logger.info("token budget applied")

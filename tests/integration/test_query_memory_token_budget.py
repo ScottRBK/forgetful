@@ -8,6 +8,7 @@ import requests
 import tiktoken
 import tiktoken.registry
 
+from app.config.settings import settings
 from app.models.memory_models import MemoryCreate, MemoryQueryRequest
 from app.utils import token_counter as token_counter_module
 from app.utils.token_counter import TokenCounter
@@ -164,3 +165,51 @@ class TestOfflineTokenizer:
             await beat
 
         assert max(gaps) < 0.5, f"event loop stalled for {max(gaps):.2f}s during the first query"
+
+
+class TestTokenContextThreshold:
+    @pytest.mark.asyncio
+    async def test_request_threshold_lowers_the_budget(
+        self, test_memory_service, mock_memory_repository, monkeypatch,
+    ):
+        monkeypatch.setattr(settings, "MEMORY_TOKEN_BUDGET", 8000)
+        user_id = uuid4()
+        await _seed_large(mock_memory_repository, user_id)
+
+        unrestricted = await test_memory_service.query_memory(user_id, _query())
+        restricted = await test_memory_service.query_memory(user_id, _query(token_context_threshold=4000))
+
+        assert unrestricted.token_count > 4000
+        assert unrestricted.truncated is False
+        assert restricted.token_count <= 4000
+        assert restricted.truncated is True
+        assert len(restricted.primary_memories) < len(unrestricted.primary_memories)
+
+    @pytest.mark.asyncio
+    async def test_omitted_threshold_uses_configured_budget(
+        self, test_memory_service, mock_memory_repository, monkeypatch,
+    ):
+        monkeypatch.setattr(settings, "MEMORY_TOKEN_BUDGET", 3000)
+        user_id = uuid4()
+        await _seed_large(mock_memory_repository, user_id)
+
+        result = await test_memory_service.query_memory(user_id, _query())
+
+        assert 0 < result.token_count <= 3000
+        assert result.truncated is True
+
+    @pytest.mark.asyncio
+    async def test_request_threshold_cannot_exceed_configured_budget(
+        self, test_memory_service, mock_memory_repository, monkeypatch,
+    ):
+        monkeypatch.setattr(settings, "MEMORY_TOKEN_BUDGET", 3000)
+        user_id = uuid4()
+        await _seed_large(mock_memory_repository, user_id)
+
+        result = await test_memory_service.query_memory(user_id, _query(token_context_threshold=25000))
+
+        assert 0 < result.token_count <= 3000
+        assert result.truncated is True
+
+    def test_threshold_defaults_to_unset(self):
+        assert _query().token_context_threshold is None

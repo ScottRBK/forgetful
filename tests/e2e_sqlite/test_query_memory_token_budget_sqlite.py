@@ -98,3 +98,46 @@ async def test_mcp_query_memory_returns_memory_containing_special_token(mcp_clie
     })
 
     assert memory_id in [m["id"] for m in result["primary_memories"]]
+
+
+@pytest.mark.asyncio
+async def test_rest_search_honours_token_context_threshold(http_client):
+    await _create_large_memories_via_rest(http_client)
+    search = {"query": "Large budget memory", "query_context": "token budget", "k": 20, "include_links": 0}
+
+    control = await http_client.post("/api/v1/memories/search", json=search)
+    restricted = await http_client.post("/api/v1/memories/search", json={**search, "token_context_threshold": 4000})
+
+    assert control.status_code == 200, control.text
+    assert restricted.status_code == 200, restricted.text
+    assert control.json()["token_count"] > 4000  # the request below really needs to truncate
+    assert control.json()["truncated"] is False
+    assert restricted.json()["token_count"] <= 4000
+    assert restricted.json()["truncated"] is True
+    assert len(restricted.json()["primary_memories"]) < len(control.json()["primary_memories"])
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("budget", [3000, 32000])
+async def test_mcp_query_memory_works_with_budget_outside_request_bounds(mcp_client, monkeypatch, budget):
+    monkeypatch.setattr(settings, "MEMORY_TOKEN_BUDGET", budget)
+    memory_id = await _create(mcp_client, "Large budget probe")
+
+    result = await _call(mcp_client, "query_memory", {
+        "query": "Large budget probe", "query_context": "configured budget", "k": 3,
+    })
+
+    assert memory_id in [m["id"] for m in result["primary_memories"]]
+
+
+@pytest.mark.asyncio
+async def test_configured_budget_truncates_mcp_results(mcp_client, http_client, monkeypatch):
+    await _create_large_memories_via_rest(http_client)
+    monkeypatch.setattr(settings, "MEMORY_TOKEN_BUDGET", 3000)
+
+    result = await _call(mcp_client, "query_memory", {
+        "query": "Large budget memory", "query_context": "token budget", "k": 20, "include_links": 0,
+    })
+
+    assert 0 < result["token_count"] <= 3000
+    assert result["truncated"] is True

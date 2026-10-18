@@ -596,8 +596,8 @@ These settings control the atomic memory system's behavior and constraints.
 ### `MEMORY_TOKEN_BUDGET`
 - **Default**: `8000`
 - **Description**: Maximum tokens for query results (protects LLM context window)
-- **Behavior**: System prioritizes by importance, then truncates to fit budget
-- **Note**: Increase if you have larger context windows; decrease for smaller models
+- **Behavior**: System prioritizes by importance, then truncates to fit budget (`truncated: true` in the response)
+- **Note**: Increase if you have larger context windows; decrease for smaller models. A REST search request can lower the budget with `token_context_threshold` but never exceed this value
 - **Example**: `MEMORY_TOKEN_BUDGET=8000`
 
 ### `MEMORY_MAX_MEMORIES`

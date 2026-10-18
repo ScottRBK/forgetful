@@ -391,11 +391,14 @@ class MemoryQueryRequest(BaseModel):
         le=5,
         description="Graph traversal depth (0=no links, 1=direct neighbors, 2+=exponential context bloat). Recommended: 0-1.",
     )
-    token_context_threshold: int = Field(
-        8000,
+    token_context_threshold: int | None = Field(
+        None,
         ge=4000,
         le=25000,
-        description="Max tokens before truncating results (8K default fits most LLM contexts)",
+        description=(
+            "Max tokens before truncating results. Can only lower the server's MEMORY_TOKEN_BUDGET, "
+            "which is used when omitted"
+        ),
     )
     max_links_per_primary: int = Field(
         5,
