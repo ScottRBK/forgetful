@@ -55,7 +55,8 @@ The container runs as the invoking host user (`uid:gid`, `HOME=/home/node`) and 
 leaves the venv and `/home/node` writable for any uid, so the rw mounts and the staged
 credentials (owner-only: 0700 dir, 0600 files) work on a host whatever its uid. Images
 built before that change only support a host uid of 1000; run `--rebuild-image` once on
-other hosts.
+other hosts. Rootless Docker/podman, where the host user is mapped to container root, is
+not covered: there the container uid no longer owns the bind mounts.
 
 ## What a run does
 

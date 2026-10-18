@@ -23,15 +23,20 @@ RUN curl -LsSf https://astral.sh/uv/install.sh -o /tmp/uv-install.sh && \
     env UV_INSTALL_DIR=/usr/local/bin sh /tmp/uv-install.sh && \
     rm /tmp/uv-install.sh
 
-# Install under /opt so the non-root `node` user can read it; chown the venv so the
-# working-tree wheel can install into it at container start.
+# Install under /opt so the non-root `node` user can read it. The harness runs this
+# container as the invoking host user (see container.py) so the bind mounts keep their
+# private host modes; that uid is arbitrary, so the venv the working-tree wheel installs
+# into at container start is made writable for any uid (inside a throwaway sandbox this
+# widens nothing). The chmod is in the same RUN that creates the files: a separate
+# trailing `chmod -R` layer would copy every file up and add ~0.9 GB to the image.
 ENV UV_PYTHON_INSTALL_DIR=/opt/uv-python
 COPY requirements.lock /tmp/requirements.lock
 RUN uv python install 3.12 && \
     uv venv /opt/venv --python 3.12 && \
     uv pip install --python /opt/venv/bin/python -r /tmp/requirements.lock && \
     uv pip install --python /opt/venv/bin/python "agent-shell-py>=0.1.16" && \
-    chown -R node:node /opt/venv
+    chown -R node:node /opt/venv && \
+    chmod -R a+rwX /opt/venv
 ENV PATH="/opt/venv/bin:${PATH}"
 
 # npm global prefix relocated so the non-root `node` user can install globals
@@ -48,10 +53,9 @@ USER node
 ENV NPM_CONFIG_PREFIX=/usr/local/share/npm-global
 ENV PATH=$PATH:/usr/local/share/npm-global/bin
 
-RUN npm install -g opencode-ai@${OPENCODE_VERSION}
-
-# The harness runs this container as the invoking host user (see container.py) so the
-# bind mounts keep their private host modes; that uid is arbitrary, so everything it
-# must write - the venv the working-tree wheel installs into, and HOME (uv cache, agent
-# state) - is made writable for any uid. Inside a throwaway sandbox this widens nothing.
-RUN chmod -R a+rwX /opt/venv /home/node
+# HOME (uv cache, agent state) must be writable for an arbitrary uid too. All of
+# /home/node is opened, not just its .local and dot-config subtrees: npm and node create
+# /home/node/.cache only while this RUN executes, so the chmod has to run in the same
+# RUN, and a narrower one would leave ~/.cache unwritable and break `uv pip install`.
+RUN npm install -g opencode-ai@${OPENCODE_VERSION} && \
+    chmod -R a+rwX /home/node

@@ -542,11 +542,16 @@ def test_container_keeps_the_image_user_where_the_platform_has_no_uids(
 def test_image_is_writable_by_an_arbitrary_uid():
     # Arrange: with the container running as the host uid, the venv the working-tree
     # wheel installs into and HOME must not depend on the image's node uid
-    dockerfile = Path("test_harness/docker/Dockerfile").read_text()
+    dockerfile = (
+        Path(__file__).resolve().parents[2] / "test_harness" / "docker" / "Dockerfile"
+    ).read_text()
 
-    # Act
-    chmods = re.findall(r"chmod -R a\+rwX ([^\n\\]+)", dockerfile)
+    # Act: continuation lines folded, so each RUN is one logical line
+    instructions = dockerfile.replace("\\\n", " ").splitlines()
+    chmod_runs = [i for i in instructions if i.startswith("RUN ") and "chmod -R a+rwX" in i]
 
-    # Assert
-    assert chmods
-    assert "/opt/venv" in chmods[-1] and "/home/node" in chmods[-1]
+    # Assert: the chmod lives in the RUN that creates the files; a separate trailing
+    # `RUN chmod -R` layer would copy every file up and bloat the image by ~0.9 GB
+    assert any("/opt/venv" in i and "pip install" in i for i in chmod_runs)
+    assert any("/home/node" in i and "npm install" in i for i in chmod_runs)
+    assert not [i for i in instructions if re.fullmatch(r"RUN\s+chmod\b.*", i)]
