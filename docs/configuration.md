@@ -979,7 +979,7 @@ ACTIVITY_TRACK_READS=false
 - **Default**: `FastEmbed`
 - **Description**: Embedding generation provider
 - **Current Support**: FastEmbed | Azure | Google | OpenAI | Ollama
-- **Note**: Matched case-insensitively. Any other value stops startup with an error naming the setting (it no longer falls back to FastEmbed); an empty value keeps the default
+- **Note**: Matched case-insensitively. Any other value stops startup with an error naming the setting; an empty value keeps the default
 - **Example**: `EMBEDDING_PROVIDER=FastEmbed`
 
 ### `EMBEDDING_MODEL`
@@ -1096,7 +1096,7 @@ ACTIVITY_TRACK_READS=false
 - **Values**:
   - `FastEmbed` - Local cross-encoder model via FastEmbed (zero-config, no API key)
   - `HTTP` - Any server exposing a `/v1/rerank`-compatible endpoint (Jina, Cohere, vLLM, llama.cpp, Infinity, etc.)
-- **Note**: Matched case-insensitively. Any other value stops startup with an error naming the setting (it no longer falls back to the local model); an empty value keeps the default
+- **Note**: Matched case-insensitively. Any other value stops startup with an error naming the setting; an empty value keeps the default
 - **Example**: `RERANKING_PROVIDER=HTTP`
 
 #### `RERANKING_MODEL`
