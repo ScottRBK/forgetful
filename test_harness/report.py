@@ -54,7 +54,9 @@ _SEVERITY_ALIASES = {"trivial": "nit", "critical": "blocker"}
 
 def _normalize_severity(value: Any) -> Any:
     value = _lowercase(value)
-    return _SEVERITY_ALIASES.get(value, value)
+    # Only a string can be an alias: a list/dict value is unhashable, and must fall
+    # through to the Literal check so it is rejected as a normal schema error
+    return _SEVERITY_ALIASES.get(value, value) if isinstance(value, str) else value
 
 
 class ReportStep(BaseModel):
@@ -110,7 +112,9 @@ def load_report(path: Path) -> ReportLoad:
         return ReportLoad(status="missing", detail=f"no report at {path}")
     try:
         raw = json.loads(path.read_text())
-    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+    except (OSError, ValueError, RecursionError) as exc:
+        # ValueError covers JSONDecodeError, UnicodeDecodeError and the int digit limit;
+        # RecursionError is pathological nesting; OSError an unreadable file
         return ReportLoad(status="invalid_json", detail=str(exc))
     try:
         return ReportLoad(status="ok", report=WalkthroughReport.model_validate(raw))

@@ -100,14 +100,21 @@ def load_events(path: Path) -> list[dict[str, Any]]:
     torn (unparsable) line is dropped rather than failing the whole session read."""
     if not path.is_file():
         return []
+    try:
+        lines = path.read_text().splitlines()
+    except OSError:
+        return []
     events = []
-    for line in path.read_text().splitlines():
+    for line in lines:
         if not line.strip():
             continue
         try:
-            events.append(json.loads(line))
-        except json.JSONDecodeError:
+            event = json.loads(line)
+        except (ValueError, RecursionError):
             continue
+        # A line that parses to a non-object (`[1]`, `null`) is not an event either
+        if isinstance(event, dict):
+            events.append(event)
     return events
 
 
@@ -119,7 +126,8 @@ def scan_for_breaches(events: list[dict[str, Any]]) -> list[str]:
     for event in events:
         if event.get("type") != "tool_use":
             continue
-        name = (event.get("content") or "").strip()
+        content = event.get("content")
+        name = content.strip() if isinstance(content, str) else ""
         if "forgetful" in name.lower() and " " not in name and name.lower() != "forgetful":
             breaches.append(name)
     return breaches
@@ -164,7 +172,7 @@ class Walkthrough:
             status, error = "timeout", outcome.detail or "session timed out"
         elif error_events:
             status = "error"
-            error = "; ".join(e.get("content") or "" for e in error_events)
+            error = "; ".join(str(e.get("content") or "") for e in error_events)
         elif not any(e.get("content") == "ok" for e in result_events):
             # A turn can truncate with no result and no error yet exit 0 (mem 1690)
             status = "error"
