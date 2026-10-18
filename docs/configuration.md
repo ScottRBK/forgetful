@@ -489,7 +489,10 @@ async def check_write(request: MemoryWriteRequest) -> WriteDecision:
 Use a nonblank, client-safe `message` for warn/reject and an optional stable `code`. Prefer the
 `WriteDecision` type; returned values are explicitly validated. There is no replacement payload
 or mutation support. Core provides no built-in site rules, LLM judge, chaining, or automatic retry.
-A handler may use its own deterministic checks or external decision service.
+A handler may use its own deterministic checks or external decision service. Custom codes are
+currently retained in warnings only, including rejections downgraded in warn mode. Enforced
+rejections expose the plugin message and standard transport classification (MCP/CLI
+`WRITE_PLUGIN_REJECTED`, REST 400), without the custom code.
 
 The request contains:
 
@@ -512,8 +515,15 @@ null project/document/code-artifact/file relationship lists leave associations u
 empty lists clear them. An invalid candidate uses normal validation handling before the plugin.
 Existing explicit-null REST/MCP differences (#95) and skill-link update limitations (#96) remain.
 The candidate does not guarantee referenced IDs exist or that a later database write will succeed.
-No database transaction is held across the plugin await; concurrent/global constraints are
-not atomic.
+No database transaction is held across the plugin await. After a successful update decision,
+MemoryService re-reads the user-owned memory and applies the submitted patch to that current state
+for embedding input and event differences. If it is now a no-op, the current timestamp is preserved,
+no update event is emitted, and any plugin warning is still returned. The plugin retains its
+original `previous`/`proposed` snapshots and is not re-evaluated.
+
+This refresh removes the stale-state window introduced by waiting for the plugin; it does not
+make decisions or writes atomic. Another update can still occur after the refresh, including during
+the existing embedding-provider await. There are no new global or concurrent-state guarantees.
 
 The timeout is a cooperative asyncio deadline, not a sandbox or hard kill. Blocking Python and
 handlers that suppress cancellation can exceed it. Request cancellation propagates. Keep handlers
@@ -537,6 +547,12 @@ REST returns 400 for rejection and 503 for unavailable. Unavailable messages are
 `Memory Write Plugin unavailable.` Server diagnostics record operation, mode, and exception type,
 without exception text, tracebacks, or memory content. Plugin authors must likewise keep their
 returned messages and their own logs free of secrets and full memory contents.
+
+Startup import failures identify the configured module (or reference for attribute lookup), phase,
+and exception type, without the original exception text or traceback. After database initialization,
+bootstrap restores the pre-initialization enabled/disabled state of existing loggers named for the
+configured plugin module, the handler's defining module if re-exported, and their children. This
+scoped restoration does not cover arbitrary third-party names or custom logger configurations.
 
 ## Memory Configuration
 

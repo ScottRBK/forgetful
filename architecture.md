@@ -138,7 +138,12 @@ The plugin gets separately detached submitted/previous/proposed snapshots, with 
 candidate built by MemoryService after defaults and update merging. No-op updates skip evaluation.
 A rejection in enforce mode, malformed decision, exception, or timeout blocks before repository work;
 warn mode proceeds with warnings. Cancellation propagates; the deadline is cooperative, not a hard kill.
-No session spans the plugin await, and prior/candidate snapshots do not promise atomic global checks.
+No session spans the plugin await. After a successful update decision, MemoryService re-reads the
+user-owned memory and recomputes patch differences before repository work, using the refreshed state
+for embeddings and event differences. A resulting no-op preserves the current timestamp and any
+plugin warning without emitting an update event. The original plugin snapshots are not re-evaluated.
+This removes the new plugin-wait stale-state window; it does not prevent later concurrent changes,
+including the pre-existing embedding-provider await race, or promise atomic global checks.
 Explicit-null adapter differences (#95) and skill update limitations (#96) are unchanged.
 
 `app/routes/write_plugin_responses.py` adds nonempty-only warnings to write responses; update remains
@@ -146,8 +151,11 @@ flat. Stored/read `Memory` and event snapshots are unchanged. The live MCP adapt
 for both meta-tools and local CLI; REST maps rejection to 400 and unavailable to 503. The legacy
 unregistered `memory_tools.py` only unwraps the changed internal results for compatibility; it is not
 a supported Write Plugin transport. CLI memory-save rendering shows warnings with success.
-Bootstrap restores the plugin diagnostic logger after Alembic's existing logger-disabling setup;
-diagnostics include exception type, never exception text or full memory snapshots.
+Bootstrap restores the core plugin diagnostic logger after Alembic's existing logger-disabling setup.
+It also preserves pre-initialization enabled/disabled state for existing configured-module and
+handler-module loggers (including children and re-exports), without changing global logging setup.
+Import diagnostics identify module/reference, phase, and exception type; neither import nor decision
+diagnostics expose original exception text or full memory snapshots.
 
 **Query:** [memory_service.py:61](app/services/memory_service.py#L61) asks the repository for
 scored primary results, optionally expands one-hop links, deduplicates, and applies token/count

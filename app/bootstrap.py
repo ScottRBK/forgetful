@@ -227,6 +227,16 @@ async def build_runtime() -> Runtime:
     from app.services.write_plugin_service import WritePluginService
 
     handler = load_write_plugin(settings)
+    plugin_logger_states = {}
+    if handler is not None:
+        configured_module = settings.MEMORY_WRITE_PLUGIN.strip().partition(":")[0]
+        module_names = {configured_module, handler.__module__}
+        # Include re-exported handlers and existing child loggers, retaining intentional disables.
+        for name, plugin_logger in logging.Logger.manager.loggerDict.copy().items():
+            if isinstance(plugin_logger, logging.Logger) and any(
+                name == module or name.startswith(module + ".") for module in module_names
+            ):
+                plugin_logger_states[plugin_logger] = plugin_logger.disabled
     write_plugin = (WritePluginService(
         handler, mode=settings.MEMORY_WRITE_PLUGIN_MODE,
         timeout_seconds=settings.MEMORY_WRITE_PLUGIN_TIMEOUT_SECONDS,
@@ -248,6 +258,8 @@ async def build_runtime() -> Runtime:
     await db_adapter.init_db()
     # Alembic fileConfig disables existing loggers; plugin failures must remain diagnosable.
     logging.getLogger("app.services.write_plugin_service").disabled = False
+    for plugin_logger, was_disabled in plugin_logger_states.items():
+        plugin_logger.disabled = was_disabled
     logger.info("Database initialized")
 
     repos = create_repositories(db_adapter, embeddings_adapter, reranker_adapter)

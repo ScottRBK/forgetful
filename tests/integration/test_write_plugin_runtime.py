@@ -123,13 +123,84 @@ async def test_runtime_unavailable_logs_safe_diagnostics(plugin_runtime, capsys)
     {"MEMORY_WRITE_PLUGIN_TIMEOUT_SECONDS": 0},
     {"MEMORY_WRITE_PLUGIN_TIMEOUT_SECONDS": float("inf")},
 ])
-async def test_invalid_configuration_prevents_runtime_start(plugin_runtime, monkeypatch, overrides):
+def test_settings_reject_invalid_write_plugin_values(overrides):
     from pydantic import ValidationError
 
     from app.config.settings import Settings
 
     with pytest.raises(ValidationError):
-        config = Settings(_env_file=None, **overrides)
-        monkeypatch.setattr("app.bootstrap.settings", config)
-        runtime = await build_runtime()
+        Settings(_env_file=None, **overrides)
+
+
+@pytest.mark.parametrize("reexport", [False, True])
+async def test_runtime_preserves_plugin_module_diagnostics(
+    plugin_runtime, tmp_path, monkeypatch, capsys, reexport,
+):
+    import sys
+    from uuid import uuid4
+
+    configured_module = f"plugin_logs_{uuid4().hex}"
+    handler_module = f"{configured_module}_impl" if reexport else configured_module
+    (tmp_path / f"{handler_module}.py").write_text(f"""
+import logging
+from app.models.write_plugin_models import WriteDecision
+logger = logging.getLogger(__name__)
+child = logging.getLogger(__name__ + ".child")
+muted = logging.getLogger(__name__ + ".muted")
+muted.disabled = True
+async def check_write(request):
+    logger.warning("Safe handler diagnostic")
+    child.warning("Safe child diagnostic")
+    muted.warning("Muted diagnostic must stay disabled")
+    logging.getLogger("{configured_module}").warning("Safe configured-module diagnostic")
+    return WriteDecision(outcome="allow")
+""")
+    if reexport:
+        (tmp_path / f"{configured_module}.py").write_text(
+            "import logging\nlogger = logging.getLogger(__name__)\n"
+            f"from {handler_module} import check_write\n",
+        )
+    monkeypatch.setattr(settings, "MEMORY_WRITE_PLUGIN", f"{configured_module}:check_write")
+    runtime = await build_runtime()
+    try:
+        user = await runtime_user(runtime)
+        result = await runtime.services.memory.create_memory(user.id, data())
+        diagnostics = capsys.readouterr().err
+        assert result.memory.title == "Runtime test"
+        assert "Safe handler diagnostic" in diagnostics
+        assert "Safe child diagnostic" in diagnostics
+        assert "Safe configured-module diagnostic" in diagnostics
+        assert "Muted diagnostic must stay disabled" not in diagnostics
+    finally:
         await dispose_runtime(runtime)
+        sys.modules.pop(configured_module, None)
+        sys.modules.pop(handler_module, None)
+
+
+@pytest.mark.parametrize("source,phase,error_type", [
+    ('raise RuntimeError("SECRET import detail")\n', "import", "RuntimeError"),
+    ("import missing_plugin_dependency\n", "import", "ModuleNotFoundError"),
+    ("value = 1\n", "attribute lookup", "AttributeError"),
+    ('def __getattr__(name):\n    raise RuntimeError("SECRET lookup detail")\n',
+     "attribute lookup", "RuntimeError"),
+])
+async def test_startup_identifies_failed_plugin_without_exception_details(
+    plugin_runtime, tmp_path, monkeypatch, source, phase, error_type,
+):
+    import sys
+    import traceback
+    from uuid import uuid4
+
+    module_name = f"broken_plugin_{uuid4().hex}"
+    (tmp_path / f"{module_name}.py").write_text(source)
+    monkeypatch.setattr(settings, "MEMORY_WRITE_PLUGIN", f"{module_name}:check_write")
+    try:
+        with pytest.raises(ValueError, match="MEMORY_WRITE_PLUGIN") as failure:
+            await build_runtime()
+        message = str(failure.value)
+        assert module_name in message
+        assert phase in message
+        assert error_type in message
+        assert "SECRET" not in "".join(traceback.format_exception(failure.value))
+    finally:
+        sys.modules.pop(module_name, None)

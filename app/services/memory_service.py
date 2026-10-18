@@ -308,6 +308,21 @@ class MemoryService:
                 operation="update", user_id=user_id, submitted=submitted,
                 previous=existing_memory.model_copy(deep=True), proposed=proposed,
             ))
+            # Refresh after the plugin wait so the patch, embedding input, and event diff
+            # use current state. The plugin's original snapshots remain its decision inputs;
+            # this is not an atomic check against subsequent concurrent writes.
+            existing_memory = await self.memory_repo.get_memory_by_id(
+                memory_id=memory_id, user_id=user_id,
+            )
+            if existing_memory is None:
+                return MemoryUpdateResult(memory=None, plugin_warnings=plugin_warnings)
+            changed_fields = get_changed_fields(
+                input_model=updated_memory, existing_model=existing_memory,
+            )
+            if not changed_fields:
+                return MemoryUpdateResult(
+                    memory=existing_memory, plugin_warnings=plugin_warnings,
+                )
 
         search_fields = {"title", "content", "context", "keywords", "tags"}
         search_fields_changed = bool(search_fields & changed_fields.keys())

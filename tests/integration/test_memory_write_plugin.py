@@ -348,3 +348,73 @@ async def test_update_candidate_preserves_null_relationship_and_clears_empty_lis
     assert preserved.memory.project_ids == [project.id]
     assert candidates[2].project_ids == []
     assert cleared.memory.project_ids == []
+
+
+@pytest.mark.parametrize("concurrent_tags,concurrent_importance,expected_embeddings", [
+    (["concurrent"], 8, 3),
+    (["pending"], 9, 2),
+    (["pending"], 8, 2),
+])
+async def test_update_refreshes_state_after_plugin_wait(
+    write_store, concurrent_tags, concurrent_importance, expected_embeddings,
+):
+    import asyncio
+
+    from app.models.memory_models import MemoryUpdate
+    from app.models.write_plugin_models import WriteDecision
+    from app.services.write_plugin_service import WritePluginService
+
+    repo, user_id, embeddings, bus = write_store
+    paused, release = asyncio.Event(), asyncio.Event()
+    evaluated, events = [], []
+
+    async def collect(event):
+        events.append(event)
+
+    async def check_write(request):
+        if request.operation == "update" and request.submitted.content is None:
+            evaluated.append(request)
+            paused.set()
+            await release.wait()
+            return WriteDecision(outcome="warn", message="Check concurrent edits.")
+        return WriteDecision(outcome="allow")
+
+    bus.subscribe("memory.*", collect)
+    service = MemoryService(repo, bus, WritePluginService(check_write))
+    created = await service.create_memory(user_id, candidate(content="ORIGINAL content"))
+    async with asyncio.timeout(5), asyncio.TaskGroup() as tasks:
+        pending = tasks.create_task(service.update_memory(
+            user_id, created.memory.id, MemoryUpdate(tags=["pending"], importance=9),
+        ))
+        await paused.wait()
+        try:
+            await service.update_memory(user_id, created.memory.id, MemoryUpdate(
+                content="NEW content", tags=concurrent_tags, importance=concurrent_importance,
+            ))
+            before_resume = await service.get_memory(user_id, created.memory.id)
+        finally:
+            release.set()
+    await bus.wait_for_pending()
+
+    saved = await service.get_memory(user_id, created.memory.id)
+    assert saved.content == "NEW content"
+    assert saved.tags == ["pending"]
+    assert saved.importance == 9
+    assert "NEW content" in embeddings.requests[-1]
+    assert "ORIGINAL content" not in embeddings.requests[-1]
+    assert len(embeddings.requests) == expected_embeddings
+    assert pending.result().plugin_warnings[0].message == "Check concurrent edits."
+    assert len(evaluated) == 1
+    assert evaluated[0].previous.content == "ORIGINAL content"
+    assert evaluated[0].proposed.content == "ORIGINAL content"
+    if concurrent_importance == 9:
+        assert len(events) == 2  # Creation and B; A is now a no-op.
+        assert saved.updated_at == before_resume.updated_at
+        assert pending.result().memory.updated_at == before_resume.updated_at
+    elif concurrent_tags == ["pending"]:
+        assert events[-1].changes == {"importance": {"old": 8, "new": 9}}
+    else:
+        assert events[-1].changes == {
+            "tags": {"old": ["concurrent"], "new": ["pending"]},
+            "importance": {"old": 8, "new": 9},
+        }

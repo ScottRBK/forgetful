@@ -16,9 +16,17 @@ def load_write_plugin(config: Settings) -> WritePlugin | None:
             or not all(part.isidentifier() for part in module_name.split("."))):
         raise ValueError("MEMORY_WRITE_PLUGIN must be an importable module:function reference")
     try:
-        handler = getattr(importlib.import_module(module_name), function_name)
-    except Exception:
-        raise ValueError("MEMORY_WRITE_PLUGIN could not be imported") from None
+        module = importlib.import_module(module_name)
+    except Exception as exc:
+        raise ValueError(
+            f"MEMORY_WRITE_PLUGIN import failed for {module_name}: {type(exc).__name__}",
+        ) from None
+    try:
+        handler = getattr(module, function_name)
+    except Exception as exc:
+        raise ValueError(
+            f"MEMORY_WRITE_PLUGIN attribute lookup failed for {reference}: {type(exc).__name__}",
+        ) from None
     if not inspect.iscoroutinefunction(handler):
         raise ValueError("MEMORY_WRITE_PLUGIN must reference an async function")
     return handler
