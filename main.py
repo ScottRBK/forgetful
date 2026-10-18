@@ -22,6 +22,7 @@ from app.config.settings import settings
 from app.routes.api import (
     activity,
     auth,
+    capabilities,
     code_artifacts,
     documents,
     entities,
@@ -129,6 +130,7 @@ async def root(request: Request) -> JSONResponse:
 
 health.register(mcp)
 auth.register(mcp)
+capabilities.register(mcp)
 memories.register(mcp)
 entities.register(mcp)
 projects.register(mcp)

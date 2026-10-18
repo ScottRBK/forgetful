@@ -4,6 +4,8 @@ Forgetful exposes a REST API for web UI integration and external access.
 
 **Base URL:** `http://localhost:8020/api/v1`
 
+Health and capability discovery use the application base URL, outside `/api/v1`.
+
 ## Authentication
 
 The REST API uses the **same authentication provider** as MCP routes. This means:
@@ -24,7 +26,8 @@ The token is validated using `mcp.auth.verify_token()` - the same mechanism used
 
 ### When Auth is Disabled (Default)
 
-If `FASTMCP_SERVER_AUTH` is not set, all requests use a default user. No Authorization header is required.
+If `FASTMCP_SERVER_AUTH` is not set, domain requests use a default user. No Authorization header is
+required. Public capability discovery does not resolve or create a user.
 
 ### Configuration
 
@@ -73,6 +76,59 @@ Health check endpoint (no authentication required).
   "version": "0.3.0"
 }
 ```
+
+---
+
+## Capability discovery
+
+### GET /.well-known
+
+Public JSON metadata describing which optional features the instance has enabled. No credentials are
+required, even when authentication is enabled. All callers receive the same schema version and
+capability booleans; the response does not expose raw configuration or user data.
+
+The path is relative to the application's deployment base, not `/api/v1` or the MCP endpoint:
+
+- Root deployment: `https://host/.well-known`.
+- Deployment at `https://host/forgetful/`: `https://host/forgetful/.well-known`.
+
+Preserve the deployment prefix when building this URL. `/forgetful/` is an example prefix, not a
+hardcoded route. This project-specific endpoint is separate from OAuth's standard well-known routes.
+
+**Response (example):**
+```json
+{
+  "schema_version": 1,
+  "capabilities": {
+    "planning": true,
+    "skills": false,
+    "files": true,
+    "activity_stream": false
+  }
+}
+```
+
+Each value maps directly to the settings singleton:
+
+| Capability | Setting | Meaning |
+|------------|---------|---------|
+| `planning` | `PLANNING_ENABLED` | Plans and tasks are enabled together. |
+| `skills` | `SKILLS_ENABLED` | Skill operations are enabled. |
+| `files` | `FILES_ENABLED` | File operations are enabled. |
+| `activity_stream` | `ACTIVITY_ENABLED` | Activity tracking and live streaming are enabled. |
+
+`activity_stream: false` does not disable queries of previously stored activity history.
+
+Discovery remains available when all optional features are disabled. Each request reads settings
+without a server-side response cache, database queries, model calls, or user creation. Clients own
+caching and refresh policy. These booleans describe configuration, not service health, the caller's
+permissions, or a guarantee that a feature request will succeed. Feature routes keep their normal
+authentication and authorization requirements.
+
+For schema version `1`, clients should ignore additional capability keys. Only an explicit `false`
+means disabled; a missing key, unsupported schema version, or unavailable document means unknown.
+Older servers may not provide this endpoint. Clients may fall back to probing a feature route, but
+must not treat authentication errors, routing errors, or temporary outages as a disabled feature.
 
 ---
 

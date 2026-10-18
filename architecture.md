@@ -99,6 +99,7 @@ files, skills, plans, and tasks are conditional. The root service-info route sta
 | Surface | Source and path |
 | --- | --- |
 | Health / auth discovery | [health.py:19](app/routes/api/health.py#L19) `/health`; [auth.py:32](app/routes/api/auth.py#L32) `/api/v1/auth/info`. |
+| Public capability discovery | [capabilities.py:10](app/routes/api/capabilities.py#L10) `/.well-known`, beneath the deployment prefix; reads feature settings directly without identity resolution or domain I/O. |
 | Domain operations | [memories.py:178](app/routes/api/memories.py#L178) validates a create request and calls `MemoryService` directly; other domain routes follow this broad shape. |
 | Graph exploration | [graph.py:42](app/routes/api/graph.py#L42) assembles a broad graph using domain services; [graph.py:968](app/routes/api/graph.py#L968) delegates bounded subgraph traversal to `GraphService`. |
 | Activity history / streaming | [activity.py:48](app/routes/api/activity.py#L48) queries persisted events; [activity.py:234](app/routes/api/activity.py#L234) streams per-user events via SSE. |

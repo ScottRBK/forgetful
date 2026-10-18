@@ -38,6 +38,14 @@ Other clients follow the same two shapes (spawn command, or HTTP endpoint) in th
 config format — full per-client walkthroughs live in `docs/connectivity_guide.md` in the
 Forgetful repo.
 
+## Optional feature discovery over HTTP
+
+`GET <application-base>/.well-known` publicly reports enabled planning, skills, files, and activity
+streaming without creating a user. Keep any deployment prefix: for a server at
+`https://host/forgetful/mcp`, use `https://host/forgetful/.well-known`. These settings are not a
+health or permission check. Treat missing keys or unsupported schema versions as unknown, not
+disabled. See `docs/api_reference.md` for the capability document. MCP tool discovery is unchanged.
+
 ## Auth and scopes
 
 A local server defaults to no-auth single-user mode — connect and go. Deployed servers use
