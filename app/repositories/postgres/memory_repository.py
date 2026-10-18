@@ -1267,8 +1267,9 @@ class PostgresMemoryRepository:
         - files.project_id (file -> project)
         - entity_file_association (entity <-> file)
 
-        PostgreSQL-specific implementation using ARRAY for path tracking
-        and = ANY() for cycle detection.
+        Each node is visited once, at its minimum depth: the recursion uses UNION so
+        rows it has already produced are discarded, and termination is guaranteed by
+        the depth bound.
 
         Args:
             user_id: User ID for ownership filtering
@@ -1287,9 +1288,6 @@ class PostgresMemoryRepository:
             Tuple of (nodes_list, truncated) where nodes_list contains dicts
             with node_id, node_type, and depth fields
         """
-        # Pre-compute the initial path value
-        initial_path = f"{center_type}_{center_id}"
-
         # Build edge traversal queries for LATERAL subquery.
         # Each edge type is a SELECT that will be UNION ALL'd together inside LATERAL.
         # The key insight: PostgreSQL allows only ONE recursive reference per level,
@@ -1780,30 +1778,30 @@ class PostgresMemoryRepository:
         lateral_subquery = " UNION ALL ".join(edge_queries)
 
         # Build final query using CROSS JOIN LATERAL pattern
-        # This allows PostgreSQL to handle multiple edge types in a single recursive term
+        # This allows PostgreSQL to handle multiple edge types in a single recursive term.
+        # UNION (not UNION ALL) discards rows the recursion has already produced, so every
+        # (node, depth) pair is expanded once and the work is bounded by distinct nodes
+        # instead of by simple paths.
         query_str = f"""
-            WITH RECURSIVE graph_traverse(node_id, node_type, depth, path) AS (
+            WITH RECURSIVE graph_traverse(node_id, node_type, depth) AS (
                 -- Anchor: the center node (non-recursive term)
                 SELECT
                     CAST(:center_id AS INTEGER) AS node_id,
                     CAST(:center_type AS TEXT) AS node_type,
-                    0 AS depth,
-                    ARRAY[:initial_path] AS path
+                    0 AS depth
 
-                UNION ALL
+                UNION
 
                 -- Recursive term: traverse all edge types via LATERAL
                 SELECT
                     edges.target_id,
                     edges.target_type,
-                    gt.depth + 1,
-                    gt.path || ARRAY[edges.target_type || '_' || edges.target_id::TEXT]
+                    gt.depth + 1
                 FROM graph_traverse gt
                 CROSS JOIN LATERAL (
                     {lateral_subquery}
                 ) edges
                 WHERE gt.depth < :max_depth
-                  AND NOT (edges.target_type || '_' || edges.target_id::TEXT) = ANY(gt.path)
             )
             SELECT node_id, node_type, MIN(depth) as depth
             FROM graph_traverse
@@ -1817,7 +1815,6 @@ class PostgresMemoryRepository:
         params = {
             "center_id": center_id,
             "center_type": center_type,
-            "initial_path": initial_path,
             "user_id": user_id,
             "max_depth": depth,
             "limit_plus_one": max_nodes + 1,  # +1 to detect truncation
