@@ -3,6 +3,7 @@
 Covers, with stubbed services and no database:
 - ``client_error_detail`` keeps authored messages and hides driver details.
 - the per-category entity tools never put SQL, bound parameters or driver text in a ToolError.
+- ``discover_forgetful_tools`` honours the advertised ``linking`` category.
 """
 
 from types import SimpleNamespace
@@ -21,13 +22,16 @@ from app.exceptions import (
     InvalidStateTransitionError,
     NotFoundError,
 )
+from app.models.tool_registry_models import ToolCategory, ToolParameter
 from app.routes.mcp import entity_tools
+from app.routes.mcp.meta_tools import build_discovery_payload
 from app.routes.mcp.tool_errors import (
     CONSTRAINT_FAILURE,
     GENERIC_FAILURE,
     INVALID_YAML_FAILURE,
     client_error_detail,
 )
+from app.routes.mcp.tool_registry import ToolRegistry
 
 SECRET_USER_ID = "7f1c2b9e-0000-4000-8000-00000000abcd"
 SQL_TEXT = "INSERT INTO entity_relationships (user_id, source_entity_id) VALUES (?, ?)"
@@ -217,3 +221,70 @@ class TestEntityToolErrors:
                     "create_entity_relationship",
                     {"source_entity_id": 1, "target_entity_id": 2, "relationship_type": "owns"},
                 )
+
+
+async def _noop(**_kwargs):
+    return {}
+
+
+def _registry_with_link_tools() -> ToolRegistry:
+    registry = ToolRegistry()
+    param = [ToolParameter(name="x", type="int", description="x", required=True)]
+    for name, category, tags in [
+        ("link_memories", ToolCategory.MEMORY, ["memory", "linking"]),
+        ("link_entity_to_memory", ToolCategory.ENTITY, ["entity", "memory", "linking"]),
+        ("link_skill_to_memory", ToolCategory.SKILL, ["skill", "memory", "linking"]),
+        ("get_memory", ToolCategory.MEMORY, ["memory", "query"]),
+        ("create_entity", ToolCategory.ENTITY, ["entity", "create"]),
+    ]:
+        registry.register(
+            name=name,
+            category=category,
+            description=name,
+            parameters=param,
+            returns="dict",
+            implementation=_noop,
+            tags=tags,
+        )
+    return registry
+
+
+class TestLinkingCategory:
+    """The advertised ``linking`` category lists the tools tagged ``linking``."""
+
+    def test_linking_category_returns_tagged_tools_across_categories(self):
+        registry = _registry_with_link_tools()
+        permitted = {meta.name for meta in registry.list_all_tools()}
+
+        payload = build_discovery_payload(registry, permitted, "linking")
+
+        names = {tool["name"] for tools in payload["tools_by_category"].values() for tool in tools}
+        assert names == {"link_memories", "link_entity_to_memory", "link_skill_to_memory"}
+        assert payload["total_count"] == 3
+        assert payload["filtered_by"] == "linking"
+
+    def test_linking_category_respects_permitted_tools(self):
+        registry = _registry_with_link_tools()
+
+        payload = build_discovery_payload(registry, {"link_memories", "get_memory"}, "linking")
+
+        names = {tool["name"] for tools in payload["tools_by_category"].values() for tool in tools}
+        assert names == {"link_memories"}
+
+    def test_linking_is_case_insensitive_like_other_categories(self):
+        registry = _registry_with_link_tools()
+        permitted = {meta.name for meta in registry.list_all_tools()}
+
+        payload = build_discovery_payload(registry, permitted, "LINKING")
+
+        assert payload["total_count"] == 3
+
+    def test_real_categories_are_unchanged(self):
+        registry = _registry_with_link_tools()
+        permitted = {meta.name for meta in registry.list_all_tools()}
+
+        payload = build_discovery_payload(registry, permitted, "memory")
+
+        names = {tool["name"] for tools in payload["tools_by_category"].values() for tool in tools}
+        assert names == {"link_memories", "get_memory"}
+        assert "linking" not in payload["categories_available"]

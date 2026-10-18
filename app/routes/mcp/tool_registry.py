@@ -144,6 +144,10 @@ class ToolRegistry:
     def get_permitted_by_category(self, category: ToolCategory, permitted: set) -> list[ToolMetadata]:
         """List tools filtered by category AND permitted set.
 
+        ``ToolCategory.LINKING`` is a cross-cutting filter: link tools are registered under
+        the category that owns them (memory, entity, skill) and carry the "linking" tag, so
+        that category selects by tag instead.
+
         Args:
             category: Category to filter by
             permitted: Set of permitted tool names
@@ -151,6 +155,12 @@ class ToolRegistry:
         Returns:
             List of tool metadata matching both filters
         """
+        if category == ToolCategory.LINKING:
+            return [
+                impl.metadata
+                for impl in self._tools.values()
+                if category.value in impl.metadata.tags and impl.metadata.name in permitted
+            ]
         return [
             impl.metadata
             for impl in self._tools.values()

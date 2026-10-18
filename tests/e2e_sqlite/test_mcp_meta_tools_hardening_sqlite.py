@@ -1,6 +1,7 @@
 """E2E (SQLite) hardening of the three MCP meta-tools.
 
 - database failures reach the client as short messages, never SQL, bound parameters or ids
+- every category advertised by discover_forgetful_tools lists tools
 """
 
 import re
@@ -8,6 +9,7 @@ import re
 import pytest
 from fastmcp.exceptions import ToolError
 
+from app.routes.mcp.meta_tools import _build_category_list
 from app.routes.mcp.tool_errors import CONSTRAINT_FAILURE, GENERIC_FAILURE
 
 UUID_RE = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", re.IGNORECASE)
@@ -128,3 +130,26 @@ class TestExecuteErrorsAreSanitised:
         message = await tool_error(mcp_client, "get_memory", {"memory_id": "abc"})
 
         assert "memory_id" in message
+
+
+class TestDiscoverCategories:
+    """Every category the tool docstrings advertise holds tools."""
+
+    async def test_linking_category_lists_link_tools(self, mcp_client):
+        result = await mcp_client.call_tool("discover_forgetful_tools", {"category": "linking"})
+        data = result.data
+
+        names = {tool["name"] for tools in data["tools_by_category"].values() for tool in tools}
+        assert data["total_count"] > 0
+        assert {"link_memories", "unlink_memories"} <= names
+        assert data["filtered_by"] == "linking"
+
+    async def test_every_advertised_category_is_non_empty(self, mcp_client):
+        advertised = [name.strip() for name in _build_category_list().split(",")]
+        assert "linking" in advertised, "precondition: the category is documented"
+
+        for category in advertised:
+            result = await mcp_client.call_tool(
+                "discover_forgetful_tools", {"category": category},
+            )
+            assert result.data["total_count"] > 0, f"advertised category {category!r} is empty"
