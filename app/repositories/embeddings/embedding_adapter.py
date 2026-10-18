@@ -10,6 +10,7 @@ from openai import AzureOpenAI, OpenAI
 from app.config.settings import settings
 from app.protocols.embedding_protocol import EmbeddingsAdapter
 from app.repositories.embeddings.fastembed_offline import load_fastembed_model
+from app.utils.url_helpers import redact_url
 
 logger = logging.getLogger(__name__)
 
@@ -149,7 +150,7 @@ class OpenAIEmbeddingsAdapter(EmbeddingsAdapter):
 
         logger.info("Initialising OpenAI embeddings adapter", extra={
             "embedding_model": settings.EMBEDDING_MODEL,
-            "base_url": base_url or "(default)",
+            "base_url": redact_url(base_url) if base_url else "(default)",
             "supports_dimensions": self.supports_dimensions,
         })
 
@@ -201,7 +202,7 @@ class OllamaEmbeddingsAdapter(EmbeddingsAdapter):
 
         logger.info("Initialising Ollama embeddings adapter", extra={
             "embedding_model": settings.EMBEDDING_MODEL,
-            "base_url": settings.OLLAMA_BASE_URL,
+            "base_url": redact_url(settings.OLLAMA_BASE_URL),
         })
         self.client = AsyncClient(host=settings.OLLAMA_BASE_URL)
         self.model = settings.EMBEDDING_MODEL
