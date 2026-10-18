@@ -30,8 +30,8 @@ ORIGINAL = (
 
 # Characters str.splitlines() treats as line boundaries but dotenv does not.
 UNICODE_SEPARATORS = {
-    "U+2028": " ",
-    "U+2029": " ",
+    "U+2028": "\u2028",
+    "U+2029": "\u2029",
     "U+0085": "\u0085",
     "VT": "\x0b",
     "FF": "\x0c",

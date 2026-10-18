@@ -17,6 +17,47 @@ from app.routes.cli.paths import token_cache_dir, user_env_file
 from app.routes.cli.remote_executor import normalize_server_url
 
 
+def _set_key_lines(lines: list[str], key: str, value: str) -> list[str]:
+    """Return lines with every assignment of key set to value, or key=value appended.
+
+    Lines keep their own trailing "\\r", so a CRLF file stays CRLF; an appended line
+    follows the endings of the last line. Duplicates are all rewritten in place because
+    dotenv lets the last one win. Nothing else is touched.
+    """
+    result = list(lines)
+    found = False
+    for index, line in enumerate(result):
+        if line.strip().startswith(f"{key}="):
+            result[index] = f"{key}={value}" + ("\r" if line.endswith("\r") else "")
+            found = True
+    if not found:
+        result.append(f"{key}={value}" + ("\r" if result and result[-1].endswith("\r") else ""))
+    return result
+
+
+def _atomic_write(target: Path, data: bytes, mode: int | None) -> None:
+    """Replace target with data via a synced temp file in the same directory.
+
+    The original is untouched until os.replace succeeds, and the temp file is removed
+    if anything fails. When mode is given it is applied to the new file; otherwise the
+    file keeps mkstemp's owner-only 0o600.
+    """
+    target.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(dir=target.parent, prefix=f"{target.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(data)
+            handle.flush()
+            os.fsync(handle.fileno())
+        if mode is not None:
+            os.chmod(tmp_name, mode)
+        os.replace(tmp_name, target)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp_name)
+        raise
+
+
 def upsert_env_var(env_file: Path, key: str, value: str) -> None:
     """Set key=value in a dotenv file, preserving every other line.
 
@@ -41,30 +82,8 @@ def upsert_env_var(env_file: Path, key: str, value: str) -> None:
     if lines[-1] == "":
         lines.pop()
 
-    found = False
-    for index, line in enumerate(lines):
-        if line.strip().startswith(f"{key}="):
-            lines[index] = f"{key}={value}" + ("\r" if line.endswith("\r") else "")
-            found = True
-    if not found:
-        lines.append(f"{key}={value}" + ("\r" if lines and lines[-1].endswith("\r") else ""))
-
-    data = ("\n".join(lines) + "\n").encode("utf-8")
-
-    target.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp_name = tempfile.mkstemp(dir=target.parent, prefix=f"{target.name}.", suffix=".tmp")
-    try:
-        with os.fdopen(fd, "wb") as handle:
-            handle.write(data)
-            handle.flush()
-            os.fsync(handle.fileno())
-        if mode is not None:
-            os.chmod(tmp_name, mode)
-        os.replace(tmp_name, target)
-    except BaseException:
-        with contextlib.suppress(OSError):
-            os.unlink(tmp_name)
-        raise
+    data = ("\n".join(_set_key_lines(lines, key, value)) + "\n").encode("utf-8")
+    _atomic_write(target, data, mode)
 
 
 def _oauth_client_factory(url: str, token_dir: Path):
