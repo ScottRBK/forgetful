@@ -8,7 +8,7 @@ import contextlib
 import json
 import re
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlsplit, urlunsplit
 
 # A real scheme is always followed by "://"; "localhost:8020" is NOT a scheme
 # (urlparse misreads its scheme as "localhost"), so match on the "://" form.
@@ -21,11 +21,13 @@ def normalize_server_url(url: str) -> str:
 
     Scheme-less input (bare ``host`` or ``host:port``) gets a default scheme:
     ``http://`` for loopback hosts (localhost / 127.0.0.1 / [::1]) and ``https://``
-    for everything else (secure by default). The ``/mcp`` mount path is then appended
-    when the URL carries no explicit path. Explicit ``http``/``https`` URLs keep their
-    scheme; any other explicit scheme (e.g. ``ftp://``) is rejected.
+    for everything else (secure by default). The scheme is lower-cased, because
+    fastmcp's transport inference is case-sensitive. The ``/mcp`` mount path is then
+    set when the URL carries no explicit path; only the path component is edited, so
+    a query string or fragment is preserved and normalizing twice changes nothing.
+    Explicit ``http``/``https`` URLs keep their scheme; any other explicit scheme
+    (e.g. ``ftp://``) is rejected.
     """
-    url = url.rstrip("/")
     match = _SCHEME_RE.match(url)
     if match:
         if match.group(1).lower() not in ("http", "https"):
@@ -36,9 +38,8 @@ def normalize_server_url(url: str) -> str:
         host = urlparse(f"http://{url}").hostname or ""
         scheme = "http" if host in _LOOPBACK_HOSTS else "https"
         url = f"{scheme}://{url}"
-    if urlparse(url).path in ("", "/"):
-        return f"{url}/mcp"
-    return url
+    parts = urlsplit(url)  # also lower-cases the scheme
+    return urlunsplit(parts._replace(path=parts.path.rstrip("/") or "/mcp"))
 
 
 def _default_client_factory(url: str, token: str | None):
