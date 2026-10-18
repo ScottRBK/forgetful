@@ -283,6 +283,35 @@ class TestPlanning:
         assert response.json()["description"] == text
 
 
+class TestDocumentSizeBytes:
+    DOC = {"title": "t", "description": "d", "content": "c"}
+
+    async def test_create_above_int32_is_refused(self, http_client):
+        response = await http_client.post(
+            "/api/v1/documents", json={**self.DOC, "size_bytes": 3_000_000_000},
+        )
+
+        error = _assert_rejected(response, "size_bytes")
+        assert error["type"] == "less_than_equal"
+
+    async def test_update_above_int32_is_refused(self, http_client):
+        created = await http_client.post("/api/v1/documents", json=self.DOC)
+
+        response = await http_client.put(
+            f"/api/v1/documents/{created.json()['id']}", json={"size_bytes": 3_000_000_000},
+        )
+
+        _assert_rejected(response, "size_bytes")
+
+    async def test_largest_int32_is_accepted(self, http_client):
+        response = await http_client.post(
+            "/api/v1/documents", json={**self.DOC, "size_bytes": INT32_MAX},
+        )
+
+        assert response.status_code == 201, response.text
+        assert response.json()["size_bytes"] == INT32_MAX
+
+
 class TestMcpTools:
     async def test_create_skill_with_nul_is_refused(self, mcp_client):
         with pytest.raises(ToolError):

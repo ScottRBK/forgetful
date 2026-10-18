@@ -166,3 +166,26 @@ class TestPlanning:
         assert criterion.status_code == 400, criterion.text
 
 
+class TestDocumentSizeBytes:
+    DOC = {"title": "t", "description": "d", "content": "c"}
+
+    async def test_value_above_int32_is_refused_on_create_and_update(self, http_client):
+        refused = await http_client.post(
+            "/api/v1/documents", json={**self.DOC, "size_bytes": INT32_MAX + 1},
+        )
+        assert refused.status_code == 400, refused.text
+
+        created = await http_client.post("/api/v1/documents", json=self.DOC)
+        updated = await http_client.put(
+            f"/api/v1/documents/{created.json()['id']}", json={"size_bytes": 3_000_000_000},
+        )
+        assert updated.status_code == 400, updated.text
+
+    async def test_largest_int32_is_stored(self, http_client):
+        response = await http_client.post(
+            "/api/v1/documents", json={**self.DOC, "size_bytes": INT32_MAX},
+        )
+
+        assert response.status_code == 201, response.text
+        fetched = await http_client.get(f"/api/v1/documents/{response.json()['id']}")
+        assert fetched.json()["size_bytes"] == INT32_MAX

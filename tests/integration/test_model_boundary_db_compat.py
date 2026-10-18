@@ -13,6 +13,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.config.settings import settings
+from app.models.document_models import DocumentCreate, DocumentUpdate
 from app.models.entity_models import (
     EntityRelationship,
     EntityRelationshipCreate,
@@ -231,3 +232,22 @@ class TestPlanningText:
         assert plan.goal == f"a{NUL}b"
 
 
+class TestDocumentSizeBytes:
+    """documents.size_bytes is a 32-bit INTEGER on PostgreSQL."""
+
+    DOC = {"title": "t", "description": "d", "content": "c"}
+
+    def test_create_accepts_the_largest_int32(self):
+        assert DocumentCreate(**self.DOC, size_bytes=INT32_MAX).size_bytes == INT32_MAX
+
+    def test_create_rejects_a_value_above_int32(self):
+        errors = _rejected(DocumentCreate, {**self.DOC, "size_bytes": INT32_MAX + 1})
+        assert errors[0]["loc"] == ("size_bytes",)
+        assert errors[0]["type"] == "less_than_equal"
+
+    def test_update_accepts_the_largest_int32(self):
+        assert DocumentUpdate(size_bytes=INT32_MAX).size_bytes == INT32_MAX
+
+    def test_update_rejects_a_value_above_int32(self):
+        errors = _rejected(DocumentUpdate, {"size_bytes": 3_000_000_000})
+        assert errors[0]["loc"] == ("size_bytes",)

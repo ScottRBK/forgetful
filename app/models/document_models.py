@@ -9,6 +9,9 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.config.settings import settings
 
+# documents.size_bytes is a 32-bit INTEGER on PostgreSQL
+MAX_SIZE_BYTES = 2_147_483_647
+
 
 class DocumentCreate(BaseModel):
     """Request model for creating a document
@@ -52,6 +55,7 @@ class DocumentCreate(BaseModel):
     size_bytes: int | None = Field(
         default=None,
         ge=0,
+        le=MAX_SIZE_BYTES,
         description="Document size in bytes (metadata only, auto-calculated if not provided)",
     )
     tags: list[str] = Field(
@@ -169,6 +173,7 @@ class DocumentUpdate(BaseModel):
     size_bytes: int | None = Field(
         default=None,
         ge=0,
+        le=MAX_SIZE_BYTES,
         description="New size. Unchanged if null. Auto-calculated from content if content provided.",
     )
     tags: list[str] | None = Field(
@@ -249,6 +254,13 @@ class Document(DocumentCreate):
     id: int = Field(
         ...,
         description="Unique document identifier (auto-generated)",
+    )
+    # Read side of the DocumentCreate field: no upper bound, so documents stored before the
+    # bound existed (SQLite integers are 64-bit) stay readable
+    size_bytes: int | None = Field(
+        default=None,
+        ge=0,
+        description=DocumentCreate.model_fields["size_bytes"].description,
     )
     project_id: int | None = Field(
         default=None,
