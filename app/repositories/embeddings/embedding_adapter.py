@@ -70,6 +70,7 @@ class AzureOpenAIAdapter(EmbeddingsAdapter):
     def __init__(self):
         logger.info("Initialising Azure Open AI embeddings adapter", extra={
             "embedding_model": settings.EMBEDDING_MODEL,
+            "supports_dimensions": settings.AZURE_SUPPORTS_DIMENSIONS,
         })
 
         required = {
@@ -91,14 +92,18 @@ class AzureOpenAIAdapter(EmbeddingsAdapter):
             api_key=settings.AZURE_API_KEY,
         )
         self.model = settings.AZURE_DEPLOYMENT
+        self.supports_dimensions = settings.AZURE_SUPPORTS_DIMENSIONS
 
     async def generate_embedding(self, text) -> list[float]:
+        kwargs = {
+            "input": [text],
+            "model": self.model,
+        }
+        if self.supports_dimensions:
+            kwargs["dimensions"] = settings.EMBEDDING_DIMENSIONS
+
         try:
-            response = self.client.embeddings.create(
-                input=[text],
-                model=self.model,
-                dimensions=settings.EMBEDDING_DIMENSIONS,
-            )
+            response = self.client.embeddings.create(**kwargs)
         except Exception:
             logger.error("Error generatring embeddings", exc_info=True, extra={
                 "embedding provider": "Azure",

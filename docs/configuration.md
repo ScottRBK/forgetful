@@ -1023,6 +1023,12 @@ ACTIVITY_TRACK_READS=false
 - **Security**: **Keep this secret** - never commit to version control
 - **Example**: `AZURE_API_KEY=your-azure-api-key-here`
 
+#### `AZURE_SUPPORTS_DIMENSIONS`
+- **Default**: `true`
+- **Description**: Whether the deployment supports the `dimensions` parameter (`EMBEDDING_DIMENSIONS` is sent with every request when enabled)
+- **Note**: Set to `false` for `text-embedding-ada-002` deployments, which reject the parameter with an HTTP 400. `text-embedding-3-*` deployments support it
+- **Example**: `AZURE_SUPPORTS_DIMENSIONS=false`
+
 ### Google Embedding Provider Configuration
 
 **Note**: These settings only apply when `EMBEDDING_PROVIDER=Google`

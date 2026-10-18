@@ -247,6 +247,8 @@ AZURE_ENDPOINT=https://my-resource.openai.azure.com/
 AZURE_DEPLOYMENT=text-embedding-ada-002
 AZURE_API_VERSION=2023-05-15
 AZURE_API_KEY=...
+# text-embedding-ada-002 does not accept the `dimensions` parameter
+AZURE_SUPPORTS_DIMENSIONS=false
 
 # Migrate (same dimensions, but different provider = different vector space)
 forgetful --re-embed

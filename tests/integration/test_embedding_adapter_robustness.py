@@ -4,14 +4,17 @@ Each adapter is driven with its real SDK client where possible. Only the HTTP
 transport is replaced by an in-process fake endpoint, so no network access or
 provider account is needed.
 """
+import functools
+import json
 import logging
 from unittest.mock import MagicMock
 
+import httpx
 import pytest
 
 from app.bootstrap import get_embedding_adapter
 from app.config import logging_config
-from app.config.settings import settings
+from app.config.settings import Settings, settings
 from app.repositories.embeddings import embedding_adapter as ea
 from app.utils.url_helpers import redact_url
 
@@ -156,3 +159,85 @@ def test_azure_adapter_accepts_complete_configuration(azure_config):
     adapter = ea.AzureOpenAIAdapter()
 
     assert adapter.model == "text-embedding-ada-002"
+
+
+# --------------------------------------------------------------------------
+# Fake Azure endpoint (real openai SDK, only the HTTP transport is replaced)
+# --------------------------------------------------------------------------
+class FakeAzureEndpoint:
+    """In-process stand-in for an Azure OpenAI embeddings deployment."""
+
+    def __init__(self, vector_size: int = 1536):
+        self.vector_size = vector_size
+        self.rejects_dimensions = False
+        self.on_request = None
+        self.bodies: list[dict] = []
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        self.bodies.append(body)
+        if self.on_request is not None:
+            self.on_request()
+        if self.rejects_dimensions and "dimensions" in body:
+            return httpx.Response(400, json={"error": {
+                "code": "BadRequest",
+                "message": "Unrecognized request argument supplied: dimensions",
+            }})
+        return httpx.Response(200, json={
+            "object": "list",
+            "model": "text-embedding-ada-002",
+            "usage": {"prompt_tokens": 1, "total_tokens": 1},
+            "data": [{
+                "object": "embedding",
+                "index": 0,
+                "embedding": [0.01] * self.vector_size,
+            }],
+        })
+
+
+@pytest.fixture
+def fake_azure(azure_config, monkeypatch):
+    endpoint = FakeAzureEndpoint()
+    http_client = httpx.Client(transport=httpx.MockTransport(endpoint))
+    monkeypatch.setattr(
+        ea, "AzureOpenAI", functools.partial(ea.AzureOpenAI, http_client=http_client),
+    )
+    yield endpoint
+    http_client.close()
+
+
+# --------------------------------------------------------------------------
+# `dimensions` is only sent to Azure deployments that accept it
+# --------------------------------------------------------------------------
+def test_azure_supports_dimensions_defaults_to_true(monkeypatch):
+    monkeypatch.delenv("AZURE_SUPPORTS_DIMENSIONS", raising=False)
+
+    assert Settings(_env_file=None).AZURE_SUPPORTS_DIMENSIONS is True
+
+
+def test_azure_supports_dimensions_reads_environment(monkeypatch):
+    monkeypatch.setenv("AZURE_SUPPORTS_DIMENSIONS", "false")
+
+    assert Settings(_env_file=None).AZURE_SUPPORTS_DIMENSIONS is False
+
+
+async def test_azure_adapter_sends_dimensions_by_default(fake_azure, monkeypatch):
+    monkeypatch.setattr(settings, "EMBEDDING_DIMENSIONS", 256)
+
+    await ea.AzureOpenAIAdapter().generate_embedding("hello")
+
+    assert fake_azure.bodies[0]["dimensions"] == 256
+
+
+async def test_azure_adapter_omits_dimensions_when_unsupported(fake_azure, monkeypatch):
+    """Documented ada-002 setup: the deployment answers 400 to a `dimensions` argument."""
+    fake_azure.rejects_dimensions = True
+    monkeypatch.setattr(settings, "EMBEDDING_DIMENSIONS", 1536)
+    monkeypatch.setattr(settings, "AZURE_SUPPORTS_DIMENSIONS", False)
+
+    adapter = ea.AzureOpenAIAdapter()
+    embedding = await adapter.generate_embedding("hello world")
+
+    assert len(embedding) == 1536
+    assert "dimensions" not in fake_azure.bodies[0]
+    assert adapter.supports_dimensions is False

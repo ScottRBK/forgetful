@@ -223,6 +223,7 @@ class Settings(BaseSettings):
     AZURE_DEPLOYMENT: str = ""
     AZURE_API_VERSION: str = ""
     AZURE_API_KEY: str = ""
+    AZURE_SUPPORTS_DIMENSIONS: bool = True       # False for deployments that reject it (text-embedding-ada-002)
 
     # GOOGLE EMBEDDING PROVIDER CONFIG
     GOOGLE_AI_API_KEY: str = ""
