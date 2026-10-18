@@ -4,8 +4,13 @@ login verifies connectivity/auth with a ping, then persists FORGETFUL_SERVER int
 ~/.config/forgetful/.env (the file settings.py already reads). logout only clears the
 local token cache - the server-side session is untouched.
 """
+import contextlib
+import errno
+import os
 import shutil
+import stat
 import sys
+import tempfile
 from pathlib import Path
 
 from app.routes.cli.paths import token_cache_dir, user_env_file
@@ -13,18 +18,53 @@ from app.routes.cli.remote_executor import normalize_server_url
 
 
 def upsert_env_var(env_file: Path, key: str, value: str) -> None:
-    """Set key=value in a dotenv file, preserving every other line."""
-    lines = env_file.read_text().splitlines() if env_file.exists() else []
+    """Set key=value in a dotenv file, preserving every other line.
 
+    The file is read and written as UTF-8 (as settings.py parses it) and split on "\\n"
+    only: str.splitlines() would also break lines inside values on U+2028, U+0085, form
+    feed and the like. Every existing assignment of the key is updated, since dotenv
+    lets the last duplicate win. The new content is written to a temp file and moved
+    over the original, so a failed write can never leave the user's settings truncated.
+    """
+    # Follow a symlinked config file (dotfile managers) instead of replacing the link.
+    target = Path(os.path.realpath(env_file))
+    mode = stat.S_IMODE(target.stat().st_mode) if target.exists() else None
+
+    text = ""
+    if mode is not None:
+        if not os.access(target, os.W_OK):
+            # Replacing the file would sidestep a read-only config the user locked.
+            raise PermissionError(errno.EACCES, os.strerror(errno.EACCES), str(target))
+        with target.open(encoding="utf-8", newline="") as handle:
+            text = handle.read()
+    lines = text.split("\n")
+    if lines[-1] == "":
+        lines.pop()
+
+    found = False
     for index, line in enumerate(lines):
         if line.strip().startswith(f"{key}="):
-            lines[index] = f"{key}={value}"
-            break
-    else:
-        lines.append(f"{key}={value}")
+            lines[index] = f"{key}={value}" + ("\r" if line.endswith("\r") else "")
+            found = True
+    if not found:
+        lines.append(f"{key}={value}" + ("\r" if lines and lines[-1].endswith("\r") else ""))
 
-    env_file.parent.mkdir(parents=True, exist_ok=True)
-    env_file.write_text("\n".join(lines) + "\n")
+    data = ("\n".join(lines) + "\n").encode("utf-8")
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(dir=target.parent, prefix=f"{target.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(data)
+            handle.flush()
+            os.fsync(handle.fileno())
+        if mode is not None:
+            os.chmod(tmp_name, mode)
+        os.replace(tmp_name, target)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp_name)
+        raise
 
 
 def _oauth_client_factory(url: str, token_dir: Path):
