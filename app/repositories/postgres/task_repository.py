@@ -8,7 +8,13 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import aliased, selectinload
 
 from app.config.logging_config import logging
-from app.exceptions import ConflictError, CyclicDependencyError, NotFoundError
+from app.exceptions import (
+    ConflictError,
+    CyclicDependencyError,
+    DependencyNotMetError,
+    InvalidStateTransitionError,
+    NotFoundError,
+)
 from app.models.plan_models import (
     Criterion,
     CriterionCreate,
@@ -236,13 +242,22 @@ class PostgresTaskRepository:
             if assigned_agent is not None:
                 values["assigned_agent"] = assigned_agent
 
+            conditions = [
+                TasksTable.user_id == user_id,
+                TasksTable.id == task_id,
+                TasksTable.version == expected_version,
+            ]
+            # The version only covers the task row. Criteria and dependencies live in other
+            # tables, so their preconditions are part of the same UPDATE: a row written after
+            # the service validated them can no longer slip a task into DOING/DONE.
+            if new_state in (TaskState.DOING, TaskState.DONE):
+                conditions.append(~self._unfinished_dependencies().exists())
+            if new_state == TaskState.DONE:
+                conditions.append(~self._unmet_criteria().exists())
+
             stmt = (
                 update(TasksTable)
-                .where(
-                    TasksTable.user_id == user_id,
-                    TasksTable.id == task_id,
-                    TasksTable.version == expected_version,
-                )
+                .where(*conditions)
                 .values(**values)
                 .returning(TasksTable)
             )
@@ -259,13 +274,79 @@ class PostgresTaskRepository:
                 exists = check.scalar_one_or_none()
                 if not exists:
                     raise NotFoundError(f"Task with id {task_id} not found")
-                raise ConflictError(
-                    f"Version conflict for task {task_id}: expected {expected_version}, "
-                    f"current is {exists.version}",
-                )
+                if exists.version != expected_version:
+                    raise ConflictError(
+                        f"Version conflict for task {task_id}: expected {expected_version}, "
+                        f"current is {exists.version}",
+                    )
+                await self._raise_unmet_precondition(session, task_id, new_state)
 
             await session.refresh(task_orm, attribute_names=["criteria", "depends_on"])
             return Task.model_validate(task_orm)
+
+    @staticmethod
+    def _unfinished_dependencies():
+        """Subquery selecting the prerequisites of tasks.id that are not done yet."""
+        prerequisite = aliased(TasksTable, name="prerequisite")
+        return (
+            select(TaskDependenciesTable.id)
+            .join(prerequisite, prerequisite.id == TaskDependenciesTable.depends_on_task_id)
+            .where(
+                TaskDependenciesTable.task_id == TasksTable.id,
+                prerequisite.state != TaskState.DONE.value,
+            )
+            .correlate(TasksTable)
+        )
+
+    @staticmethod
+    def _unmet_criteria():
+        """Subquery selecting the acceptance criteria of tasks.id that are not met."""
+        return (
+            select(CriteriaTable.id)
+            .where(CriteriaTable.task_id == TasksTable.id, CriteriaTable.met.is_(False))
+            .correlate(TasksTable)
+        )
+
+    async def _raise_unmet_precondition(
+        self, session, task_id: int, new_state: TaskState,
+    ) -> None:
+        """Explain why the guarded UPDATE matched nothing although the version was current."""
+        if new_state in (TaskState.DOING, TaskState.DONE):
+            prerequisite = aliased(TasksTable, name="prerequisite")
+            result = await session.execute(
+                select(prerequisite.id, prerequisite.state)
+                .join(
+                    TaskDependenciesTable,
+                    TaskDependenciesTable.depends_on_task_id == prerequisite.id,
+                )
+                .where(
+                    TaskDependenciesTable.task_id == task_id,
+                    prerequisite.state != TaskState.DONE.value,
+                )
+                .order_by(prerequisite.id)
+                .limit(1),
+            )
+            unfinished = result.first()
+            if unfinished is not None:
+                raise DependencyNotMetError(
+                    f"Dependency task {unfinished.id} is not done (state: {unfinished.state})",
+                )
+        if new_state == TaskState.DONE:
+            result = await session.execute(
+                select(CriteriaTable.description).where(
+                    CriteriaTable.task_id == task_id,
+                    CriteriaTable.met.is_(False),
+                ),
+            )
+            unmet = [description for (description,) in result.all()]
+            if unmet:
+                raise InvalidStateTransitionError(
+                    f"Cannot mark task as done: {len(unmet)} acceptance criteria not met. "
+                    f"Unmet: {[description[:50] for description in unmet]}",
+                )
+        raise ConflictError(
+            f"Task {task_id} changed while moving to {new_state.value}; reload it and retry",
+        )
 
     # ---- Criteria CRUD ----
 

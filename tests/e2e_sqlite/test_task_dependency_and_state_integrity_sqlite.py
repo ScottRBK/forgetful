@@ -12,8 +12,22 @@ import pytest
 from fastmcp.exceptions import ToolError
 
 from app.config.settings import settings
-from app.exceptions import ConflictError, CyclicDependencyError
-from app.models.plan_models import PlanCreate, PlanStatus, PlanUpdate, TaskCreate
+from app.exceptions import (
+    ConflictError,
+    CyclicDependencyError,
+    DependencyNotMetError,
+    InvalidStateTransitionError,
+    NotFoundError,
+)
+from app.models.plan_models import (
+    CriterionCreate,
+    CriterionUpdate,
+    PlanCreate,
+    PlanStatus,
+    PlanUpdate,
+    TaskCreate,
+    TaskState,
+)
 from app.models.project_models import ProjectCreate, ProjectType
 from app.models.user_models import UserCreate
 from app.repositories.sqlite.plan_repository import SqlitePlanRepository
@@ -338,3 +352,115 @@ async def test_rest_done_task_cannot_gain_a_dependency(http_client):
     assert r.status_code == 422, r.text
     listed = (await http_client.get(f"/api/v1/tasks?plan_id={plan_id}")).json()["tasks"]
     assert next(t for t in listed if t["id"] == finished["id"])["blocked"] is False
+
+
+# ---------------------------------------------------------------------------
+# State transitions re-check their preconditions inside the atomic UPDATE
+# ---------------------------------------------------------------------------
+
+
+def _run_after(service, method_name, action):
+    """Make `action` run right after the service validated, i.e. in the check-then-act window."""
+    original = getattr(service, method_name)
+
+    async def wrapper(*args, **kwargs):
+        result = await original(*args, **kwargs)
+        await action()
+        return result
+
+    setattr(service, method_name, wrapper)
+
+
+async def test_done_is_refused_when_a_criterion_lands_after_validation(stack):
+    task = await stack.new_task("t", criteria=[CriterionCreate(description="c1")])
+    criterion = task.criteria[0]
+    await stack.task_service.update_criterion(
+        stack.user_id, criterion.id, CriterionUpdate(met=True),
+    )
+    doing = await stack.task_service.claim_task(stack.user_id, task.id, "agent", expected_version=1)
+
+    async def another_agent_adds_a_criterion():
+        await stack.task_repo.create_criterion(
+            stack.user_id, task.id, CriterionCreate(description="added in the race window"),
+        )
+
+    _run_after(stack.task_service, "_validate_all_criteria_met", another_agent_adds_a_criterion)
+
+    with pytest.raises(InvalidStateTransitionError, match="criteria not met"):
+        await stack.task_service.transition_task(
+            stack.user_id, task.id, TaskState.DONE, expected_version=doing.version,
+        )
+
+    current = await stack.task_service.get_task(stack.user_id, task.id)
+    assert (current.state, current.version) == (TaskState.DOING, doing.version)
+
+
+async def test_done_is_refused_when_a_criterion_is_unmet_after_validation(stack):
+    task = await stack.new_task("t", criteria=[CriterionCreate(description="c1")])
+    await stack.task_service.update_criterion(
+        stack.user_id, task.criteria[0].id, CriterionUpdate(met=True),
+    )
+    doing = await stack.task_service.claim_task(stack.user_id, task.id, "agent", expected_version=1)
+
+    async def another_agent_unmeets_the_criterion():
+        await stack.task_repo.update_criterion(
+            stack.user_id, task.criteria[0].id, CriterionUpdate(met=False),
+        )
+
+    _run_after(stack.task_service, "_validate_all_criteria_met", another_agent_unmeets_the_criterion)
+
+    with pytest.raises(InvalidStateTransitionError):
+        await stack.task_service.transition_task(
+            stack.user_id, task.id, TaskState.DONE, expected_version=doing.version,
+        )
+
+    assert (await stack.task_service.get_task(stack.user_id, task.id)).state == TaskState.DOING
+
+
+async def test_claim_is_refused_when_a_dependency_lands_after_validation(stack):
+    prerequisite = await stack.new_task("prerequisite")
+    task = await stack.new_task("t")
+
+    async def another_agent_adds_a_dependency():
+        await stack.task_repo.add_dependency(stack.user_id, task.id, prerequisite.id)
+
+    _run_after(stack.task_service, "_validate_dependencies_met", another_agent_adds_a_dependency)
+
+    with pytest.raises(DependencyNotMetError, match="not done"):
+        await stack.task_service.claim_task(stack.user_id, task.id, "agent", expected_version=1)
+
+    current = await stack.task_service.get_task(stack.user_id, task.id)
+    assert (current.state, current.assigned_agent, current.version) == (TaskState.TODO, None, 1)
+
+
+async def test_repository_transition_guards_and_error_precedence(stack):
+    repo = stack.task_repo
+    prerequisite = await stack.new_task("prerequisite")
+    task = await stack.new_task("t", criteria=[CriterionCreate(description="c1")], dependency_ids=[prerequisite.id])
+
+    with pytest.raises(DependencyNotMetError):
+        await repo.transition_task_state(stack.user_id, task.id, TaskState.DOING, expected_version=1)
+    with pytest.raises(ConflictError, match="Version conflict"):
+        await repo.transition_task_state(stack.user_id, task.id, TaskState.DOING, expected_version=7)
+    with pytest.raises(NotFoundError):
+        await repo.transition_task_state(stack.user_id, 9999, TaskState.DOING, expected_version=1)
+    # Moves that carry no precondition are unaffected.
+    waiting = await repo.transition_task_state(stack.user_id, task.id, TaskState.WAITING, expected_version=1)
+    assert waiting.state == TaskState.WAITING
+
+    done_prerequisite = await repo.transition_task_state(
+        stack.user_id, prerequisite.id, TaskState.DONE, expected_version=1,
+    )
+    assert done_prerequisite.state == TaskState.DONE  # no criteria, no dependencies: allowed
+    doing = await repo.transition_task_state(
+        stack.user_id, task.id, TaskState.DOING, expected_version=waiting.version,
+    )
+    with pytest.raises(InvalidStateTransitionError, match="criteria not met"):
+        await repo.transition_task_state(
+            stack.user_id, task.id, TaskState.DONE, expected_version=doing.version,
+        )
+    await repo.update_criterion(stack.user_id, task.criteria[0].id, CriterionUpdate(met=True))
+    finished = await repo.transition_task_state(
+        stack.user_id, task.id, TaskState.DONE, expected_version=doing.version,
+    )
+    assert finished.state == TaskState.DONE
