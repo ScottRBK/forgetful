@@ -20,6 +20,19 @@ from pydantic import (
 
 from app.config.settings import settings
 
+
+def _ignore_null_values(data: Any) -> Any:
+    """Drop explicit nulls from raw update input so a null means "unchanged".
+
+    PATCH-style update models build their UPDATE from the fields that were set.
+    Without this, an explicit null (e.g. a REST body of {"title": null}) would be
+    written as NULL: nullable columns are erased and NOT NULL columns raise.
+    """
+    if isinstance(data, dict):
+        return {key: value for key, value in data.items() if value is not None}
+    return data
+
+
 # ============================================================================
 # Enums
 # ============================================================================
@@ -90,6 +103,12 @@ class CriterionUpdate(BaseModel):
     """PATCH model for updating a criterion."""
     description: str | None = Field(None, max_length=settings.CRITERION_DESCRIPTION_MAX_LENGTH)
     met: bool | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def ignore_null_fields(cls, data: Any) -> Any:
+        """Treat null as omitted: description and met are NOT NULL columns."""
+        return _ignore_null_values(data)
 
     @field_validator("description")
     @classmethod
@@ -213,11 +232,9 @@ class PlanUpdate(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def ignore_null_external_ref(cls, data: Any) -> Any:
+    def ignore_null_fields(cls, data: Any) -> Any:
         """Treat null as omitted for every caller, including REST and direct service calls."""
-        if isinstance(data, dict) and data.get("external_ref") is None:
-            return {key: value for key, value in data.items() if key != "external_ref"}
-        return data
+        return _ignore_null_values(data)
 
     @field_validator("source_files")
     @classmethod
@@ -321,6 +338,12 @@ class TaskUpdate(BaseModel):
     agent_id: str | None = Field(default=None, max_length=100, description="New agent identity. Unchanged if null.")
     agent_version: str | None = Field(default=None, max_length=50, description="New agent version. Unchanged if null.")
     agent_model: str | None = Field(default=None, max_length=100, description="New LLM model. Unchanged if null.")
+
+    @model_validator(mode="before")
+    @classmethod
+    def ignore_null_fields(cls, data: Any) -> Any:
+        """Treat null as omitted for every caller, including REST and direct service calls."""
+        return _ignore_null_values(data)
 
     @field_validator("source_files")
     @classmethod
