@@ -1293,6 +1293,8 @@ Update entity (PATCH semantics - only provided fields changed).
 - `entity_id` (required): Entity ID
 - `name`, `description`, `tags`, `aka`, `metadata` (all optional)
 - `aka`: Replaces existing aliases. Empty list `[]` clears all aliases.
+- `custom_type`: Required while the entity type is `Other` (clearing it is rejected). Changing the type away from `Other` clears it.
+- `project_ids`: Replaces existing project links. An unknown or foreign project id is rejected and the existing links are kept.
 
 **Returns:**
 - Updated entity object
@@ -1448,6 +1450,8 @@ Create a typed relationship between two entities.
 - `strength` (optional): Relationship strength 0.0-1.0 (default: 1.0)
 - `confidence` (optional): Confidence level 0.0-1.0 (default: 1.0)
 - `metadata` (optional): Additional JSON metadata
+
+A relationship is unique per source entity, target entity and type. Creating a second one with the same type fails with a "already exists" error instead of storing a duplicate.
 
 **Returns:**
 - Created relationship with `relationship_id`

@@ -46,9 +46,10 @@ Done when: the thing either already exists (use it) or is confirmed new.
 ## Step 2 — Create with a type
 
 `create_entity` with a name and type: Organization, Individual, Team, Device, System, or
-Other (`custom_type` required when Other). Stored Title-case; matched case-insensitively on
-input. Check `list_entities` for the types already in use and match them — a graph where
-servers are sometimes typed "Device" and sometimes "System" fragments reverse lookups.
+Other (`custom_type` required when Other, and dropped if the entity later moves to another
+type). Stored Title-case; matched case-insensitively on input. Check `list_entities` for the
+types already in use and match them — a graph where servers are sometimes typed "Device" and
+sometimes "System" fragments reverse lookups.
 
 Done when: the entity exists once, typed consistently with the existing graph.
 

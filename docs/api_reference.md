@@ -511,9 +511,17 @@ Create a new entity.
 }
 ```
 
+`custom_type` is only stored for `Other` entities. Every id in `project_ids` must be one of your projects.
+
+**Errors:** 400 for invalid data; 404 when a `project_ids` entry does not exist or belongs to another user (nothing is created).
+
 ### PUT /api/v1/entities/{id}
 
 Update an existing entity.
+
+An update is validated against the stored entity before anything is written. Clearing the `custom_type` of an `Other` entity returns 400, and changing an entity away from `Other` clears its `custom_type`. `project_ids` replaces the existing links; an id that does not exist or belongs to another user returns 404 and leaves the existing links unchanged.
+
+**Errors:** 400 for invalid data; 404 when the entity or a `project_ids` entry is not found.
 
 ### DELETE /api/v1/entities/{id}
 
@@ -580,9 +588,13 @@ Create a relationship between entities.
 }
 ```
 
+**Errors:** 404 when either entity is not found; 409 when a relationship of the same type already exists between the two entities.
+
 ### PUT /api/v1/entities/relationships/{id}
 
 Update an entity relationship.
+
+**Errors:** 404 when the relationship is not found; 409 when the new `relationship_type` already exists between the same two entities.
 
 ### DELETE /api/v1/entities/relationships/{id}
 
