@@ -74,16 +74,19 @@ Both conform to [ToolExecutor:10](app/protocols/executor.py#L10).
 
 ## MCP, HTTP, and identity
 
-The active MCP surface is registered by [meta_tools.py:475](app/routes/mcp/meta_tools.py#L475):
+The active MCP surface is registered by [meta_tools.py:493](app/routes/mcp/meta_tools.py#L493):
 
 1. `discover_forgetful_tools` lists permitted tool metadata, optionally by category.
 2. `how_to_use_forgetful_tool` returns detailed metadata for a permitted tool.
-3. `execute_forgetful_tool` checks the name/permissions, injects context, and dispatches it.
+3. `execute_forgetful_tool` rejects argument names that are not identifiers, checks the
+   name/permissions, injects context, and dispatches it.
 
 Failures leave the meta-tools through [tool_errors.py](app/routes/mcp/tool_errors.py): domain and
 argument errors keep their authored message, while database and other unexpected errors are logged
 server-side and reach the client only as a short generic sentence. The `linking` category of
 `discover_forgetful_tools` is a tag filter across the memory, entity, and skill link tools.
+Caller-supplied names are logged with `%r`; argument names are screened first because CPython
+copies an unknown keyword verbatim into the `TypeError` that the logs and traceback would carry.
 
 The full operation set is dynamic: feature flags and scopes affect what a caller sees.
 [tool_metadata_registry.py:874](app/routes/mcp/tool_metadata_registry.py#L874) constructs adapter
