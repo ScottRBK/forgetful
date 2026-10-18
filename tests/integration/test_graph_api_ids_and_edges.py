@@ -215,3 +215,73 @@ async def test_create_links_batch_with_unstorable_source_links_nothing(sqlite_re
     for memory_id in ids:
         stored = await repo.get_memory_by_id(user_id, memory_id)
         assert stored.linked_memory_ids == []
+
+
+# ---- SqliteMemoryRepository.get_listed_memory_ids ----
+
+async def _create_project(db_adapter, user_id, name="Test Project"):
+    now = datetime.now(UTC).isoformat()
+    async with db_adapter.system_session() as session:
+        result = await session.execute(
+            text(
+                "INSERT INTO projects (user_id, name, description, project_type, status, created_at, updated_at) "
+                "VALUES (:user_id, :name, :description, :project_type, :status, :created_at, :updated_at) "
+                "RETURNING id",
+            ),
+            {
+                "user_id": str(user_id),
+                "name": name,
+                "description": "Test project",
+                "project_type": "development",
+                "status": "active",
+                "created_at": now,
+                "updated_at": now,
+            },
+        )
+        return result.scalar_one()
+
+
+def _memory_create(index, **extra):
+    return MemoryCreate(
+        title=f"M{index}",
+        content=f"content {index}",
+        context=f"ctx {index}",
+        keywords=[f"k{index}"],
+        tags=[f"t{index}"],
+        importance=5,
+        **extra,
+    )
+
+
+@pytest.mark.asyncio
+async def test_get_listed_memory_ids_applies_the_listing_rules(sqlite_repo):
+    repo, db_adapter = sqlite_repo
+    user_id, ids = await _seed_memories(repo, db_adapter, count=4)
+    other_user_id, other_ids = await _seed_memories(repo, db_adapter, count=1)
+    await repo.mark_obsolete(user_id, ids[1], reason="outdated")
+
+    candidates = [*ids, other_ids[0], 999_999]
+    listed = await repo.get_listed_memory_ids(user_id, candidates)
+
+    assert listed == {ids[0], ids[2], ids[3]}
+    # Same answer as the listing itself
+    page, _total = await repo.list_memories(user_id=user_id, limit=100)
+    assert listed == {memory.id for memory in page}
+    assert await repo.get_listed_memory_ids(other_user_id, [ids[0]]) == set()
+    assert await repo.get_listed_memory_ids(user_id, []) == set()
+
+
+@pytest.mark.asyncio
+async def test_get_listed_memory_ids_honours_the_project_filter(sqlite_repo):
+    repo, db_adapter = sqlite_repo
+    user_id, _ids = await _seed_memories(repo, db_adapter, count=0)
+    project_id = await _create_project(db_adapter, user_id)
+    inside = await repo.create_memory(user_id=user_id, memory=_memory_create(1, project_ids=[project_id]))
+    outside = await repo.create_memory(user_id=user_id, memory=_memory_create(2))
+
+    listed = await repo.get_listed_memory_ids(
+        user_id, [inside.id, outside.id], project_ids=[project_id],
+    )
+
+    assert listed == {inside.id}
+    assert await repo.get_listed_memory_ids(user_id, [inside.id, outside.id]) == {inside.id, outside.id}

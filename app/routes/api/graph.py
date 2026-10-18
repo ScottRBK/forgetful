@@ -44,6 +44,7 @@ def register(mcp: FastMCP):
         """Get graph data for visualization.
 
         Returns nodes (memories, entities, projects, documents, code_artifacts) and edges.
+        Memory links whose other endpoint is on another page are returned in cross_page_edges.
 
         Query params:
             project_id: Filter memories to specific project (optional)
@@ -163,6 +164,7 @@ def register(mcp: FastMCP):
 
         nodes: list[dict[str, Any]] = []
         edges: list[dict[str, Any]] = []
+        cross_page_edges: list[dict[str, Any]] = []
         seen_memory_ids = set()
         seen_edge_ids = set()
         seen_project_ids = set()
@@ -215,6 +217,28 @@ def register(mcp: FastMCP):
                                 "target": f"memory_{linked_id}",
                                 "type": "memory_link",
                             })
+
+            # A memory may be linked to one that sits on another page. Such a link cannot go into
+            # "edges" (its other endpoint is not in "nodes"), so list it in "cross_page_edges" on
+            # every page that holds one of its endpoints, so no memory link is lost to pagination.
+            if total_memory_count > len(memories):
+                linked_elsewhere = await mcp.graph_service.get_linked_memory_ids_outside(
+                    user_id=user.id,
+                    memories=memories,
+                    project_ids=project_ids,
+                )
+                for memory in memories:
+                    for linked_id in memory.linked_memory_ids:
+                        if linked_id in linked_elsewhere:
+                            edge_id = f"memory_{min(memory.id, linked_id)}_memory_{max(memory.id, linked_id)}"
+                            if edge_id not in seen_edge_ids:
+                                seen_edge_ids.add(edge_id)
+                                cross_page_edges.append({
+                                    "id": edge_id,
+                                    "source": f"memory_{memory.id}",
+                                    "target": f"memory_{linked_id}",
+                                    "type": "memory_link",
+                                })
 
         # Add entity nodes and edges if requested
         seen_entity_ids = set()
@@ -727,12 +751,14 @@ def register(mcp: FastMCP):
         return JSONResponse({
             "nodes": nodes,
             "edges": edges,
+            "cross_page_edges": cross_page_edges,
             "meta": {
                 "memory_count": memory_count,
                 "total_memory_count": total_memory_count,
                 "offset": offset,
                 "limit": limit,
                 "has_more": offset + memory_count < total_memory_count,
+                "cross_page_edge_count": len(cross_page_edges),
                 "entity_count": len([n for n in nodes if n["type"] == "entity"]),
                 "project_count": len([n for n in nodes if n["type"] == "project"]),
                 "document_count": len([n for n in nodes if n["type"] == "document"]),

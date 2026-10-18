@@ -18,6 +18,7 @@ from app.models.graph_models import (
     SubgraphNode,
     SubgraphResponse,
 )
+from app.models.memory_models import Memory
 from app.protocols.entity_protocol import EntityRepository
 from app.protocols.memory_protocol import MemoryRepository
 
@@ -135,6 +136,40 @@ class GraphService:
                 f"Invalid node_id: '{node_id}' is out of range (maximum id is {MAX_NODE_ID}).",
             )
         return match.group(1), numeric_id
+
+    async def get_linked_memory_ids_outside(
+        self,
+        user_id: UUID,
+        memories: list[Memory],
+        project_ids: list[int] | None = None,
+    ) -> set[int]:
+        """Return the ids of memories that ``memories`` link to but that are not part of it.
+
+        The full graph lists memories page by page, so a link between memories on different
+        pages has its second endpoint on another page. Only memories that the listing itself
+        would return are kept: obsolete memories, and memories outside ``project_ids`` when a
+        project filter is given, are left out.
+
+        Args:
+            user_id: User ID for ownership filtering
+            memories: The memories of the current page
+            project_ids: Project filter used for the listing, if any
+
+        Returns:
+            Ids of linked memories that are listed on some other page
+        """
+        listed_ids = {memory.id for memory in memories}
+        outside_ids = sorted({
+            linked_id
+            for memory in memories
+            for linked_id in memory.linked_memory_ids
+            if linked_id not in listed_ids
+        })
+        return await self.memory_repo.get_listed_memory_ids(
+            user_id=user_id,
+            memory_ids=outside_ids,
+            project_ids=project_ids,
+        )
 
     async def get_subgraph(
         self,

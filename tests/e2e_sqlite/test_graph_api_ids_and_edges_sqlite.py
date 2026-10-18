@@ -255,6 +255,122 @@ class TestEntityRelationshipEdges:
 
 
 # ============================================================================
+# memory_link edges across pages of GET /api/v1/graph
+# ============================================================================
+
+
+def _cross_page_edge(source, target):
+    return {
+        "id": f"memory_{min(source, target)}_memory_{max(source, target)}",
+        "source": f"memory_{source}",
+        "target": f"memory_{target}",
+        "type": "memory_link",
+    }
+
+
+@pytest.mark.usefixtures("no_auto_link")
+class TestCrossPageMemoryLinks:
+    @pytest.mark.asyncio
+    async def test_link_between_pages_is_delivered_by_both_pages(self, http_client):
+        ids = [await _create_memory(http_client, f"Memory {n}") for n in range(1, 5)]
+        assert ids == [1, 2, 3, 4]
+        await _link(http_client, 1, [4])
+
+        first = await http_client.get("/api/v1/graph?node_types=memory&limit=2&offset=0")
+        second = await http_client.get("/api/v1/graph?node_types=memory&limit=2&offset=2")
+
+        assert first.status_code == 200 and second.status_code == 200
+        first_data, second_data = first.json(), second.json()
+        # Nodes and edges keep describing the page only
+        assert {n["id"] for n in first_data["nodes"]} == {"memory_4", "memory_3"}
+        assert {n["id"] for n in second_data["nodes"]} == {"memory_2", "memory_1"}
+        assert first_data["edges"] == []
+        assert second_data["edges"] == []
+        # The link is reported by each page that holds one of its endpoints
+        assert first_data["cross_page_edges"] == [_cross_page_edge(4, 1)]
+        assert second_data["cross_page_edges"] == [_cross_page_edge(1, 4)]
+        assert first_data["cross_page_edges"][0]["id"] == second_data["cross_page_edges"][0]["id"]
+
+    @pytest.mark.asyncio
+    async def test_page_metadata_still_describes_the_page(self, http_client):
+        for n in range(1, 5):
+            await _create_memory(http_client, f"Memory {n}")
+        await _link(http_client, 1, [4])
+
+        first = (await http_client.get("/api/v1/graph?node_types=memory&limit=2&offset=0")).json()
+        second = (await http_client.get("/api/v1/graph?node_types=memory&limit=2&offset=2")).json()
+
+        assert first["meta"]["memory_count"] == 2
+        assert first["meta"]["has_more"] is True
+        assert first["meta"]["memory_link_count"] == 0
+        assert first["meta"]["cross_page_edge_count"] == 1
+        assert second["meta"]["memory_count"] == 2
+        assert second["meta"]["has_more"] is False
+        assert second["meta"]["cross_page_edge_count"] == 1
+
+    @pytest.mark.asyncio
+    async def test_links_inside_a_page_stay_in_edges(self, http_client):
+        for n in range(1, 5):
+            await _create_memory(http_client, f"Memory {n}")
+        await _link(http_client, 3, [4])
+        await _link(http_client, 1, [4])
+
+        data = (await http_client.get("/api/v1/graph?node_types=memory&limit=2&offset=0")).json()
+
+        assert [e["id"] for e in data["edges"]] == ["memory_3_memory_4"]
+        assert data["cross_page_edges"] == [_cross_page_edge(4, 1)]
+        assert data["meta"]["memory_link_count"] == 1
+
+    @pytest.mark.asyncio
+    async def test_single_page_graph_has_no_cross_page_edges(self, http_client):
+        for n in range(1, 4):
+            await _create_memory(http_client, f"Memory {n}")
+        await _link(http_client, 1, [3])
+
+        data = (await http_client.get("/api/v1/graph?node_types=memory")).json()
+
+        assert [e["id"] for e in data["edges"]] == ["memory_1_memory_3"]
+        assert data["cross_page_edges"] == []
+        assert data["meta"]["cross_page_edge_count"] == 0
+
+    @pytest.mark.asyncio
+    async def test_obsolete_memories_are_not_reported(self, http_client):
+        for n in range(1, 4):
+            await _create_memory(http_client, f"Memory {n}")
+        await _link(http_client, 2, [1, 3])
+        deleted = await http_client.request(
+            "DELETE", "/api/v1/memories/3", json={"reason": "obsolete for graph test"},
+        )
+        assert deleted.status_code == 200, deleted.text
+
+        data = (await http_client.get("/api/v1/graph?node_types=memory&limit=1")).json()
+
+        assert {n["id"] for n in data["nodes"]} == {"memory_2"}
+        assert data["cross_page_edges"] == [_cross_page_edge(2, 1)]
+
+    @pytest.mark.asyncio
+    async def test_project_filter_excludes_links_to_outside_memories(self, http_client):
+        project = await http_client.post("/api/v1/projects", json={
+            "name": "Graph project",
+            "description": "Project for the graph filter test",
+            "project_type": "development",
+        })
+        assert project.status_code in (200, 201), project.text
+        project_id = project.json()["id"]
+        await _create_memory(http_client, "In project 1", project_ids=[project_id])
+        await _create_memory(http_client, "In project 2", project_ids=[project_id])
+        await _create_memory(http_client, "Outside project")
+        await _link(http_client, 2, [1, 3])
+
+        data = (await http_client.get(
+            f"/api/v1/graph?node_types=memory&project_id={project_id}&limit=1",
+        )).json()
+
+        assert {n["id"] for n in data["nodes"]} == {"memory_2"}
+        assert data["cross_page_edges"] == [_cross_page_edge(2, 1)]
+
+
+# ============================================================================
 # Bulk linking with ids that cannot exist
 # ============================================================================
 

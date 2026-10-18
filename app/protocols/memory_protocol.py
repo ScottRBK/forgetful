@@ -153,6 +153,27 @@ class MemoryRepository(Protocol):
         """
         ...
 
+    async def get_listed_memory_ids(
+            self,
+            user_id: UUID,
+            memory_ids: list[int],
+            project_ids: list[int] | None = None,
+    ) -> set[int]:
+        """Return the ids among ``memory_ids`` that ``list_memories`` would list.
+
+        Applies the same visibility rules as ``list_memories`` (owned by the user, not
+        obsolete, member of one of ``project_ids`` when given) without loading the memories.
+
+        Args:
+            user_id: User ID
+            memory_ids: Candidate memory ids
+            project_ids: Project filter (optional)
+
+        Returns:
+            The subset of ``memory_ids`` that is listed
+        """
+        ...
+
     async def unlink_memories(
             self,
             user_id: UUID,

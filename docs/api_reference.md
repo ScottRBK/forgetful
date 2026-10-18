@@ -907,12 +907,21 @@ Get full knowledge graph for visualization. Returns all nodes and edges for the 
       "type": "memory_project"
     }
   ],
+  "cross_page_edges": [
+    {
+      "id": "memory_1_memory_900",
+      "source": "memory_1",
+      "target": "memory_900",
+      "type": "memory_link"
+    }
+  ],
   "meta": {
     "memory_count": 50,
     "total_memory_count": 1243,
     "offset": 0,
     "limit": 100,
     "has_more": true,
+    "cross_page_edge_count": 1,
     "entity_count": 10,
     "project_count": 3,
     "document_count": 5,
@@ -929,6 +938,16 @@ Get full knowledge graph for visualization. Returns all nodes and edges for the 
   }
 }
 ```
+
+**Pagination and memory links:**
+
+`limit` and `offset` page through memories, so `nodes` only holds the memories of the
+requested page and `edges` only holds edges whose two endpoints are both in `nodes`.
+A `memory_link` between a memory on this page and a memory on another page is listed in
+`cross_page_edges` instead (same shape as an edge, `source` is the memory on this page and
+`target` the one on another page). Each page that holds one endpoint returns the edge with
+the same `id`, so a client that merges pages can deduplicate by `id`. Obsolete memories and,
+with `project_id`, memories outside that project are never reported.
 
 **Pagination Examples:**
 

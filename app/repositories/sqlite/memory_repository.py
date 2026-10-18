@@ -994,6 +994,47 @@ class SqliteMemoryRepository:
 
             return [Memory.model_validate(m) for m in paginated_memories], total
 
+    async def get_listed_memory_ids(
+            self,
+            user_id: UUID,
+            memory_ids: list[int],
+            project_ids: list[int] | None = None,
+    ) -> set[int]:
+        """Return the ids among memory_ids that list_memories would list.
+
+        Applies the same visibility rules as list_memories (owned by the user, not obsolete,
+        member of one of project_ids when given) without loading the memories.
+
+        Args:
+            user_id: User ID for ownership filtering
+            memory_ids: Candidate memory ids
+            project_ids: Project filter (optional)
+
+        Returns:
+            The subset of memory_ids that is listed
+        """
+        from app.repositories.sqlite.sqlite_tables import memory_project_association
+
+        if not memory_ids:
+            return set()
+
+        stmt = select(MemoryTable.id).where(
+            MemoryTable.user_id == str(user_id),
+            MemoryTable.id.in_(memory_ids),
+            MemoryTable.is_obsolete.is_(False),
+        )
+        if project_ids:
+            stmt = stmt.where(
+                select(memory_project_association.c.memory_id).where(
+                    memory_project_association.c.memory_id == MemoryTable.id,
+                    memory_project_association.c.project_id.in_(project_ids),
+                ).exists(),
+            )
+
+        async with self.db_adapter.session(user_id) as session:
+            result = await session.execute(stmt)
+            return set(result.scalars().all())
+
     async def _link_projects(self, session, memory: MemoryTable, project_ids: list[int], user_id: UUID) -> None:
         """Link memory to projects"""
         stmt = select(ProjectsTable).where(
