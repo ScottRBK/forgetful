@@ -203,7 +203,12 @@ async def _run_reembed(args):
         return
 
     if total == 0:
-        print("\n  No memories to re-embed. Done.")
+        # Nothing to re-embed or lose, so no backup is needed. The vector storage must still
+        # match the configured dimensions though, and init_db() never resizes existing tables.
+        print("\n  No memories to re-embed. Updating vector schema only...")
+        service = ReEmbeddingService(memory_repository, embeddings_adapter)
+        await service.re_embed_all()
+        print(f"  Vector storage uses {settings.EMBEDDING_DIMENSIONS} dimensions. Done.")
         await db_adapter.dispose()
         return
 

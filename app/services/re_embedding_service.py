@@ -65,15 +65,9 @@ class ReEmbeddingService:
         total = await self.memory_repository.count_all_memories()
         logger.info("Starting re-embedding", extra={"total_memories": total})
 
-        if total == 0:
-            logger.info("No memories to re-embed")
-            return ReEmbedResult(
-                total_processed=0,
-                total_memories=0,
-                validation=ValidationResult(count_ok=True, dimensions_ok=True, search_ok=True),
-            )
-
-        # Reset vector storage for new dimensions
+        # Reset vector storage for new dimensions. This also applies when there is nothing to
+        # re-embed: existing storage is never resized at startup, so skipping the reset would
+        # keep the old dimensions and fail the next insert.
         await self.memory_repository.reset_embedding_storage()
 
         processed = 0

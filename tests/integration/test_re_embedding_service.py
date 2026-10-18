@@ -111,7 +111,7 @@ async def test_re_embed_partial_batch():
 
 @pytest.mark.asyncio
 async def test_re_embed_empty_database():
-    """0 memories -> success with no work done"""
+    """0 memories -> success with no embedding work, but storage still matches the configuration"""
     repo = _make_mock_repo([])
     adapter = _make_mock_adapter()
 
@@ -121,8 +121,8 @@ async def test_re_embed_empty_database():
     assert result.total_processed == 0
     assert result.total_memories == 0
     assert result.validation.all_passed
-    # Should not call reset or bulk_update
-    repo.reset_embedding_storage.assert_not_called()
+    # Vector storage is still resized (a dimension change needs it); nothing is written
+    repo.reset_embedding_storage.assert_awaited_once()
     repo.bulk_update_embeddings.assert_not_called()
     adapter.generate_embedding.assert_not_called()
 
