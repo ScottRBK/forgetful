@@ -10,6 +10,12 @@ from starlette.responses import JSONResponse
 from app.exceptions import ConflictError, InvalidStateTransitionError, NotFoundError
 from app.middleware.auth import get_user_from_request
 from app.models.plan_models import PlanCreate, PlanStatus, PlanUpdate
+from app.routes.api.request_utils import (
+    handle_request_errors,
+    path_id,
+    query_int,
+    read_json_object,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +24,7 @@ def register(mcp: FastMCP):
     """Register plan REST routes with FastMCP"""
 
     @mcp.custom_route("/api/v1/plans", methods=["GET"])
+    @handle_request_errors
     async def list_plans(request: Request) -> JSONResponse:
         """List plans with optional filtering."""
         try:
@@ -26,10 +33,9 @@ def register(mcp: FastMCP):
             return JSONResponse({"error": str(e)}, status_code=401)
 
         params = request.query_params
-        project_id_str = params.get("project_id")
         status_str = params.get("status")
 
-        project_id = int(project_id_str) if project_id_str else None
+        project_id = query_int(params, "project_id")
         status = None
         if status_str:
             try:
@@ -53,6 +59,7 @@ def register(mcp: FastMCP):
         })
 
     @mcp.custom_route("/api/v1/plans/{plan_id}", methods=["GET"])
+    @handle_request_errors
     async def get_plan(request: Request) -> JSONResponse:
         """Get a single plan by ID."""
         try:
@@ -60,7 +67,7 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        plan_id = int(request.path_params["plan_id"])
+        plan_id = path_id(request, "plan_id")
         try:
             plan = await mcp.plan_service.get_plan(user_id=user.id, plan_id=plan_id)
         except NotFoundError:
@@ -68,6 +75,7 @@ def register(mcp: FastMCP):
         return JSONResponse(plan.model_dump(mode="json"))
 
     @mcp.custom_route("/api/v1/plans", methods=["POST"])
+    @handle_request_errors
     async def create_plan(request: Request) -> JSONResponse:
         """Create a new plan."""
         try:
@@ -76,7 +84,7 @@ def register(mcp: FastMCP):
             return JSONResponse({"error": str(e)}, status_code=401)
 
         try:
-            body = await request.json()
+            body = await read_json_object(request)
             plan_data = PlanCreate(**body)
         except ValidationError as e:
             return JSONResponse({"error": e.errors()}, status_code=400)
@@ -88,6 +96,7 @@ def register(mcp: FastMCP):
         return JSONResponse(plan.model_dump(mode="json"), status_code=201)
 
     @mcp.custom_route("/api/v1/plans/{plan_id}", methods=["PUT"])
+    @handle_request_errors
     async def update_plan(request: Request) -> JSONResponse:
         """Update an existing plan."""
         try:
@@ -95,10 +104,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        plan_id = int(request.path_params["plan_id"])
+        plan_id = path_id(request, "plan_id")
 
         try:
-            body = await request.json()
+            body = await read_json_object(request)
             update_data = PlanUpdate(**body)
         except ValidationError as e:
             return JSONResponse({"error": e.errors()}, status_code=400)
@@ -119,6 +128,7 @@ def register(mcp: FastMCP):
         return JSONResponse(plan.model_dump(mode="json"))
 
     @mcp.custom_route("/api/v1/plans/{plan_id}", methods=["DELETE"])
+    @handle_request_errors
     async def delete_plan(request: Request) -> JSONResponse:
         """Delete a plan (cascades to tasks/criteria/deps)."""
         try:
@@ -126,7 +136,7 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        plan_id = int(request.path_params["plan_id"])
+        plan_id = path_id(request, "plan_id")
         success = await mcp.plan_service.delete_plan(user_id=user.id, plan_id=plan_id)
         if not success:
             return JSONResponse({"error": "Plan not found"}, status_code=404)

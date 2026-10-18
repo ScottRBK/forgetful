@@ -16,6 +16,11 @@ from app.models.skill_models import (
     SkillCreate,
     SkillUpdate,
 )
+from app.routes.api.request_utils import (
+    handle_request_errors,
+    path_id,
+    read_json_object,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +29,7 @@ def register(mcp: FastMCP):
     """Register skill REST routes with FastMCP"""
 
     @mcp.custom_route("/api/v1/skills", methods=["POST"])
+    @handle_request_errors
     async def create_skill(request: Request) -> JSONResponse:
         """Create a new skill."""
         try:
@@ -32,7 +38,7 @@ def register(mcp: FastMCP):
             return JSONResponse({"error": str(e)}, status_code=401)
 
         try:
-            body = await request.json()
+            body = await read_json_object(request)
             skill_data = SkillCreate(**body)
         except ValidationError as e:
             return JSONResponse({"error": str(e)}, status_code=400)
@@ -48,6 +54,7 @@ def register(mcp: FastMCP):
         return JSONResponse(skill.model_dump(mode="json"), status_code=201)
 
     @mcp.custom_route("/api/v1/skills", methods=["GET"])
+    @handle_request_errors
     async def list_skills(request: Request) -> JSONResponse:
         """List skills with optional filtering.
 
@@ -106,6 +113,7 @@ def register(mcp: FastMCP):
         })
 
     @mcp.custom_route("/api/v1/skills/search", methods=["GET"])
+    @handle_request_errors
     async def search_skills(request: Request) -> JSONResponse:
         """Semantic search for skills.
 
@@ -161,6 +169,7 @@ def register(mcp: FastMCP):
         })
 
     @mcp.custom_route("/api/v1/skills/{skill_id}", methods=["GET"])
+    @handle_request_errors
     async def get_skill(request: Request) -> JSONResponse:
         """Get a single skill by ID."""
         try:
@@ -168,7 +177,7 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        skill_id = int(request.path_params["skill_id"])
+        skill_id = path_id(request, "skill_id")
 
         try:
             skill = await mcp.skill_service.get_skill(
@@ -181,6 +190,7 @@ def register(mcp: FastMCP):
         return JSONResponse(skill.model_dump(mode="json"))
 
     @mcp.custom_route("/api/v1/skills/{skill_id}", methods=["PUT"])
+    @handle_request_errors
     async def update_skill(request: Request) -> JSONResponse:
         """Update an existing skill."""
         try:
@@ -188,10 +198,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        skill_id = int(request.path_params["skill_id"])
+        skill_id = path_id(request, "skill_id")
 
         try:
-            body = await request.json()
+            body = await read_json_object(request)
             update_data = SkillUpdate(**body)
         except ValidationError as e:
             return JSONResponse({"error": str(e)}, status_code=400)
@@ -208,6 +218,7 @@ def register(mcp: FastMCP):
         return JSONResponse(skill.model_dump(mode="json"))
 
     @mcp.custom_route("/api/v1/skills/{skill_id}", methods=["DELETE"])
+    @handle_request_errors
     async def delete_skill(request: Request) -> JSONResponse:
         """Delete a skill."""
         try:
@@ -215,7 +226,7 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        skill_id = int(request.path_params["skill_id"])
+        skill_id = path_id(request, "skill_id")
 
         try:
             success = await mcp.skill_service.delete_skill(
@@ -231,6 +242,7 @@ def register(mcp: FastMCP):
         return JSONResponse({"success": True})
 
     @mcp.custom_route("/api/v1/skills/import", methods=["POST"])
+    @handle_request_errors
     async def import_skill(request: Request) -> JSONResponse:
         """Import a skill from Agent Skills markdown format.
 
@@ -244,10 +256,7 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        try:
-            body = await request.json()
-        except (ValueError, KeyError):
-            return JSONResponse({"error": "Invalid JSON body"}, status_code=400)
+        body = await read_json_object(request)
 
         skill_md = body.get("skill_md")
         if not skill_md:
@@ -274,6 +283,7 @@ def register(mcp: FastMCP):
         return JSONResponse(skill.model_dump(mode="json"), status_code=201)
 
     @mcp.custom_route("/api/v1/skills/{skill_id}/export", methods=["GET"])
+    @handle_request_errors
     async def export_skill(request: Request) -> JSONResponse:
         """Export a skill to Agent Skills markdown format (SKILL.md)."""
         try:
@@ -281,7 +291,7 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        skill_id = int(request.path_params["skill_id"])
+        skill_id = path_id(request, "skill_id")
 
         try:
             skill_md = await mcp.skill_service.export_skill(
@@ -296,6 +306,7 @@ def register(mcp: FastMCP):
     # ---- Resource linking endpoints ----
 
     @mcp.custom_route("/api/v1/skills/{skill_id}/files", methods=["POST"])
+    @handle_request_errors
     async def link_skill_to_file(request: Request) -> JSONResponse:
         """Link a file to a skill."""
         try:
@@ -303,10 +314,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        skill_id = int(request.path_params["skill_id"])
+        skill_id = path_id(request, "skill_id")
 
         try:
-            body = await request.json()
+            body = await read_json_object(request)
             file_id = body["file_id"]
         except (ValueError, KeyError):
             return JSONResponse({"error": "file_id is required"}, status_code=400)
@@ -323,6 +334,7 @@ def register(mcp: FastMCP):
         return JSONResponse(result)
 
     @mcp.custom_route("/api/v1/skills/{skill_id}/files/{file_id}", methods=["DELETE"])
+    @handle_request_errors
     async def unlink_skill_from_file(request: Request) -> JSONResponse:
         """Unlink a file from a skill."""
         try:
@@ -330,8 +342,8 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        skill_id = int(request.path_params["skill_id"])
-        file_id = int(request.path_params["file_id"])
+        skill_id = path_id(request, "skill_id")
+        file_id = path_id(request, "file_id")
 
         try:
             result = await mcp.skill_service.unlink_skill_from_file(
@@ -345,6 +357,7 @@ def register(mcp: FastMCP):
         return JSONResponse(result)
 
     @mcp.custom_route("/api/v1/skills/{skill_id}/code-artifacts", methods=["POST"])
+    @handle_request_errors
     async def link_skill_to_code_artifact(request: Request) -> JSONResponse:
         """Link a code artifact to a skill."""
         try:
@@ -352,10 +365,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        skill_id = int(request.path_params["skill_id"])
+        skill_id = path_id(request, "skill_id")
 
         try:
-            body = await request.json()
+            body = await read_json_object(request)
             code_artifact_id = body["code_artifact_id"]
         except (ValueError, KeyError):
             return JSONResponse({"error": "code_artifact_id is required"}, status_code=400)
@@ -375,6 +388,7 @@ def register(mcp: FastMCP):
         "/api/v1/skills/{skill_id}/code-artifacts/{code_artifact_id}",
         methods=["DELETE"],
     )
+    @handle_request_errors
     async def unlink_skill_from_code_artifact(request: Request) -> JSONResponse:
         """Unlink a code artifact from a skill."""
         try:
@@ -382,8 +396,8 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        skill_id = int(request.path_params["skill_id"])
-        code_artifact_id = int(request.path_params["code_artifact_id"])
+        skill_id = path_id(request, "skill_id")
+        code_artifact_id = path_id(request, "code_artifact_id")
 
         try:
             result = await mcp.skill_service.unlink_skill_from_code_artifact(
@@ -397,6 +411,7 @@ def register(mcp: FastMCP):
         return JSONResponse(result)
 
     @mcp.custom_route("/api/v1/skills/{skill_id}/documents", methods=["POST"])
+    @handle_request_errors
     async def link_skill_to_document(request: Request) -> JSONResponse:
         """Link a document to a skill."""
         try:
@@ -404,10 +419,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        skill_id = int(request.path_params["skill_id"])
+        skill_id = path_id(request, "skill_id")
 
         try:
-            body = await request.json()
+            body = await read_json_object(request)
             document_id = body["document_id"]
         except (ValueError, KeyError):
             return JSONResponse({"error": "document_id is required"}, status_code=400)
@@ -427,6 +442,7 @@ def register(mcp: FastMCP):
         "/api/v1/skills/{skill_id}/documents/{document_id}",
         methods=["DELETE"],
     )
+    @handle_request_errors
     async def unlink_skill_from_document(request: Request) -> JSONResponse:
         """Unlink a document from a skill."""
         try:
@@ -434,8 +450,8 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        skill_id = int(request.path_params["skill_id"])
-        document_id = int(request.path_params["document_id"])
+        skill_id = path_id(request, "skill_id")
+        document_id = path_id(request, "document_id")
 
         try:
             result = await mcp.skill_service.unlink_skill_from_document(
@@ -449,6 +465,7 @@ def register(mcp: FastMCP):
         return JSONResponse(result)
 
     @mcp.custom_route("/api/v1/skills/{skill_id}/links", methods=["GET"])
+    @handle_request_errors
     async def get_skill_links(request: Request) -> JSONResponse:
         """Get IDs of all content linked to a skill (reverse lookup)."""
         try:
@@ -456,7 +473,7 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        skill_id = int(request.path_params["skill_id"])
+        skill_id = path_id(request, "skill_id")
 
         try:
             links = await mcp.skill_service.get_skill_links(

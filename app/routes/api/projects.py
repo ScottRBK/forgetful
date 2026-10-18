@@ -17,6 +17,11 @@ from app.models.project_models import (
     ProjectStatus,
     ProjectUpdate,
 )
+from app.routes.api.request_utils import (
+    handle_request_errors,
+    path_id,
+    read_json_object,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +30,7 @@ def register(mcp: FastMCP):
     """Register project REST routes with FastMCP"""
 
     @mcp.custom_route("/api/v1/projects", methods=["GET"])
+    @handle_request_errors
     async def list_projects(request: Request) -> JSONResponse:
         """List projects with optional filtering.
 
@@ -64,6 +70,7 @@ def register(mcp: FastMCP):
         })
 
     @mcp.custom_route("/api/v1/projects/{project_id}", methods=["GET"])
+    @handle_request_errors
     async def get_project(request: Request) -> JSONResponse:
         """Get a single project by ID."""
         try:
@@ -71,7 +78,7 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        project_id = int(request.path_params["project_id"])
+        project_id = path_id(request, "project_id")
 
         try:
             project = await mcp.project_service.get_project(
@@ -84,6 +91,7 @@ def register(mcp: FastMCP):
         return JSONResponse(project.model_dump(mode="json"))
 
     @mcp.custom_route("/api/v1/projects", methods=["POST"])
+    @handle_request_errors
     async def create_project(request: Request) -> JSONResponse:
         """Create a new project."""
         try:
@@ -92,7 +100,7 @@ def register(mcp: FastMCP):
             return JSONResponse({"error": str(e)}, status_code=401)
 
         try:
-            body = await request.json()
+            body = await read_json_object(request)
             project_data = ProjectCreate(**body)
         except ValidationError as e:
             return JSONResponse({"error": e.errors(include_context=False)}, status_code=400)
@@ -105,6 +113,7 @@ def register(mcp: FastMCP):
         return JSONResponse(project.model_dump(mode="json"), status_code=201)
 
     @mcp.custom_route("/api/v1/projects/{project_id}", methods=["PUT"])
+    @handle_request_errors
     async def update_project(request: Request) -> JSONResponse:
         """Update an existing project."""
         try:
@@ -112,10 +121,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        project_id = int(request.path_params["project_id"])
+        project_id = path_id(request, "project_id")
 
         try:
-            body = await request.json()
+            body = await read_json_object(request)
             update_data = ProjectUpdate(**body)
         except ValidationError as e:
             return JSONResponse({"error": e.errors(include_context=False)}, status_code=400)
@@ -135,6 +144,7 @@ def register(mcp: FastMCP):
         return JSONResponse(project.model_dump(mode="json"))
 
     @mcp.custom_route("/api/v1/projects/{project_id}", methods=["DELETE"])
+    @handle_request_errors
     async def delete_project(request: Request) -> JSONResponse:
         """Delete a project (preserves associated memories)."""
         try:
@@ -142,7 +152,7 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        project_id = int(request.path_params["project_id"])
+        project_id = path_id(request, "project_id")
 
         try:
             success = await mcp.project_service.delete_project(

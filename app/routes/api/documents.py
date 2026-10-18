@@ -16,6 +16,11 @@ from app.models.document_models import (
     DocumentCreate,
     DocumentUpdate,
 )
+from app.routes.api.request_utils import (
+    handle_request_errors,
+    path_id,
+    read_json_object,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +29,7 @@ def register(mcp: FastMCP):
     """Register document REST routes with FastMCP"""
 
     @mcp.custom_route("/api/v1/documents", methods=["GET"])
+    @handle_request_errors
     async def list_documents(request: Request) -> JSONResponse:
         """List documents with optional filtering.
 
@@ -66,6 +72,7 @@ def register(mcp: FastMCP):
         })
 
     @mcp.custom_route("/api/v1/documents/{document_id}", methods=["GET"])
+    @handle_request_errors
     async def get_document(request: Request) -> JSONResponse:
         """Get a single document by ID."""
         try:
@@ -73,7 +80,7 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        document_id = int(request.path_params["document_id"])
+        document_id = path_id(request, "document_id")
 
         try:
             document = await mcp.document_service.get_document(
@@ -86,6 +93,7 @@ def register(mcp: FastMCP):
         return JSONResponse(document.model_dump(mode="json"))
 
     @mcp.custom_route("/api/v1/documents", methods=["POST"])
+    @handle_request_errors
     async def create_document(request: Request) -> JSONResponse:
         """Create a new document."""
         try:
@@ -94,7 +102,7 @@ def register(mcp: FastMCP):
             return JSONResponse({"error": str(e)}, status_code=401)
 
         try:
-            body = await request.json()
+            body = await read_json_object(request)
             document_data = DocumentCreate(**body)
         except ValidationError as e:
             return JSONResponse({"error": e.errors()}, status_code=400)
@@ -107,6 +115,7 @@ def register(mcp: FastMCP):
         return JSONResponse(document.model_dump(mode="json"), status_code=201)
 
     @mcp.custom_route("/api/v1/documents/{document_id}", methods=["PUT"])
+    @handle_request_errors
     async def update_document(request: Request) -> JSONResponse:
         """Update an existing document."""
         try:
@@ -114,10 +123,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        document_id = int(request.path_params["document_id"])
+        document_id = path_id(request, "document_id")
 
         try:
-            body = await request.json()
+            body = await read_json_object(request)
             update_data = DocumentUpdate(**body)
         except ValidationError as e:
             return JSONResponse({"error": e.errors()}, status_code=400)
@@ -134,6 +143,7 @@ def register(mcp: FastMCP):
         return JSONResponse(document.model_dump(mode="json"))
 
     @mcp.custom_route("/api/v1/documents/{document_id}", methods=["DELETE"])
+    @handle_request_errors
     async def delete_document(request: Request) -> JSONResponse:
         """Delete a document."""
         try:
@@ -141,7 +151,7 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        document_id = int(request.path_params["document_id"])
+        document_id = path_id(request, "document_id")
 
         try:
             success = await mcp.document_service.delete_document(

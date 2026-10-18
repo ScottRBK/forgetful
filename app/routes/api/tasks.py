@@ -23,6 +23,14 @@ from app.models.plan_models import (
     TaskState,
     TaskUpdate,
 )
+from app.routes.api.request_utils import (
+    body_int,
+    handle_request_errors,
+    path_id,
+    query_enum,
+    query_int,
+    read_json_object,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +40,7 @@ def register(mcp: FastMCP):
     # ---- Task endpoints ----
 
     @mcp.custom_route("/api/v1/tasks", methods=["GET"])
+    @handle_request_errors
     async def list_tasks(request: Request) -> JSONResponse:
         """Query tasks. plan_id is required."""
         try:
@@ -44,13 +53,11 @@ def register(mcp: FastMCP):
         if not plan_id_str:
             return JSONResponse({"error": "plan_id query param is required"}, status_code=400)
 
-        plan_id = int(plan_id_str)
-        state_str = params.get("state")
-        priority_str = params.get("priority")
+        plan_id = query_int(params, "plan_id")
         assigned_agent = params.get("assigned_agent")
 
-        state = TaskState(state_str) if state_str else None
-        priority = TaskPriority(priority_str) if priority_str else None
+        state = query_enum(params, "state", TaskState)
+        priority = query_enum(params, "priority", TaskPriority)
 
         tasks = await mcp.task_service.list_tasks(
             user_id=user.id, plan_id=plan_id,
@@ -62,6 +69,7 @@ def register(mcp: FastMCP):
         })
 
     @mcp.custom_route("/api/v1/tasks/{task_id}", methods=["GET"])
+    @handle_request_errors
     async def get_task(request: Request) -> JSONResponse:
         """Get task with criteria and dependency_ids."""
         try:
@@ -69,7 +77,7 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        task_id = int(request.path_params["task_id"])
+        task_id = path_id(request, "task_id")
         try:
             task = await mcp.task_service.get_task(user_id=user.id, task_id=task_id)
         except NotFoundError:
@@ -77,6 +85,7 @@ def register(mcp: FastMCP):
         return JSONResponse(task.model_dump(mode="json"))
 
     @mcp.custom_route("/api/v1/tasks", methods=["POST"])
+    @handle_request_errors
     async def create_task(request: Request) -> JSONResponse:
         """Create task with inline criteria + dependency_ids."""
         try:
@@ -85,7 +94,7 @@ def register(mcp: FastMCP):
             return JSONResponse({"error": str(e)}, status_code=401)
 
         try:
-            body = await request.json()
+            body = await read_json_object(request)
             task_data = TaskCreate(**body)
         except ValidationError as e:
             return JSONResponse({"error": e.errors()}, status_code=400)
@@ -102,6 +111,7 @@ def register(mcp: FastMCP):
         return JSONResponse(task.model_dump(mode="json"), status_code=201)
 
     @mcp.custom_route("/api/v1/tasks/{task_id}", methods=["PUT"])
+    @handle_request_errors
     async def update_task(request: Request) -> JSONResponse:
         """Update task metadata (not state)."""
         try:
@@ -109,10 +119,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        task_id = int(request.path_params["task_id"])
+        task_id = path_id(request, "task_id")
 
         try:
-            body = await request.json()
+            body = await read_json_object(request)
             update_data = TaskUpdate(**body)
         except ValidationError as e:
             return JSONResponse({"error": e.errors()}, status_code=400)
@@ -125,6 +135,7 @@ def register(mcp: FastMCP):
         return JSONResponse(task.model_dump(mode="json"))
 
     @mcp.custom_route("/api/v1/tasks/{task_id}", methods=["DELETE"])
+    @handle_request_errors
     async def delete_task(request: Request) -> JSONResponse:
         """Delete task."""
         try:
@@ -132,13 +143,14 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        task_id = int(request.path_params["task_id"])
+        task_id = path_id(request, "task_id")
         success = await mcp.task_service.delete_task(user_id=user.id, task_id=task_id)
         if not success:
             return JSONResponse({"error": "Task not found"}, status_code=404)
         return JSONResponse({"success": True})
 
     @mcp.custom_route("/api/v1/tasks/{task_id}/transition", methods=["POST"])
+    @handle_request_errors
     async def transition_task(request: Request) -> JSONResponse:
         """Transition task state. Body: {state, version}."""
         try:
@@ -146,12 +158,12 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        task_id = int(request.path_params["task_id"])
+        task_id = path_id(request, "task_id")
 
         try:
-            body = await request.json()
+            body = await read_json_object(request)
             new_state = TaskState(body["state"])
-            version = int(body["version"])
+            version = body_int(body["version"], "version")
         except (KeyError, ValueError) as e:
             return JSONResponse({"error": f"Invalid body: {e}"}, status_code=400)
 
@@ -172,6 +184,7 @@ def register(mcp: FastMCP):
         return JSONResponse(task.model_dump(mode="json"))
 
     @mcp.custom_route("/api/v1/tasks/{task_id}/claim", methods=["POST"])
+    @handle_request_errors
     async def claim_task(request: Request) -> JSONResponse:
         """Claim task. Body: {agent_id, version}."""
         try:
@@ -179,12 +192,12 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        task_id = int(request.path_params["task_id"])
+        task_id = path_id(request, "task_id")
 
         try:
-            body = await request.json()
+            body = await read_json_object(request)
             agent_id = str(body["agent_id"])
-            version = int(body["version"])
+            version = body_int(body["version"], "version")
         except (KeyError, ValueError) as e:
             return JSONResponse({"error": f"Invalid body: {e}"}, status_code=400)
 
@@ -207,6 +220,7 @@ def register(mcp: FastMCP):
     # ---- Criteria endpoints ----
 
     @mcp.custom_route("/api/v1/tasks/{task_id}/criteria", methods=["POST"])
+    @handle_request_errors
     async def add_criterion(request: Request) -> JSONResponse:
         """Add criterion to task."""
         try:
@@ -214,10 +228,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        task_id = int(request.path_params["task_id"])
+        task_id = path_id(request, "task_id")
 
         try:
-            body = await request.json()
+            body = await read_json_object(request)
             criterion_data = CriterionCreate(**body)
         except ValidationError as e:
             return JSONResponse({"error": e.errors()}, status_code=400)
@@ -234,6 +248,7 @@ def register(mcp: FastMCP):
         return JSONResponse(criterion.model_dump(mode="json"), status_code=201)
 
     @mcp.custom_route("/api/v1/criteria/{criterion_id}", methods=["PUT"])
+    @handle_request_errors
     async def update_criterion(request: Request) -> JSONResponse:
         """Update criterion (set met)."""
         try:
@@ -241,10 +256,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        criterion_id = int(request.path_params["criterion_id"])
+        criterion_id = path_id(request, "criterion_id")
 
         try:
-            body = await request.json()
+            body = await read_json_object(request)
             criterion_data = CriterionUpdate(**body)
         except ValidationError as e:
             return JSONResponse({"error": e.errors()}, status_code=400)
@@ -259,6 +274,7 @@ def register(mcp: FastMCP):
         return JSONResponse(criterion.model_dump(mode="json"))
 
     @mcp.custom_route("/api/v1/criteria/{criterion_id}", methods=["DELETE"])
+    @handle_request_errors
     async def delete_criterion(request: Request) -> JSONResponse:
         """Delete criterion."""
         try:
@@ -266,7 +282,7 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        criterion_id = int(request.path_params["criterion_id"])
+        criterion_id = path_id(request, "criterion_id")
         success = await mcp.task_service.delete_criterion(
             user_id=user.id, criterion_id=criterion_id,
         )
@@ -277,6 +293,7 @@ def register(mcp: FastMCP):
     # ---- Dependency endpoints ----
 
     @mcp.custom_route("/api/v1/tasks/{task_id}/dependencies", methods=["POST"])
+    @handle_request_errors
     async def add_dependency(request: Request) -> JSONResponse:
         """Add dependency. Body: {depends_on_task_id}."""
         try:
@@ -284,11 +301,11 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        task_id = int(request.path_params["task_id"])
+        task_id = path_id(request, "task_id")
 
         try:
-            body = await request.json()
-            depends_on_task_id = int(body["depends_on_task_id"])
+            body = await read_json_object(request)
+            depends_on_task_id = body_int(body["depends_on_task_id"], "depends_on_task_id")
         except (KeyError, ValueError) as e:
             return JSONResponse({"error": f"Invalid body: {e}"}, status_code=400)
 
@@ -306,6 +323,7 @@ def register(mcp: FastMCP):
         return JSONResponse(dep.model_dump(mode="json"), status_code=201)
 
     @mcp.custom_route("/api/v1/tasks/{task_id}/dependencies/{depends_on_task_id}", methods=["DELETE"])
+    @handle_request_errors
     async def remove_dependency(request: Request) -> JSONResponse:
         """Remove dependency."""
         try:
@@ -313,8 +331,8 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        task_id = int(request.path_params["task_id"])
-        depends_on_task_id = int(request.path_params["depends_on_task_id"])
+        task_id = path_id(request, "task_id")
+        depends_on_task_id = path_id(request, "depends_on_task_id")
 
         success = await mcp.task_service.remove_dependency(
             user_id=user.id, task_id=task_id, depends_on_task_id=depends_on_task_id,

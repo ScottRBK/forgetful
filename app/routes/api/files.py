@@ -15,6 +15,11 @@ from app.models.file_models import (
     FileCreate,
     FileUpdate,
 )
+from app.routes.api.request_utils import (
+    handle_request_errors,
+    path_id,
+    read_json_object,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +28,7 @@ def register(mcp: FastMCP):
     """Register file REST routes with FastMCP"""
 
     @mcp.custom_route("/api/v1/files", methods=["GET"])
+    @handle_request_errors
     async def list_files(request: Request) -> JSONResponse:
         """List files with optional filtering.
 
@@ -65,6 +71,7 @@ def register(mcp: FastMCP):
         })
 
     @mcp.custom_route("/api/v1/files/{file_id}", methods=["GET"])
+    @handle_request_errors
     async def get_file(request: Request) -> JSONResponse:
         """Get a single file by ID (includes base64 data)."""
         try:
@@ -72,7 +79,7 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        file_id = int(request.path_params["file_id"])
+        file_id = path_id(request, "file_id")
 
         try:
             file = await mcp.file_service.get_file(
@@ -85,6 +92,7 @@ def register(mcp: FastMCP):
         return JSONResponse(file.model_dump(mode="json"))
 
     @mcp.custom_route("/api/v1/files", methods=["POST"])
+    @handle_request_errors
     async def create_file(request: Request) -> JSONResponse:
         """Create a new file."""
         try:
@@ -93,7 +101,7 @@ def register(mcp: FastMCP):
             return JSONResponse({"error": str(e)}, status_code=401)
 
         try:
-            body = await request.json()
+            body = await read_json_object(request)
             file_data = FileCreate(**body)
         except ValidationError as e:
             return JSONResponse({"error": e.errors()}, status_code=400)
@@ -106,6 +114,7 @@ def register(mcp: FastMCP):
         return JSONResponse(file.model_dump(mode="json"), status_code=201)
 
     @mcp.custom_route("/api/v1/files/{file_id}", methods=["PUT"])
+    @handle_request_errors
     async def update_file(request: Request) -> JSONResponse:
         """Update an existing file."""
         try:
@@ -113,10 +122,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        file_id = int(request.path_params["file_id"])
+        file_id = path_id(request, "file_id")
 
         try:
-            body = await request.json()
+            body = await read_json_object(request)
             update_data = FileUpdate(**body)
         except ValidationError as e:
             return JSONResponse({"error": e.errors()}, status_code=400)
@@ -133,6 +142,7 @@ def register(mcp: FastMCP):
         return JSONResponse(file.model_dump(mode="json"))
 
     @mcp.custom_route("/api/v1/files/{file_id}", methods=["DELETE"])
+    @handle_request_errors
     async def delete_file(request: Request) -> JSONResponse:
         """Delete a file."""
         try:
@@ -140,7 +150,7 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        file_id = int(request.path_params["file_id"])
+        file_id = path_id(request, "file_id")
 
         try:
             success = await mcp.file_service.delete_file(

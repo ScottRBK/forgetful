@@ -16,6 +16,11 @@ from app.models.code_artifact_models import (
     CodeArtifactCreate,
     CodeArtifactUpdate,
 )
+from app.routes.api.request_utils import (
+    handle_request_errors,
+    path_id,
+    read_json_object,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +29,7 @@ def register(mcp: FastMCP):
     """Register code artifact REST routes with FastMCP"""
 
     @mcp.custom_route("/api/v1/code-artifacts", methods=["GET"])
+    @handle_request_errors
     async def list_code_artifacts(request: Request) -> JSONResponse:
         """List code artifacts with optional filtering.
 
@@ -66,6 +72,7 @@ def register(mcp: FastMCP):
         })
 
     @mcp.custom_route("/api/v1/code-artifacts/{artifact_id}", methods=["GET"])
+    @handle_request_errors
     async def get_code_artifact(request: Request) -> JSONResponse:
         """Get a single code artifact by ID."""
         try:
@@ -73,7 +80,7 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        artifact_id = int(request.path_params["artifact_id"])
+        artifact_id = path_id(request, "artifact_id")
 
         try:
             artifact = await mcp.code_artifact_service.get_code_artifact(
@@ -86,6 +93,7 @@ def register(mcp: FastMCP):
         return JSONResponse(artifact.model_dump(mode="json"))
 
     @mcp.custom_route("/api/v1/code-artifacts", methods=["POST"])
+    @handle_request_errors
     async def create_code_artifact(request: Request) -> JSONResponse:
         """Create a new code artifact."""
         try:
@@ -94,7 +102,7 @@ def register(mcp: FastMCP):
             return JSONResponse({"error": str(e)}, status_code=401)
 
         try:
-            body = await request.json()
+            body = await read_json_object(request)
             artifact_data = CodeArtifactCreate(**body)
         except ValidationError as e:
             return JSONResponse({"error": e.errors()}, status_code=400)
@@ -107,6 +115,7 @@ def register(mcp: FastMCP):
         return JSONResponse(artifact.model_dump(mode="json"), status_code=201)
 
     @mcp.custom_route("/api/v1/code-artifacts/{artifact_id}", methods=["PUT"])
+    @handle_request_errors
     async def update_code_artifact(request: Request) -> JSONResponse:
         """Update an existing code artifact."""
         try:
@@ -114,10 +123,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        artifact_id = int(request.path_params["artifact_id"])
+        artifact_id = path_id(request, "artifact_id")
 
         try:
-            body = await request.json()
+            body = await read_json_object(request)
             update_data = CodeArtifactUpdate(**body)
         except ValidationError as e:
             return JSONResponse({"error": e.errors()}, status_code=400)
@@ -134,6 +143,7 @@ def register(mcp: FastMCP):
         return JSONResponse(artifact.model_dump(mode="json"))
 
     @mcp.custom_route("/api/v1/code-artifacts/{artifact_id}", methods=["DELETE"])
+    @handle_request_errors
     async def delete_code_artifact(request: Request) -> JSONResponse:
         """Delete a code artifact."""
         try:
@@ -141,7 +151,7 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        artifact_id = int(request.path_params["artifact_id"])
+        artifact_id = path_id(request, "artifact_id")
 
         try:
             success = await mcp.code_artifact_service.delete_code_artifact(
