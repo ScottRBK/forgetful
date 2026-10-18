@@ -33,11 +33,24 @@ _OPENCODE_AUTH = Path("~/.local/share/opencode/auth.json")
 _INSTALL_TIMEOUT = 300
 _HEALTH_TIMEOUT = 180
 _HOST_EXEC_GRACE = 120
+_REACHABILITY_TIMEOUT = 60
 
 IMAGE = "forgetful-test-harness:latest"
 SKILLS_MOUNT = "/skills"
 HARNESS_MOUNT = "/harness"
 DECOY_DB = "/tmp/local-decoy.db"  # noqa: S108 - container-side path, dies with the container
+HOST_ALIAS = "host.docker.internal"
+
+# GET <argv[1]> from inside the container; stdlib only, so the probe needs nothing
+# beyond the image's python. Any failure prints the reason and exits non-zero.
+_REACHABILITY_PROBE = (
+    "import sys, urllib.request\n"
+    "try:\n"
+    "    urllib.request.urlopen(sys.argv[1], timeout=10).close()\n"
+    "except Exception as exc:\n"
+    "    print(f'{type(exc).__name__}: {exc}')\n"
+    "    sys.exit(1)\n"
+)
 
 
 def build_container_env(server_url: str) -> dict[str, str]:
@@ -63,6 +76,15 @@ def exec_command(timeout: float, skill: str) -> list[str]:
         "timeout", "--kill-after=30s", str(int(timeout)),
         "python", "-u", f"{HARNESS_MOUNT}/runner.py",
         "--skill-dir", f"{SKILLS_MOUNT}/{skill}",
+    ]
+
+
+def reachability_command(server_url: str) -> list[str]:
+    """Probe the throwaway server's /health from inside the container, under the same
+    OS-level timeout wrapper as every other exec."""
+    return [
+        "timeout", "--kill-after=5s", str(_REACHABILITY_TIMEOUT),
+        "python", "-c", _REACHABILITY_PROBE, f"{server_url}/health",
     ]
 
 
@@ -230,6 +252,9 @@ class AgentContainer:
                 environment=environment,
                 detach=True,
                 name=name,
+                # Docker Desktop resolves host.docker.internal itself; Docker Engine
+                # for Linux only does with this explicit mapping
+                extra_hosts={HOST_ALIAS: "host-gateway"},
             )
         except docker.errors.DockerException as exc:
             raise HarnessInfraError(f"could not start {IMAGE}: {exc}") from exc
@@ -247,6 +272,23 @@ class AgentContainer:
         if exit_code != 0:
             raise HarnessInfraError(
                 f"working-tree install failed (exit {exit_code}):\n{output}",
+            )
+
+    def check_server_reachable(self) -> None:
+        """Fail fast when the throwaway server cannot be reached from in here.
+
+        The agent's `forgetful` calls all go to FORGETFUL_SERVER; if that route is dead
+        every session would burn model time on connection errors that read like
+        product findings. A tiny stdlib GET costs nothing next to the model probe.
+        """
+        exit_code, output = self._exec(reachability_command(self.server_url))
+        if exit_code != 0:
+            reason = output.strip() or f"probe exited {exit_code}"
+            raise HarnessInfraError(
+                f"throwaway server {self.server_url} is not reachable from inside the "
+                f"container ({reason}). The server listens on 127.0.0.1, which only "
+                f"Docker Desktop routes to via {HOST_ALIAS}; Docker Engine for Linux "
+                "cannot reach a loopback-only listener from the bridge network",
             )
 
     def health_check(self) -> None:

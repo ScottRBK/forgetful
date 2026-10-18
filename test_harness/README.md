@@ -15,7 +15,12 @@ FastEmbed cache is warm.
 
 ## Prerequisites
 
-- Docker (Docker Desktop on this machine) running
+- Docker running, with Docker Desktop as the supported setup: the agent reaches the
+  host-side throwaway server (bound to `127.0.0.1`) through `host.docker.internal`,
+  which only Docker Desktop routes to a loopback listener. On Docker Engine for Linux
+  the name resolves (the harness maps it to the host gateway) but the bridge cannot
+  reach a loopback-only server, so the run stops at the reachability preflight with
+  exit code `2` instead of walking skills against a dead server
 - `uv sync --group harness` (installs the `docker` SDK — agent-shell lives in the
   container image, not on the host)
 - Opencode authenticated on the host (`opencode auth login`); the harness stages a
@@ -60,14 +65,17 @@ rebuilds automatically when the lock drifts (stale images have burned runs befor
 3. Start one container for the run — fenced env baked in (`FORGETFUL_SERVER` →
    `host.docker.internal:<port>`, decoy `SQLITE_PATH` for any `--local` detour), staged
    opencode credentials, `runs/<ts>/skills/` mounted rw, the wheel + runner mounted ro —
-   then an in-container agent health check (broken agent = infra error, not findings).
+   then two in-container preflights, cheapest first: a stdlib GET of the throwaway
+   server's `/health` (unreachable server = infra error, so no session ever burns model
+   time on connection errors) and the agent health check (broken agent = infra error,
+   not findings).
 4. Per skill, in order: fresh agent session (one `docker exec` each) in a prepared
    workspace (`SKILL.md` copy; `fixture-repo/` for encode-repo), wrapped in an
    OS-level `timeout --kill-after` — host-side cancellation cannot kill a process
    inside a container.
 5. Teardown container and server, then a summary table and `run.json`. Teardown is
-   best-effort and independent per resource: a docker failure never skips stopping the
-   server or deleting the staged credential copies. `SIGTERM` (`kill`, a CI cancel,
+   best-effort and independent per resource (a docker failure never skips stopping the
+   server or deleting the staged credential copies), and `SIGTERM` (`kill`, a CI cancel,
    `timeout`) takes the same path as Ctrl-C: the run is cancelled at its next await,
    everything is torn down, and the process exits `143`. A Ctrl-C during container
    startup also removes a container that the start thread creates after the fact.

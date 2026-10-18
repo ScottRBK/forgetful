@@ -3,8 +3,8 @@
 Exit codes: 0 = every session completed (issues found are the product's problem, not the
 harness's); 1 = one or more sessions did not complete (timeout/error) so the UAT is
 partial; 2 = harness infrastructure failure (docker/image/container problem, server
-boot/seed failed, agent unhealthy); 143 = terminated by SIGTERM (after the same
-teardown as Ctrl-C).
+boot/seed failed, agent unhealthy, throwaway server unreachable from the container);
+143 = terminated by SIGTERM (after the same teardown as Ctrl-C).
 """
 import argparse
 import asyncio
@@ -15,7 +15,7 @@ from contextlib import ExitStack
 from pathlib import Path
 
 from test_harness.config import HarnessConfig
-from test_harness.container import AgentContainer, ensure_image
+from test_harness.container import HOST_ALIAS, AgentContainer, ensure_image
 from test_harness.server import HarnessInfraError, ThrowawayForgetful
 from test_harness.walkthrough import SkillRunResult, Walkthrough
 
@@ -101,7 +101,7 @@ async def _run(config: HarnessConfig) -> int:
         # routes host.docker.internal back to the WSL host (verified empirically).
         container = AgentContainer(
             config, run_dir,
-            server_url=server.url.replace("127.0.0.1", "host.docker.internal"),
+            server_url=server.url.replace("127.0.0.1", HOST_ALIAS),
         )
         teardown.callback(container.stop)
 
@@ -114,6 +114,8 @@ async def _run(config: HarnessConfig) -> int:
 
         print("starting sandbox container (installs the working tree) ...")
         await asyncio.to_thread(container.start)
+        print(f"preflight: {container.server_url} reachable from inside the container ...")
+        await asyncio.to_thread(container.check_server_reachable)
         print(f"preflight: in-container health check for {config.agent_type} / {config.model} ...")
         await asyncio.to_thread(container.health_check)
 

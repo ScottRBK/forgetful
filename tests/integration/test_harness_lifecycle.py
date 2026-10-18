@@ -1,11 +1,11 @@
 """Integration tests for the harness run lifecycle (test_harness/__main__.py + container.py).
 
-Teardown order and exception safety, SIGTERM handling and Ctrl-C racing the container
-start, exercised without a docker daemon. Only the outside world is faked: the docker
-SDK (a daemon stand-in plus a fake `docker` module, since the optional `harness`
-dependency group is not installed here), the throwaway server and the agent
-walkthrough. `_run`, `main` and the real `AgentContainer` start/stop code paths are
-what run.
+Teardown order and exception safety, SIGTERM handling, Ctrl-C racing the container
+start, and the in-container reachability preflight - exercised without a docker daemon.
+Only the outside world is faked: the docker SDK (a daemon stand-in plus a fake `docker`
+module, since the optional `harness` dependency group is not installed here), the
+throwaway server and the agent walkthrough. `_run`, `main` and the real
+`AgentContainer` start/stop code paths are what run.
 """
 import asyncio
 import os
@@ -464,3 +464,61 @@ def test_termination_signal_runs_the_full_teardown(tmp_path, sig):
     assert list(tmpdir.glob("uat-mount-*")) == [], "credential copies left on disk"
     if sig == signal.SIGTERM:
         assert returncode == 128 + signal.SIGTERM
+
+
+# --- the server must be reachable from inside the container ------------------
+
+
+def test_container_maps_the_host_alias_to_the_host_gateway(env, tmp_path):
+    # Arrange: Docker Engine for Linux does not resolve host.docker.internal on its
+    # own; Docker Desktop accepts the explicit mapping too
+    (tmp_path / "run").mkdir()
+    container = AgentContainer(env.config, tmp_path / "run", "http://host.docker.internal:1")
+
+    # Act
+    container.start()
+
+    # Assert
+    (created,) = env.daemon.created
+    assert created.run_kwargs["extra_hosts"] == {"host.docker.internal": "host-gateway"}
+    container.stop()
+
+
+async def test_unreachable_server_fails_fast_as_infra_error_before_any_session(
+    env, capsys,
+):
+    # Arrange: the agent container cannot reach the throwaway server
+    env.daemon.server_reachable = False
+
+    # Act: main() maps HarnessInfraError to exit code 2 (run off-thread because it
+    # owns its own event loop)
+    exit_code = await asyncio.to_thread(
+        harness_main.main,
+        ["--skills", "forgetful-recall", "--output", str(env.config.output_dir)],
+    )
+
+    # Assert
+    assert exit_code == 2
+    assert env.walked == [], "no skill session may start against a dead server"
+    err = capsys.readouterr().err
+    assert f"http://host.docker.internal:{THROWAWAY_PORT}" in err
+    assert "Connection refused" in err
+    assert env.daemon.registry == [], "the container is still torn down"
+    assert "server.stop" in env.events
+
+
+async def test_reachable_server_is_probed_from_inside_before_the_agent_health_check(
+    env,
+):
+    # Act
+    exit_code = await harness_main._run(env.config)
+
+    # Assert: a cheap /health GET goes first, so a bad route never costs a model call
+    assert exit_code == 0
+    assert env.walked == ["forgetful-recall"]
+    probe_url = f"http://host.docker.internal:{THROWAWAY_PORT}/health"
+    probes = [i for i, cmd in enumerate(env.daemon.commands) if cmd[-1] == probe_url]
+    checks = [i for i, cmd in enumerate(env.daemon.commands) if "--health" in cmd]
+    assert probes, f"no in-container probe of {probe_url}"
+    assert checks, "the agent health check never ran"
+    assert probes[0] < checks[0]
