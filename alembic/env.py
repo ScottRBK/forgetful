@@ -30,9 +30,13 @@ if settings.DATABASE == "Postgres":
 else:  # SQLite
     target_metadata = SqliteBase.metadata
 
-# Interpret the config file for Python logging
-if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+# Interpret the config file for Python logging. When the application runs the
+# migrations in-process it passes its own connection, and its logging setup (level,
+# handlers, masking filter) must be left alone; fileConfig would replace the root
+# handlers and mute every logger created before it. The command line keeps the ini
+# logging, minus the muting of loggers that already exist.
+if config.config_file_name is not None and config.attributes.get("connection") is None:
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 
 def run_migrations_offline() -> None:
