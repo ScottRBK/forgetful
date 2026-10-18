@@ -7,7 +7,9 @@ The token cache itself is the real on-disk FileTreeStore under tmp_path.
 """
 import asyncio
 import json
+import os
 import shutil
+import sys
 import threading
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -410,3 +412,120 @@ async def test_auth_status_unreadable_cache_is_a_clean_error(
     assert "token cache" in err
     assert "forgetful auth logout" in err
     assert "Traceback" not in err
+
+
+# =============================================================================
+# logout
+# =============================================================================
+
+symlinks = pytest.mark.skipif(sys.platform == "win32", reason="symlink semantics")
+
+
+def _populate_real_tokens(real_dir: Path) -> Path:
+    secret = real_dir / "servers" / "token.json"
+    secret.parent.mkdir(parents=True)
+    secret.write_text('{"access_token": "a", "refresh_token": "r"}')
+    (real_dir / "top-level.json").write_text("{}")
+    return secret
+
+
+@symlinks
+def test_logout_clears_a_symlinked_token_dir(tmp_path, capsys):
+    real = tmp_path / "dotfiles" / "forgetful-tokens"
+    secret = _populate_real_tokens(real)
+    link = tmp_path / "config" / "tokens"
+    link.parent.mkdir()
+    os.symlink(real, link, target_is_directory=True)
+
+    code = auth_commands.logout(token_dir=link)
+
+    assert code == 0
+    assert not secret.exists()
+    assert list(real.iterdir()) == []
+    # The link survives, so the next login can write through it again
+    assert link.is_symlink() and link.is_dir()
+    assert "Cleared token cache" in capsys.readouterr().out
+
+
+@symlinks
+async def test_auth_logout_dispatch_with_symlinked_token_dir(tmp_path, monkeypatch, capsys):
+    real = tmp_path / "dotfiles" / "forgetful-tokens"
+    secret = _populate_real_tokens(real)
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
+    (tmp_path / "xdg" / "forgetful").mkdir(parents=True)
+    os.symlink(real, tmp_path / "xdg" / "forgetful" / "tokens", target_is_directory=True)
+    monkeypatch.delenv("FORGETFUL_TOKEN", raising=False)
+
+    code = await _run_auth_command(_args(["auth", "logout"]))
+
+    assert code == 0
+    assert not secret.exists()
+
+
+@symlinks
+def test_logout_removes_a_symlink_to_a_regular_file(tmp_path, capsys):
+    target_file = tmp_path / "somewhere.json"
+    target_file.write_text("{}")
+    link = tmp_path / "tokens"
+    os.symlink(target_file, link)
+
+    code = auth_commands.logout(token_dir=link)
+
+    assert code == 0
+    assert not link.is_symlink()
+    assert target_file.exists()  # only the link goes; never a file outside the cache
+
+
+@symlinks
+def test_logout_dangling_symlink_is_removed(tmp_path, capsys):
+    link = tmp_path / "tokens"
+    os.symlink(tmp_path / "missing-target", link)
+
+    code = auth_commands.logout(token_dir=link)
+
+    assert code == 0
+    assert not link.is_symlink()
+
+
+def test_logout_reports_removal_errors_cleanly(tmp_path, monkeypatch, capsys):
+    token_dir = tmp_path / "tokens"
+    (token_dir / "servers").mkdir(parents=True)
+
+    def deny(path, *args, **kwargs):
+        raise PermissionError(13, "Permission denied", str(path))
+
+    monkeypatch.setattr(shutil, "rmtree", deny)
+
+    code = auth_commands.logout(token_dir=token_dir)
+
+    captured = capsys.readouterr()
+    assert code == 1
+    assert "Error: could not clear token cache" in captured.err
+    assert "Permission denied" in captured.err
+    assert "Cleared" not in captured.out
+
+
+async def test_auth_logout_dispatch_reports_removal_errors_cleanly(
+    tmp_path, monkeypatch, token_cache, capsys,
+):
+    (token_cache / "servers").mkdir(parents=True)
+
+    def deny(path, *args, **kwargs):
+        raise OSError("disk on fire")
+
+    monkeypatch.setattr(shutil, "rmtree", deny)
+
+    code = await _run_auth_command(_args(["auth", "logout"]))
+
+    err = capsys.readouterr().err
+    assert code == 1
+    assert "disk on fire" in err
+    assert "Traceback" not in err
+
+
+def test_logout_still_deletes_a_plain_token_dir(tmp_path):
+    token_dir = tmp_path / "tokens"
+    _populate_real_tokens(token_dir)
+
+    assert auth_commands.logout(token_dir=token_dir) == 0
+    assert not token_dir.exists()

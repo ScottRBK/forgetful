@@ -175,12 +175,36 @@ async def status(*, server: str | None = None) -> int:
     return 0
 
 
+def _clear_token_cache(target: Path) -> bool:
+    """Delete the cached credentials at target; False when there was nothing to clear.
+
+    A symlinked cache (dotfile managers such as stow or chezmoi) can't go through
+    shutil.rmtree, which refuses links. Empty what it points at instead and keep the
+    link, so the credentials really are gone and the next login can write through it.
+    """
+    if not target.is_symlink():
+        if not target.exists():
+            return False
+        shutil.rmtree(target)
+        return True
+    if target.is_dir():
+        for child in list(target.iterdir()):
+            if child.is_dir() and not child.is_symlink():
+                shutil.rmtree(child)
+            else:
+                child.unlink()
+    else:
+        target.unlink()
+    return True
+
+
 def logout(*, token_dir: Path | None = None) -> int:
     """Clear the local OAuth token cache."""
     target = token_dir or token_cache_dir()
-    if target.exists():
-        shutil.rmtree(target)
-        print(f"Cleared token cache at {target}")
-    else:
-        print("No cached tokens to clear")
+    try:
+        cleared = _clear_token_cache(target)
+    except OSError as exc:
+        print(f"Error: could not clear token cache at {target}: {exc}", file=sys.stderr)
+        return 1
+    print(f"Cleared token cache at {target}" if cleared else "No cached tokens to clear")
     return 0
