@@ -344,6 +344,8 @@ def _serve(transport, host, port):
 
 def _legacy_launcher(argv):
     """Pre-subcommand argument surface, kept working indefinitely."""
+    from app.routes.cli.parser import positive_int
+
     # cli()'s KNOWN-gate sends a bare `--help` here, so this epilog is the only place
     # a top-level `forgetful --help` can surface the subcommands. Canonical per-verb
     # help lives in app/routes/cli/parser.py; this is just a discoverability pointer.
@@ -393,7 +395,7 @@ def _legacy_launcher(argv):
     )
     parser.add_argument(
         "--batch-size",
-        type=int,
+        type=positive_int,
         default=20,
         help="Batch size for re-embedding (default: 20)",
     )

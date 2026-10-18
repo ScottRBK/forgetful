@@ -46,6 +46,8 @@ class ReEmbeddingService:
         embedding_adapter: EmbeddingsAdapter,
         batch_size: int = 20,
     ):
+        if batch_size < 1:
+            raise ValueError(f"batch_size must be at least 1, got {batch_size}")
         self.memory_repository = memory_repository
         self.embedding_adapter = embedding_adapter
         self.batch_size = batch_size

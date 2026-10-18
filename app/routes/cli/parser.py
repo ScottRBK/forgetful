@@ -27,6 +27,17 @@ def _json_object(value: str) -> dict:
     return parsed
 
 
+def positive_int(value: str) -> int:
+    """argparse type for sizes and counts: an integer >= 1."""
+    try:
+        parsed = int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"invalid int value: {value!r}")
+    if parsed < 1:
+        raise argparse.ArgumentTypeError(f"must be a positive integer (got {parsed})")
+    return parsed
+
+
 def build_parser() -> argparse.ArgumentParser:
     from app.config.settings import settings
 
@@ -66,7 +77,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     reembed.add_argument(
         "--batch-size",
-        type=int,
+        type=positive_int,
         default=20,
         help="Batch size for re-embedding (default: 20)",
     )
