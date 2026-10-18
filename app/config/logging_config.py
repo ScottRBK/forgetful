@@ -4,9 +4,11 @@ This module provides:
 - JSONFormatter: Structured JSON logs
 - ConsoleFormatter: Human-readable for development (with pretty colours)
 - SensitiveDataFilter: Masks passwords, tokens, connection strings
+- RecordPreservingQueueHandler: QueueHandler that keeps exception details and request context
 - configure_logging(): this just sets up the Queue handler for asyncio-safe logging
 """
 
+import copy
 import json
 import logging
 import logging.config
@@ -58,17 +60,32 @@ class SensitiveDataFilter(logging.Filter):
 
     Patterns masked:
     - Passwords (password=xxx, "password": "xxx")
-    - Tokens (token=xxx, bearer xxx)
+    - Tokens (token=xxx, "token": "xxx", Bearer <credential>)
     - PostgreSQL connection strings (hides user:password)
+
+    A value is only masked when it follows a key/value separator (``=`` or ``:``), or a
+    ``Bearer`` that is followed by something credential-shaped, so ordinary prose such as
+    "Token cache disabled" or "Validating Bearer token via X" is left alone.
     """
 
     SENSITIVE_PATTERNS = [
         # password=something or password="something" or "password":"something"
-        (re.compile(r'password["\s:=]+["\']?([^"\s,}]+)["\']?', re.IGNORECASE), "password=***"),
+        (re.compile(r'password["\']?\s*[:=]\s*["\']?([^"\s,}]+)["\']?', re.IGNORECASE), "password=***"),
         # token=something or "token":"something"
-        (re.compile(r'token["\s:=]+["\']?([^"\s,}]+)["\']?', re.IGNORECASE), "token=***"),
-        # bearer xxx
-        (re.compile(r"bearer\s+([^\s,}]+)", re.IGNORECASE), "bearer ***"),
+        (re.compile(r'token["\']?\s*[:=]\s*["\']?([^"\s,}]+)["\']?', re.IGNORECASE), "token=***"),
+        # Authorization: Bearer xxx (any value after the header name)
+        (
+            re.compile(r'(authorization["\']?\s*[:=]\s*["\']?)bearer\s+[^\s,}"\']+', re.IGNORECASE),
+            r"\1bearer ***",
+        ),
+        # bearer <credential>: needs a digit or 16+ token characters, so "Bearer token" survives
+        (
+            re.compile(
+                r"\bbearer\s+(?=[A-Za-z0-9._~+/=-]*\d|[A-Za-z0-9._~+/=-]{16})[A-Za-z0-9._~+/=-]+",
+                re.IGNORECASE,
+            ),
+            "bearer ***",
+        ),
         # Generic database connection string: scheme://user:password@host
         (re.compile(r"://[^:/@]+:[^@]+@", re.IGNORECASE), "://***:***@"),
     ]
@@ -90,6 +107,13 @@ class SensitiveDataFilter(logging.Filter):
                 }
             elif isinstance(record.args, tuple):
                 record.args = tuple(self._mask_value(arg) for arg in record.args)
+
+        # Tracebacks are rendered by the handler's formatter after this filter has run, so
+        # render and mask them here (the formatter reuses a cached ``exc_text``).
+        if record.exc_info and not record.exc_text:
+            record.exc_text = logging.Formatter().formatException(record.exc_info)
+        if record.exc_text:
+            record.exc_text = self._mask_value(record.exc_text)
 
         return True
 
@@ -129,7 +153,7 @@ class JSONFormatter(logging.Formatter):
 
         # Add exception info if present
         if record.exc_info:
-            log_data["exception"] = self.formatException(record.exc_info)
+            log_data["exception"] = record.exc_text or self.formatException(record.exc_info)
 
         # Add extra fields from logger.info(..., extra={...})
         # Standard LogRecord attributes to skip
@@ -137,26 +161,55 @@ class JSONFormatter(logging.Formatter):
             "name", "msg", "args", "created", "filename", "funcName", "levelname",
             "levelno", "lineno", "module", "msecs", "message", "pathname", "process",
             "processName", "relativeCreated", "thread", "threadName", "exc_info",
-            "exc_text", "stack_info", "getMessage",
+            "exc_text", "stack_info", "getMessage", "taskName",
         }
 
         for key, value in record.__dict__.items():
             if key not in standard_attrs and not key.startswith("_"):
                 log_data[key] = value
 
-        # Add contextvars (request_id, user_id) if available
-        # Import here to avoid circular dependency
-        try:
-            from app.middleware.logging_middleware import get_request_id, get_user_id
-            if request_id := get_request_id():
-                log_data["request_id"] = request_id
-            if user_id := get_user_id():
-                log_data["user_id"] = user_id
-        except ImportError:
-            # Middleware not yet created, skip contextvar injection
-            pass
+        # Add contextvars (request_id, user_id) if available. Records that went through the
+        # QueueHandler already carry them as attributes (the listener thread cannot see the
+        # emitting request's context), so this covers direct, same-thread use of the formatter.
+        log_data.update(_current_context_ids())
 
         return json.dumps(log_data, default=_serialise_log_value)
+
+
+def _current_context_ids() -> dict[str, str]:
+    """Return the request_id / user_id of the current context, omitting unset ones."""
+    # Import here to avoid circular dependency
+    try:
+        from app.middleware.logging_middleware import get_request_id, get_user_id
+    except ImportError:
+        # Middleware not yet created, skip contextvar injection
+        return {}
+    ids = {"request_id": get_request_id(), "user_id": get_user_id()}
+    return {key: value for key, value in ids.items() if value}
+
+
+class RecordPreservingQueueHandler(logging.handlers.QueueHandler):
+    """QueueHandler that hands the listener thread a faithful copy of the record.
+
+    The stock ``QueueHandler.prepare()`` formats the record with a default formatter, bakes the
+    traceback into ``msg`` and clears ``exc_info``, so a downstream ``JSONFormatter`` can never
+    emit its ``exception`` field. It also runs ``format()`` in the listener thread, where the
+    emitting request's contextvars are not visible.
+
+    Here the message is merged in the emitting thread (arguments are evaluated there, not
+    later), ``exc_info`` / ``stack_info`` are kept, and the request context is copied onto the
+    record. The copy keeps the listener thread's filters from mutating a record that other
+    root handlers still see.
+    """
+
+    def prepare(self, record: logging.LogRecord) -> logging.LogRecord:
+        """Copy the record for the queue, keeping its exception details."""
+        prepared = copy.copy(record)
+        prepared.msg = record.getMessage()
+        prepared.args = None
+        for key, value in _current_context_ids().items():
+            prepared.__dict__.setdefault(key, value)
+        return prepared
 
 def _serialise_log_value(obj):
     """Handle non-JSON-serialisable types"""
@@ -231,7 +284,7 @@ def configure_logging(
     _queue_listener.start()
 
     # Configure root logger with QueueHandler
-    queue_handler = logging.handlers.QueueHandler(log_queue)
+    queue_handler = RecordPreservingQueueHandler(log_queue)
 
     root_logger = logging.getLogger()
     root_logger.setLevel(log_level.upper())
