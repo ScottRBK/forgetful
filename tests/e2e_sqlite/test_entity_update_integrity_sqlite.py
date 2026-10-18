@@ -5,6 +5,7 @@ Covers the full stack (REST routes -> EntityService -> SqliteEntityRepository):
 - project_ids that do not exist (or belong to another user) are rejected
   instead of being dropped, and never wipe existing project links
 - duplicate entity relationships surface as ConflictError / HTTP 409
+- get_all_entity_relationships keeps the provenance fields
 """
 import pytest
 from fastmcp.exceptions import ToolError
@@ -349,6 +350,38 @@ class TestRelationshipConflicts:
             await service.update_entity_relationship(
                 user.id, other.id, EntityRelationshipUpdate(relationship_type="owns"),
             )
+
+
+# ----------------------------------------------------------------------------
+# graph listing keeps provenance
+# ----------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_get_all_entity_relationships_keeps_provenance(http_client, sqlite_app):
+    user = await _default_user(sqlite_app)
+    source = await _create_entity(http_client, name="A")
+    target = await _create_entity(http_client, name="B")
+    provenance = {
+        "source_repo": "org/repo",
+        "source_files": ["a.py", "b.py"],
+        "source_url": "https://example.com/src",
+        "encoding_agent": "claude-code",
+        "encoding_version": "1.2.3",
+        "agent_id": "agent-42",
+        "agent_version": "9.9",
+        "agent_model": "claude-opus",
+    }
+    created = await http_client.post(
+        f"/api/v1/entities/{source['id']}/relationships",
+        json={"target_entity_id": target["id"], "relationship_type": "owns", **provenance},
+    )
+    assert created.status_code == 201
+
+    relationships = await sqlite_app.entity_service.get_all_entity_relationships(user.id)
+
+    assert len(relationships) == 1
+    assert {key: getattr(relationships[0], key) for key in provenance} == provenance
 
 
 # ----------------------------------------------------------------------------
