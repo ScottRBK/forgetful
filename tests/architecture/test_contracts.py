@@ -12,6 +12,12 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 CASES = [
+    ("foundation", "app.models.write_plugin_models", "app.config.write_plugin"),
+    ("foundation", "app.protocols.write_plugin_protocol", "app.config.write_plugin"),
+    ("services", "app.services.write_plugin_service", "app.config.write_plugin"),
+    ("routes", "app.routes.mcp.handler", "app.config.write_plugin"),
+    ("routes", "app.routes.api.handler", "app.config.write_plugin"),
+    ("cli", "app.routes.cli.handler", "app.config.write_plugin"),
     ("foundation", "app.models.memory_models", "app.services.memory_service"),
     ("services", "app.services.re_embedding_service", "app.repositories.provider"),
     ("repositories", "app.repositories.provider", "app.services.memory_service"),
@@ -48,7 +54,9 @@ def write_config(root, options, contracts):
 
 def write_startup(root):
     """Keep the permitted startup imports present, including both CLI exceptions."""
-    write_module(root, "app.bootstrap", "import app.repositories\nimport app.services\n")
+    write_module(root, "app.bootstrap", (
+        "import app.repositories\nimport app.services\nimport app.config.write_plugin\n"
+    ))
     write_module(root, "app.routes.cli.local_executor", "import app.bootstrap\n")
     write_module(root, "app.routes.cli.context", "import app.bootstrap\n")
     write_module(root, "app.routes.cli.command", "import app.routes.cli.local_executor\n")

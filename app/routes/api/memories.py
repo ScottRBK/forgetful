@@ -11,14 +11,21 @@ from pydantic import ValidationError
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-from app.exceptions import NotFoundError
+from app.exceptions import (
+    NotFoundError,
+    WritePluginRejectedError,
+    WritePluginUnavailableError,
+)
 from app.middleware.auth import get_user_from_request
 from app.models.memory_models import (
     MemoryCreate,
-    MemoryCreateResponse,
     MemoryListResponse,
     MemoryQueryRequest,
     MemoryUpdate,
+)
+from app.routes.write_plugin_responses import (
+    MemoryCreateWriteResponse,
+    MemoryUpdateResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -190,16 +197,25 @@ def register(mcp: FastMCP):
         except Exception as e:
             return JSONResponse({"error": f"Invalid request body: {e!s}"}, status_code=400)
 
-        memory, similar_memories = await mcp.memory_service.create_memory(
-            user_id=user.id,
-            memory_data=memory_data,
-        )
+        try:
+            write_result = await mcp.memory_service.create_memory(
+                user_id=user.id,
+                memory_data=memory_data,
+            )
+        except WritePluginRejectedError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        except WritePluginUnavailableError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=503)
+        except ValidationError:
+            return JSONResponse({"error": "Invalid memory write candidate"}, status_code=400)
+        memory = write_result.memory
+        similar_memories = write_result.similar_memories
         obsolete_matches = await mcp.memory_service.find_obsolete_matches(
             user_id=user.id,
             memory_id=memory.id,
         )
 
-        response = MemoryCreateResponse(
+        response = MemoryCreateWriteResponse(
             id=memory.id,
             title=memory.title,
             linked_memory_ids=memory.linked_memory_ids,
@@ -209,6 +225,7 @@ def register(mcp: FastMCP):
             file_ids=memory.file_ids,
             similar_memories=similar_memories,
             obsolete_matches=obsolete_matches,
+            plugin_warnings=write_result.plugin_warnings,
         )
 
         return JSONResponse(response.model_dump(mode="json"), status_code=201)
@@ -232,18 +249,28 @@ def register(mcp: FastMCP):
             return JSONResponse({"error": f"Invalid request body: {e!s}"}, status_code=400)
 
         try:
-            memory = await mcp.memory_service.update_memory(
+            write_result = await mcp.memory_service.update_memory(
                 user_id=user.id,
                 memory_id=memory_id,
                 updated_memory=update_data,
             )
+            memory = write_result.memory
+        except WritePluginRejectedError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        except WritePluginUnavailableError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=503)
+        except ValidationError:
+            return JSONResponse({"error": "Invalid memory write candidate"}, status_code=400)
         except NotFoundError:
             return JSONResponse({"error": "Memory not found"}, status_code=404)
 
         if not memory:
             return JSONResponse({"error": "Memory not found"}, status_code=404)
 
-        return JSONResponse(memory.model_dump(mode="json"))
+        response = MemoryUpdateResponse(
+            **memory.model_dump(), plugin_warnings=write_result.plugin_warnings,
+        )
+        return JSONResponse(response.model_dump(mode="json"))
 
     @mcp.custom_route("/api/v1/memories/{memory_id}", methods=["DELETE"])
     async def delete_memory(request: Request) -> JSONResponse:

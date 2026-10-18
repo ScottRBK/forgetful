@@ -26,7 +26,13 @@ from app.models.memory_models import (
     MemoryUpdate,
     ObsoleteMatch,
 )
+from app.models.write_plugin_models import (
+    MemoryCreateResult,
+    MemoryUpdateResult,
+    MemoryWriteRequest,
+)
 from app.protocols.memory_protocol import MemoryRepository
+from app.services.write_plugin_service import WritePluginService
 from app.utils.provenance import (
     apply_provenance_defaults,
     apply_provenance_defaults_for_update,
@@ -49,9 +55,13 @@ class MemoryService:
     Optionally emits activity events via event bus for tracking.
     """
 
-    def __init__(self, memory_repo: MemoryRepository, event_bus: "EventBus | None" = None):
+    def __init__(
+        self, memory_repo: MemoryRepository, event_bus: "EventBus | None" = None,
+        write_plugin: WritePluginService | None = None,
+    ):
         self.memory_repo = memory_repo
         self._event_bus = event_bus
+        self._write_plugin = write_plugin
         logger.info("Memory service initialised")
 
     def register_access_tracking_handlers(self, event_bus: "EventBus") -> None:
@@ -171,14 +181,23 @@ class MemoryService:
             self,
             user_id: UUID,
             memory_data: MemoryCreate,
-    ) -> tuple[Memory, list[MemorySummary]]:
+    ) -> MemoryCreateResult:
         """Create a new memory in the system
 
         Args:
             user_id: User ID
             memory_data: Memory Create object with data to be created
         """
+        submitted = memory_data.model_copy(deep=True)
         memory_data = apply_provenance_defaults(memory_data)
+        plugin_warnings = []
+        if self._write_plugin:
+            plugin_warnings = await self._write_plugin.evaluate(MemoryWriteRequest(
+                operation="create", user_id=user_id, submitted=submitted, previous=None,
+                proposed=MemoryCreate.model_validate(
+                    memory_data.model_dump(include=set(MemoryCreate.model_fields)),
+                ),
+            ))
         memory = await self.memory_repo.create_memory(
             user_id=user_id,
             memory=memory_data,
@@ -232,14 +251,16 @@ class MemoryService:
             snapshot=memory.model_dump(mode="json"),
         )
 
-        return memory, similar_memories
+        return MemoryCreateResult(
+            memory=memory, similar_memories=similar_memories, plugin_warnings=plugin_warnings,
+        )
 
     async def update_memory(
             self,
             user_id: UUID,
             memory_id: int,
             updated_memory: MemoryUpdate,
-    ) -> Memory | None:
+    ) -> MemoryUpdateResult:
         """Update an existing memory
 
         Args:
@@ -247,6 +268,7 @@ class MemoryService:
             memory_id: memory_id of the memory being updated
             updated_memory: Memory Update object containing the data to be updated
         """
+        submitted = updated_memory.model_copy(deep=True)
         updated_memory = apply_provenance_defaults_for_update(updated_memory)
 
         existing_memory = await self.memory_repo.get_memory_by_id(
@@ -254,6 +276,8 @@ class MemoryService:
             user_id=user_id,
         )
 
+        if existing_memory is None:
+            return MemoryUpdateResult(memory=None)
 
         changed_fields = get_changed_fields(
             input_model=updated_memory,
@@ -266,7 +290,24 @@ class MemoryService:
                             "memory_id": memory_id,
                             "user_id": user_id,
                         })
-            return existing_memory
+            return MemoryUpdateResult(memory=existing_memory)
+
+        plugin_warnings = []
+        if self._write_plugin:
+            proposed_data = existing_memory.model_dump(include=set(MemoryCreate.model_fields))
+            updates = updated_memory.model_dump(exclude_unset=True)
+            # These relationships ignore null; scalar fields persist explicit nulls.
+            # skill_ids retains its existing repository limitation (issue #96).
+            relationships = {"project_ids", "code_artifact_ids", "document_ids", "file_ids"}
+            proposed_data.update({
+                key: value for key, value in updates.items()
+                if key not in relationships or value is not None
+            })
+            proposed = MemoryCreate.model_validate(proposed_data)
+            plugin_warnings = await self._write_plugin.evaluate(MemoryWriteRequest(
+                operation="update", user_id=user_id, submitted=submitted,
+                previous=existing_memory.model_copy(deep=True), proposed=proposed,
+            ))
 
         search_fields = {"title", "content", "context", "keywords", "tags"}
         search_fields_changed = bool(search_fields & changed_fields.keys())
@@ -294,7 +335,7 @@ class MemoryService:
                 changes=changes_dict,
             )
 
-        return modified_memory
+        return MemoryUpdateResult(memory=modified_memory, plugin_warnings=plugin_warnings)
 
     async def mark_memory_obsolete(
             self,

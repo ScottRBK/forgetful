@@ -223,6 +223,15 @@ class Runtime:
 
 async def build_runtime() -> Runtime:
     """Build the full runtime stack: adapters -> repos -> services -> registry -> scopes."""
+    from app.config.write_plugin import load_write_plugin
+    from app.services.write_plugin_service import WritePluginService
+
+    handler = load_write_plugin(settings)
+    write_plugin = (WritePluginService(
+        handler, mode=settings.MEMORY_WRITE_PLUGIN_MODE,
+        timeout_seconds=settings.MEMORY_WRITE_PLUGIN_TIMEOUT_SECONDS,
+    ) if handler is not None else None)
+
     check_first_run_models()
 
     embeddings_adapter = get_embedding_adapter()
@@ -237,6 +246,8 @@ async def build_runtime() -> Runtime:
         logger.info(f"Data directory ensured: {data_dir}")
 
     await db_adapter.init_db()
+    # Alembic fileConfig disables existing loggers; plugin failures must remain diagnosable.
+    logging.getLogger("app.services.write_plugin_service").disabled = False
     logger.info("Database initialized")
 
     repos = create_repositories(db_adapter, embeddings_adapter, reranker_adapter)
@@ -265,7 +276,7 @@ async def build_runtime() -> Runtime:
         logger.info("Activity tracking disabled (ACTIVITY_ENABLED=false) - API available but no events emitted")
 
     user_service = UserService(repos["user"])
-    memory_service = MemoryService(repos["memory"], event_bus=event_bus)
+    memory_service = MemoryService(repos["memory"], event_bus=event_bus, write_plugin=write_plugin)
     re_embedding_service = ReEmbeddingService(repos["memory"], embeddings_adapter)
     if event_bus is not None:
         memory_service.register_access_tracking_handlers(event_bus)

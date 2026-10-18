@@ -312,7 +312,11 @@ def register_memory_tools_metadata(
                     "example": "claude-sonnet-4-6",
                 },
             ],
-            "returns": "MemoryCreateResponse with id, title, linked_memory_ids, similar_memories, obsolete_matches",
+            "returns": (
+                "MemoryCreateResponse with id, title, linked_memory_ids, similar_memories, "
+                "obsolete_matches, and plugin_warnings only when nonempty. Write Plugin errors: "
+                "WRITE_PLUGIN_REJECTED (correct the stated issue) or WRITE_PLUGIN_UNAVAILABLE."
+            ),
             "examples": [
                 'execute_forgetful_tool("create_memory", {"title": "FastAPI auth pattern", "content": "Use JWT with httponly cookies...", "context": "Security decision", "keywords": ["auth", "jwt"], "tags": ["security"], "importance": 9})',
             ],
@@ -569,7 +573,11 @@ def register_memory_tools_metadata(
                     "example": "claude-sonnet-4-6",
                 },
             ],
-            "returns": "Full Memory object after update",
+            "returns": (
+                "Flat Memory object after update, with plugin_warnings only when nonempty. "
+                "Write Plugin errors: WRITE_PLUGIN_REJECTED (correct the stated issue) or "
+                "WRITE_PLUGIN_UNAVAILABLE. No-op updates skip the plugin."
+            ),
             "examples": [
                 'execute_forgetful_tool("update_memory", {"memory_id": 42, "importance": 9})',
                 'execute_forgetful_tool("update_memory", {"memory_id": 42, "content": "Updated content", "tags": ["revised", "important"]})',

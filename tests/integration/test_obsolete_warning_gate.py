@@ -18,8 +18,9 @@ async def test_find_obsolete_matches_enabled_returns_stub_matches(test_memory_se
         tags=["gate"],
         importance=8,
     )
-    old_mem, _ = await test_memory_service.create_memory(user_id, old_data)
-    replacement, _ = await test_memory_service.create_memory(
+    write_result = await test_memory_service.create_memory(user_id, old_data)
+    old_mem = write_result.memory
+    write_result = await test_memory_service.create_memory(
         user_id,
         MemoryCreate(
             title="Gate replacement",
@@ -30,6 +31,7 @@ async def test_find_obsolete_matches_enabled_returns_stub_matches(test_memory_se
             importance=8,
         ),
     )
+    replacement = write_result.memory
     await test_memory_service.memory_repo.mark_obsolete(
         user_id=user_id,
         memory_id=old_mem.id,
@@ -37,7 +39,7 @@ async def test_find_obsolete_matches_enabled_returns_stub_matches(test_memory_se
         superseded_by=replacement.id,
     )
 
-    new_mem, _ = await test_memory_service.create_memory(
+    write_result = await test_memory_service.create_memory(
         user_id,
         MemoryCreate(
             title="Gate new memory",
@@ -48,6 +50,7 @@ async def test_find_obsolete_matches_enabled_returns_stub_matches(test_memory_se
             importance=8,
         ),
     )
+    new_mem = write_result.memory
 
     matches = await test_memory_service.find_obsolete_matches(user_id, new_mem.id)
     assert matches
@@ -57,7 +60,7 @@ async def test_find_obsolete_matches_enabled_returns_stub_matches(test_memory_se
 @pytest.mark.asyncio
 async def test_find_obsolete_matches_enabled_uses_threshold(test_memory_service, mock_memory_repository):
     user_id = uuid4()
-    mem, _ = await test_memory_service.create_memory(
+    write_result = await test_memory_service.create_memory(
         user_id,
         MemoryCreate(
             title="Threshold spy",
@@ -68,6 +71,7 @@ async def test_find_obsolete_matches_enabled_uses_threshold(test_memory_service,
             importance=5,
         ),
     )
+    mem = write_result.memory
 
     spy = AsyncMock(return_value=[])
     mock_memory_repository.find_obsolete_matches = spy
@@ -81,7 +85,7 @@ async def test_find_obsolete_matches_enabled_uses_threshold(test_memory_service,
 @pytest.mark.asyncio
 async def test_find_obsolete_matches_disabled_skips_repo(test_memory_service, mock_memory_repository):
     user_id = uuid4()
-    mem, _ = await test_memory_service.create_memory(
+    write_result = await test_memory_service.create_memory(
         user_id,
         MemoryCreate(
             title="Disabled gate",
@@ -92,6 +96,7 @@ async def test_find_obsolete_matches_disabled_skips_repo(test_memory_service, mo
             importance=5,
         ),
     )
+    mem = write_result.memory
 
     spy = AsyncMock(return_value=[])
     mock_memory_repository.find_obsolete_matches = spy
@@ -109,7 +114,7 @@ async def test_find_obsolete_matches_disabled_skips_repo(test_memory_service, mo
 @pytest.mark.asyncio
 async def test_find_obsolete_matches_repo_error_returns_empty(test_memory_service, mock_memory_repository):
     user_id = uuid4()
-    mem, _ = await test_memory_service.create_memory(
+    write_result = await test_memory_service.create_memory(
         user_id,
         MemoryCreate(
             title="Error gate",
@@ -120,6 +125,7 @@ async def test_find_obsolete_matches_repo_error_returns_empty(test_memory_servic
             importance=5,
         ),
     )
+    mem = write_result.memory
 
     mock_memory_repository.find_obsolete_matches = AsyncMock(side_effect=RuntimeError("boom"))
 

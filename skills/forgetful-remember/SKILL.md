@@ -97,7 +97,15 @@ memories as entry points, each linked to the document via `document_ids`. Reusab
 becomes `create_code_artifact`, with a memory pointing at it when the *decision* behind the
 code matters too.
 
-Done when: the object exists, atomic, scored, and provenance-stamped where applicable.
+Review `plugin_warnings` on create/update success. The write already succeeded; report the warning
+and consider the stated correction without creating a duplicate. `WRITE_PLUGIN_REJECTED` means
+the write did not happen: correct the stated issue within the user's authorized scope before
+trying again. `WRITE_PLUGIN_UNAVAILABLE` means the configured check could not complete; report it.
+Do not automatically retry, invent new facts to satisfy a check, or claim a rejected write
+succeeded.
+
+Done when: the object exists, atomic, scored, provenance-stamped where applicable, and any Write
+Plugin warning has been reviewed.
 
 ## Step 5 — Link
 

@@ -231,3 +231,36 @@ def test_remote_unknown_tool_maps_to_exit_one(http_server_url, monkeypatch, caps
     assert code == 1
     assert out == ""
     assert "not found in registry" in err
+
+
+@pytest.fixture
+def warning_http_server_url(cli_remote_env, monkeypatch, tmp_path, request):
+    """Reuse the real HTTP fixture with a trusted plugin and deterministic embeddings."""
+    plugin_name = "remote_warning_plugin"
+    (tmp_path / f"{plugin_name}.py").write_text(
+        'from app.models.write_plugin_models import WriteDecision\n'
+        'async def check_write(request):\n'
+        '    return WriteDecision(outcome="warn", message="Check the remote source.")\n',
+    )
+    monkeypatch.syspath_prepend(str(tmp_path))
+    monkeypatch.setattr(settings, "MEMORY_WRITE_PLUGIN", f"{plugin_name}:check_write")
+    monkeypatch.setattr(settings, "MEMORY_WRITE_PLUGIN_MODE", "enforce")
+
+    class DeterministicEmbeddings:
+        async def generate_embedding(self, text):
+            return [1.0] + [0.0] * (settings.EMBEDDING_DIMENSIONS - 1)
+
+    monkeypatch.setattr("app.bootstrap.get_embedding_adapter", DeterministicEmbeddings)
+    monkeypatch.setattr("app.bootstrap.check_first_run_models", lambda: None)
+    yield request.getfixturevalue("http_server_url")
+    sys.modules.pop(plugin_name, None)
+
+
+def test_remote_memory_save_shows_plugin_warning(warning_http_server_url, monkeypatch, capsys):
+    code, out, _ = invoke_cli(monkeypatch, capsys, [
+        "memory", "save", "A remote fact", "--title", "Remote warning",
+        "--server", warning_http_server_url,
+    ])
+    assert code == 0
+    assert "Created memory" in out
+    assert "Warning: Check the remote source." in out

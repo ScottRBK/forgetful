@@ -29,7 +29,8 @@ async def test_unobsolete_restores_query_visibility_and_clears_fields(test_memor
         tags=["stub"],
         importance=5,
     )
-    mem, _ = await test_memory_service.create_memory(user_id=user_id, memory_data=mem_data)
+    write_result = await test_memory_service.create_memory(user_id=user_id, memory_data=mem_data)
+    mem = write_result.memory
     await test_memory_service.mark_memory_obsolete(
         user_id=user_id,
         memory_id=mem.id,
@@ -80,7 +81,8 @@ async def test_unobsolete_emits_updated_activity_event(test_memory_service_with_
         tags=["stub"],
         importance=5,
     )
-    mem, _ = await service.create_memory(user_id=user_id, memory_data=mem_data)
+    write_result = await service.create_memory(user_id=user_id, memory_data=mem_data)
+    mem = write_result.memory
     await service.mark_memory_obsolete(
         user_id=user_id,
         memory_id=mem.id,
@@ -118,7 +120,8 @@ async def test_unobsolete_active_memory_raises_invalid_state_transition(test_mem
         tags=["stub"],
         importance=5,
     )
-    mem, _ = await test_memory_service.create_memory(user_id=user_id, memory_data=mem_data)
+    write_result = await test_memory_service.create_memory(user_id=user_id, memory_data=mem_data)
+    mem = write_result.memory
 
     with pytest.raises(InvalidStateTransitionError, match="is not obsolete"):
         await test_memory_service.unobsolete_memory(user_id=user_id, memory_id=mem.id)
@@ -147,7 +150,8 @@ async def test_unobsolete_active_memory_emits_no_activity_event(test_memory_serv
         tags=["stub"],
         importance=5,
     )
-    mem, _ = await service.create_memory(user_id=user_id, memory_data=mem_data)
+    write_result = await service.create_memory(user_id=user_id, memory_data=mem_data)
+    mem = write_result.memory
     event_bus.collected_events.clear()
 
     with pytest.raises(InvalidStateTransitionError, match="is not obsolete"):
@@ -171,7 +175,8 @@ async def test_unobsolete_concurrent_restore_one_success_one_invalid_state(
         tags=["stub"],
         importance=5,
     )
-    mem, _ = await service.create_memory(user_id=user_id, memory_data=mem_data)
+    write_result = await service.create_memory(user_id=user_id, memory_data=mem_data)
+    mem = write_result.memory
     await service.mark_memory_obsolete(
         user_id=user_id,
         memory_id=mem.id,

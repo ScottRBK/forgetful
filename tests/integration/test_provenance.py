@@ -222,7 +222,7 @@ async def test_memory_service_applies_provenance_defaults(test_memory_service):
             mock_settings.AGENT_MODEL = "test-model"
             mock_settings.ENFORCE_ENV_OVERWRITE = False
 
-            memory, _similar = await test_memory_service.create_memory(
+            write_result = await test_memory_service.create_memory(
                 user_id=user_id,
                 memory_data=MemoryCreate(
                     title="provenance test",
@@ -232,6 +232,7 @@ async def test_memory_service_applies_provenance_defaults(test_memory_service):
                     tags=["test"],
                 ),
             )
+            memory = write_result.memory
 
         mock_apply.assert_called_once()
 

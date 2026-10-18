@@ -141,6 +141,20 @@ The object includes server-managed `access_count` (int, default 0) and `last_acc
 
 Create a new memory.
 
+A configured [Write Plugin](configuration.md#memory-write-plugin) can allow, warn, or reject the
+write before persistence. Successful create and update responses add `plugin_warnings` only when
+nonempty, for example:
+
+```json
+{"plugin_warnings": [{"outcome": "warn", "message": "Check the source.", "code": "source"}]}
+```
+
+This field augments the normal response; existing lists (including `obsolete_matches`) remain.
+Warnings are not stored or returned by reads, lists, queries, or events. In enforce mode, rejection
+returns **400** with `{"error": "<plugin message>"}`; failure/timeout returns **503** with
+`{"error": "Memory Write Plugin unavailable."}`. In warn mode both proceed with warnings.
+
+
 **Request Body:**
 ```json
 {
@@ -206,7 +220,9 @@ Update an existing memory.
 
 Provenance fields can be added or updated after memory creation. See POST /api/v1/memories for field descriptions.
 
-**Response:** Updated memory object
+**Response:** Flat updated memory object, with `plugin_warnings` only when nonempty (see create
+above). No-op updates skip the plugin. Write Plugin rejection returns 400; unavailable returns 503.
+An invalid merged candidate returns 400 through validation handling.
 
 ### DELETE /api/v1/memories/{id}
 

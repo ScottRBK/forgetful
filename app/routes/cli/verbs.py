@@ -77,7 +77,9 @@ async def _memory_save(executor, args) -> tuple[Any, str]:
         arguments["project_ids"] = [await resolve_project(executor, args.project)]
 
     payload = to_jsonable(await executor.execute("create_memory", arguments))
-    return payload, f"Created memory {payload['id']}: {payload['title']}"
+    lines = [f"Created memory {payload['id']}: {payload['title']}"]
+    lines.extend(f"Warning: {warning['message']}" for warning in payload.get("plugin_warnings", []))
+    return payload, "\n".join(lines)
 
 
 async def _memory_get(executor, args) -> tuple[Any, str]:

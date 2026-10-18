@@ -447,6 +447,91 @@ directory; the server-side session is untouched.
 
 ---
 
+## Memory Write Plugin
+
+An optional Write Plugin checks memory **create and update** before embeddings, persistence,
+automatic links, and events. Other operations are unaffected. Empty configuration disables it.
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `MEMORY_WRITE_PLUGIN` | empty | Importable `module:function` |
+| `MEMORY_WRITE_PLUGIN_MODE` | `enforce` | `warn` or `enforce` |
+| `MEMORY_WRITE_PLUGIN_TIMEOUT_SECONDS` | `5.0` | Positive, finite async deadline in seconds |
+
+Set `MEMORY_WRITE_PLUGIN=my_plugins.memory_checks:check_write` for the example below.
+Install your own Python module in the server's import environment. It must expose one `async def`
+function accepting a `MemoryWriteRequest` and returning a `WriteDecision`. The handler is loaded
+once per runtime, before model/database initialization. Invalid references, imports, synchronous
+handlers, or settings fail startup, even in warn mode. This is trusted administrator Python
+running inside the server, with the server's privileges. It is not a filesystem path, sandbox,
+or client-uploaded code. Restart the runtime after changing configuration or plugin code.
+
+```python
+# my_plugins/memory_checks.py (example administrator rule, not built into Forgetful)
+from app.models.write_plugin_models import MemoryWriteRequest, WriteDecision
+
+
+async def check_write(request: MemoryWriteRequest) -> WriteDecision:
+    if "blocked" in request.proposed.tags:
+        return WriteDecision(
+            outcome="reject", message="Remove the blocked tag.", code="blocked_tag",
+        )
+    return WriteDecision(outcome="allow")
+```
+
+| Decision | Enforce mode | Warn mode |
+| --- | --- | --- |
+| `allow` | Write normally | Write normally |
+| `warn` | Write with warning | Write with warning |
+| `reject` | Block write with plugin message | Write with downgraded warning |
+| Error, invalid result, timeout | Generic unavailable error | Unavailable warning |
+
+Use a nonblank, client-safe `message` for warn/reject and an optional stable `code`. Prefer the
+`WriteDecision` type; returned values are explicitly validated. There is no replacement payload
+or mutation support. Core provides no built-in site rules, LLM judge, chaining, or automatic retry.
+A handler may use its own deterministic checks or external decision service.
+
+The request contains:
+
+- `operation`: `create` or `update`; use this to distinguish operations (`Memory` inherits
+  `MemoryCreate`).
+- `user_id`: authenticated internal user ID, or the configured default user's internal ID.
+- `submitted`: parsed `MemoryCreate`/`MemoryUpdate`, before provenance defaults. Update field-set
+  information is preserved at this domain boundary; existing MCP coercion may already omit nulls.
+- `previous`: full `Memory` for update, including its ID, or `None` for create.
+- `proposed`: complete writable `MemoryCreate` after defaults and merging, without read-only IDs,
+  timestamps, or access counters.
+
+Each snapshot is separately deep detached. Changing one cannot change another or the pending
+write. The plugin receives no repository, database session, or FastMCP context. MemoryService
+retains validation, defaults, merging, persistence, automatic links, and post-write events.
+No-op updates skip the plugin and retain existing timestamp/event behavior.
+
+Update candidates follow existing persistence semantics: explicit scalar nulls are retained;
+null project/document/code-artifact/file relationship lists leave associations unchanged, while
+empty lists clear them. An invalid candidate uses normal validation handling before the plugin.
+Existing explicit-null REST/MCP differences (#95) and skill-link update limitations (#96) remain.
+The candidate does not guarantee referenced IDs exist or that a later database write will succeed.
+No database transaction is held across the plugin await; concurrent/global constraints are
+not atomic.
+
+The timeout is a cooperative asyncio deadline, not a sandbox or hard kill. Blocking Python and
+handlers that suppress cancellation can exceed it. Request cancellation propagates. Keep handlers
+asynchronous and make any downstream network calls with their own appropriate timeouts.
+
+Successful responses add `plugin_warnings` only when nonempty. Each entry has `outcome="warn"`,
+`message`, and optional `code` (serialized as null when absent). Existing empty lists and
+`obsolete_matches` are preserved. Reads, queries, and event snapshots have no transient warnings.
+The human CLI shows warnings alongside success; JSON puts them only in the response payload.
+Rejections exit nonzero. Existing CLI JSON errors are the last stderr line (startup libraries can
+also write diagnostics to stderr); successful JSON output remains on stdout.
+
+MCP and local CLI errors use `WRITE_PLUGIN_REJECTED` or `WRITE_PLUGIN_UNAVAILABLE` prefixes.
+REST returns 400 for rejection and 503 for unavailable. Unavailable messages are generic:
+`Memory Write Plugin unavailable.` Server diagnostics record operation, mode, and exception type,
+without exception text, tracebacks, or memory content. Plugin authors must likewise keep their
+returned messages and their own logs free of secrets and full memory contents.
+
 ## Memory Configuration
 
 These settings control the atomic memory system's behavior and constraints.
