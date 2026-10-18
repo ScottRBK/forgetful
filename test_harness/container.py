@@ -21,6 +21,7 @@ from os import chmod
 from pathlib import Path
 
 from test_harness.config import HarnessConfig
+from test_harness.safe_io import write_text
 from test_harness.server import HarnessInfraError
 from test_harness.walkthrough import SessionOutcome
 
@@ -289,7 +290,7 @@ class AgentContainer:
             # throws "I/O operation on closed file" at interpreter exit (mem 1645)
             stream._response.close()  # noqa: SLF001
         if log_path is not None:
-            log_path.write_text(buffer)
+            write_text(log_path, buffer, self.run_dir / "skills")
         return self._client.api.exec_inspect(exec_id)["ExitCode"], buffer
 
     def stop(self) -> None:

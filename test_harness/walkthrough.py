@@ -11,7 +11,6 @@ missing/malformed report) become recorded findings in meta.json.
 """
 import json
 import os
-import shutil
 import subprocess
 import tempfile
 import time
@@ -22,6 +21,13 @@ from typing import Any, Literal, Protocol
 from test_harness.config import HarnessConfig
 from test_harness.prompts import build_prompt
 from test_harness.report import ReportLoad, load_report
+from test_harness.safe_io import (
+    make_dirs,
+    read_bytes,
+    replace_tree,
+    write_bytes,
+    write_text,
+)
 from test_harness.server import HarnessInfraError
 
 FIXTURE_SKILL = "forgetful-encode-repo"  # the one skill that works on a git repo
@@ -73,13 +79,27 @@ class SkillRunResult:
 
 def prepare_workspace(skill_dir: Path, skill: str, skills_dir: Path) -> Path:
     """Create the agent's working directory: the SKILL.md under review, plus the
-    fixture repo when the skill needs an encoding target."""
+    fixture repo when the skill needs an encoding target.
+
+    `skill_dir` lives directly in the rw-mounted skills directory, so the agent may have
+    pre-planted symlinks anywhere below that directory: every write replaces them
+    instead of following them (see safe_io)."""
+    mount = skill_dir.parent
     workspace = skill_dir / "workspace"
-    workspace.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(skills_dir / skill / "SKILL.md", workspace / "SKILL.md")
+    make_dirs(workspace, mount)
+    write_bytes(workspace / "SKILL.md", (skills_dir / skill / "SKILL.md").read_bytes(), mount)
     if skill == FIXTURE_SKILL:
-        _build_fixture_repo(workspace / "fixture-repo")
+        _install_fixture_repo(workspace / "fixture-repo", mount)
     return workspace
+
+
+def _install_fixture_repo(dest: Path, mount: Path) -> None:
+    # Built and committed in a private scratch dir, then copied in as plain data: git
+    # (and any hook or config it could pick up) never runs inside the agent-writable tree
+    with tempfile.TemporaryDirectory(prefix="uat-fixture-") as scratch:
+        built = Path(scratch) / "fixture-repo"
+        _build_fixture_repo(built)
+        replace_tree(built, dest, mount)
 
 
 def _hermetic_git_env(home: Path) -> dict[str, str]:
@@ -146,13 +166,13 @@ def preflight_fixture_repo() -> None:
         _build_fixture_repo(Path(scratch) / "fixture-repo")
 
 
-def load_events(path: Path) -> list[dict[str, Any]]:
+def load_events(path: Path, root: Path | None = None) -> list[dict[str, Any]]:
     """Read the runner-written event log. The timeout kill can land mid-write, so a
-    torn (unparsable) line is dropped rather than failing the whole session read."""
-    if not path.is_file():
-        return []
+    torn (unparsable) line is dropped rather than failing the whole session read.
+    A missing, unreadable or symlinked log reads as no events; `root` is the rw-mounted
+    directory, below which no symlink is followed."""
     try:
-        lines = path.read_text().splitlines()
+        lines = read_bytes(path, root).decode("utf-8", errors="replace").splitlines()
     except OSError:
         return []
     events = []
@@ -192,6 +212,9 @@ class Walkthrough:
         self.runner = runner
         self.server_url = server_url
         self.run_dir = run_dir
+        # The rw-mounted tree the agent controls; host reads/writes below it never
+        # follow symlinks
+        self.mount = run_dir / "skills"
 
     async def run(self) -> list[SkillRunResult]:
         results = [await self.run_skill(skill) for skill in self.config.skills]
@@ -201,10 +224,10 @@ class Walkthrough:
     async def run_skill(self, skill: str) -> SkillRunResult:
         # Everything under skills/ is bind-mounted into the container; server-side
         # artifacts (forgetful.db, server.log) stay outside it at the run-dir root.
-        skill_dir = self.run_dir / "skills" / skill
+        skill_dir = self.mount / skill
         workspace = prepare_workspace(skill_dir, skill, self.config.skills_dir)
         prompt = build_prompt(skill)
-        (skill_dir / "prompt.txt").write_text(prompt)
+        write_text(skill_dir / "prompt.txt", prompt, self.mount)
         started = time.time()
 
         outcome = await self.runner.run_session(
@@ -215,7 +238,7 @@ class Walkthrough:
             timeout=self.config.timeout_for(skill),
         )
 
-        events = load_events(skill_dir / "events.jsonl")
+        events = load_events(skill_dir / "events.jsonl", self.mount)
         result_events = [e for e in events if e.get("type") == "result"]
         error_events = [e for e in events if e.get("type") == "error"]
 
@@ -235,7 +258,7 @@ class Walkthrough:
         result = SkillRunResult(
             skill=skill,
             status=status,
-            report_load=load_report(workspace / "report.json"),
+            report_load=load_report(workspace / "report.json", self.mount),
             breaches=scan_for_breaches(events),
             cost=terminal.get("cost") or 0.0,
             duration=terminal.get("duration") or time.time() - started,
@@ -243,7 +266,11 @@ class Walkthrough:
             session_id=terminal.get("session_id"),
             error=error,
         )
-        (skill_dir / "meta.json").write_text(json.dumps(self._meta(result, started), indent=2))
+        write_text(
+            skill_dir / "meta.json",
+            json.dumps(self._meta(result, started), indent=2),
+            self.mount,
+        )
         return result
 
     def _meta(self, result: SkillRunResult, started: float) -> dict[str, Any]:

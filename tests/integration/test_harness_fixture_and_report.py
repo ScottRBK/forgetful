@@ -13,13 +13,26 @@ import os
 import stat
 import subprocess
 import sys
+import threading
+from collections.abc import Callable
 from dataclasses import dataclass, field
+from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from test_harness.__main__ import main
 from test_harness.config import HarnessConfig
+from test_harness.container import AgentContainer
 from test_harness.report import load_report
+from test_harness.safe_io import (
+    UnsafePathError,
+    make_dirs,
+    read_bytes,
+    replace_tree,
+    write_bytes,
+    write_text,
+)
 from test_harness.server import HarnessInfraError
 from test_harness.walkthrough import (
     SessionOutcome,
@@ -392,3 +405,426 @@ def test_broken_git_fails_the_run_up_front_with_exit_code_2(tmp_path, monkeypatc
     assert exit_code == 2
     assert "cannot run git" in capsys.readouterr().err
     assert list(output.iterdir()) == []
+
+
+# --------------------------------------------------------------------------------------
+# The skills tree is mounted rw into the sandbox: the host must never follow its symlinks
+# --------------------------------------------------------------------------------------
+
+FIRST = "forgetful-remember"
+SECOND = "forgetful-recall"
+
+
+def plant_symlink(link: Path, target: Path) -> None:
+    try:
+        link.symlink_to(target)
+    except (OSError, NotImplementedError):
+        pytest.skip("cannot create symlinks on this platform/user")
+
+
+@dataclass
+class PlantingAgent:
+    """Stub runner playing an agent that sabotages the rw-mounted tree during its session
+    for `during` (what `mkdir` / `ln -s` from inside the container can do)."""
+
+    mount: Path
+    during: str
+    plant: Callable[[Path], None]
+
+    async def run_session(self, *, skill, skill_dir, workspace, prompt, timeout):
+        (skill_dir / "events.jsonl").write_text(json.dumps(OK_RESULT) + "\n")
+        if skill == self.during:
+            self.plant(self.mount)
+        return SessionOutcome(kind="ran")
+
+
+async def run_hostile_walkthrough(tmp_path, plant, skills=(FIRST, SECOND)):
+    """Walk `skills`; the agent runs `plant(mount)` at the end of the first session."""
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    walkthrough = Walkthrough(
+        config=HarnessConfig(skills=list(skills)),
+        runner=PlantingAgent(run_dir / "skills", skills[0], plant),
+        server_url=THROWAWAY_URL,
+        run_dir=run_dir,
+    )
+    results = await walkthrough.run()
+    return run_dir, {result.skill: result for result in results}
+
+
+@pytest.fixture
+def outside(tmp_path):
+    """Stands in for the host files an escaping agent would aim at (~/.bashrc, ~/.ssh)."""
+    directory = tmp_path / "outside-host"
+    directory.mkdir()
+    return directory
+
+
+async def test_symlinked_skill_md_does_not_overwrite_a_host_file(tmp_path, outside):
+    # Arrange: the agent plants workspace/SKILL.md -> a host file for the next skill
+    victim = outside / "bashrc"
+    victim.write_text("ORIGINAL HOST FILE\n")
+
+    def plant(mount):
+        (mount / SECOND / "workspace").mkdir(parents=True)
+        plant_symlink(mount / SECOND / "workspace" / "SKILL.md", victim)
+
+    # Act
+    run_dir, _ = await run_hostile_walkthrough(tmp_path, plant)
+
+    # Assert: the host file is intact; the workspace got its own regular copy
+    assert victim.read_text() == "ORIGINAL HOST FILE\n"
+    planted = run_dir / "skills" / SECOND / "workspace" / "SKILL.md"
+    assert not planted.is_symlink()
+    assert "name: forgetful-recall" in planted.read_text(encoding="utf-8")
+
+
+async def test_symlinked_prompt_and_meta_do_not_write_host_files(tmp_path, outside):
+    # Arrange: dangling links, so a followed write would *create* the host files
+    created_by_prompt = outside / "new_file_from_prompt"
+    created_by_meta = outside / "new_file_from_meta"
+
+    def plant(mount):
+        (mount / SECOND).mkdir()
+        plant_symlink(mount / SECOND / "prompt.txt", created_by_prompt)
+        plant_symlink(mount / SECOND / "meta.json", created_by_meta)
+
+    # Act
+    run_dir, _ = await run_hostile_walkthrough(tmp_path, plant)
+
+    # Assert
+    assert not created_by_prompt.exists()
+    assert not created_by_meta.exists()
+    second = run_dir / "skills" / SECOND
+    assert not (second / "prompt.txt").is_symlink()
+    assert not (second / "meta.json").is_symlink()
+    assert json.loads((second / "meta.json").read_text(encoding="utf-8"))["skill"] == SECOND
+
+
+async def test_symlinked_report_is_not_read_from_outside_the_run(tmp_path, outside):
+    # Arrange: workspace/report.json -> a host json file holding something secret
+    secret = outside / "host_secret.json"
+    secret.write_text(json.dumps({"verdict": "TOP-SECRET-HOST-DATA"}))
+
+    def plant(mount):
+        (mount / SECOND / "workspace").mkdir(parents=True)
+        plant_symlink(mount / SECOND / "workspace" / "report.json", secret)
+
+    # Act
+    run_dir, results = await run_hostile_walkthrough(tmp_path, plant)
+
+    # Assert: not parsed, not echoed into the result or meta.json
+    report_load = results[SECOND].report_load
+    assert report_load.status == "missing"
+    assert "symlink" in report_load.detail
+    meta = (run_dir / "skills" / SECOND / "meta.json").read_text(encoding="utf-8")
+    assert "TOP-SECRET-HOST-DATA" not in meta + report_load.detail
+
+
+async def test_symlinked_events_log_is_not_read_from_outside_the_run(tmp_path, outside):
+    # Arrange: the agent swaps its own events.jsonl for a link to a host jsonl whose
+    # error event would otherwise land verbatim in meta.json
+    host_log = outside / "host.jsonl"
+    host_log.write_text(json.dumps({"type": "error", "content": "TOP-SECRET-HOST-DATA"}) + "\n")
+
+    def plant(mount):
+        (mount / FIRST / "events.jsonl").unlink()
+        plant_symlink(mount / FIRST / "events.jsonl", host_log)
+
+    # Act
+    run_dir, results = await run_hostile_walkthrough(tmp_path, plant)
+
+    # Assert: reads as no events, so the session is an ordinary "no result" error
+    assert results[FIRST].status == "error"
+    assert "without a result event" in results[FIRST].error
+    meta = (run_dir / "skills" / FIRST / "meta.json").read_text(encoding="utf-8")
+    assert "TOP-SECRET-HOST-DATA" not in meta
+
+
+async def test_workspace_swapped_for_a_symlink_during_the_session_is_not_followed(
+    tmp_path, outside,
+):
+    # Arrange: after the host prepared it, the agent replaces its workspace dir with a link
+    # to a host directory that happens to hold a report.json
+    (outside / "report.json").write_text(
+        json.dumps({"skill": "x", "verdict": "pass", "steps": [], "issues": []}),
+    )
+
+    def plant(mount):
+        workspace = mount / FIRST / "workspace"
+        for entry in workspace.iterdir():
+            entry.unlink()
+        workspace.rmdir()
+        plant_symlink(workspace, outside)
+
+    # Act
+    _, results = await run_hostile_walkthrough(tmp_path, plant)
+
+    # Assert
+    assert results[FIRST].report_load.status == "missing"
+
+
+@pytest.mark.parametrize("planted", ["workspace", "skill_dir"])
+async def test_symlinked_directories_are_replaced_not_written_through(
+    tmp_path, outside, planted,
+):
+    # Arrange: the next skill's workspace (or whole dir) pre-planted as a link to a host dir
+    def plant(mount):
+        if planted == "workspace":
+            (mount / SECOND).mkdir()
+            plant_symlink(mount / SECOND / "workspace", outside)
+        else:
+            plant_symlink(mount / SECOND, outside)
+
+    # Act
+    run_dir, _ = await run_hostile_walkthrough(tmp_path, plant)
+
+    # Assert: nothing was written into the host directory; the run has real directories
+    assert list(outside.iterdir()) == []
+    workspace = run_dir / "skills" / SECOND / "workspace"
+    assert workspace.is_dir()
+    assert not workspace.is_symlink()
+    assert not (run_dir / "skills" / SECOND).is_symlink()
+    assert (workspace / "SKILL.md").is_file()
+
+
+async def test_symlinked_fixture_repo_never_runs_git_in_a_host_repository(tmp_path, outside):
+    # Arrange: the encode-repo fixture dir pre-planted as a link to a real host repository
+    host_repo = outside / "important-repo"
+    host_repo.mkdir()
+    git("init", "-q", cwd=host_repo)
+    git("config", "user.email", "me@example.com", cwd=host_repo)
+    git("config", "user.name", "Me", cwd=host_repo)
+    (host_repo / "work.txt").write_text("precious\n")
+    git("add", "-A", cwd=host_repo)
+    git("commit", "-q", "-m", "my work", cwd=host_repo)
+    head_before = git("rev-parse", "HEAD", cwd=host_repo)
+    config_before = (host_repo / ".git" / "config").read_text()
+
+    def plant(mount):
+        (mount / FIXTURE_SKILL / "workspace").mkdir(parents=True)
+        plant_symlink(mount / FIXTURE_SKILL / "workspace" / "fixture-repo", host_repo)
+
+    # Act
+    run_dir, _ = await run_hostile_walkthrough(tmp_path, plant, skills=(FIRST, FIXTURE_SKILL))
+
+    # Assert: the host repository is untouched and the agent got a genuine fixture repo
+    assert git("rev-parse", "HEAD", cwd=host_repo) == head_before
+    assert (host_repo / ".git" / "config").read_text() == config_before
+    assert sorted(path.name for path in host_repo.iterdir() if path.name != ".git") == [
+        "work.txt",
+    ]
+    fixture = run_dir / "skills" / FIXTURE_SKILL / "workspace" / "fixture-repo"
+    assert not fixture.is_symlink()
+    assert_committed_fixture(fixture)
+
+
+def make_fake_container(tmp_path):
+    """An AgentContainer wired to a fake docker client that streams one UTF-8 chunk."""
+
+    class Stream:
+        _response = SimpleNamespace(close=lambda: None)
+
+        def __iter__(self):
+            return iter(["session says ok \u2014 done".encode()])
+
+    api = SimpleNamespace(
+        exec_create=lambda container_id, cmd: {"Id": "exec-1"},
+        exec_start=lambda exec_id, stream: Stream(),
+        exec_inspect=lambda exec_id: {"ExitCode": 0},
+    )
+    run_dir = tmp_path / "run"
+    (run_dir / "skills" / FIRST).mkdir(parents=True)
+    container = AgentContainer(HarnessConfig(), run_dir, server_url=THROWAWAY_URL)
+    container._client = SimpleNamespace(api=api)  # noqa: SLF001
+    container._container = SimpleNamespace(id="container-1")  # noqa: SLF001
+    return container, run_dir / "skills" / FIRST
+
+
+def test_session_log_is_written_to_a_regular_file(tmp_path):
+    # Arrange
+    container, skill_dir = make_fake_container(tmp_path)
+
+    # Act
+    exit_code, _ = container._exec(["true"], skill_dir / "session.log")  # noqa: SLF001
+
+    # Assert
+    assert exit_code == 0
+    assert (skill_dir / "session.log").read_text(encoding="utf-8") == "session says ok \u2014 done"
+
+
+def test_symlinked_session_log_does_not_overwrite_a_host_file(tmp_path, outside):
+    # Arrange: the agent linked session.log to a host file before the exec output landed
+    container, skill_dir = make_fake_container(tmp_path)
+    victim = outside / "authorized_keys"
+    victim.write_text("ssh-rsa ORIGINAL\n")
+    plant_symlink(skill_dir / "session.log", victim)
+
+    # Act
+    container._exec(["true"], skill_dir / "session.log")  # noqa: SLF001
+
+    # Assert
+    assert victim.read_text() == "ssh-rsa ORIGINAL\n"
+    assert not (skill_dir / "session.log").is_symlink()
+
+
+# ---- safe_io primitives -------------------------------------------------------------
+
+
+def test_read_bytes_refuses_a_symlinked_parent_directory(tmp_path, outside):
+    # Arrange: root/linked -> outside, and outside/data holds bytes
+    (outside / "data").write_bytes(b"host bytes")
+    plant_symlink(tmp_path / "linked", outside)
+
+    # Act / Assert
+    with pytest.raises(UnsafePathError, match="symlink"):
+        read_bytes(tmp_path / "linked" / "data", tmp_path)
+
+
+def test_read_bytes_refuses_a_symlinked_file_even_without_a_root(tmp_path, outside):
+    # Arrange
+    (outside / "data").write_bytes(b"host bytes")
+    plant_symlink(tmp_path / "file", outside / "data")
+
+    # Act / Assert
+    with pytest.raises(UnsafePathError, match="symlink"):
+        read_bytes(tmp_path / "file")
+
+
+def test_read_bytes_reads_regular_files_and_reports_missing_ones(tmp_path):
+    # Arrange
+    (tmp_path / "nested").mkdir()
+    (tmp_path / "nested" / "data").write_bytes(b"\xe2\x80\x94")
+
+    # Act / Assert
+    assert read_bytes(tmp_path / "nested" / "data", tmp_path) == b"\xe2\x80\x94"
+    with pytest.raises(FileNotFoundError):
+        read_bytes(tmp_path / "nested" / "absent", tmp_path)
+    with pytest.raises(FileNotFoundError):
+        read_bytes(tmp_path / "absent" / "data", tmp_path)
+
+
+@posix_only
+def test_read_bytes_refuses_a_directory(tmp_path):
+    # Arrange
+    (tmp_path / "report.json").mkdir()
+
+    # Act / Assert
+    with pytest.raises(UnsafePathError, match="not a regular file"):
+        read_bytes(tmp_path / "report.json", tmp_path)
+
+
+@posix_only
+def test_load_report_ignores_a_directory_named_report_json(tmp_path):
+    # Arrange
+    (tmp_path / "report.json").mkdir()
+
+    # Act
+    outcome = load_report(tmp_path / "report.json", tmp_path)
+
+    # Assert: same finding as a missing report
+    assert outcome.status == "missing"
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="needs POSIX named pipes")
+def test_a_planted_fifo_does_not_block_the_host(tmp_path):
+    # Arrange: opening a FIFO for reading blocks until a writer shows up
+    fifo = tmp_path / "report.json"
+    os.mkfifo(fifo)
+    outcome = {}
+
+    def read():
+        try:
+            read_bytes(fifo, tmp_path)
+        except BaseException as exc:  # noqa: BLE001 - recorded for the assertions below
+            outcome["error"] = exc
+
+    reader = threading.Thread(target=read, daemon=True)
+
+    # Act
+    reader.start()
+    reader.join(timeout=5)
+    stuck = reader.is_alive()
+    if stuck:  # release the blocked open() so the daemon thread does not linger
+        os.close(os.open(fifo, os.O_RDWR))
+        reader.join(timeout=5)
+
+    # Assert
+    assert not stuck, "reading a FIFO blocked the host"
+    assert isinstance(outcome["error"], UnsafePathError)
+
+
+def test_write_bytes_replaces_a_planted_symlink_without_touching_its_target(
+    tmp_path, outside,
+):
+    # Arrange
+    victim = outside / "victim"
+    victim.write_text("ORIGINAL")
+    plant_symlink(tmp_path / "out.txt", victim)
+
+    # Act
+    write_bytes(tmp_path / "out.txt", b"new", tmp_path)
+
+    # Assert
+    assert victim.read_text() == "ORIGINAL"
+    assert (tmp_path / "out.txt").read_bytes() == b"new"
+    assert not (tmp_path / "out.txt").is_symlink()
+
+
+def test_write_text_overwrites_an_existing_regular_file_as_utf8(tmp_path):
+    # Arrange
+    (tmp_path / "out.txt").write_text("a much longer previous content", encoding="utf-8")
+
+    # Act
+    write_text(tmp_path / "out.txt", "short \u2014", tmp_path)
+
+    # Assert
+    assert (tmp_path / "out.txt").read_bytes() == "short \u2014".encode()
+
+
+def test_make_dirs_replaces_a_symlinked_component(tmp_path, outside):
+    # Arrange
+    plant_symlink(tmp_path / "a", outside)
+
+    # Act
+    make_dirs(tmp_path / "a" / "b", tmp_path)
+
+    # Assert
+    assert (tmp_path / "a" / "b").is_dir()
+    assert not (tmp_path / "a").is_symlink()
+    assert list(outside.iterdir()) == []
+
+
+def test_writes_outside_the_root_are_refused(tmp_path, outside):
+    # Arrange
+    root = tmp_path / "mount"
+    root.mkdir()
+
+    # Act / Assert
+    with pytest.raises(UnsafePathError, match="not inside"):
+        write_bytes(outside / "x", b"x", root)
+    assert list(outside.iterdir()) == []
+
+
+def test_replace_tree_swaps_whatever_the_agent_left_for_a_fresh_copy(tmp_path, outside):
+    # Arrange: a trusted source tree; the destination is a link to a populated host dir
+    source = tmp_path / "src"
+    (source / "inner").mkdir(parents=True)
+    (source / "inner" / "f.txt").write_text("fresh")
+    (outside / "keep.txt").write_text("host")
+    root = tmp_path / "mount"
+    root.mkdir()
+    plant_symlink(root / "dest", outside)
+
+    # Act
+    replace_tree(source, root / "dest", root)
+
+    # Assert
+    assert (root / "dest" / "inner" / "f.txt").read_text() == "fresh"
+    assert not (root / "dest").is_symlink()
+    assert [path.name for path in outside.iterdir()] == ["keep.txt"]
+
+    # and a directory the agent pre-populated is replaced, not merged
+    (root / "dest" / "stale.txt").write_text("agent")
+    replace_tree(source, root / "dest", root)
+    assert not (root / "dest" / "stale.txt").exists()

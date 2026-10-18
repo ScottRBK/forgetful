@@ -114,3 +114,10 @@ Three independent fences, outermost first:
 - **Tool scoping + breach scan** remain defence-in-depth: agent-shell's tool lists do
   not enforce under auto-approve, so the post-run scan flags any forgetful MCP tool
   use in the transcript.
+
+The `skills/` mount is the one tree both sides write, so the agent can plant symlinks in
+it (including in the directories of skills that have not run yet). Host-side reads and
+writes under it go through `safe_io.py`: a symlink is never followed — writes replace it
+with a regular file, reads ignore it (a symlinked `report.json` is reported as missing) —
+and the encode-repo fixture is committed in a private temp dir and copied in as plain
+data, so git never runs inside the agent-writable tree.

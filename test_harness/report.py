@@ -12,6 +12,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, ValidationError, field_validator
 
+from test_harness.safe_io import UnsafePathError, read_bytes
+
 _CONTRACT_EXAMPLE = {
     "skill": "forgetful-example",
     "verdict": "issues",
@@ -106,12 +108,17 @@ def report_contract_example() -> str:
     return json.dumps(_CONTRACT_EXAMPLE, indent=2)
 
 
-def load_report(path: Path) -> ReportLoad:
-    """Read and validate an agent-produced report; failures are findings, not errors."""
-    if not path.is_file():
-        return ReportLoad(status="missing", detail=f"no report at {path}")
+def load_report(path: Path, root: Path | None = None) -> ReportLoad:
+    """Read and validate an agent-produced report; failures are findings, not errors.
+
+    `root` is the agent-writable directory the report sits in: a report reached through
+    a symlink planted below it is ignored, never read."""
     try:
-        raw = json.loads(path.read_text())
+        raw = json.loads(read_bytes(path, root).decode("utf-8"))
+    except (FileNotFoundError, NotADirectoryError):
+        return ReportLoad(status="missing", detail=f"no report at {path}")
+    except UnsafePathError as exc:
+        return ReportLoad(status="missing", detail=f"report ignored: {exc}")
     except (OSError, ValueError, RecursionError) as exc:
         # ValueError covers JSONDecodeError, UnicodeDecodeError and the int digit limit;
         # RecursionError is pathological nesting; OSError an unreadable file
