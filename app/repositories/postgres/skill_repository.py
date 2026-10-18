@@ -133,7 +133,7 @@ class PostgresSkillRepository:
                 "Failed to check skill name existence",
                 extra={
                     "user_id": str(user_id),
-                    "name": name,
+                    "skill_name": name,
                 },
             )
             raise

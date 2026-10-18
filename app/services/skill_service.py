@@ -147,7 +147,7 @@ class SkillService:
         logger.info(
             "creating skill",
             extra={
-                "name": skill_data.name,
+                "skill_name": skill_data.name,
                 "user_id": str(user_id),
             },
         )

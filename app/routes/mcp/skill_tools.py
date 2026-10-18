@@ -96,7 +96,7 @@ def register(mcp: FastMCP):
             Complete Skill with ID, timestamps, and metadata
         """
         logger.info("MCP Tool Called -> create_skill", extra={
-            "name": name[:50],
+            "skill_name": name[:50],
             "importance": importance,
         })
 
