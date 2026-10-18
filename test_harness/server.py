@@ -3,7 +3,8 @@
 File-backed SQLite (in-memory dies at the process boundary), all feature flags on, no
 auth, FastEmbed with the default (warm) model cache. Env is injected at launch because
 settings freeze at import time in the child; cwd is the run directory so no repo-local
-.env leaks in. The server is the `forgetful` of the interpreter running the harness.
+.env leaks in. The server is the `forgetful` of the interpreter running the harness, and
+harness-to-server traffic is direct (loopback must never go through HTTP(S)_PROXY).
 Readiness = GET /health -> 200 (503 while initialising).
 
 Everything here is harness-side infrastructure: failures raise (trust boundary — never
@@ -30,10 +31,28 @@ class HarnessInfraError(RuntimeError):
     """The harness itself failed - not a finding about the agent or the docs."""
 
 
+def _direct_http_client(
+    headers: dict[str, str] | None = None,
+    timeout: httpx.Timeout | None = None,
+    auth: httpx.Auth | None = None,
+    **_: Any,
+) -> httpx.AsyncClient:
+    """httpx client that ignores HTTP(S)_PROXY / NO_PROXY: the throwaway server lives on
+    this host's loopback, which a proxy cannot reach."""
+    return httpx.AsyncClient(
+        headers=headers,
+        auth=auth,
+        timeout=httpx.Timeout(30.0, read=300.0) if timeout is None else timeout,
+        follow_redirects=True,
+        trust_env=False,
+    )
+
+
 def _plain_client_factory(url: str, token: str | None):
     from fastmcp import Client
+    from fastmcp.client.transports import StreamableHttpTransport
 
-    return Client(url)
+    return Client(StreamableHttpTransport(url, httpx_client_factory=_direct_http_client))
 
 
 def _server_executable() -> str:
@@ -120,7 +139,9 @@ class ThrowawayForgetful:
                     f"throwaway server exited during boot - see {self.run_dir / 'server.log'}",
                 )
             try:
-                if httpx.get(f"{self.url}/health", timeout=2).status_code == 200:
+                if httpx.get(
+                    f"{self.url}/health", timeout=2, trust_env=False,
+                ).status_code == 200:
                     return
             except httpx.HTTPError:
                 pass

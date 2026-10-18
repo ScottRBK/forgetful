@@ -7,14 +7,23 @@ be first on PATH, and not on proxy variables. Everything here is host-side mecha
 exercised without booting a server (the real boot lives in
 tests/e2e_sqlite/test_harness_throwaway_server_sqlite.py).
 """
+import asyncio
 import os
+import socket
 import sys
+import threading
+import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
 
 from test_harness import server as server_mod
-from test_harness.server import HarnessInfraError, ThrowawayForgetful
+from test_harness.server import (
+    HarnessInfraError,
+    ThrowawayForgetful,
+    _plain_client_factory,
+)
 
 # ---------------------------------------------------------------------------
 # Which forgetful is launched
@@ -134,3 +143,116 @@ def test_missing_console_script_is_a_harness_infra_error(
     with pytest.raises(HarnessInfraError, match="forgetful console script"):
         ThrowawayForgetful(run_dir).start()
     assert launched == []
+
+
+# ---------------------------------------------------------------------------
+# Loopback traffic must bypass HTTP(S)_PROXY
+# ---------------------------------------------------------------------------
+
+class _HealthyBackend(BaseHTTPRequestHandler):
+    def do_GET(self):  # noqa: N802
+        self.send_response(200 if self.path == "/health" else 404)
+        self.send_header("Content-Length", "2")
+        self.end_headers()
+        self.wfile.write(b"ok")
+
+    def log_message(self, *args):
+        pass
+
+
+def _unreachable_proxy(seen: list[str]):
+    """Forward-proxy handler that records what it is asked for and answers 502, as a
+    real proxy does for a host-local loopback address it cannot reach."""
+
+    class _Proxy(BaseHTTPRequestHandler):
+        def do_GET(self):  # noqa: N802
+            seen.append(self.path)  # absolute-form URI when used as a forward proxy
+            self.send_response(502)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+
+        do_POST = do_GET  # noqa: N815
+
+        def log_message(self, *args):
+            pass
+
+    return _Proxy
+
+
+def _serve(handler) -> ThreadingHTTPServer:
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    return httpd
+
+
+@pytest.fixture
+def proxy_requests(monkeypatch):
+    """Point HTTP_PROXY at a proxy that cannot reach loopback, with NO_PROXY unset."""
+    seen: list[str] = []
+    proxy = _serve(_unreachable_proxy(seen))
+    for var in ("NO_PROXY", "no_proxy", "ALL_PROXY", "all_proxy",
+                "HTTPS_PROXY", "https_proxy"):
+        monkeypatch.delenv(var, raising=False)
+    proxy_url = f"http://127.0.0.1:{proxy.server_address[1]}"
+    monkeypatch.setenv("HTTP_PROXY", proxy_url)
+    monkeypatch.setenv("http_proxy", proxy_url)
+    yield seen
+    proxy.shutdown()
+
+
+def test_health_probe_ignores_proxy_env(proxy_requests, tmp_path):
+    # Arrange: a perfectly healthy loopback server
+    backend = _serve(_HealthyBackend)
+    try:
+        server = ThrowawayForgetful(run_dir=tmp_path, boot_timeout=3)
+        server.port = backend.server_address[1]
+        server.process = _FakeProcess()
+
+        # Act
+        server._wait_until_healthy()
+    finally:
+        backend.shutdown()
+
+    # Assert: it was found healthy without ever involving the proxy
+    assert proxy_requests == []
+
+
+def test_seeding_client_ignores_proxy_env(proxy_requests):
+    # Arrange: a real MCP server over streamable HTTP on loopback
+    import uvicorn
+    from fastmcp import FastMCP
+
+    mcp = FastMCP("probe")
+
+    @mcp.tool
+    def ping() -> str:
+        return "pong"
+
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+    uv = uvicorn.Server(uvicorn.Config(
+        mcp.http_app(transport="http"), host="127.0.0.1", port=port, log_level="error",
+    ))
+    thread = threading.Thread(target=uv.run, daemon=True)
+    thread.start()
+    deadline = time.monotonic() + 10
+    while not uv.started and time.monotonic() < deadline:
+        time.sleep(0.05)
+    assert uv.started
+
+    async def list_tool_names():
+        client = _plain_client_factory(f"http://127.0.0.1:{port}/mcp", None)
+        async with client:
+            return [tool.name for tool in await client.list_tools()]
+
+    # Act
+    try:
+        names = asyncio.run(asyncio.wait_for(list_tool_names(), timeout=10))
+    finally:
+        uv.should_exit = True
+        thread.join(timeout=5)
+
+    # Assert
+    assert names == ["ping"]
+    assert proxy_requests == []
