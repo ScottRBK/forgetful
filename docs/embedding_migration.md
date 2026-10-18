@@ -158,6 +158,9 @@ Obsolete memories remain excluded from normal queries and automatic links. The t
 `rebuild_embeddings` tool still processes active memories only; use the full CLI rebuild for
 recovery.
 
+`rebuild_embeddings` rejects a `project_id` that does not exist or is not owned by the caller with a
+validation error instead of returning an empty result.
+
 ---
 
 ## Failure Handling

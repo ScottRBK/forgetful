@@ -284,6 +284,10 @@ class MemoryRepository(Protocol):
         """
         ...
 
+    async def project_exists_for_user(self, user_id: UUID, project_id: int) -> bool:
+        """Return True only if `project_id` exists and is owned by `user_id`."""
+        ...
+
     async def reset_embedding_storage(self) -> None:
         """Prepare vector storage for new dimensions.
         SQLite: DROP + CREATE vec_memories with new dimensions

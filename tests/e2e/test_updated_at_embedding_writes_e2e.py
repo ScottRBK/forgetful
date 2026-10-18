@@ -123,3 +123,24 @@ async def test_rebuild_targeted_keeps_updated_at(memory_repo, db_adapter):
     assert sorted(result.rebuilt_ids) == sorted(backdated)
     assert result.failed == []
     assert await _updated_at(memory_repo, user_id, backdated) == backdated
+
+
+@pytest.mark.e2e
+async def test_project_exists_for_user_is_owner_scoped(memory_repo, db_adapter):
+    owner_id, _ = await _seed(memory_repo, db_adapter, count=1)
+    other_id, _ = await _seed(memory_repo, db_adapter, count=1)
+    now = datetime.now(UTC)
+    async with db_adapter.system_session() as session:
+        project_id = (
+            await session.execute(
+                text(
+                    "INSERT INTO projects (user_id, name, description, project_type, status, created_at, updated_at) "
+                    "VALUES (:user_id, 'p', 'd', 'development', 'active', :now, :now) RETURNING id",
+                ),
+                {"user_id": str(owner_id), "now": now},
+            )
+        ).scalar_one()
+
+    assert await memory_repo.project_exists_for_user(user_id=owner_id, project_id=project_id)
+    assert not await memory_repo.project_exists_for_user(user_id=other_id, project_id=project_id)
+    assert not await memory_repo.project_exists_for_user(user_id=owner_id, project_id=project_id + 1000)

@@ -1098,6 +1098,16 @@ class PostgresMemoryRepository:
             count_stmt = select(func.count()).select_from(base.subquery())
             return (await session.execute(count_stmt)).scalar() or 0
 
+    async def project_exists_for_user(self, user_id: UUID, project_id: int) -> bool:
+        async with self.db_adapter.system_session() as session:
+            found = await session.execute(
+                select(ProjectsTable.id).where(
+                    ProjectsTable.id == project_id,
+                    ProjectsTable.user_id == user_id,
+                ),
+            )
+            return found.first() is not None
+
     async def get_memories_for_targeted_rebuild(
         self,
         user_id: UUID,

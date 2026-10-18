@@ -127,7 +127,16 @@ class ReEmbeddingService:
                 "pass null for global scope",
             )
 
-        if memory_ids is None or project_id is None:
+        if memory_ids is None:
+            if project_id is not None and not await self.memory_repository.project_exists_for_user(
+                user_id=user_id,
+                project_id=project_id,
+            ):
+                # One message for missing and foreign projects: do not reveal which ids exist.
+                raise ValueError(f"project_id={project_id} not found or not owned")
+            return
+
+        if project_id is None:
             return
 
         requested_count = len(set(memory_ids))

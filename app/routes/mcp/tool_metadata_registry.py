@@ -875,7 +875,8 @@ def register_memory_tools_metadata(
             ],
             "returns": (
                 "Dict with rebuilt_ids (List[int]), skipped_ids (List[int]), "
-                "failed (List[Dict[memory_id, reason]])"
+                "failed (List[Dict[memory_id, reason]]). "
+                "An unknown or foreign project_id is rejected with VALIDATION_ERROR"
             ),
             "examples": [
                 'execute_forgetful_tool("rebuild_embeddings", {"memory_ids": [123, 124]})',

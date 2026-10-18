@@ -805,7 +805,8 @@ def register(mcp: FastMCP):
 
         Returns:
             Dict with keys: rebuilt_ids (list[int]), skipped_ids (list[int]),
-            failed (list of {memory_id, reason}).
+            failed (list of {memory_id, reason}). An unknown or foreign
+            project_id raises VALIDATION_ERROR.
         """
         try:
             logger.info("MCP Tool -> rebuild_embeddings", extra={
