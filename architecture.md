@@ -85,8 +85,10 @@ Failures leave the meta-tools through [tool_errors.py](app/routes/mcp/tool_error
 argument errors keep their authored message, while database and other unexpected errors are logged
 server-side and reach the client only as a short generic sentence. The `linking` category of
 `discover_forgetful_tools` is a tag filter across the memory, entity, and skill link tools.
-Caller-supplied names are logged with `%r`; argument names are screened first because CPython
-copies an unknown keyword verbatim into the `TypeError` that the logs and traceback would carry.
+Caller-supplied names are logged with `%r` and quoted with `!r` inside `ToolError` text (FastMCP
+logs every failed tool call with a traceback that ends in that text); argument names are screened
+first because CPython copies an unknown keyword verbatim into the `TypeError` that the logs and
+traceback would carry.
 
 The full operation set is dynamic: feature flags and scopes affect what a caller sees.
 [tool_metadata_registry.py:874](app/routes/mcp/tool_metadata_registry.py#L874) constructs adapter

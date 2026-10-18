@@ -402,7 +402,7 @@ def build_discovery_payload(registry, permitted: set, category: str | None = Non
         except ValueError:
             valid_categories = [c.value for c in ToolCategory]
             raise ToolError(
-                f"Invalid category '{category}'. "
+                f"Invalid category {category!r}. "
                 f"Available categories: {', '.join(valid_categories)}",
             )
         tools_metadata = registry.get_permitted_by_category(cat_enum, permitted)
@@ -436,7 +436,7 @@ def build_tool_documentation(registry, permitted: set, tool_name: str) -> dict[s
     if not tool:
         available_tools = [m.name for m in registry.get_permitted_tools(permitted)[:10]]
         raise ToolError(
-            f"Tool '{tool_name}' not found in registry. "
+            f"Tool {tool_name!r} not found in registry. "
             f"Available tools (first 10): {', '.join(available_tools)}",
         )
 
@@ -473,7 +473,7 @@ def ensure_tool_executable(registry, permitted: set, tool_name: str) -> None:
     if not registry.tool_exists(tool_name):
         available_tools = [m.name for m in registry.get_permitted_tools(permitted)[:10]]
         raise ToolError(
-            f"Tool '{tool_name}' not found in registry. "
+            f"Tool {tool_name!r} not found in registry. "
             f"Available tools (first 10): {', '.join(available_tools)}",
         )
 
@@ -557,7 +557,7 @@ def register(mcp: FastMCP):
         except Exception as e:
             logger.error("how_to_use_forgetful_tool failed for %r: %r", tool_name, e, exc_info=True)
             raise ToolError(
-                f"Failed to get documentation for '{tool_name}': {client_error_detail(e)}",
+                f"Failed to get documentation for {tool_name!r}: {client_error_detail(e)}",
             )
 
     # -- execute_forgetful_tool --
@@ -594,7 +594,7 @@ def register(mcp: FastMCP):
             raise
         except Exception as e:
             logger.error("execute_forgetful_tool failed for %r: %r", tool_name, e, exc_info=True)
-            raise ToolError(f"Failed to execute '{tool_name}': {client_error_detail(e)}")
+            raise ToolError(f"Failed to execute {tool_name!r}: {client_error_detail(e)}")
 
     execute_forgetful_tool.__doc__ = execute_doc
     mcp.tool()(execute_forgetful_tool)

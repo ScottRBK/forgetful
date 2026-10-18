@@ -12,8 +12,10 @@ import sys
 
 import pytest
 from fastmcp.exceptions import ToolError
+from rich.logging import RichHandler
 
 from app.config import logging_config
+from app.routes.mcp import meta_tools
 from app.routes.mcp.meta_tools import _build_category_list
 from app.routes.mcp.tool_errors import CONSTRAINT_FAILURE, GENERIC_FAILURE
 
@@ -165,6 +167,8 @@ FORGED_RECORD = (
     "Authentication enabled (JWTVerifier) - extracting user from token"
 )
 FORGED_PREFIX = "2026-10-18 12:00:00 - app.middleware.auth - INFO"
+HOSTILE_MARKER = "FORGED-LINE-MARKER"
+HOSTILE_NAME = f"x\x1b[2J\x1b[31m\n{HOSTILE_MARKER}\rsecond"
 
 
 @pytest.fixture
@@ -188,6 +192,45 @@ def console_log(monkeypatch):
         root.setLevel(saved_level)
 
 
+@pytest.fixture
+def every_logger_log(console_log):
+    """``console_log`` with every logger enabled and FastMCP's own console output captured.
+
+    FastMCP logs each failed tool call (message and traceback) through ``fastmcp.server.server``
+    to its own Rich handlers, not the application's. Alembic's fileConfig (run by the app
+    fixture) disables every logger that exists at that point, so the capture is only complete
+    when all of them are switched back on. The Rich consoles look up ``sys.stderr`` at write
+    time and pytest swaps it back at the start of each phase, so they are pointed at a buffer
+    explicitly (wide, so that a long name is not folded across lines).
+    """
+    rich_buffer = io.StringIO()
+    loggers = [
+        logger for logger in logging.root.manager.loggerDict.values()
+        if isinstance(logger, logging.Logger)
+    ]
+    saved_disabled = [(logger, logger.disabled) for logger in loggers]
+    consoles = [
+        handler.console
+        for logger in loggers
+        for handler in logger.handlers
+        if isinstance(handler, RichHandler)
+    ]
+    saved_consoles = [(console, console._file, console._width) for console in consoles]
+    for logger in loggers:
+        logger.disabled = False
+    for console in consoles:
+        console.file = rich_buffer
+        console.width = 400
+    try:
+        yield lambda: console_log() + rich_buffer.getvalue()
+    finally:
+        for console, file, width in saved_consoles:
+            console.file = file
+            console.width = width
+        for logger, disabled in saved_disabled:
+            logger.disabled = disabled
+
+
 def _drain(buffer: io.StringIO) -> str:
     logging_config.shutdown_logging()
     return buffer.getvalue()
@@ -195,6 +238,17 @@ def _drain(buffer: io.StringIO) -> str:
 
 def forged_lines(text: str) -> list[str]:
     return [line for line in text.splitlines() if line.startswith(FORGED_PREFIX)]
+
+
+def assert_no_raw_control_characters(output: str, client_message: str) -> None:
+    """Neither the captured server output nor the client-facing error text may carry the
+    hostile name's ESC, CR or LF, or start a line with its marker."""
+    assert "\x1b[2J" not in output
+    assert "\r" not in output
+    assert not any(line.strip().startswith(HOSTILE_MARKER) for line in output.splitlines())
+    assert "\x1b" not in client_message
+    assert "\r" not in client_message
+    assert "\n" not in client_message
 
 
 async def ignore_tool_error(client, name: str, arguments: dict) -> None:
@@ -276,6 +330,70 @@ class TestLogInjection:
             "precondition: the registry failure is logged, so the poisoned-key tests cover it"
         )
         assert forged_lines(output) == []
+
+    @pytest.mark.parametrize(
+        ("meta_tool", "arguments", "error_text"),
+        [
+            ("how_to_use_forgetful_tool", {"tool_name": HOSTILE_NAME}, "not found in registry"),
+            (
+                "execute_forgetful_tool",
+                {"tool_name": HOSTILE_NAME, "arguments": {}},
+                "not found in registry",
+            ),
+            ("discover_forgetful_tools", {"category": HOSTILE_NAME}, "Invalid category"),
+        ],
+        ids=["how_to_use", "execute", "discover"],
+    )
+    async def test_server_error_log_and_client_error_carry_no_raw_control_characters(
+        self, mcp_client, every_logger_log, meta_tool, arguments, error_text,
+    ):
+        """FastMCP logs every failed tool call with its traceback, and the traceback ends in the
+        ToolError text, so the caller-supplied name must be escaped inside that text as well."""
+        with pytest.raises(ToolError) as caught:
+            await mcp_client.call_tool(meta_tool, arguments)
+
+        output = every_logger_log()
+
+        assert "Error calling tool" in output, "precondition: FastMCP logged the failed call"
+        assert error_text in output, "precondition: the traceback shows the ToolError text"
+        assert error_text in str(caught.value)
+        assert_no_raw_control_characters(output, str(caught.value))
+
+    @pytest.mark.parametrize(
+        ("meta_tool", "arguments", "error_text"),
+        [
+            (
+                "how_to_use_forgetful_tool",
+                {"tool_name": HOSTILE_NAME},
+                "Failed to get documentation for",
+            ),
+            (
+                "execute_forgetful_tool",
+                {"tool_name": HOSTILE_NAME, "arguments": {}},
+                "Failed to execute",
+            ),
+        ],
+        ids=["how_to_use", "execute"],
+    )
+    async def test_unexpected_failure_message_escapes_the_name_too(
+        self, mcp_client, every_logger_log, monkeypatch, meta_tool, arguments, error_text,
+    ):
+        """The catch-all wrapper of a meta-tool also quotes the tool name it was called with."""
+
+        def broken_scope_lookup(_ctx):
+            raise RuntimeError("scope lookup failed")
+
+        monkeypatch.setattr(meta_tools, "get_effective_scopes", broken_scope_lookup)
+
+        with pytest.raises(ToolError) as caught:
+            await mcp_client.call_tool(meta_tool, arguments)
+
+        output = every_logger_log()
+
+        assert "Error calling tool" in output, "precondition: FastMCP logged the failed call"
+        assert error_text in output, "precondition: the traceback shows the ToolError text"
+        assert error_text in str(caught.value)
+        assert_no_raw_control_characters(output, str(caught.value))
 
     async def test_regular_calls_still_log_the_tool_name(self, mcp_client, console_log):
         await execute(mcp_client, "list_projects", {})

@@ -217,7 +217,7 @@ class ToolRegistry:
         """
         tool = self.get_tool(name)
         if not tool:
-            raise ValueError(f"Tool '{name}' not found in registry")
+            raise ValueError(f"Tool {name!r} not found in registry")
 
         logger.debug("Executing tool: %r with args: %r", name, list(arguments.keys()))
 

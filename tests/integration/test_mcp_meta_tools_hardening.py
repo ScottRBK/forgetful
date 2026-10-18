@@ -5,6 +5,8 @@ Covers, with stubbed services and no database:
 - the per-category entity tools never put SQL, bound parameters or driver text in a ToolError.
 - ``discover_forgetful_tools`` honours the advertised ``linking`` category.
 - ``execute_forgetful_tool`` rejects argument names that cannot be keyword arguments.
+- an unknown tool or category name is quoted with ``repr`` inside the error text, so ESC, CR and
+  LF cannot reach the client or the server log (FastMCP logs every ToolError with a traceback).
 """
 
 from types import SimpleNamespace
@@ -27,6 +29,8 @@ from app.models.tool_registry_models import ToolCategory, ToolParameter
 from app.routes.mcp import entity_tools
 from app.routes.mcp.meta_tools import (
     build_discovery_payload,
+    build_tool_documentation,
+    ensure_tool_executable,
     reject_invalid_argument_names,
 )
 from app.routes.mcp.tool_errors import (
@@ -321,3 +325,65 @@ class TestRejectInvalidArgumentNames:
         assert repr(name) not in message
         if isinstance(name, str) and name:
             assert name not in message
+
+
+HOSTILE_NAME = "x\x1b[2J\n2026-10-18 12:00:00 - app.middleware.auth - INFO - forged\rsecond"
+
+
+def _assert_escaped(message: str) -> None:
+    assert "\x1b" not in message
+    assert "\n" not in message
+    assert "\r" not in message
+    assert repr(HOSTILE_NAME) in message
+
+
+class TestUnknownNamesAreQuoted:
+    """Caller-supplied names are written into error text with ``repr``."""
+
+    def test_unknown_category_message_is_escaped(self):
+        registry = _registry_with_link_tools()
+
+        with pytest.raises(ToolError) as caught:
+            build_discovery_payload(registry, set(), HOSTILE_NAME)
+
+        _assert_escaped(str(caught.value))
+        assert "Available categories:" in str(caught.value)
+
+    def test_unknown_tool_documentation_message_is_escaped(self):
+        registry = _registry_with_link_tools()
+
+        with pytest.raises(ToolError) as caught:
+            build_tool_documentation(registry, {"get_memory"}, HOSTILE_NAME)
+
+        _assert_escaped(str(caught.value))
+        assert "not found in registry" in str(caught.value)
+        assert "get_memory" in str(caught.value)
+
+    def test_unknown_tool_execution_message_is_escaped(self):
+        registry = _registry_with_link_tools()
+
+        with pytest.raises(ToolError) as caught:
+            ensure_tool_executable(registry, {"get_memory"}, HOSTILE_NAME)
+
+        _assert_escaped(str(caught.value))
+        assert "not found in registry" in str(caught.value)
+
+    async def test_registry_execute_error_is_escaped(self):
+        """The CLI local executor reaches ToolRegistry.execute with an operator-typed name."""
+        registry = _registry_with_link_tools()
+
+        with pytest.raises(ValueError) as caught:
+            await registry.execute(name=HOSTILE_NAME, arguments={})
+
+        _assert_escaped(str(caught.value))
+        assert "not found in registry" in str(caught.value)
+
+    def test_ordinary_names_keep_their_message(self):
+        registry = _registry_with_link_tools()
+
+        with pytest.raises(ToolError, match="Invalid category 'nothing'. Available categories: "):
+            build_discovery_payload(registry, set(), "nothing")
+        with pytest.raises(ToolError, match="Tool 'nothing' not found in registry. "):
+            build_tool_documentation(registry, set(), "nothing")
+        with pytest.raises(ToolError, match="Tool 'nothing' not found in registry. "):
+            ensure_tool_executable(registry, set(), "nothing")
