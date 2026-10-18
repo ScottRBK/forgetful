@@ -5,6 +5,7 @@ resolution, terminal-safe rendering of stored text, the obsolete marker in
 `memory get` and stdout encoding safety after a committed write.
 """
 import json
+import re
 import sys
 
 import pytest
@@ -25,6 +26,9 @@ _PATCHED_FIELDS = [
     "PLANNING_ENABLED",
     "ACTIVITY_ENABLED",
 ]
+
+RAW_CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f\u2028\u2029]")
+EVIL_TITLE = "evil\x1b[2J\x1b]0;pwned\x07\n#99  [10]  Fake injected row"
 
 
 @pytest.fixture
@@ -61,6 +65,14 @@ def _create_project(monkeypatch, capsys, name):
     )
     assert code == 0, err
     return json.loads(out)["id"]
+
+
+def _call_json(monkeypatch, capsys, tool, arguments):
+    code, out, err = invoke_cli(
+        monkeypatch, capsys, ["call", tool, "--args", json.dumps(arguments), "--json"],
+    )
+    assert code == 0, err
+    return json.loads(out)
 
 
 def test_exact_case_project_name_is_reachable_by_name(cli_env, monkeypatch, capsys):
@@ -137,3 +149,25 @@ def test_empty_project_value_is_rejected_and_nothing_is_saved(cli_env, monkeypat
     assert "Unknown project ''" in err
     _, recent_out, _ = invoke_cli(monkeypatch, capsys, ["memory", "recent", "--json"])
     assert json.loads(recent_out)["memories"] == []
+
+
+def test_recent_and_get_never_replay_stored_control_characters(cli_env, monkeypatch, capsys):
+    created = _call_json(monkeypatch, capsys, "create_memory", {
+        "title": EVIL_TITLE,
+        "content": "c\x1b[31mred\nsecond line",
+        "context": "ctx\x1b[2J",
+        "keywords": [],
+        "tags": ["tag\x07"],
+        "importance": 5,
+    })
+
+    code, out, err = invoke_cli(monkeypatch, capsys, ["memory", "recent"])
+    assert code == 0, err
+    assert not RAW_CONTROL.search(out.replace("\n", ""))
+    rows = [ln for ln in out.splitlines() if ln.startswith("#")]
+    assert len(rows) == 1, rows
+
+    code, out, err = invoke_cli(monkeypatch, capsys, ["memory", "get", str(created["id"])])
+    assert code == 0, err
+    assert not RAW_CONTROL.search(out.replace("\n", ""))
+    assert "second line" in out.splitlines()[-1]

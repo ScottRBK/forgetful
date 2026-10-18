@@ -5,10 +5,15 @@ project names, empty values), terminal-safe rendering of stored text, the obsole
 marker in `memory get` and stdout encoding safety. Verbs run against a recording
 executor, so no database or embedding model is involved.
 """
+import re
+
 import pytest
 
-from app.routes.cli import verbs
+from app.routes.cli import render, verbs
 from app.routes.cli.parser import build_parser
+
+RAW_CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f\u2028\u2029]")
+EVIL = "evil\x1b[2J\x1b]0;pwned\x07\n#99  [10]  Fake injected row"
 
 
 class RecordingExecutor:
@@ -140,3 +145,82 @@ async def test_empty_project_value_is_rejected_instead_of_dropping_the_scope(arg
         await verbs.run(executor, _args(argv))
 
     assert tool not in [name for name, _ in executor.calls]
+
+
+async def test_unknown_project_message_escapes_stored_project_names():
+    executor = _executor_with((4, "evil\x1b[2J\nname"))
+
+    with pytest.raises(verbs.CliError) as excinfo:
+        await verbs.resolve_project(executor, "nope")
+
+    assert not RAW_CONTROL.search(str(excinfo.value))
+    assert "evil\\x1b[2J\\nname" in str(excinfo.value)
+
+
+# -- terminal-safe rendering ----------------------------------------------------------
+
+
+def test_memory_lines_cannot_forge_extra_rows_or_emit_control_bytes():
+    output = render.render_memory_lines([{"id": 1, "title": EVIL, "importance": 5}])
+
+    assert not RAW_CONTROL.search(output)
+    assert len(output.splitlines()) == 1
+    assert output.startswith("#1  [5]  evil")
+    assert output.endswith("(memory 1)")
+    assert "\\x1b[2J" in output  # the attempt stays visible, just inert
+
+
+def test_memory_detail_escapes_control_characters_in_every_field():
+    memory = {
+        "id": 3,
+        "title": EVIL,
+        "importance": 5,
+        "tags": ["ok", "bad\x1b[31mtag\n"],
+        "context": "ctx\x1b[2J\r\nmore",
+        "content": "line one\n\tindented\r\nline three\x1b[31mred\x9b\u2028end\rboom",
+    }
+
+    output = render.render_memory_detail(memory)
+
+    assert not RAW_CONTROL.search(output.replace("\n", "").replace("\t", ""))
+    assert [ln for ln in output.splitlines() if ln.startswith("#")] == []
+    assert "Memory 3: evil" in output
+    assert "bad\\x1b[31mtag\\n" in output
+    # content keeps its own line structure (newline, tab, CRLF folded to LF)
+    assert "line one\n\tindented\nline three" in output
+    assert "\\x1b[31mred\\x9b\\u2028end\\rboom" in output
+
+
+def test_project_lines_escape_stored_names():
+    output = render.render_project_lines([
+        {"id": 1, "name": "Alpha\x1b[2J\n#2  Fake", "project_type": "development", "status": "active"},
+    ])
+
+    assert not RAW_CONTROL.search(output)
+    assert len(output.splitlines()) == 1
+
+
+async def test_save_confirmation_line_escapes_the_title():
+    executor = RecordingExecutor({"create_memory": {"id": 9, "title": EVIL}})
+
+    _, human = await verbs.run(executor, _args(["memory", "save", "body", "--title", EVIL]))
+
+    assert human.startswith("Created memory 9: evil")
+    assert not RAW_CONTROL.search(human)
+    assert len(human.splitlines()) == 1
+
+
+async def test_save_confirmation_keeps_plugin_warnings_as_escaped_single_lines():
+    executor = RecordingExecutor({"create_memory": {
+        "id": 9,
+        "title": "ok",
+        "plugin_warnings": [{"message": "Check the source.\x1b[2J\n#99  [10]  Fake row"}],
+    }})
+
+    _, human = await verbs.run(executor, _args(["memory", "save", "body", "--title", "ok"]))
+
+    lines = human.splitlines()
+    assert lines[0] == "Created memory 9: ok"
+    assert lines[1].startswith("Warning: Check the source.")
+    assert len(lines) == 2
+    assert not RAW_CONTROL.search(human)

@@ -11,6 +11,7 @@ from app.routes.cli.render import (
     render_memory_detail,
     render_memory_lines,
     render_project_lines,
+    sanitize_line,
     to_jsonable,
 )
 
@@ -37,7 +38,7 @@ def _pick_project(value: str, matches: list[dict]) -> int:
             for project in sorted(matches, key=lambda project: project["id"])
         )
         raise CliError(
-            f"Ambiguous project '{value}': matches {candidates}. Use the numeric id.",
+            f"Ambiguous project '{sanitize_line(value)}': matches {candidates}. Use the numeric id.",
         )
     return matches[0]["id"]
 
@@ -67,8 +68,8 @@ async def resolve_project(executor, value: str) -> int:
     if is_id:
         return int(value)
 
-    names = ", ".join(sorted(project["name"] for project in projects)) or "none"
-    raise CliError(f"Unknown project '{value}'. Available projects: {names}")
+    names = ", ".join(sorted(sanitize_line(project["name"]) for project in projects)) or "none"
+    raise CliError(f"Unknown project '{sanitize_line(value)}'. Available projects: {names}")
 
 
 async def run(executor, args) -> tuple[Any, str]:
@@ -112,8 +113,11 @@ async def _memory_save(executor, args) -> tuple[Any, str]:
         arguments["project_ids"] = [await resolve_project(executor, args.project)]
 
     payload = to_jsonable(await executor.execute("create_memory", arguments))
-    lines = [f"Created memory {payload['id']}: {payload['title']}"]
-    lines.extend(f"Warning: {warning['message']}" for warning in payload.get("plugin_warnings", []))
+    lines = [f"Created memory {payload['id']}: {sanitize_line(payload['title'])}"]
+    lines.extend(
+        f"Warning: {sanitize_line(warning['message'])}"
+        for warning in payload.get("plugin_warnings", [])
+    )
     return payload, "\n".join(lines)
 
 
