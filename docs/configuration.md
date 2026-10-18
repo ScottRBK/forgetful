@@ -367,6 +367,13 @@ When authentication is enabled, Forgetful automatically provisions users from to
 2. **Token Scopes**:
    - Define required scopes: `FASTMCP_SERVER_AUTH_*_REQUIRED_SCOPES`
    - Implement least-privilege access
+   - Forgetful narrows the tools a token can use from its `scope` (or `scp`) claim, given as a
+     space-separated string or a list. Forgetful scopes are `*`, `read`, `write`, `read:<category>`
+     and `write:<category>`, applied within the `FORGETFUL_SCOPES` ceiling. Any other scope
+     (`openid`, `email`, another API's scope) is ignored.
+   - A token that carries scopes but none of the Forgetful ones is denied every tool, so add one
+     (for example `*`) to tokens whose scopes are only verifier requirements such as `api:read`.
+     A token with no scope claim at all gets the full `FORGETFUL_SCOPES` ceiling.
 
 3. **Development vs Production**:
    ```bash

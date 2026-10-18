@@ -108,9 +108,10 @@ files, skills, plans, and tasks are conditional. The root service-info route sta
 or introspection providers, or no authentication. MCP identity comes from validated tokens or a
 default user ([auth.py:106](app/middleware/auth.py#L106)); HTTP identity has its own bearer-token
 verification/cache path ([auth.py:157](app/middleware/auth.py#L157)). Services receive an internal user ID.
-[scope_resolver.py:159](app/routes/mcp/scope_resolver.py#L159) intersects token permissions with
-the instance ceiling for MCP. Its empty-ceiling fallback permits all registered tools; do not
-interpret an empty set as deny-all. HTTP routes do not automatically inherit registry scope checks:
+[scope_resolver.py:162](app/routes/mcp/scope_resolver.py#L162) intersects token permissions with
+the instance ceiling for MCP. Token scopes come from the `scope`/`scp` claim; unrecognised scopes are
+ignored, and a claim with scopes but none recognised permits nothing. Its empty-ceiling fallback
+permits all registered tools; do not interpret an empty ceiling as deny-all. HTTP routes do not automatically inherit registry scope checks:
 inspect their own authorization path before assuming parity. This overview is not a security audit.
 
 ## Memory write, retrieval, and linking

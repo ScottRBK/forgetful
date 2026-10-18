@@ -51,7 +51,10 @@ disabled. See `docs/api_reference.md` for the capability document. MCP tool disc
 A local server defaults to no-auth single-user mode — connect and go. Deployed servers use
 bearer tokens or OAuth (the server's configured provider). `FORGETFUL_SCOPES` on the server
 side sets a capability ceiling (e.g. read-only) that both MCP and CLI honour; a client that
-should only recall can be scoped so writes are refused.
+should only recall can be scoped so writes are refused. A bearer token's own `scope`/`scp`
+claim narrows access further (unrelated scopes such as `openid` are ignored); a token whose
+scopes include no Forgetful scope (`*`, `read`, `write`, `read:<category>`, `write:<category>`)
+is refused every tool.
 
 ## Verify — the completion criterion
 
