@@ -68,17 +68,37 @@ class TokenCache:
             self._hits += 1
             return entry.user
 
-    async def set(self, token: str, user: User) -> None:
-        """Cache user for token."""
+    async def set(self, token: str, user: User, token_expires_at: float | None = None) -> None:
+        """Cache user for token.
+
+        Args:
+            token: Raw bearer token (only its hash is stored)
+            user: Provisioned user to cache
+            token_expires_at: Expiry (epoch seconds) reported by the token itself, if any.
+                The entry never outlives the token: its lifetime is the sooner of the
+                configured TTL and this value, and an already-expired token is not cached.
+        """
+        if self._max_size <= 0:
+            # A non-positive size means caching is disabled
+            return
+
+        now = time.time()
+        expires_at = now + self._ttl
+        if token_expires_at is not None:
+            if token_expires_at <= now:
+                return
+            expires_at = min(expires_at, float(token_expires_at))
+
         key = self._hash_token(token)
-        expires_at = time.time() + self._ttl
 
         async with self._lock:
-            # Evict oldest if at capacity
-            while len(self._cache) >= self._max_size:
-                self._cache.popitem(last=False)
+            # Evict oldest only when a new slot is needed (refreshing a key needs none)
+            if key not in self._cache:
+                while len(self._cache) >= self._max_size:
+                    self._cache.popitem(last=False)
 
             self._cache[key] = CacheEntry(user=user, expires_at=expires_at)
+            self._cache.move_to_end(key)
 
     async def invalidate(self, token: str) -> None:
         """Remove token from cache (for logout/revocation)."""
@@ -229,7 +249,8 @@ async def get_user_from_request(request: Request, mcp: FastMCP) -> User:
 
     # Cache the validated user
     if cache and settings.TOKEN_CACHE_ENABLED:
-        await cache.set(token, user)
+        # Cap the entry at the token's own expiry so a cache hit never outlives the token
+        await cache.set(token, user, token_expires_at=getattr(access_token, "expires_at", None))
         logger.debug(f"Token cached (TTL: {settings.TOKEN_CACHE_TTL_SECONDS}s)")
 
     return user
