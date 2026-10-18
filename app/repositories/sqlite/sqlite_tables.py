@@ -512,8 +512,8 @@ class ProjectsTable(Base):
     # Computed properties for Pydantic conversion
     @hybrid_property
     def memory_count(self) -> int:
-        """Return the count of memories linked to this project"""
-        return len(self.memories)
+        """Return the count of active (non-obsolete) memories linked to this project"""
+        return sum(1 for memory in self.memories if not memory.is_obsolete)
 
     __table_args__ = (
         Index("ix_projects_user_id", "user_id"),

@@ -3,8 +3,8 @@
 Covers:
 - list_entities pagination over DISTINCT entities when filtering by project_ids
 - project_ids=[] behaving as "no project filter" (as memory listing does)
-- soft-deleted (obsolete) memories being hidden from the entity memory lookup
-  and the skill link reverse lookup
+- soft-deleted (obsolete) memories being hidden from the entity memory lookup,
+  the skill link reverse lookup and the project memory_count
 """
 import pytest
 
@@ -238,3 +238,32 @@ async def test_skill_links_exclude_obsolete_memory(mcp_client):
     after = await _call(mcp_client, "get_skill_links", {"skill_id": skill_id})
     assert after.data["memory_ids"] == [kept]
     assert after.data["total_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_project_memory_count_excludes_obsolete_memories(http_client):
+    """memory_count on project list and detail counts only non-obsolete memories."""
+    project_id = await _create_project(http_client, "count-project")
+    other_project_id = await _create_project(http_client, "count-other-project")
+    kept = await _create_memory(http_client, "Counted memory", [project_id])
+    doomed = await _create_memory(http_client, "Doomed counted memory", [project_id, other_project_id])
+
+    async def counts() -> dict[int, tuple[int, int]]:
+        listing = (await http_client.get("/api/v1/projects")).json()["projects"]
+        by_id = {p["id"]: p["memory_count"] for p in listing}
+        detail = {}
+        for pid in (project_id, other_project_id):
+            detail[pid] = (await http_client.get(f"/api/v1/projects/{pid}")).json()["memory_count"]
+        return {pid: (by_id[pid], detail[pid]) for pid in (project_id, other_project_id)}
+
+    assert await counts() == {project_id: (2, 2), other_project_id: (1, 1)}
+
+    deleted = await http_client.request(
+        "DELETE", f"/api/v1/memories/{doomed}", json={"reason": "obsolete"},
+    )
+    assert deleted.status_code == 200, deleted.text
+
+    listing = (await http_client.get("/api/v1/memories", params={"project_ids": str(project_id)})).json()
+    assert [m["id"] for m in listing["memories"]] == [kept]
+
+    assert await counts() == {project_id: (1, 1), other_project_id: (0, 0)}

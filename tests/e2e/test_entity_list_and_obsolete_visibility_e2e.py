@@ -168,3 +168,24 @@ async def test_skill_links_exclude_obsolete_memory(mcp_client):
     links = await _call(mcp_client, "get_skill_links", {"skill_id": skill_id})
     assert links.data["memory_ids"] == [kept]
     assert links.data["total_count"] == 1
+
+
+@pytest.mark.e2e
+async def test_project_memory_count_excludes_obsolete_memories(http_client):
+    """memory_count on project list and detail counts only non-obsolete memories."""
+    project_id = await _create_project(http_client, "count-project")
+    await _create_memory(http_client, "Counted memory", [project_id])
+    doomed = await _create_memory(http_client, "Doomed counted memory", [project_id])
+
+    detail = (await http_client.get(f"/api/v1/projects/{project_id}")).json()
+    assert detail["memory_count"] == 2
+
+    deleted = await http_client.request(
+        "DELETE", f"/api/v1/memories/{doomed}", json={"reason": "obsolete"},
+    )
+    assert deleted.status_code == 200, deleted.text
+
+    detail = (await http_client.get(f"/api/v1/projects/{project_id}")).json()
+    listing = (await http_client.get("/api/v1/projects")).json()["projects"]
+    summary = next(p for p in listing if p["id"] == project_id)
+    assert (detail["memory_count"], summary["memory_count"]) == (1, 1)
