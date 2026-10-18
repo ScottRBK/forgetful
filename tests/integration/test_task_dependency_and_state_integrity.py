@@ -10,13 +10,20 @@ from uuid import uuid4
 
 import pytest
 
-from app.exceptions import ConflictError, CyclicDependencyError, NotFoundError
+from app.exceptions import (
+    ConflictError,
+    CyclicDependencyError,
+    DependencyNotMetError,
+    InvalidStateTransitionError,
+    NotFoundError,
+)
 from app.models.plan_models import (
     CriterionCreate,
     PlanCreate,
     PlanStatus,
     PlanUpdate,
     TaskCreate,
+    TaskState,
 )
 
 # ---------------------------------------------------------------------------
@@ -38,6 +45,19 @@ async def _task(task_service, user_id, plan_id, title="task", **extra):
     return await task_service.create_task(
         user_id=user_id, task_data=TaskCreate(title=title, plan_id=plan_id, **extra),
     )
+
+
+async def _move(task_service, user_id, task, state):
+    """Transition using the task's current version and return the refreshed task."""
+    current = await task_service.get_task(user_id=user_id, task_id=task.id)
+    return await task_service.transition_task(
+        user_id=user_id, task_id=task.id, new_state=state, expected_version=current.version,
+    )
+
+
+async def _finish(task_service, user_id, task):
+    await _move(task_service, user_id, task, TaskState.DOING)
+    return await _move(task_service, user_id, task, TaskState.DONE)
 
 
 # ---------------------------------------------------------------------------
@@ -184,3 +204,62 @@ async def test_concurrent_opposite_dependencies_cannot_form_a_cycle(test_task_se
     a_deps = await repo.get_dependencies(user_id, a.id)
     b_deps = await repo.get_dependencies(user_id, b.id)
     assert len(a_deps) + len(b_deps) == 1
+
+
+# ---------------------------------------------------------------------------
+# Dependencies are re-validated on DONE and edges respect the task state
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_doing_task_cannot_finish_while_a_late_prerequisite_is_unfinished(test_task_service):
+    task_service, plan_service = test_task_service
+    user_id = uuid4()
+    plan = await _active_plan(plan_service, user_id)
+    dependent = await _task(task_service, user_id, plan.id, "dependent")
+    prerequisite = await _task(task_service, user_id, plan.id, "prerequisite")
+    await _move(task_service, user_id, dependent, TaskState.DOING)
+    await task_service.add_dependency(
+        user_id=user_id, task_id=dependent.id, depends_on_task_id=prerequisite.id,
+    )
+
+    with pytest.raises(DependencyNotMetError):
+        await _move(task_service, user_id, dependent, TaskState.DONE)
+
+    await _finish(task_service, user_id, prerequisite)
+    done = await _move(task_service, user_id, dependent, TaskState.DONE)
+    assert done.state == TaskState.DONE
+
+
+@pytest.mark.asyncio
+async def test_dependent_cannot_finish_after_its_prerequisite_is_reopened(test_task_service):
+    task_service, plan_service = test_task_service
+    user_id = uuid4()
+    plan = await _active_plan(plan_service, user_id)
+    prerequisite = await _task(task_service, user_id, plan.id, "A")
+    dependent = await _task(task_service, user_id, plan.id, "B", dependency_ids=[prerequisite.id])
+    await _finish(task_service, user_id, prerequisite)
+    await _move(task_service, user_id, dependent, TaskState.DOING)
+    await _move(task_service, user_id, prerequisite, TaskState.TODO)
+
+    with pytest.raises(DependencyNotMetError, match="not done"):
+        await _move(task_service, user_id, dependent, TaskState.DONE)
+
+    assert (await task_service.get_task(user_id=user_id, task_id=dependent.id)).state == TaskState.DOING
+
+
+@pytest.mark.asyncio
+async def test_done_task_cannot_gain_a_dependency(test_task_service):
+    task_service, plan_service = test_task_service
+    user_id = uuid4()
+    plan = await _active_plan(plan_service, user_id)
+    finished = await _task(task_service, user_id, plan.id, "finished")
+    other = await _task(task_service, user_id, plan.id, "other")
+    await _finish(task_service, user_id, finished)
+
+    with pytest.raises(InvalidStateTransitionError, match="completed task"):
+        await task_service.add_dependency(
+            user_id=user_id, task_id=finished.id, depends_on_task_id=other.id,
+        )
+
+    assert (await task_service.get_task(user_id=user_id, task_id=finished.id)).dependency_ids == []

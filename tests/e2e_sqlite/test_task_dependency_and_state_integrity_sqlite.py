@@ -292,3 +292,49 @@ async def test_repository_alone_keeps_concurrent_opposite_edges_acyclic(file_sta
         a_deps = await repo.get_dependencies(stack.user_id, a.id)
         b_deps = await repo.get_dependencies(stack.user_id, b.id)
         assert len(a_deps) + len(b_deps) == 1
+
+
+# ---------------------------------------------------------------------------
+# Dependencies are re-validated on DONE and edges respect the task state
+# ---------------------------------------------------------------------------
+
+
+async def _rest_transition(http_client, task_id, state):
+    current = (await http_client.get(f"/api/v1/tasks/{task_id}")).json()
+    return await http_client.post(
+        f"/api/v1/tasks/{task_id}/transition", json={"state": state, "version": current["version"]},
+    )
+
+
+async def test_rest_task_cannot_finish_with_an_unfinished_prerequisite(http_client):
+    (plan_id,) = await _rest_project_and_plans(http_client)
+    dependent = await _rest_task(http_client, plan_id, "dependent")
+    prerequisite = await _rest_task(http_client, plan_id, "prerequisite")
+    assert (await _rest_transition(http_client, dependent["id"], "doing")).status_code == 200
+    added = await http_client.post(
+        f"/api/v1/tasks/{dependent['id']}/dependencies",
+        json={"depends_on_task_id": prerequisite["id"]},
+    )
+    assert added.status_code == 201, added.text
+
+    blocked = await _rest_transition(http_client, dependent["id"], "done")
+
+    assert blocked.status_code == 422, blocked.text
+    assert "not done" in blocked.json()["error"]
+    assert (await http_client.get(f"/api/v1/tasks/{dependent['id']}")).json()["state"] == "doing"
+
+
+async def test_rest_done_task_cannot_gain_a_dependency(http_client):
+    (plan_id,) = await _rest_project_and_plans(http_client)
+    finished = await _rest_task(http_client, plan_id, "finished")
+    other = await _rest_task(http_client, plan_id, "other")
+    assert (await _rest_transition(http_client, finished["id"], "doing")).status_code == 200
+    assert (await _rest_transition(http_client, finished["id"], "done")).status_code == 200
+
+    r = await http_client.post(
+        f"/api/v1/tasks/{finished['id']}/dependencies", json={"depends_on_task_id": other["id"]},
+    )
+
+    assert r.status_code == 422, r.text
+    listed = (await http_client.get(f"/api/v1/tasks?plan_id={plan_id}")).json()["tasks"]
+    assert next(t for t in listed if t["id"] == finished["id"])["blocked"] is False

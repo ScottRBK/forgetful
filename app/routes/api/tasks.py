@@ -304,6 +304,8 @@ def register(mcp: FastMCP):
             return JSONResponse({"error": str(e)}, status_code=400)
         except ConflictError as e:
             return JSONResponse({"error": str(e)}, status_code=409)
+        except InvalidStateTransitionError as e:
+            return JSONResponse({"error": str(e)}, status_code=422)
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=400)
 

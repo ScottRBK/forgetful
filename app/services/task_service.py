@@ -266,8 +266,9 @@ class TaskService:
                 f"Valid transitions: {[s.value for s in valid_targets]}",
             )
 
-        # If → doing: validate all dependencies are done
-        if new_state == TaskState.DOING:
+        # If → doing or done: validate all dependencies are done. Re-checked on done because
+        # an edge can be added, or a prerequisite reopened, while the task is in progress.
+        if new_state in (TaskState.DOING, TaskState.DONE):
             await self._validate_dependencies_met(user_id, task)
 
         # If → done: validate all criteria are met (tasks with zero criteria CAN be marked done)
@@ -403,6 +404,9 @@ class TaskService:
         dep_task = await self.task_repo.get_task_by_id(user_id=user_id, task_id=depends_on_task_id)
         if not dep_task:
             raise NotFoundError(f"Task with id {depends_on_task_id} not found")
+
+        if TaskState(task.state) == TaskState.DONE:
+            raise InvalidStateTransitionError("Cannot add dependencies to a completed task")
 
         # Validate same plan
         await self._validate_same_plan(user_id, depends_on_task_id, task.plan_id)
