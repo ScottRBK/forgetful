@@ -12,12 +12,16 @@ import pytest
 from sqlalchemy import select
 
 from app.config.settings import settings
+from app.exceptions import NotFoundError
 from app.models.memory_models import MemoryCreate, MemoryUpdate
 from app.models.user_models import UserCreate
 from app.repositories.postgres.postgres_tables import MemoryTable
 from app.utils.embedding_helpers import build_embedding_text
 
 pytestmark = pytest.mark.asyncio(loop_scope="session")
+
+# Larger than the INTEGER (int32) memory id column accepts
+OUT_OF_RANGE_ID = 99_999_999_999
 
 CREATE_BODY = {
     "title": "Memory for update consistency",
@@ -310,3 +314,101 @@ async def test_updates_beyond_the_pool_size_do_not_starve_other_requests(
         await asyncio.wait_for(repo.get_memory_by_id(user_id=user.id, memory_id=memory.id), timeout=1.0)
     finally:
         await asyncio.gather(*updates, return_exceptions=True)
+
+
+# ============================================================================
+# Ids outside the INTEGER range behave like any other unknown id
+# ============================================================================
+
+
+@pytest.mark.e2e
+async def test_repository_treats_out_of_range_memory_ids_as_unknown(
+    mcp_client, postgres_app, db_adapter, monkeypatch,
+):
+    user, repo, _embedder, memory = await _embedding_stack(postgres_app, db_adapter, monkeypatch)
+
+    with pytest.raises(NotFoundError):
+        await repo.get_memory_by_id(user_id=user.id, memory_id=OUT_OF_RANGE_ID)
+    with pytest.raises(NotFoundError):
+        await repo.mark_obsolete(
+            user_id=user.id, memory_id=memory.id, reason="gone", superseded_by=OUT_OF_RANGE_ID,
+        )
+    with pytest.raises(NotFoundError):
+        await repo.create_link(user_id=user.id, source_id=memory.id, target_id=OUT_OF_RANGE_ID)
+    with pytest.raises(NotFoundError):
+        await repo.create_link(user_id=user.id, source_id=OUT_OF_RANGE_ID, target_id=memory.id)
+    assert await repo.restore_obsolete(user_id=user.id, memory_id=OUT_OF_RANGE_ID) is False
+    assert await repo.unlink_memories(
+        user_id=user.id, source_id=memory.id, target_id=OUT_OF_RANGE_ID,
+    ) is False
+
+    still_active = await repo.get_memory_by_id(user_id=user.id, memory_id=memory.id)
+    assert still_active.is_obsolete is False
+
+
+@pytest.mark.e2e
+async def test_get_and_update_with_out_of_range_id_return_404(http_client):
+    got = await http_client.get(f"/api/v1/memories/{OUT_OF_RANGE_ID}")
+    assert got.status_code == 404, got.text
+
+    updated = await http_client.put(
+        f"/api/v1/memories/{OUT_OF_RANGE_ID}", json={"title": "does not exist"},
+    )
+    assert updated.status_code == 404, updated.text
+
+
+@pytest.mark.e2e
+@pytest.mark.parametrize("position", ["last", "first", "middle"])
+async def test_link_batch_skips_out_of_range_targets(http_client, position):
+    # Unrelated topics, so automatic linking on create does not link them already
+    source = await _create_memory(
+        http_client,
+        title="Espresso machine descaling",
+        content="Descale the boiler every three months with citric acid.",
+        context="Kitchen appliance care",
+        keywords=["espresso"],
+        tags=["kitchen"],
+    )
+    first = await _create_memory(
+        http_client,
+        title="Volcano hiking boots",
+        content="Waterproof boots with a stiff sole suit loose volcanic scree.",
+        context="Choosing outdoor gear",
+        keywords=["boots"],
+        tags=["hiking"],
+    )
+    second = await _create_memory(
+        http_client,
+        title="Quarterly tax filing",
+        content="Self-employed people file estimated taxes four times a year.",
+        context="Personal finance admin",
+        keywords=["taxes"],
+        tags=["finance"],
+    )
+    related_ids = {
+        "last": [first, second, OUT_OF_RANGE_ID],
+        "first": [OUT_OF_RANGE_ID, first, second],
+        "middle": [first, OUT_OF_RANGE_ID, second],
+    }[position]
+
+    response = await http_client.post(
+        f"/api/v1/memories/{source}/links", json={"related_ids": related_ids},
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["linked_ids"] == [first, second]
+    stored = await _get_memory(http_client, source)
+    assert sorted(stored["linked_memory_ids"]) == [first, second]
+
+
+@pytest.mark.e2e
+async def test_link_from_and_unlink_of_out_of_range_ids(http_client):
+    memory_id = await _create_memory(http_client)
+
+    linked = await http_client.post(
+        f"/api/v1/memories/{OUT_OF_RANGE_ID}/links", json={"related_ids": [memory_id]},
+    )
+    assert linked.status_code == 404, linked.text
+
+    unlinked = await http_client.delete(f"/api/v1/memories/{memory_id}/links/{OUT_OF_RANGE_ID}")
+    assert unlinked.status_code == 404, unlinked.text

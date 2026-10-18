@@ -36,6 +36,16 @@ logger = logging.getLogger(__name__)
 # Embedding attempts update_memory makes while other writers keep changing the same memory
 MAX_EMBEDDING_ATTEMPTS = 5
 
+# memories.id is an INTEGER column. asyncpg refuses to encode a larger value instead of matching
+# no row, which would surface as a DataError (HTTP 500) where SQLite simply reports "not found".
+_INT4_MIN = -(2**31)
+_INT4_MAX = 2**31 - 1
+
+
+def _fits_int4(*values: int) -> bool:
+    return all(_INT4_MIN <= value <= _INT4_MAX for value in values)
+
+
 class PostgresMemoryRepository:
     """Repository for Memory entity operations in Postgres
     """
@@ -436,6 +446,9 @@ class PostgresMemoryRepository:
         Returns:
             Memory Table object or None if not found
         """
+        if not _fits_int4(memory_id):
+            raise NotFoundError(f"Memory with id {memory_id} not found")
+
         stmt = (
             select(MemoryTable)
             .where(MemoryTable.user_id==user_id, MemoryTable.id==memory_id)
@@ -480,6 +493,11 @@ class PostgresMemoryRepository:
             NotFoundError: If memory not found or doesn't belong to user
             NotFoundError: If superseded_by memory not found or doesn't belong to user
         """
+        if not _fits_int4(memory_id):
+            raise NotFoundError(f"Memory {memory_id} not found")
+        if superseded_by and not _fits_int4(superseded_by):
+            raise NotFoundError(f"Superseding memory {superseded_by} not found")
+
         async with self.db_adapter.session(user_id) as session:
             if superseded_by:
                 superseding_stmt = select(MemoryTable).where(
@@ -518,6 +536,9 @@ class PostgresMemoryRepository:
 
         Returns True only when exactly one obsolete row was updated.
         """
+        if not _fits_int4(memory_id):
+            return False
+
         async with self.db_adapter.session(user_id) as session:
             stmt = (
                 update(MemoryTable)
@@ -707,6 +728,11 @@ class PostgresMemoryRepository:
             NotFoundError: If source or target memory not found
             IntegrityError: If link already exists
         """
+        if not _fits_int4(source_id):
+            raise NotFoundError(f"Source memory with id {source_id} not found")
+        if not _fits_int4(target_id):
+            raise NotFoundError(f"Target memory with id {target_id} not found")
+
         # Use a single session for the entire operation to avoid detached object issues
         async with self.db_adapter.session(user_id) as session:
             # Query both memories within the same session
@@ -814,6 +840,9 @@ class PostgresMemoryRepository:
             True if link was removed, False if link didn't exist
         """
         from sqlalchemy import and_, delete, or_
+
+        if not _fits_int4(source_id, target_id):
+            return False
 
         async with self.db_adapter.session(user_id) as session:
             # Delete both directions (source→target and target→source)
