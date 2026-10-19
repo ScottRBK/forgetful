@@ -101,7 +101,9 @@ async def test_after_failure_warns_without_failing_saved_create(write_store, mod
     bus.subscribe("memory.*", collect)
     plugin = MemoryPlugin(after_save={"create": after})
     service = MemoryService(
-        repo, bus, WritePluginService(plugin, mode=mode, timeout_seconds=0.01),
+        repo, bus, WritePluginService(
+            plugin, mode=mode, timeout_seconds=0.01 if failure == "timeout" else 5,
+        ),
     )
 
     result = await service.create_memory(user_id, candidate())
