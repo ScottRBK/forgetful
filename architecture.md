@@ -154,9 +154,12 @@ flat. Stored/read `Memory` and event snapshots are unchanged. The live MCP adapt
 for both meta-tools and local CLI; REST maps rejection to 400 and unavailable to 503. The legacy
 unregistered `memory_tools.py` only unwraps the changed internal results for compatibility; it is not
 a supported Write Plugin transport. CLI memory-save rendering shows warnings with success.
-Bootstrap restores the core plugin diagnostic logger after Alembic's existing logger-disabling setup.
-It also preserves pre-initialization enabled/disabled state for existing configured-module and
-handler-module loggers (including children and re-exports), without changing global logging setup.
+Alembic's `env.py` applies its logging config with `disable_existing_loggers=False`, so migrations no
+longer disable existing loggers. Bootstrap still keeps the core plugin diagnostic logger enabled and, after
+`init_db`, restores the pre-initialization enabled/disabled state of existing configured-module and
+handler-module loggers (including children and re-exports). The restore matters because `fileConfig`
+re-enables every existing logger it does not configure, including ones a plugin had deliberately
+muted. Global logging setup is not changed.
 Import diagnostics identify module/reference, phase, and exception type; neither import nor decision
 diagnostics expose original exception text or full memory snapshots.
 
