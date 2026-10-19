@@ -1,0 +1,769 @@
+{
+  "forgetful": [
+    {
+      "choices": null,
+      "default": null,
+      "flags": [
+        "-h",
+        "--help"
+      ],
+      "help": "show this help message and exit",
+      "nargs": 0,
+      "required": false,
+      "type": null
+    },
+    {
+      "choices": null,
+      "default": null,
+      "flags": [
+        "--version"
+      ],
+      "help": "show program's version number and exit",
+      "nargs": 0,
+      "required": false,
+      "type": null
+    }
+  ],
+  "forgetful auth": [
+    {
+      "choices": null,
+      "default": null,
+      "flags": [
+        "-h",
+        "--help"
+      ],
+      "help": "show this help message and exit",
+      "nargs": 0,
+      "required": false,
+      "type": null
+    }
+  ],
+  "forgetful auth login": [
+    {
+      "choices": null,
+      "default": null,
+      "flags": [
+        "-h",
+        "--help"
+      ],
+      "help": "show this help message and exit",
+      "nargs": 0,
+      "required": false,
+      "type": null
+    },
+    {
+      "choices": null,
+      "default": null,
+      "flags": [
+        "--server"
+      ],
+      "help": "Server URL",
+      "nargs": null,
+      "required": true,
+      "type": null
+    }
+  ],
+  "forgetful auth logout": [
+    {
+      "choices": null,
+      "default": null,
+      "flags": [
+        "-h",
+        "--help"
+      ],
+      "help": "show this help message and exit",
+      "nargs": 0,
+      "required": false,
+      "type": null
+    }
+  ],
+  "forgetful auth status": [
+    {
+      "choices": null,
+      "default": null,
+      "flags": [
+        "-h",
+        "--help"
+      ],
+      "help": "show this help message and exit",
+      "nargs": 0,
+      "required": false,
+      "type": null
+    }
+  ],
+  "forgetful call": [
+    {
+      "choices": null,
+      "default": null,
+      "flags": [
+        "-h",
+        "--help"
+      ],
+      "help": "show this help message and exit",
+      "nargs": 0,
+      "required": false,
+      "type": null
+    },
+    {
+      "choices": null,
+      "default": false,
+      "flags": [
+        "--json"
+      ],
+      "help": "Emit machine-readable JSON (errors become {\"error\": ...} on stderr)",
+      "nargs": 0,
+      "required": false,
+      "type": null
+    },
+    {
+      "choices": null,
+      "default": null,
+      "flags": [
+        "--server"
+      ],
+      "help": "Execute against a remote Forgetful deployment (beats FORGETFUL_SERVER)",
+      "nargs": null,
+      "required": false,
+      "type": null
+    },
+    {
+      "choices": null,
+      "default": false,
+      "flags": [
+        "--local"
+      ],
+      "help": "Force local mode even when FORGETFUL_SERVER is configured",
+      "nargs": 0,
+      "required": false,
+      "type": null
+    },
+    {
+      "choices": null,
+      "default": null,
+      "flags": [
+        "tool"
+      ],
+      "help": "Tool name",
+      "nargs": null,
+      "required": true,
+      "type": null
+    },
+    {
+      "choices": null,
+      "default": {},
+      "flags": [
+        "--args"
+      ],
+      "help": "Tool arguments as a JSON object",
+      "nargs": null,
+      "required": false,
+      "type": "_json_object"
+    }
+  ],
+  "forgetful memory": [
+    {
+      "choices": null,
+      "default": null,
+      "flags": [
+        "-h",
+        "--help"
+      ],
+      "help": "show this help message and exit",
+      "nargs": 0,
+      "required": false,
+      "type": null
+    }
+  ],
+  "forgetful memory get": [
+    {
+      "choices": null,
+      "default": null,
+      "flags": [
+        "-h",
+        "--help"
+      ],
+      "help": "show this help message and exit",
+      "nargs": 0,
+      "required": false,
+      "type": null
+    },
+    {
+      "choices": null,
+      "default": false,
+      "flags": [
+        "--json"
+      ],
+      "help": "Emit machine-readable JSON (errors become {\"error\": ...} on stderr)",
+      "nargs": 0,
+      "required": false,
+      "type": null
+    },
+    {
+      "choices": null,
+      "default": null,
+      "flags": [
+        "--server"
+      ],
+      "help": "Execute against a remote Forgetful deployment (beats FORGETFUL_SERVER)",
+      "nargs": null,
+      "required": false,
+      "type": null
+    },
+    {
+      "choices": null,
+      "default": false,
+      "flags": [
+        "--local"
+      ],
+      "help": "Force local mode even when FORGETFUL_SERVER is configured",
+      "nargs": 0,
+      "required": false,
+      "type": null
+    },
+    {
+      "choices": null,
+      "default": null,
+      "flags": [
+        "memory_id"
+      ],
+      "help": "Memory id",
+      "nargs": null,
+      "required": true,
+      "type": "int"
+    }
+  ],
+  "forgetful memory recent": [
+    {
+      "choices": null,
+      "default": null,
+      "flags": [
+        "-h",
+        "--help"
+      ],
+      "help": "show this help message and exit",
+      "nargs": 0,
+      "required": false,
+      "type": null
+    },
+    {
+      "choices": null,
+      "default": false,
+      "flags": [
+        "--json"
+      ],
+      "help": "Emit machine-readable JSON (errors become {\"error\": ...} on stderr)",
+      "nargs": 0,
+      "required": false,
+      "type": null
+    },
+    {
+      "choices": null,
+      "default": null,
+      "flags": [
+        "--server"
+      ],
+      "help": "Execute against a remote Forgetful deployment (beats FORGETFUL_SERVER)",
+      "nargs": null,
+      "required": false,
+      "type": null
+    },
+    {
+      "choices": null,
+      "default": false,
+      "flags": [
+        "--local"
+      ],
+      "help": "Force local mode even when FORGETFUL_SERVER is configured",
+      "nargs": 0,
+      "required": false,
+      "type": null
+    },
+    {
+      "choices": null,
+      "default": 10,
+      "flags": [
+        "-n",
+        "--limit"
+      ],
+      "help": "Number of memories to show (default: 10)",
+      "nargs": null,
+      "required": false,
+      "type": "int"
+    },
+    {
+      "choices": null,
+      "default": null,
+      "flags": [
+        "-p",
+        "--project"
+      ],
+      "help": "Project id or name filter",
+      "nargs": null,
+      "required": false,
+      "type": null
+    }
+  ],
+  "forgetful memory save": [
+    {
+      "choices": null,
+      "default": null,
+      "flags": [
+        "-h",
+        "--help"
+      ],
+      "help": "show this help message and exit",
+      "nargs": 0,
+      "required": false,
+      "type": null
+    },
+    {
+      "choices": null,
+      "default": false,
+      "flags": [
+        "--json"
+      ],
+      "help": "Emit machine-readable JSON (errors become {\"error\": ...} on stderr)",
+      "nargs": 0,
+      "required": false,
+      "type": null
+    },
+    {
+      "choices": null,
+      "default": null,
+      "flags": [
+        "--server"
+      ],
+      "help": "Execute against a remote Forgetful deployment (beats FORGETFUL_SERVER)",
+      "nargs": null,
+      "required": false,
+      "type": null
+    },
+    {
+      "choices": null,
+      "default": false,
+      "flags": [
+        "--local"
+      ],
+      "help": "Force local mode even when FORGETFUL_SERVER is configured",
+      "nargs": 0,
+      "required": false,
+      "type": null
+    },
+    {
+      "choices": null,
+      "default": null,
+      "flags": [
+        "content"
+      ],
+      "help": "Memory content",
+      "nargs": null,
+      "required": true,
+      "type": null
+    },
+    {
+      "choices": null,
+      "default": null,
+      "flags": [
+        "--title"
+      ],
+      "help": "Short scannable title",
+      "nargs": null,
+      "required": true,
+      "type": null
+    },
+    {
+      "choices": null,
+      "default": 5,
+      "flags": [
+        "--importance"
+      ],
+      "help": "Importance 1-10 (default: 5)",
+      "nargs": null,
+      "required": false,
+      "type": "int"
+    },
+    {
+      "choices": null,
+      "default": null,
+      "flags": [
+        "-p",
+        "--project"
+      ],
+      "help": "Project id or name to attach the memory to",
+      "nargs": null,
+      "required": false,
+      "type": null
+    }
+  ],
+  "forgetful memory search": [
+    {
+      "choices": null,
+      "default": null,
+      "flags": [
+        "-h",
+        "--help"
+      ],
+      "help": "show this help message and exit",
+      "nargs": 0,
+      "required": false,
+      "type": null
+    },
+    {
+      "choices": null,
+      "default": false,
+      "flags": [
+        "--json"
+      ],
+      "help": "Emit machine-readable JSON (errors become {\"error\": ...} on stderr)",
+      "nargs": 0,
+      "required": false,
+      "type": null
+    },
+    {
+      "choices": null,
+      "default": null,
+      "flags": [
+        "--server"
+      ],
+      "help": "Execute against a remote Forgetful deployment (beats FORGETFUL_SERVER)",
+      "nargs": null,
+      "required": false,
+      "type": null
+    },
+    {
+      "choices": null,
+      "default": false,
+      "flags": [
+        "--local"
+      ],
+      "help": "Force local mode even when FORGETFUL_SERVER is configured",
+      "nargs": 0,
+      "required": false,
+      "type": null
+    },
+    {
+      "choices": null,
+      "default": null,
+      "flags": [
+        "query"
+      ],
+      "help": "Search query",
+      "nargs": null,
+      "required": true,
+      "type": null
+    },
+    {
+      "choices": null,
+      "default": null,
+      "flags": [
+        "-c",
+        "--context"
+      ],
+      "help": "Why you are searching (required; improves ranking)",
+      "nargs": null,
+      "required": true,
+      "type": null
+    },
+    {
+      "choices": null,
+      "default": null,
+      "flags": [
+        "-n",
+        "--limit"
+      ],
+      "help": "Maximum number of memories to return",
+      "nargs": null,
+      "required": false,
+      "type": "int"
+    },
+    {
+      "choices": null,
+      "default": null,
+      "flags": [
+        "-p",
+        "--project"
+      ],
+      "help": "Project id or name to scope the search",
+      "nargs": null,
+      "required": false,
+      "type": null
+    }
+  ],
+  "forgetful project": [
+    {
+      "choices": null,
+      "default": null,
+      "flags": [
+        "-h",
+        "--help"
+      ],
+      "help": "show this help message and exit",
+      "nargs": 0,
+      "required": false,
+      "type": null
+    }
+  ],
+  "forgetful project list": [
+    {
+      "choices": null,
+      "default": null,
+      "flags": [
+        "-h",
+        "--help"
+      ],
+      "help": "show this help message and exit",
+      "nargs": 0,
+      "required": false,
+      "type": null
+    },
+    {
+      "choices": null,
+      "default": false,
+      "flags": [
+        "--json"
+      ],
+      "help": "Emit machine-readable JSON (errors become {\"error\": ...} on stderr)",
+      "nargs": 0,
+      "required": false,
+      "type": null
+    },
+    {
+      "choices": null,
+      "default": null,
+      "flags": [
+        "--server"
+      ],
+      "help": "Execute against a remote Forgetful deployment (beats FORGETFUL_SERVER)",
+      "nargs": null,
+      "required": false,
+      "type": null
+    },
+    {
+      "choices": null,
+      "default": false,
+      "flags": [
+        "--local"
+      ],
+      "help": "Force local mode even when FORGETFUL_SERVER is configured",
+      "nargs": 0,
+      "required": false,
+      "type": null
+    }
+  ],
+  "forgetful re-embed": [
+    {
+      "choices": null,
+      "default": null,
+      "flags": [
+        "-h",
+        "--help"
+      ],
+      "help": "show this help message and exit",
+      "nargs": 0,
+      "required": false,
+      "type": null
+    },
+    {
+      "choices": null,
+      "default": 20,
+      "flags": [
+        "--batch-size"
+      ],
+      "help": "Batch size for re-embedding (default: 20)",
+      "nargs": null,
+      "required": false,
+      "type": "int"
+    },
+    {
+      "choices": null,
+      "default": false,
+      "flags": [
+        "--dry-run"
+      ],
+      "help": "Show what would happen without making changes",
+      "nargs": 0,
+      "required": false,
+      "type": null
+    }
+  ],
+  "forgetful serve": [
+    {
+      "choices": null,
+      "default": null,
+      "flags": [
+        "-h",
+        "--help"
+      ],
+      "help": "show this help message and exit",
+      "nargs": 0,
+      "required": false,
+      "type": null
+    },
+    {
+      "choices": [
+        "http",
+        "stdio"
+      ],
+      "default": "stdio",
+      "flags": [
+        "--transport"
+      ],
+      "help": "Transport method (default: stdio for MCP clients)",
+      "nargs": null,
+      "required": false,
+      "type": null
+    },
+    {
+      "choices": null,
+      "default": "0.0.0.0",
+      "flags": [
+        "--host"
+      ],
+      "help": "HTTP host (default: 0.0.0.0)",
+      "nargs": null,
+      "required": false,
+      "type": null
+    },
+    {
+      "choices": null,
+      "default": 8020,
+      "flags": [
+        "--port"
+      ],
+      "help": "HTTP port (default: 8020)",
+      "nargs": null,
+      "required": false,
+      "type": "int"
+    }
+  ],
+  "forgetful tools": [
+    {
+      "choices": null,
+      "default": null,
+      "flags": [
+        "-h",
+        "--help"
+      ],
+      "help": "show this help message and exit",
+      "nargs": 0,
+      "required": false,
+      "type": null
+    }
+  ],
+  "forgetful tools info": [
+    {
+      "choices": null,
+      "default": null,
+      "flags": [
+        "-h",
+        "--help"
+      ],
+      "help": "show this help message and exit",
+      "nargs": 0,
+      "required": false,
+      "type": null
+    },
+    {
+      "choices": null,
+      "default": false,
+      "flags": [
+        "--json"
+      ],
+      "help": "Emit machine-readable JSON (errors become {\"error\": ...} on stderr)",
+      "nargs": 0,
+      "required": false,
+      "type": null
+    },
+    {
+      "choices": null,
+      "default": null,
+      "flags": [
+        "--server"
+      ],
+      "help": "Execute against a remote Forgetful deployment (beats FORGETFUL_SERVER)",
+      "nargs": null,
+      "required": false,
+      "type": null
+    },
+    {
+      "choices": null,
+      "default": false,
+      "flags": [
+        "--local"
+      ],
+      "help": "Force local mode even when FORGETFUL_SERVER is configured",
+      "nargs": 0,
+      "required": false,
+      "type": null
+    },
+    {
+      "choices": null,
+      "default": null,
+      "flags": [
+        "tool"
+      ],
+      "help": "Tool name",
+      "nargs": null,
+      "required": true,
+      "type": null
+    }
+  ],
+  "forgetful tools list": [
+    {
+      "choices": null,
+      "default": null,
+      "flags": [
+        "-h",
+        "--help"
+      ],
+      "help": "show this help message and exit",
+      "nargs": 0,
+      "required": false,
+      "type": null
+    },
+    {
+      "choices": null,
+      "default": false,
+      "flags": [
+        "--json"
+      ],
+      "help": "Emit machine-readable JSON (errors become {\"error\": ...} on stderr)",
+      "nargs": 0,
+      "required": false,
+      "type": null
+    },
+    {
+      "choices": null,
+      "default": null,
+      "flags": [
+        "--server"
+      ],
+      "help": "Execute against a remote Forgetful deployment (beats FORGETFUL_SERVER)",
+      "nargs": null,
+      "required": false,
+      "type": null
+    },
+    {
+      "choices": null,
+      "default": false,
+      "flags": [
+        "--local"
+      ],
+      "help": "Force local mode even when FORGETFUL_SERVER is configured",
+      "nargs": 0,
+      "required": false,
+      "type": null
+    },
+    {
+      "choices": null,
+      "default": null,
+      "flags": [
+        "--category"
+      ],
+      "help": "Filter by tool category (e.g. memory, project, entity)",
+      "nargs": null,
+      "required": false,
+      "type": null
+    }
+  ]
+}

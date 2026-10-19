@@ -1,0 +1,4185 @@
+{
+  "categories_available": [
+    "user",
+    "memory",
+    "project",
+    "code_artifact",
+    "document",
+    "entity",
+    "plan",
+    "task",
+    "file",
+    "skill"
+  ],
+  "filtered_by": null,
+  "tools_by_category": {
+    "code_artifact": [
+      {
+        "category": "code_artifact",
+        "description": "Create code artifact for storing reusable code snippets and patterns",
+        "example": "execute_forgetful_tool(\"create_code_artifact\", {\"title\": \"Helper function\", \"description\": \"Utility helper\", \"code\": \"def helper(): pass\", \"language\": \"python\"})",
+        "mutates": true,
+        "name": "create_code_artifact",
+        "parameters": {
+          "agent_id": {
+            "description": "Agent identity for provenance tracking",
+            "example": "CodeAgentUltra",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "agent_model": {
+            "description": "LLM model used for provenance tracking",
+            "example": "claude-sonnet-4-6",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "agent_version": {
+            "description": "Agent version for provenance tracking",
+            "example": "1.0",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "code": {
+            "description": "The actual code content",
+            "example": "async def jwt_middleware(request, call_next): ...",
+            "required": true,
+            "type": "str"
+          },
+          "confidence": {
+            "description": "Encoding confidence score (0.0-1.0) for provenance tracking",
+            "example": 0.85,
+            "required": false,
+            "type": "Optional[float]"
+          },
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "description": {
+            "description": "What the code does and when to use it",
+            "example": "FastAPI middleware for JWT authentication",
+            "required": true,
+            "type": "str"
+          },
+          "encoding_agent": {
+            "description": "Software running the agent for provenance tracking",
+            "example": "OpenCode",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "encoding_version": {
+            "description": "Version of encoding software for provenance tracking",
+            "example": "1.0.0",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "language": {
+            "description": "Programming language (python, javascript, typescript, etc.)",
+            "example": "python",
+            "required": true,
+            "type": "str"
+          },
+          "project_id": {
+            "description": "Link to project",
+            "example": 1,
+            "required": false,
+            "type": "Optional[int]"
+          },
+          "source_files": {
+            "description": "Files that informed this for provenance tracking",
+            "example": [
+              "src/main.py"
+            ],
+            "required": false,
+            "type": "Optional[List[str]]"
+          },
+          "source_repo": {
+            "description": "Repository/project source for provenance tracking",
+            "example": "owner/repo",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "source_url": {
+            "description": "URL to source material for provenance tracking",
+            "example": "https://example.com",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "tags": {
+            "description": "Tags for categorization",
+            "example": [
+              "middleware",
+              "auth"
+            ],
+            "required": false,
+            "type": "Optional[List[str]]"
+          },
+          "title": {
+            "description": "Artifact title",
+            "example": "JWT Middleware",
+            "required": true,
+            "type": "str"
+          }
+        },
+        "returns": "CodeArtifact with id and timestamps"
+      },
+      {
+        "category": "code_artifact",
+        "description": "Retrieve code artifact by ID with complete details",
+        "example": "execute_forgetful_tool(\"get_code_artifact\", {\"artifact_id\": 1})",
+        "mutates": false,
+        "name": "get_code_artifact",
+        "parameters": {
+          "artifact_id": {
+            "description": "ID of the artifact to retrieve",
+            "example": 1,
+            "required": true,
+            "type": "int"
+          },
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          }
+        },
+        "returns": "Complete CodeArtifact object"
+      },
+      {
+        "category": "code_artifact",
+        "description": "List code artifacts with optional filtering by project, language, or tags",
+        "example": "execute_forgetful_tool(\"list_code_artifacts\", {})",
+        "mutates": false,
+        "name": "list_code_artifacts",
+        "parameters": {
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "language": {
+            "description": "Filter by language",
+            "example": "python",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "project_id": {
+            "description": "Filter by project",
+            "example": 1,
+            "required": false,
+            "type": "Optional[int]"
+          },
+          "tags": {
+            "description": "Filter by tags",
+            "example": [
+              "auth",
+              "middleware"
+            ],
+            "required": false,
+            "type": "Optional[List[str]]"
+          }
+        },
+        "returns": "Dictionary with artifacts list and count"
+      },
+      {
+        "category": "code_artifact",
+        "description": "Update code artifact (PATCH semantics - only provided fields changed)",
+        "example": "execute_forgetful_tool(\"update_code_artifact\", {\"artifact_id\": 1, \"tags\": [\"updated\", \"refactored\"]})",
+        "mutates": true,
+        "name": "update_code_artifact",
+        "parameters": {
+          "agent_id": {
+            "description": "Agent identity for provenance tracking",
+            "example": "CodeAgentUltra",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "agent_model": {
+            "description": "LLM model used for provenance tracking",
+            "example": "claude-sonnet-4-6",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "agent_version": {
+            "description": "Agent version for provenance tracking",
+            "example": "1.0",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "artifact_id": {
+            "description": "ID of the artifact to update",
+            "example": 1,
+            "required": true,
+            "type": "int"
+          },
+          "code": {
+            "description": "New code",
+            "example": "def updated(): pass",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "confidence": {
+            "description": "Encoding confidence score (0.0-1.0) for provenance tracking",
+            "example": 0.85,
+            "required": false,
+            "type": "Optional[float]"
+          },
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "description": {
+            "description": "New description",
+            "example": "Updated description",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "encoding_agent": {
+            "description": "Software running the agent for provenance tracking",
+            "example": "OpenCode",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "encoding_version": {
+            "description": "Version of encoding software for provenance tracking",
+            "example": "1.0.0",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "language": {
+            "description": "New language",
+            "example": "typescript",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "project_id": {
+            "description": "New project link",
+            "example": 2,
+            "required": false,
+            "type": "Optional[int]"
+          },
+          "source_files": {
+            "description": "Files that informed this for provenance tracking",
+            "example": [
+              "src/main.py"
+            ],
+            "required": false,
+            "type": "Optional[List[str]]"
+          },
+          "source_repo": {
+            "description": "Repository/project source for provenance tracking",
+            "example": "owner/repo",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "source_url": {
+            "description": "URL to source material for provenance tracking",
+            "example": "https://example.com",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "tags": {
+            "description": "New tags (replaces existing)",
+            "example": [
+              "updated"
+            ],
+            "required": false,
+            "type": "Optional[List[str]]"
+          },
+          "title": {
+            "description": "New title",
+            "example": "Updated title",
+            "required": false,
+            "type": "Optional[str]"
+          }
+        },
+        "returns": "Updated CodeArtifact object"
+      },
+      {
+        "category": "code_artifact",
+        "description": "Delete code artifact (cascades memory associations)",
+        "example": "execute_forgetful_tool(\"delete_code_artifact\", {\"artifact_id\": 1})",
+        "mutates": true,
+        "name": "delete_code_artifact",
+        "parameters": {
+          "artifact_id": {
+            "description": "ID of the artifact to delete",
+            "example": 1,
+            "required": true,
+            "type": "int"
+          },
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          }
+        },
+        "returns": "Dictionary with deletion confirmation"
+      }
+    ],
+    "document": [
+      {
+        "category": "document",
+        "description": "Create document for storing long-form content and documentation",
+        "example": "execute_forgetful_tool(\"create_document\", {\"title\": \"Notes\", \"description\": \"Project notes\", \"content\": \"# Notes\\n\\nSome content...\"})",
+        "mutates": true,
+        "name": "create_document",
+        "parameters": {
+          "agent_id": {
+            "description": "Agent identity for provenance tracking",
+            "example": "CodeAgentUltra",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "agent_model": {
+            "description": "LLM model used for provenance tracking",
+            "example": "claude-sonnet-4-6",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "agent_version": {
+            "description": "Agent version for provenance tracking",
+            "example": "1.0",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "confidence": {
+            "description": "Encoding confidence score (0.0-1.0) for provenance tracking",
+            "example": 0.85,
+            "required": false,
+            "type": "Optional[float]"
+          },
+          "content": {
+            "description": "The document content (long-form text)",
+            "example": "# API Endpoints\n\n## GET /users...",
+            "required": true,
+            "type": "str"
+          },
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "description": {
+            "description": "Brief overview of the document",
+            "example": "REST API endpoints documentation",
+            "required": true,
+            "type": "str"
+          },
+          "document_type": {
+            "description": "Document type (text, markdown, code, etc.)",
+            "example": "markdown",
+            "required": false,
+            "type": "str"
+          },
+          "encoding_agent": {
+            "description": "Software running the agent for provenance tracking",
+            "example": "OpenCode",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "encoding_version": {
+            "description": "Version of encoding software for provenance tracking",
+            "example": "1.0.0",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "filename": {
+            "description": "Optional filename",
+            "example": "api-docs.md",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "project_id": {
+            "description": "Link to project",
+            "example": 1,
+            "required": false,
+            "type": "Optional[int]"
+          },
+          "source_files": {
+            "description": "Files that informed this for provenance tracking",
+            "example": [
+              "src/main.py"
+            ],
+            "required": false,
+            "type": "Optional[List[str]]"
+          },
+          "source_repo": {
+            "description": "Repository/project source for provenance tracking",
+            "example": "owner/repo",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "source_url": {
+            "description": "URL to source material for provenance tracking",
+            "example": "https://example.com",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "tags": {
+            "description": "Tags for categorization",
+            "example": [
+              "api",
+              "documentation"
+            ],
+            "required": false,
+            "type": "Optional[List[str]]"
+          },
+          "title": {
+            "description": "Document title",
+            "example": "API Documentation",
+            "required": true,
+            "type": "str"
+          }
+        },
+        "returns": "Document with id and timestamps"
+      },
+      {
+        "category": "document",
+        "description": "Retrieve document by ID with complete content",
+        "example": "execute_forgetful_tool(\"get_document\", {\"document_id\": 1})",
+        "mutates": false,
+        "name": "get_document",
+        "parameters": {
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "document_id": {
+            "description": "ID of the document to retrieve",
+            "example": 1,
+            "required": true,
+            "type": "int"
+          }
+        },
+        "returns": "Complete Document object with content"
+      },
+      {
+        "category": "document",
+        "description": "List documents with optional filtering by project, type, or tags",
+        "example": "execute_forgetful_tool(\"list_documents\", {})",
+        "mutates": false,
+        "name": "list_documents",
+        "parameters": {
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "document_type": {
+            "description": "Filter by type",
+            "example": "markdown",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "project_id": {
+            "description": "Filter by project",
+            "example": 1,
+            "required": false,
+            "type": "Optional[int]"
+          },
+          "tags": {
+            "description": "Filter by tags",
+            "example": [
+              "documentation"
+            ],
+            "required": false,
+            "type": "Optional[List[str]]"
+          }
+        },
+        "returns": "Dictionary with documents list and count"
+      },
+      {
+        "category": "document",
+        "description": "Update document (PATCH semantics - only provided fields changed)",
+        "example": "execute_forgetful_tool(\"update_document\", {\"document_id\": 1, \"content\": \"Updated content\"})",
+        "mutates": true,
+        "name": "update_document",
+        "parameters": {
+          "agent_id": {
+            "description": "Agent identity for provenance tracking",
+            "example": "CodeAgentUltra",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "agent_model": {
+            "description": "LLM model used for provenance tracking",
+            "example": "claude-sonnet-4-6",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "agent_version": {
+            "description": "Agent version for provenance tracking",
+            "example": "1.0",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "confidence": {
+            "description": "Encoding confidence score (0.0-1.0) for provenance tracking",
+            "example": 0.85,
+            "required": false,
+            "type": "Optional[float]"
+          },
+          "content": {
+            "description": "New content",
+            "example": "# Updated\\n\\nNew content...",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "description": {
+            "description": "New description",
+            "example": "Updated description",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "document_id": {
+            "description": "ID of the document to update",
+            "example": 1,
+            "required": true,
+            "type": "int"
+          },
+          "document_type": {
+            "description": "New type",
+            "example": "text",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "encoding_agent": {
+            "description": "Software running the agent for provenance tracking",
+            "example": "OpenCode",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "encoding_version": {
+            "description": "Version of encoding software for provenance tracking",
+            "example": "1.0.0",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "filename": {
+            "description": "New filename",
+            "example": "new-file.md",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "project_id": {
+            "description": "New project link",
+            "example": 2,
+            "required": false,
+            "type": "Optional[int]"
+          },
+          "source_files": {
+            "description": "Files that informed this for provenance tracking",
+            "example": [
+              "src/main.py"
+            ],
+            "required": false,
+            "type": "Optional[List[str]]"
+          },
+          "source_repo": {
+            "description": "Repository/project source for provenance tracking",
+            "example": "owner/repo",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "source_url": {
+            "description": "URL to source material for provenance tracking",
+            "example": "https://example.com",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "tags": {
+            "description": "New tags (replaces existing)",
+            "example": [
+              "updated"
+            ],
+            "required": false,
+            "type": "Optional[List[str]]"
+          },
+          "title": {
+            "description": "New title",
+            "example": "Updated title",
+            "required": false,
+            "type": "Optional[str]"
+          }
+        },
+        "returns": "Updated Document object"
+      },
+      {
+        "category": "document",
+        "description": "Delete document (cascades memory associations)",
+        "example": "execute_forgetful_tool(\"delete_document\", {\"document_id\": 1})",
+        "mutates": true,
+        "name": "delete_document",
+        "parameters": {
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "document_id": {
+            "description": "ID of the document to delete",
+            "example": 1,
+            "required": true,
+            "type": "int"
+          }
+        },
+        "returns": "Dictionary with deletion confirmation"
+      }
+    ],
+    "entity": [
+      {
+        "category": "entity",
+        "description": "Create entity representing a real-world entity (organization, individual, team, device, system)",
+        "example": "execute_forgetful_tool(\"create_entity\", {\"name\": \"Anthropic\", \"entity_type\": \"organization\", \"aka\": [\"Claude AI\"]})",
+        "mutates": true,
+        "name": "create_entity",
+        "parameters": {
+          "agent_id": {
+            "description": "Agent identity for provenance tracking",
+            "example": "CodeAgentUltra",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "agent_model": {
+            "description": "LLM model used for provenance tracking",
+            "example": "claude-sonnet-4-6",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "agent_version": {
+            "description": "Agent version for provenance tracking",
+            "example": "1.0",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "aka": {
+            "description": "Alternative names/aliases (searchable via search_entities)",
+            "example": [
+              "Claude AI",
+              "Anthropic AI"
+            ],
+            "required": false,
+            "type": "Optional[List[str]]"
+          },
+          "confidence": {
+            "description": "Encoding confidence score (0.0-1.0) for provenance tracking",
+            "example": 0.85,
+            "required": false,
+            "type": "Optional[float]"
+          },
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "custom_type": {
+            "description": "Custom type if 'other' is selected",
+            "example": "ai-company",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "encoding_agent": {
+            "description": "Software running the agent for provenance tracking",
+            "example": "OpenCode",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "encoding_version": {
+            "description": "Version of encoding software for provenance tracking",
+            "example": "1.0.0",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "entity_type": {
+            "description": "Entity type (organization, individual, team, device, system, other)",
+            "example": "organization",
+            "required": true,
+            "type": "str"
+          },
+          "name": {
+            "description": "Entity name",
+            "example": "Anthropic",
+            "required": true,
+            "type": "str"
+          },
+          "notes": {
+            "description": "Additional notes",
+            "example": "AI safety and research company",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "project_ids": {
+            "description": "Link to projects (list of project IDs)",
+            "example": [
+              1,
+              2
+            ],
+            "required": false,
+            "type": "Optional[List[int]]"
+          },
+          "source_files": {
+            "description": "Files that informed this for provenance tracking",
+            "example": [
+              "src/main.py"
+            ],
+            "required": false,
+            "type": "Optional[List[str]]"
+          },
+          "source_repo": {
+            "description": "Repository/project source for provenance tracking",
+            "example": "owner/repo",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "source_url": {
+            "description": "URL to source material for provenance tracking",
+            "example": "https://example.com",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "tags": {
+            "description": "Tags for categorization",
+            "example": [
+              "ai",
+              "research"
+            ],
+            "required": false,
+            "type": "Optional[List[str]]"
+          }
+        },
+        "returns": "Entity with id and timestamps"
+      },
+      {
+        "category": "entity",
+        "description": "Retrieve entity by ID with complete details",
+        "example": "execute_forgetful_tool(\"get_entity\", {\"entity_id\": 1})",
+        "mutates": false,
+        "name": "get_entity",
+        "parameters": {
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "entity_id": {
+            "description": "ID of the entity to retrieve",
+            "example": 1,
+            "required": true,
+            "type": "int"
+          }
+        },
+        "returns": "Complete Entity object"
+      },
+      {
+        "category": "entity",
+        "description": "List entities with optional filtering by project, type, or tags",
+        "example": "execute_forgetful_tool(\"list_entities\", {})",
+        "mutates": false,
+        "name": "list_entities",
+        "parameters": {
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "entity_type": {
+            "description": "Filter by type",
+            "example": "organization",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "project_ids": {
+            "description": "Filter by projects (list of project IDs)",
+            "example": [
+              1
+            ],
+            "required": false,
+            "type": "Optional[List[int]]"
+          },
+          "tags": {
+            "description": "Filter by tags",
+            "example": [
+              "ai"
+            ],
+            "required": false,
+            "type": "Optional[List[str]]"
+          }
+        },
+        "returns": "Dictionary with entities list and count"
+      },
+      {
+        "category": "entity",
+        "description": "Search entities by name or alternative names (aka) using text matching (case-insensitive)",
+        "example": "execute_forgetful_tool(\"search_entities\", {\"query\": \"tech\"})",
+        "mutates": false,
+        "name": "search_entities",
+        "parameters": {
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "entity_type": {
+            "description": "Filter by entity type",
+            "example": "Organization",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "limit": {
+            "description": "Maximum number of results (1-100)",
+            "example": 20,
+            "required": false,
+            "type": "int"
+          },
+          "query": {
+            "description": "Text to search for in entity name or aka (alternative names)",
+            "example": "tech",
+            "required": true,
+            "type": "str"
+          },
+          "tags": {
+            "description": "Filter by tags (returns entities with ANY of these)",
+            "example": [
+              "startup"
+            ],
+            "required": false,
+            "type": "Optional[List[str]]"
+          }
+        },
+        "returns": "Dictionary with entities list, total_count, search_query, and filters"
+      },
+      {
+        "category": "entity",
+        "description": "Update existing entity (PATCH semantics - only provided fields changed)",
+        "example": "execute_forgetful_tool(\"update_entity\", {\"entity_id\": 1, \"aka\": [\"NewAlias\", \"AnotherName\"]})",
+        "mutates": true,
+        "name": "update_entity",
+        "parameters": {
+          "agent_id": {
+            "description": "Agent identity for provenance tracking",
+            "example": "CodeAgentUltra",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "agent_model": {
+            "description": "LLM model used for provenance tracking",
+            "example": "claude-sonnet-4-6",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "agent_version": {
+            "description": "Agent version for provenance tracking",
+            "example": "1.0",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "aka": {
+            "description": "New alternative names (replaces existing, empty list [] clears)",
+            "example": [
+              "Alias1",
+              "Alias2"
+            ],
+            "required": false,
+            "type": "Optional[List[str]]"
+          },
+          "confidence": {
+            "description": "Encoding confidence score (0.0-1.0) for provenance tracking",
+            "example": 0.85,
+            "required": false,
+            "type": "Optional[float]"
+          },
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "custom_type": {
+            "description": "New custom type",
+            "example": "custom",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "encoding_agent": {
+            "description": "Software running the agent for provenance tracking",
+            "example": "OpenCode",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "encoding_version": {
+            "description": "Version of encoding software for provenance tracking",
+            "example": "1.0.0",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "entity_id": {
+            "description": "ID of the entity to update",
+            "example": 1,
+            "required": true,
+            "type": "int"
+          },
+          "entity_type": {
+            "description": "New type",
+            "example": "team",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "name": {
+            "description": "New name",
+            "example": "Updated name",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "notes": {
+            "description": "New notes",
+            "example": "Updated notes",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "project_ids": {
+            "description": "New project links (list of project IDs, replaces existing)",
+            "example": [
+              2,
+              3
+            ],
+            "required": false,
+            "type": "Optional[List[int]]"
+          },
+          "source_files": {
+            "description": "Files that informed this for provenance tracking",
+            "example": [
+              "src/main.py"
+            ],
+            "required": false,
+            "type": "Optional[List[str]]"
+          },
+          "source_repo": {
+            "description": "Repository/project source for provenance tracking",
+            "example": "owner/repo",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "source_url": {
+            "description": "URL to source material for provenance tracking",
+            "example": "https://example.com",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "tags": {
+            "description": "New tags (replaces existing)",
+            "example": [
+              "updated"
+            ],
+            "required": false,
+            "type": "Optional[List[str]]"
+          }
+        },
+        "returns": "Updated Entity object"
+      },
+      {
+        "category": "entity",
+        "description": "Delete entity (cascade removes memory links and relationships)",
+        "example": "execute_forgetful_tool(\"delete_entity\", {\"entity_id\": 1})",
+        "mutates": true,
+        "name": "delete_entity",
+        "parameters": {
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "entity_id": {
+            "description": "ID of the entity to delete",
+            "example": 1,
+            "required": true,
+            "type": "int"
+          }
+        },
+        "returns": "Dictionary with deletion confirmation"
+      },
+      {
+        "category": "entity",
+        "description": "Link entity to memory (establishes reference relationship)",
+        "example": "execute_forgetful_tool(\"link_entity_to_memory\", {\"entity_id\": 1, \"memory_id\": 5})",
+        "mutates": true,
+        "name": "link_entity_to_memory",
+        "parameters": {
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "entity_id": {
+            "description": "ID of the entity",
+            "example": 1,
+            "required": true,
+            "type": "int"
+          },
+          "memory_id": {
+            "description": "ID of the memory",
+            "example": 5,
+            "required": true,
+            "type": "int"
+          }
+        },
+        "returns": "Dictionary with link confirmation"
+      },
+      {
+        "category": "entity",
+        "description": "Unlink entity from memory (removes reference relationship)",
+        "example": "execute_forgetful_tool(\"unlink_entity_from_memory\", {\"entity_id\": 1, \"memory_id\": 5})",
+        "mutates": true,
+        "name": "unlink_entity_from_memory",
+        "parameters": {
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "entity_id": {
+            "description": "ID of the entity",
+            "example": 1,
+            "required": true,
+            "type": "int"
+          },
+          "memory_id": {
+            "description": "ID of the memory",
+            "example": 5,
+            "required": true,
+            "type": "int"
+          }
+        },
+        "returns": "Dictionary with unlink confirmation"
+      },
+      {
+        "category": "entity",
+        "description": "Link entity to project (organizational grouping)",
+        "example": "execute_forgetful_tool(\"link_entity_to_project\", {\"entity_id\": 1, \"project_id\": 5})",
+        "mutates": true,
+        "name": "link_entity_to_project",
+        "parameters": {
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "entity_id": {
+            "description": "ID of the entity",
+            "example": 1,
+            "required": true,
+            "type": "int"
+          },
+          "project_id": {
+            "description": "ID of the project",
+            "example": 5,
+            "required": true,
+            "type": "int"
+          }
+        },
+        "returns": "Dictionary with link confirmation"
+      },
+      {
+        "category": "entity",
+        "description": "Unlink entity from project (removes organizational grouping)",
+        "example": "execute_forgetful_tool(\"unlink_entity_from_project\", {\"entity_id\": 1, \"project_id\": 5})",
+        "mutates": true,
+        "name": "unlink_entity_from_project",
+        "parameters": {
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "entity_id": {
+            "description": "ID of the entity",
+            "example": 1,
+            "required": true,
+            "type": "int"
+          },
+          "project_id": {
+            "description": "ID of the project",
+            "example": 5,
+            "required": true,
+            "type": "int"
+          }
+        },
+        "returns": "Dictionary with unlink confirmation"
+      },
+      {
+        "category": "entity",
+        "description": "Create typed relationship between two entities (knowledge graph edge)",
+        "example": "execute_forgetful_tool(\"create_entity_relationship\", {\"source_entity_id\": 1, \"target_entity_id\": 2, \"relationship_type\": \"works_for\"})",
+        "mutates": true,
+        "name": "create_entity_relationship",
+        "parameters": {
+          "agent_id": {
+            "description": "Agent identity for provenance tracking",
+            "example": "CodeAgentUltra",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "agent_model": {
+            "description": "LLM model used for provenance tracking",
+            "example": "claude-sonnet-4-6",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "agent_version": {
+            "description": "Agent version for provenance tracking",
+            "example": "1.0",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "confidence": {
+            "description": "Confidence level (0.0-1.0)",
+            "example": 0.95,
+            "required": false,
+            "type": "Optional[float]"
+          },
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "encoding_agent": {
+            "description": "Software running the agent for provenance tracking",
+            "example": "OpenCode",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "encoding_version": {
+            "description": "Version of encoding software for provenance tracking",
+            "example": "1.0.0",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "metadata": {
+            "description": "Additional metadata",
+            "example": {
+              "since": "2020"
+            },
+            "required": false,
+            "type": "Optional[Dict[str, Any]]"
+          },
+          "relationship_type": {
+            "description": "Relationship type (part_of, depends_on, uses, works_for, member_of, owns, etc.)",
+            "example": "part_of",
+            "required": true,
+            "type": "str"
+          },
+          "source_entity_id": {
+            "description": "Source entity ID",
+            "example": 1,
+            "required": true,
+            "type": "int"
+          },
+          "source_files": {
+            "description": "Files that informed this for provenance tracking",
+            "example": [
+              "src/main.py"
+            ],
+            "required": false,
+            "type": "Optional[List[str]]"
+          },
+          "source_repo": {
+            "description": "Repository/project source for provenance tracking",
+            "example": "owner/repo",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "source_url": {
+            "description": "URL to source material for provenance tracking",
+            "example": "https://example.com",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "strength": {
+            "description": "Relationship strength (0.0-1.0)",
+            "example": 0.9,
+            "required": false,
+            "type": "Optional[float]"
+          },
+          "target_entity_id": {
+            "description": "Target entity ID",
+            "example": 2,
+            "required": true,
+            "type": "int"
+          }
+        },
+        "returns": "EntityRelationship with id and timestamps"
+      },
+      {
+        "category": "entity",
+        "description": "Get relationships for an entity (knowledge graph edges)",
+        "example": "execute_forgetful_tool(\"get_entity_relationships\", {\"entity_id\": 1})",
+        "mutates": false,
+        "name": "get_entity_relationships",
+        "parameters": {
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "direction": {
+            "description": "Filter by direction (outgoing, incoming, both)",
+            "example": "outgoing",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "entity_id": {
+            "description": "Entity ID",
+            "example": 1,
+            "required": true,
+            "type": "int"
+          },
+          "relationship_type": {
+            "description": "Filter by type",
+            "example": "part_of",
+            "required": false,
+            "type": "Optional[str]"
+          }
+        },
+        "returns": "Dictionary with relationships list"
+      },
+      {
+        "category": "entity",
+        "description": "Update entity relationship (PATCH semantics - only provided fields changed)",
+        "example": "execute_forgetful_tool(\"update_entity_relationship\", {\"relationship_id\": 1, \"strength\": 0.95})",
+        "mutates": true,
+        "name": "update_entity_relationship",
+        "parameters": {
+          "agent_id": {
+            "description": "Agent identity for provenance tracking",
+            "example": "CodeAgentUltra",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "agent_model": {
+            "description": "LLM model used for provenance tracking",
+            "example": "claude-sonnet-4-6",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "agent_version": {
+            "description": "Agent version for provenance tracking",
+            "example": "1.0",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "confidence": {
+            "description": "New confidence",
+            "example": 0.9,
+            "required": false,
+            "type": "Optional[float]"
+          },
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "encoding_agent": {
+            "description": "Software running the agent for provenance tracking",
+            "example": "OpenCode",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "encoding_version": {
+            "description": "Version of encoding software for provenance tracking",
+            "example": "1.0.0",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "metadata": {
+            "description": "New metadata",
+            "example": {
+              "updated": "2024"
+            },
+            "required": false,
+            "type": "Optional[Dict[str, Any]]"
+          },
+          "relationship_id": {
+            "description": "Relationship ID",
+            "example": 1,
+            "required": true,
+            "type": "int"
+          },
+          "relationship_type": {
+            "description": "New relationship type",
+            "example": "collaborates_with",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "source_files": {
+            "description": "Files that informed this for provenance tracking",
+            "example": [
+              "src/main.py"
+            ],
+            "required": false,
+            "type": "Optional[List[str]]"
+          },
+          "source_repo": {
+            "description": "Repository/project source for provenance tracking",
+            "example": "owner/repo",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "source_url": {
+            "description": "URL to source material for provenance tracking",
+            "example": "https://example.com",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "strength": {
+            "description": "New strength",
+            "example": 0.8,
+            "required": false,
+            "type": "Optional[float]"
+          }
+        },
+        "returns": "Updated EntityRelationship object"
+      },
+      {
+        "category": "entity",
+        "description": "Delete entity relationship (removes knowledge graph edge)",
+        "example": "execute_forgetful_tool(\"delete_entity_relationship\", {\"relationship_id\": 1})",
+        "mutates": true,
+        "name": "delete_entity_relationship",
+        "parameters": {
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "relationship_id": {
+            "description": "Relationship ID to delete",
+            "example": 1,
+            "required": true,
+            "type": "int"
+          }
+        },
+        "returns": "Dictionary with deletion confirmation"
+      },
+      {
+        "category": "entity",
+        "description": "Get all memories linked to a specific entity (useful for entity deduplication and auditing)",
+        "example": "execute_forgetful_tool(\"get_entity_memories\", {\"entity_id\": 42})",
+        "mutates": false,
+        "name": "get_entity_memories",
+        "parameters": {
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "entity_id": {
+            "description": "ID of the entity to get memories for",
+            "example": 42,
+            "required": true,
+            "type": "int"
+          }
+        },
+        "returns": "Dictionary with memory_ids (list of int), count (int), and memories (list of {id, title} objects, same order as memory_ids)"
+      },
+      {
+        "category": "entity",
+        "description": "Get all entities directly linked to a specific memory (reverse of get_entity_memories)",
+        "example": "execute_forgetful_tool(\"get_memory_entities\", {\"memory_id\": 156})",
+        "mutates": false,
+        "name": "get_memory_entities",
+        "parameters": {
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "memory_id": {
+            "description": "ID of the memory to get entities for",
+            "example": 156,
+            "required": true,
+            "type": "int"
+          }
+        },
+        "returns": "Dictionary with entity_ids (list of int), count (int), and entities (list of {id, name, entity_type} objects, same order as entity_ids). Always the complete set; not paginated"
+      }
+    ],
+    "file": [
+      {
+        "category": "file",
+        "description": "Create file for storing binary content (images, PDFs, fonts, etc.) as base64",
+        "example": "execute_forgetful_tool(\"create_file\", {\"filename\": \"logo.png\", \"description\": \"Project logo\", \"data\": \"<base64>\", \"mime_type\": \"image/png\"})",
+        "mutates": true,
+        "name": "create_file",
+        "parameters": {
+          "agent_id": {
+            "description": "Agent identity for provenance tracking",
+            "example": "CodeAgentUltra",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "agent_model": {
+            "description": "LLM model used for provenance tracking",
+            "example": "claude-sonnet-4-6",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "agent_version": {
+            "description": "Agent version for provenance tracking",
+            "example": "1.0",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "confidence": {
+            "description": "Encoding confidence score (0.0-1.0) for provenance tracking",
+            "example": 0.85,
+            "required": false,
+            "type": "Optional[float]"
+          },
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "data": {
+            "description": "Base64-encoded file content",
+            "example": "iVBORw0KGgo...",
+            "required": true,
+            "type": "str"
+          },
+          "description": {
+            "description": "What the file contains and when to use it",
+            "example": "Architecture diagram for auth service",
+            "required": true,
+            "type": "str"
+          },
+          "encoding_agent": {
+            "description": "Software running the agent for provenance tracking",
+            "example": "OpenCode",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "encoding_version": {
+            "description": "Version of encoding software for provenance tracking",
+            "example": "1.0.0",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "filename": {
+            "description": "Original filename with extension (e.g., 'screenshot.png')",
+            "example": "diagram.png",
+            "required": true,
+            "type": "str"
+          },
+          "mime_type": {
+            "description": "MIME type (e.g., 'image/png', 'application/pdf')",
+            "example": "image/png",
+            "required": true,
+            "type": "str"
+          },
+          "project_id": {
+            "description": "Link to project",
+            "example": 1,
+            "required": false,
+            "type": "Optional[int]"
+          },
+          "source_files": {
+            "description": "Files that informed this for provenance tracking",
+            "example": [
+              "src/main.py"
+            ],
+            "required": false,
+            "type": "Optional[List[str]]"
+          },
+          "source_repo": {
+            "description": "Repository/project source for provenance tracking",
+            "example": "owner/repo",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "source_url": {
+            "description": "URL to source material for provenance tracking",
+            "example": "https://example.com",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "tags": {
+            "description": "Tags for categorization",
+            "example": [
+              "screenshot",
+              "architecture"
+            ],
+            "required": false,
+            "type": "Optional[List[str]]"
+          }
+        },
+        "returns": "File with id, size_bytes, and timestamps"
+      },
+      {
+        "category": "file",
+        "description": "Retrieve file by ID with complete details including base64 data",
+        "example": "execute_forgetful_tool(\"get_file\", {\"file_id\": 1})",
+        "mutates": false,
+        "name": "get_file",
+        "parameters": {
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "file_id": {
+            "description": "ID of the file to retrieve",
+            "example": 1,
+            "required": true,
+            "type": "int"
+          }
+        },
+        "returns": "Complete File object with base64 data"
+      },
+      {
+        "category": "file",
+        "description": "List files with optional filtering by project, MIME type, or tags (excludes binary data)",
+        "example": "execute_forgetful_tool(\"list_files\", {})",
+        "mutates": false,
+        "name": "list_files",
+        "parameters": {
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "mime_type": {
+            "description": "Filter by MIME type",
+            "example": "image/png",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "project_id": {
+            "description": "Filter by project",
+            "example": 1,
+            "required": false,
+            "type": "Optional[int]"
+          },
+          "tags": {
+            "description": "Filter by tags",
+            "example": [
+              "screenshot",
+              "ui"
+            ],
+            "required": false,
+            "type": "Optional[List[str]]"
+          }
+        },
+        "returns": "Dictionary with files list (summaries, no data) and count"
+      },
+      {
+        "category": "file",
+        "description": "Update file metadata or replace content (PATCH semantics)",
+        "example": "execute_forgetful_tool(\"update_file\", {\"file_id\": 1, \"tags\": [\"updated\"]})",
+        "mutates": true,
+        "name": "update_file",
+        "parameters": {
+          "agent_id": {
+            "description": "Agent identity for provenance tracking",
+            "example": "CodeAgentUltra",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "agent_model": {
+            "description": "LLM model used for provenance tracking",
+            "example": "claude-sonnet-4-6",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "agent_version": {
+            "description": "Agent version for provenance tracking",
+            "example": "1.0",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "confidence": {
+            "description": "Encoding confidence score (0.0-1.0) for provenance tracking",
+            "example": 0.85,
+            "required": false,
+            "type": "Optional[float]"
+          },
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "data": {
+            "description": "New base64 content (replaces file)",
+            "example": null,
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "description": {
+            "description": "New description",
+            "example": "Updated description",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "encoding_agent": {
+            "description": "Software running the agent for provenance tracking",
+            "example": "OpenCode",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "encoding_version": {
+            "description": "Version of encoding software for provenance tracking",
+            "example": "1.0.0",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "file_id": {
+            "description": "ID of the file to update",
+            "example": 1,
+            "required": true,
+            "type": "int"
+          },
+          "filename": {
+            "description": "New filename",
+            "example": "updated.png",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "mime_type": {
+            "description": "New MIME type",
+            "example": "image/jpeg",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "project_id": {
+            "description": "New project link",
+            "example": 2,
+            "required": false,
+            "type": "Optional[int]"
+          },
+          "source_files": {
+            "description": "Files that informed this for provenance tracking",
+            "example": [
+              "src/main.py"
+            ],
+            "required": false,
+            "type": "Optional[List[str]]"
+          },
+          "source_repo": {
+            "description": "Repository/project source for provenance tracking",
+            "example": "owner/repo",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "source_url": {
+            "description": "URL to source material for provenance tracking",
+            "example": "https://example.com",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "tags": {
+            "description": "New tags (replaces existing)",
+            "example": [
+              "updated"
+            ],
+            "required": false,
+            "type": "Optional[List[str]]"
+          }
+        },
+        "returns": "Updated File object"
+      },
+      {
+        "category": "file",
+        "description": "Delete file (cascades memory and entity associations)",
+        "example": "execute_forgetful_tool(\"delete_file\", {\"file_id\": 1})",
+        "mutates": true,
+        "name": "delete_file",
+        "parameters": {
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "file_id": {
+            "description": "ID of the file to delete",
+            "example": 1,
+            "required": true,
+            "type": "int"
+          }
+        },
+        "returns": "Dictionary with deletion confirmation"
+      }
+    ],
+    "memory": [
+      {
+        "category": "memory",
+        "description": "Create atomic memory with auto-linking and lifecycle management. Stores single concepts (<400 words).",
+        "example": "execute_forgetful_tool(\"create_memory\", {\"title\": \"FastAPI auth pattern\", \"content\": \"Use JWT with httponly cookies...\", \"context\": \"Security decision\", \"keywords\": [\"auth\", \"jwt\"], \"tags\": [\"security\"], \"importance\": 9})",
+        "mutates": true,
+        "name": "create_memory",
+        "parameters": {
+          "agent_id": {
+            "description": "Agent identity for provenance tracking",
+            "example": "CodeAgentUltra",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "agent_model": {
+            "description": "LLM model used for provenance tracking",
+            "example": "claude-sonnet-4-6",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "agent_version": {
+            "description": "Agent version for provenance tracking",
+            "example": "1.0",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "code_artifact_ids": {
+            "description": "Code artifact IDs to link (optional)",
+            "example": [
+              5
+            ],
+            "required": false,
+            "type": "Optional[List[int]]"
+          },
+          "confidence": {
+            "description": "Encoding confidence score (0.0-1.0) for provenance tracking",
+            "example": 0.85,
+            "required": false,
+            "type": "Optional[float]"
+          },
+          "content": {
+            "description": "Memory content (max 2000 characters, ~300-400 words) - single concept",
+            "example": "Selected XTTS-v2 for voice cloning - provides high quality output with low latency",
+            "required": true,
+            "type": "str"
+          },
+          "context": {
+            "description": "WHY this memory matters, HOW it relates, WHAT implications (max 500 characters)",
+            "example": "Decision made while implementing voice integration with AI agent",
+            "required": true,
+            "type": "str"
+          },
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "document_ids": {
+            "description": "Document IDs to link (optional)",
+            "example": [
+              2
+            ],
+            "required": false,
+            "type": "Optional[List[int]]"
+          },
+          "encoding_agent": {
+            "description": "Agent/process that created this memory for provenance tracking",
+            "example": "claude-sonnet-4-20250514",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "encoding_version": {
+            "description": "Version of encoding process/prompt for provenance tracking",
+            "example": "0.1.0",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "file_ids": {
+            "description": "Existing file IDs to link (optional). Files must belong to the current user; unknown IDs fail with not found",
+            "example": [
+              4
+            ],
+            "required": false,
+            "type": "Optional[List[int]]"
+          },
+          "importance": {
+            "description": "Score 1-10. 9-10: Personal/foundational, 8-9: Critical solutions, 7-8: Useful patterns, 6-7: Milestones",
+            "example": 9,
+            "required": true,
+            "type": "int"
+          },
+          "keywords": {
+            "description": "Search keywords for semantic matching (max 10)",
+            "example": [
+              "tts",
+              "voice-cloning",
+              "xtts"
+            ],
+            "required": true,
+            "type": "List[str]"
+          },
+          "project_ids": {
+            "description": "Project IDs to link (optional)",
+            "example": [
+              1,
+              3
+            ],
+            "required": false,
+            "type": "Optional[List[int]]"
+          },
+          "source_files": {
+            "description": "Files that informed this memory (list of paths) for provenance tracking",
+            "example": [
+              "src/main.py",
+              "tests/test.py"
+            ],
+            "required": false,
+            "type": "Optional[List[str]]"
+          },
+          "source_repo": {
+            "description": "Repository/project source (e.g., 'owner/repo') for provenance tracking",
+            "example": "scottrbk/forgetful",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "source_url": {
+            "description": "URL to original source material for provenance tracking",
+            "example": "https://github.com/owner/repo/blob/main/README.md",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "tags": {
+            "description": "Categorization tags (max 10)",
+            "example": [
+              "decision",
+              "preference",
+              "audio"
+            ],
+            "required": true,
+            "type": "List[str]"
+          },
+          "title": {
+            "description": "Memory title (max 200 characters)",
+            "example": "TTS preference: XTTS-v2",
+            "required": true,
+            "type": "str"
+          }
+        },
+        "returns": "MemoryCreateResponse with id, title, linked_memory_ids, similar_memories, obsolete_matches, and plugin_warnings only when nonempty. Write Plugin errors: WRITE_PLUGIN_REJECTED (correct the stated issue) or WRITE_PLUGIN_UNAVAILABLE."
+      },
+      {
+        "category": "memory",
+        "description": "Semantic search across memories to find relevant information",
+        "example": "execute_forgetful_tool(\"query_memory\", {\"query\": \"authentication patterns\", \"query_context\": \"building API login\", \"k\": 5})",
+        "mutates": false,
+        "name": "query_memory",
+        "parameters": {
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "importance_threshold": {
+            "description": "Minimum importance score (1-10) to include",
+            "example": 7,
+            "required": false,
+            "type": "Optional[int]"
+          },
+          "include_links": {
+            "description": "Whether to include linked memories for context",
+            "example": true,
+            "required": false,
+            "type": "bool"
+          },
+          "k": {
+            "description": "Number of primary results to return (1-20), use INSTEAD of LIMIT",
+            "example": 5,
+            "required": false,
+            "type": "int"
+          },
+          "max_links_per_primary": {
+            "description": "Maximum number of linked memories per primary memory",
+            "example": 3,
+            "required": false,
+            "type": "int"
+          },
+          "project_ids": {
+            "description": "Filter results to specific projects",
+            "example": [
+              1,
+              2
+            ],
+            "required": false,
+            "type": "Optional[List[int]]"
+          },
+          "query": {
+            "description": "Natural language search query",
+            "example": "What did we decide about authentication?",
+            "required": true,
+            "type": "str"
+          },
+          "query_context": {
+            "description": "Context explaining why you're searching (improves ranking)",
+            "example": "Implementing login system for new API",
+            "required": true,
+            "type": "str"
+          },
+          "strict_project_filter": {
+            "description": "If True, linked memories must also be in specified projects",
+            "example": false,
+            "required": false,
+            "type": "bool"
+          }
+        },
+        "returns": "MemoryQueryResult with primary_memories, linked_memories, scores, total_count, token_count, truncated flag"
+      },
+      {
+        "category": "memory",
+        "description": "Update existing memory fields using PATCH semantics (only specified fields are updated)",
+        "example": "execute_forgetful_tool(\"update_memory\", {\"memory_id\": 42, \"importance\": 9})",
+        "mutates": true,
+        "name": "update_memory",
+        "parameters": {
+          "agent_id": {
+            "description": "Agent identity for provenance tracking",
+            "example": "CodeAgentUltra",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "agent_model": {
+            "description": "LLM model used for provenance tracking",
+            "example": "claude-sonnet-4-6",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "agent_version": {
+            "description": "Agent version for provenance tracking",
+            "example": "1.0",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "code_artifact_ids": {
+            "description": "New code artifact IDs - replaces existing links (optional)",
+            "example": [
+              5
+            ],
+            "required": false,
+            "type": "Optional[List[int]]"
+          },
+          "confidence": {
+            "description": "New encoding confidence score (0.0-1.0). Unchanged if null.",
+            "example": 0.85,
+            "required": false,
+            "type": "Optional[float]"
+          },
+          "content": {
+            "description": "New content (optional)",
+            "example": "Updated content with new information",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "context": {
+            "description": "New context (optional)",
+            "example": "Updated context explanation",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "document_ids": {
+            "description": "New document IDs - replaces existing links (optional)",
+            "example": [
+              3
+            ],
+            "required": false,
+            "type": "Optional[List[int]]"
+          },
+          "encoding_agent": {
+            "description": "New agent/process identifier. Unchanged if null.",
+            "example": "claude-sonnet-4-20250514",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "encoding_version": {
+            "description": "New encoding process version. Unchanged if null.",
+            "example": "0.1.0",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "file_ids": {
+            "description": "New file IDs - replaces existing links (optional). Empty list clears all file links",
+            "example": [
+              4
+            ],
+            "required": false,
+            "type": "Optional[List[int]]"
+          },
+          "importance": {
+            "description": "New importance score 1-10 (optional)",
+            "example": 8,
+            "required": false,
+            "type": "Optional[int]"
+          },
+          "keywords": {
+            "description": "New keywords - replaces existing (optional)",
+            "example": [
+              "new",
+              "keywords"
+            ],
+            "required": false,
+            "type": "Optional[List[str]]"
+          },
+          "memory_id": {
+            "description": "ID of the memory to update",
+            "example": 42,
+            "required": true,
+            "type": "int"
+          },
+          "project_ids": {
+            "description": "New project IDs - replaces existing links (optional)",
+            "example": [
+              1,
+              2
+            ],
+            "required": false,
+            "type": "Optional[List[int]]"
+          },
+          "source_files": {
+            "description": "New source files list. Replaces existing if provided, unchanged if null.",
+            "example": [
+              "src/main.py",
+              "tests/test.py"
+            ],
+            "required": false,
+            "type": "Optional[List[str]]"
+          },
+          "source_repo": {
+            "description": "New repository/project source. Unchanged if null.",
+            "example": "scottrbk/forgetful",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "source_url": {
+            "description": "New URL to source material. Unchanged if null.",
+            "example": "https://github.com/owner/repo/blob/main/README.md",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "tags": {
+            "description": "New tags - replaces existing (optional)",
+            "example": [
+              "updated",
+              "tag"
+            ],
+            "required": false,
+            "type": "Optional[List[str]]"
+          },
+          "title": {
+            "description": "New title (optional)",
+            "example": "Updated title",
+            "required": false,
+            "type": "Optional[str]"
+          }
+        },
+        "returns": "Flat Memory object after update, with plugin_warnings only when nonempty. Write Plugin errors: WRITE_PLUGIN_REJECTED (correct the stated issue) or WRITE_PLUGIN_UNAVAILABLE. No-op updates skip the plugin."
+      },
+      {
+        "category": "memory",
+        "description": "Manually create bidirectional links between memories (symmetric linking). Accepts memory_id + related_ids (or aliases source_id + target_id/target_ids, memory_ids=[src, tgt])",
+        "example": "execute_forgetful_tool(\"link_memories\", {\"memory_id\": 42, \"related_ids\": [10, 15, 20]})",
+        "mutates": true,
+        "name": "link_memories",
+        "parameters": {
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "memory_id": {
+            "description": "Source memory ID (aliases: source_id, from_id, id)",
+            "example": 42,
+            "required": true,
+            "type": "int"
+          },
+          "related_ids": {
+            "description": "List of target memory IDs to link (or single int; aliases: target_id, target_ids, related_id)",
+            "example": [
+              10,
+              15,
+              20
+            ],
+            "required": true,
+            "type": "List[int]"
+          }
+        },
+        "returns": "List of memory IDs that were successfully linked"
+      },
+      {
+        "category": "memory",
+        "description": "Remove bidirectional link(s) between memories. Accepts source_id + target_id (or aliases memory_id + related_id, target_ids, related_ids, memory_ids=[src, tgt, ...])",
+        "example": "execute_forgetful_tool(\"unlink_memories\", {\"source_id\": 42, \"target_id\": 57})",
+        "mutates": true,
+        "name": "unlink_memories",
+        "parameters": {
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "source_id": {
+            "description": "Source memory ID (aliases: memory_id, from_id, id)",
+            "example": 42,
+            "required": true,
+            "type": "int"
+          },
+          "target_id": {
+            "description": "Target memory ID(s) to unlink (aliases: target_ids, related_id, related_ids, to_id)",
+            "example": 57,
+            "required": true,
+            "type": "int"
+          }
+        },
+        "returns": "Dict with 'success' boolean (True if all requested links were removed, False if any link didn't exist)"
+      },
+      {
+        "category": "memory",
+        "description": "Retrieve complete memory details by ID",
+        "example": "execute_forgetful_tool(\"get_memory\", {\"memory_id\": 42})",
+        "mutates": false,
+        "name": "get_memory",
+        "parameters": {
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "memory_id": {
+            "description": "ID of the memory to retrieve",
+            "example": 42,
+            "required": true,
+            "type": "int"
+          }
+        },
+        "returns": "Complete Memory object with all fields"
+      },
+      {
+        "category": "memory",
+        "description": "Mark a memory as obsolete (soft delete with audit trail). Restore with unobsolete_memory.",
+        "example": "execute_forgetful_tool(\"mark_memory_obsolete\", {\"memory_id\": 42, \"reason\": \"Outdated approach\", \"superseded_by\": 100})",
+        "mutates": true,
+        "name": "mark_memory_obsolete",
+        "parameters": {
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "memory_id": {
+            "description": "ID of the memory to mark as obsolete",
+            "example": 42,
+            "required": true,
+            "type": "int"
+          },
+          "reason": {
+            "description": "Explanation for why this memory is obsolete",
+            "example": "Superseded by newer decision in memory #100",
+            "required": true,
+            "type": "str"
+          },
+          "superseded_by": {
+            "description": "Optional ID of the replacement memory",
+            "example": 100,
+            "required": false,
+            "type": "Optional[int]"
+          }
+        },
+        "returns": "Boolean indicating success"
+      },
+      {
+        "category": "memory",
+        "description": "Restore a memory previously marked obsolete (undo soft delete)",
+        "example": "execute_forgetful_tool(\"unobsolete_memory\", {\"memory_id\": 42})",
+        "mutates": true,
+        "name": "unobsolete_memory",
+        "parameters": {
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "memory_id": {
+            "description": "ID of the obsolete memory to restore",
+            "example": 42,
+            "required": true,
+            "type": "int"
+          }
+        },
+        "returns": "Boolean indicating success"
+      },
+      {
+        "category": "memory",
+        "description": "Retrieve most recent memories sorted by creation timestamp (newest first by default)",
+        "example": "execute_forgetful_tool(\"get_recent_memories\", {\"limit\": 5})",
+        "mutates": false,
+        "name": "get_recent_memories",
+        "parameters": {
+          "created_since": {
+            "description": "Inclusive ISO 8601 creation timestamp with timezone",
+            "example": "2026-08-01T00:00:00Z",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "importance_min": {
+            "description": "Minimum importance (1-10, inclusive)",
+            "example": 8,
+            "required": false,
+            "type": "Optional[int]"
+          },
+          "include_obsolete": {
+            "description": "Include obsolete memories when true",
+            "example": false,
+            "required": false,
+            "type": "bool"
+          },
+          "limit": {
+            "description": "Maximum number of memories to return (1-100)",
+            "example": 10,
+            "required": false,
+            "type": "int"
+          },
+          "offset": {
+            "description": "Number of memories to skip for pagination",
+            "example": 0,
+            "required": false,
+            "type": "int"
+          },
+          "project_ids": {
+            "description": "Optional filter to specific projects",
+            "example": [
+              1,
+              3
+            ],
+            "required": false,
+            "type": "Optional[List[int]]"
+          },
+          "sort_by": {
+            "description": "Sort field: created_at, updated_at, or importance",
+            "example": "created_at",
+            "required": false,
+            "type": "str"
+          },
+          "sort_order": {
+            "description": "Sort direction: asc or desc",
+            "example": "desc",
+            "required": false,
+            "type": "str"
+          },
+          "tags": {
+            "description": "Optional tag filter (OR semantics when multiple tags)",
+            "example": [
+              "ai-champion"
+            ],
+            "required": false,
+            "type": "Optional[List[str]]"
+          }
+        },
+        "returns": "Dictionary with memories list (sorted per sort_by/sort_order) and total_count"
+      },
+      {
+        "category": "memory",
+        "description": "Rebuild embeddings for a user-scoped subset of memories without resetting global vector storage. Targets explicit memory ids, a single project, or all caller-owned memories.",
+        "example": "execute_forgetful_tool(\"rebuild_embeddings\", {\"memory_ids\": [123, 124]})",
+        "mutates": true,
+        "name": "rebuild_embeddings",
+        "parameters": {
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "memory_ids": {
+            "description": "Explicit memory ids owned by the caller; leave null to use project_id or global user scope",
+            "example": [
+              123,
+              124
+            ],
+            "required": false,
+            "type": "Optional[List[int]]"
+          },
+          "project_id": {
+            "description": "Restrict the rebuild to memories of a single project owned by the caller",
+            "example": 1,
+            "required": false,
+            "type": "Optional[int]"
+          }
+        },
+        "returns": "Dict with rebuilt_ids (List[int]), skipped_ids (List[int]), failed (List[Dict[memory_id, reason]])"
+      }
+    ],
+    "plan": [
+      {
+        "category": "plan",
+        "description": "Create a new plan within a project to organize tasks and track goals",
+        "example": "execute_forgetful_tool(\"create_plan\", {\"title\": \"Auth implementation\", \"project_id\": 1, \"goal\": \"Add JWT auth\"})",
+        "mutates": true,
+        "name": "create_plan",
+        "parameters": {
+          "agent_id": {
+            "description": "Agent identity for provenance tracking",
+            "example": "CodeAgentUltra",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "agent_model": {
+            "description": "LLM model used for provenance tracking",
+            "example": "claude-sonnet-4-6",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "agent_version": {
+            "description": "Agent version for provenance tracking",
+            "example": "1.0",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "confidence": {
+            "description": "Encoding confidence score (0.0-1.0) for provenance tracking",
+            "example": 0.85,
+            "required": false,
+            "type": "Optional[float]"
+          },
+          "context": {
+            "description": "Background context or constraints",
+            "example": "Must support OAuth2 providers",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "encoding_agent": {
+            "description": "Software running the agent for provenance tracking",
+            "example": "OpenCode",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "encoding_version": {
+            "description": "Version of encoding software for provenance tracking",
+            "example": "1.0.0",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "external_ref": {
+            "description": "Opaque reference unique across your plans. Case-sensitive, trimmed, 1-255 characters. Duplicate writes fail; recover with list_plans using external_ref alone. Omitted/null updates leave it unchanged.",
+            "example": "github:ScottRBK/factory#42",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "goal": {
+            "description": "High-level goal for this plan",
+            "example": "Add JWT-based authentication",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "project_id": {
+            "description": "Project this plan belongs to",
+            "example": 1,
+            "required": true,
+            "type": "int"
+          },
+          "source_files": {
+            "description": "Files that informed this for provenance tracking",
+            "example": [
+              "src/main.py"
+            ],
+            "required": false,
+            "type": "Optional[List[str]]"
+          },
+          "source_repo": {
+            "description": "Repository/project source for provenance tracking",
+            "example": "owner/repo",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "source_url": {
+            "description": "URL to source material for provenance tracking",
+            "example": "https://example.com",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "status": {
+            "description": "Plan status (draft, active, completed, archived)",
+            "example": "draft",
+            "required": false,
+            "type": "str"
+          },
+          "title": {
+            "description": "Plan title",
+            "example": "Implement auth system",
+            "required": true,
+            "type": "str"
+          }
+        },
+        "returns": "Plan with id, title, project_id, status, external_ref, and timestamps"
+      },
+      {
+        "category": "plan",
+        "description": "Update plan metadata using PATCH semantics (only specified fields are updated)",
+        "example": "execute_forgetful_tool(\"update_plan\", {\"plan_id\": 1, \"status\": \"active\"})",
+        "mutates": true,
+        "name": "update_plan",
+        "parameters": {
+          "agent_id": {
+            "description": "Agent identity for provenance tracking",
+            "example": "CodeAgentUltra",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "agent_model": {
+            "description": "LLM model used for provenance tracking",
+            "example": "claude-sonnet-4-6",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "agent_version": {
+            "description": "Agent version for provenance tracking",
+            "example": "1.0",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "confidence": {
+            "description": "Encoding confidence score (0.0-1.0) for provenance tracking",
+            "example": 0.85,
+            "required": false,
+            "type": "Optional[float]"
+          },
+          "context": {
+            "description": "New context",
+            "example": "Updated constraints",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "encoding_agent": {
+            "description": "Software running the agent for provenance tracking",
+            "example": "OpenCode",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "encoding_version": {
+            "description": "Version of encoding software for provenance tracking",
+            "example": "1.0.0",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "external_ref": {
+            "description": "Opaque reference unique across your plans. Case-sensitive, trimmed, 1-255 characters. Duplicate writes fail; recover with list_plans using external_ref alone. Omitted/null updates leave it unchanged.",
+            "example": "github:ScottRBK/factory#42",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "goal": {
+            "description": "New goal description",
+            "example": "Revised goal",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "plan_id": {
+            "description": "ID of the plan to update",
+            "example": 1,
+            "required": true,
+            "type": "int"
+          },
+          "source_files": {
+            "description": "Files that informed this for provenance tracking",
+            "example": [
+              "src/main.py"
+            ],
+            "required": false,
+            "type": "Optional[List[str]]"
+          },
+          "source_repo": {
+            "description": "Repository/project source for provenance tracking",
+            "example": "owner/repo",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "source_url": {
+            "description": "URL to source material for provenance tracking",
+            "example": "https://example.com",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "status": {
+            "description": "New status (draft, active, completed, archived)",
+            "example": "active",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "title": {
+            "description": "New plan title",
+            "example": "Updated plan title",
+            "required": false,
+            "type": "Optional[str]"
+          }
+        },
+        "returns": "Updated Plan object"
+      },
+      {
+        "category": "plan",
+        "description": "Retrieve complete plan details by ID",
+        "example": "execute_forgetful_tool(\"get_plan\", {\"plan_id\": 1})",
+        "mutates": false,
+        "name": "get_plan",
+        "parameters": {
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "plan_id": {
+            "description": "ID of the plan to retrieve",
+            "example": 1,
+            "required": true,
+            "type": "int"
+          }
+        },
+        "returns": "Complete Plan object with all details"
+      },
+      {
+        "category": "plan",
+        "description": "List plans by optional project, status, and exact external_ref filters",
+        "example": "execute_forgetful_tool(\"list_plans\", {})",
+        "mutates": false,
+        "name": "list_plans",
+        "parameters": {
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "external_ref": {
+            "description": "Exact case-sensitive reference, trimmed, 1-255 characters. Use alone after a conflict to search every project and status.",
+            "example": "github:ScottRBK/factory#42",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "project_id": {
+            "description": "Filter by project ID",
+            "example": 1,
+            "required": false,
+            "type": "Optional[int]"
+          },
+          "status": {
+            "description": "Filter by status (draft, active, completed, archived)",
+            "example": "active",
+            "required": false,
+            "type": "Optional[str]"
+          }
+        },
+        "returns": "Dictionary with plans list and total_count"
+      }
+    ],
+    "project": [
+      {
+        "category": "project",
+        "description": "Create new project for organizing memories, code artifacts, and documents by context",
+        "example": "execute_forgetful_tool(\"create_project\", {\"name\": \"my-project\", \"description\": \"A new project\", \"project_type\": \"development\"})",
+        "mutates": true,
+        "name": "create_project",
+        "parameters": {
+          "agent_id": {
+            "description": "Agent identity for provenance tracking",
+            "example": "CodeAgentUltra",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "agent_model": {
+            "description": "LLM model used for provenance tracking",
+            "example": "claude-sonnet-4-6",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "agent_version": {
+            "description": "Agent version for provenance tracking",
+            "example": "1.0",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "confidence": {
+            "description": "Encoding confidence score (0.0-1.0) for provenance tracking",
+            "example": 0.85,
+            "required": false,
+            "type": "Optional[float]"
+          },
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "description": {
+            "description": "Purpose/scope overview (max ~5000 chars)",
+            "example": "MIT-licensed memory service",
+            "required": true,
+            "type": "str"
+          },
+          "encoding_agent": {
+            "description": "Software running the agent for provenance tracking",
+            "example": "OpenCode",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "encoding_version": {
+            "description": "Version of encoding software for provenance tracking",
+            "example": "1.0.0",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "last_encoding_point": {
+            "description": "Opaque caller-managed encoding checkpoint (e.g. a Git commit SHA). Never advanced by the server.",
+            "example": "5d41402abc4b2a76b9719d911017c592",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "name": {
+            "description": "Project name (max 500 chars)",
+            "example": "forgetful",
+            "required": true,
+            "type": "str"
+          },
+          "notes": {
+            "description": "Workflow notes, setup instructions (max ~4000 chars)",
+            "example": "Uses uv for dependency management",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "project_type": {
+            "description": "Project category (personal, work, learning, development, infrastructure, template, product, marketing, finance, documentation, development-environment, third-party-library, open-source)",
+            "example": "development",
+            "required": true,
+            "type": "ProjectType"
+          },
+          "repo_name": {
+            "description": "Git repository identifier or HTTPS/SSH address (max 255 chars)",
+            "example": "scottrbk/forgetful",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "source_files": {
+            "description": "Files that informed this for provenance tracking",
+            "example": [
+              "src/main.py"
+            ],
+            "required": false,
+            "type": "Optional[List[str]]"
+          },
+          "source_repo": {
+            "description": "Repository/project source for provenance tracking",
+            "example": "owner/repo",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "source_url": {
+            "description": "URL to source material for provenance tracking",
+            "example": "https://example.com",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "status": {
+            "description": "Project lifecycle status (active, archived, completed)",
+            "example": "active",
+            "required": false,
+            "type": "ProjectStatus"
+          }
+        },
+        "returns": "Complete Project with id, timestamps, and memory_count"
+      },
+      {
+        "category": "project",
+        "description": "Update project metadata using PATCH semantics (only specified fields are updated)",
+        "example": "execute_forgetful_tool(\"update_project\", {\"project_id\": 1, \"status\": \"archived\"})",
+        "mutates": true,
+        "name": "update_project",
+        "parameters": {
+          "agent_id": {
+            "description": "Agent identity for provenance tracking",
+            "example": "CodeAgentUltra",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "agent_model": {
+            "description": "LLM model used for provenance tracking",
+            "example": "claude-sonnet-4-6",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "agent_version": {
+            "description": "Agent version for provenance tracking",
+            "example": "1.0",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "confidence": {
+            "description": "Encoding confidence score (0.0-1.0) for provenance tracking",
+            "example": 0.85,
+            "required": false,
+            "type": "Optional[float]"
+          },
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "description": {
+            "description": "New description",
+            "example": "Updated description",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "encoding_agent": {
+            "description": "Software running the agent for provenance tracking",
+            "example": "OpenCode",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "encoding_version": {
+            "description": "Version of encoding software for provenance tracking",
+            "example": "1.0.0",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "last_encoding_point": {
+            "description": "Opaque caller-managed encoding checkpoint (e.g. a Git commit SHA). Never advanced by the server. Unchanged if omitted or null; pass empty string \"\" to clear.",
+            "example": "5d41402abc4b2a76b9719d911017c592",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "name": {
+            "description": "New project name",
+            "example": "updated-project",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "notes": {
+            "description": "New notes",
+            "example": "Additional notes",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "project_id": {
+            "description": "ID of the project to update",
+            "example": 1,
+            "required": true,
+            "type": "int"
+          },
+          "project_type": {
+            "description": "New project type",
+            "example": "work",
+            "required": false,
+            "type": "Optional[ProjectType]"
+          },
+          "repo_name": {
+            "description": "New Git repository identifier or address; empty string clears",
+            "example": "user/new-repo",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "source_files": {
+            "description": "Files that informed this for provenance tracking",
+            "example": [
+              "src/main.py"
+            ],
+            "required": false,
+            "type": "Optional[List[str]]"
+          },
+          "source_repo": {
+            "description": "Repository/project source for provenance tracking",
+            "example": "owner/repo",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "source_url": {
+            "description": "URL to source material for provenance tracking",
+            "example": "https://example.com",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "status": {
+            "description": "New status",
+            "example": "archived",
+            "required": false,
+            "type": "Optional[ProjectStatus]"
+          }
+        },
+        "returns": "Updated Project object"
+      },
+      {
+        "category": "project",
+        "description": "Delete project while preserving linked memories",
+        "example": "execute_forgetful_tool(\"delete_project\", {\"project_id\": 1})",
+        "mutates": true,
+        "name": "delete_project",
+        "parameters": {
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "project_id": {
+            "description": "ID of the project to delete",
+            "example": 1,
+            "required": true,
+            "type": "int"
+          }
+        },
+        "returns": "Dictionary with deletion confirmation"
+      },
+      {
+        "category": "project",
+        "description": "List projects with optional name/status/repository filtering",
+        "example": "execute_forgetful_tool(\"list_projects\", {})",
+        "mutates": false,
+        "name": "list_projects",
+        "parameters": {
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "name": {
+            "description": "Filter by project name (case-insensitive partial match)",
+            "example": "forgetful",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "repo_name": {
+            "description": "Match equivalent HTTPS/SSH/host-qualified addresses; otherwise literal. No partial match",
+            "example": "scottrbk/forgetful",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "status": {
+            "description": "Filter by status (active, archived, completed)",
+            "example": "active",
+            "required": false,
+            "type": "Optional[ProjectStatus]"
+          }
+        },
+        "returns": "Dictionary with projects list and count"
+      },
+      {
+        "category": "project",
+        "description": "Retrieve complete project details by integer project_id. To find a project by name, use list_projects with the name filter first.",
+        "example": "execute_forgetful_tool(\"get_project\", {\"project_id\": 1})",
+        "mutates": false,
+        "name": "get_project",
+        "parameters": {
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "project_id": {
+            "description": "ID of the project to retrieve",
+            "example": 1,
+            "required": true,
+            "type": "int"
+          }
+        },
+        "returns": "Complete Project object with all details"
+      }
+    ],
+    "skill": [
+      {
+        "category": "skill",
+        "description": "Create a skill for procedural memory (Agent Skills format). Skills provide steps and examples for agents to perform tasks.",
+        "example": "execute_forgetful_tool(\"create_skill\", {\"name\": \"code-review\", \"description\": \"Review code for quality\", \"content\": \"## Steps\\n1. Check security\\n2. Review naming\"})",
+        "mutates": true,
+        "name": "create_skill",
+        "parameters": {
+          "agent_id": {
+            "description": "Agent identity for provenance tracking",
+            "example": "CodeAgentUltra",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "agent_model": {
+            "description": "LLM model used for provenance tracking",
+            "example": "claude-sonnet-4-6",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "agent_version": {
+            "description": "Agent version for provenance tracking",
+            "example": "1.0",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "allowed_tools": {
+            "description": "Tool restrictions (e.g., ['Bash(python:*)', 'Read', 'WebFetch'])",
+            "example": [
+              "Bash",
+              "Read",
+              "Grep"
+            ],
+            "required": false,
+            "type": "Optional[List[str]]"
+          },
+          "compatibility": {
+            "description": "Environment requirements (e.g., 'Requires Python 3.14+ and uv')",
+            "example": "Requires Python 3.12+",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "confidence": {
+            "description": "Encoding confidence score (0.0-1.0) for provenance tracking",
+            "example": 0.85,
+            "required": false,
+            "type": "Optional[float]"
+          },
+          "content": {
+            "description": "Full SKILL.md body (markdown instructions with steps and examples)",
+            "example": "## Steps\n1. Check for security issues\n2. Review naming conventions",
+            "required": true,
+            "type": "str"
+          },
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "description": {
+            "description": "What the skill does and when to use it. Gets embedded for semantic search.",
+            "example": "Review code changes for quality, security, and best practices",
+            "required": true,
+            "type": "str"
+          },
+          "encoding_agent": {
+            "description": "Software running the agent for provenance tracking",
+            "example": "OpenCode",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "encoding_version": {
+            "description": "Version of encoding software for provenance tracking",
+            "example": "1.0.0",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "importance": {
+            "description": "Importance 1-10 (default 7)",
+            "example": 8,
+            "required": false,
+            "type": "int"
+          },
+          "license": {
+            "description": "License identifier (e.g., 'MIT', 'Apache-2.0')",
+            "example": "MIT",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "metadata": {
+            "description": "Custom key-value pairs (author, version, mcp-server, etc.)",
+            "example": {
+              "author": "scottesh",
+              "version": "1.0.0"
+            },
+            "required": false,
+            "type": "Optional[Dict[str, Any]]"
+          },
+          "name": {
+            "description": "Kebab-case skill name (e.g., 'pdf-processing', 'code-review'). Must match ^[a-z0-9]+(-[a-z0-9]+)*$",
+            "example": "code-review",
+            "required": true,
+            "type": "str"
+          },
+          "project_id": {
+            "description": "Optional project association",
+            "example": 1,
+            "required": false,
+            "type": "Optional[int]"
+          },
+          "source_files": {
+            "description": "Files that informed this for provenance tracking",
+            "example": [
+              "src/main.py"
+            ],
+            "required": false,
+            "type": "Optional[List[str]]"
+          },
+          "source_repo": {
+            "description": "Repository/project source for provenance tracking",
+            "example": "owner/repo",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "source_url": {
+            "description": "URL to source material for provenance tracking",
+            "example": "https://example.com",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "tags": {
+            "description": "Categorization tags",
+            "example": [
+              "code",
+              "review",
+              "quality"
+            ],
+            "required": false,
+            "type": "Optional[List[str]]"
+          }
+        },
+        "returns": "Skill with id, name, and timestamps"
+      },
+      {
+        "category": "skill",
+        "description": "Retrieve skill by ID with complete details including full content",
+        "example": "execute_forgetful_tool(\"get_skill\", {\"skill_id\": 1})",
+        "mutates": false,
+        "name": "get_skill",
+        "parameters": {
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "skill_id": {
+            "description": "ID of the skill to retrieve",
+            "example": 1,
+            "required": true,
+            "type": "int"
+          }
+        },
+        "returns": "Complete Skill object with full content"
+      },
+      {
+        "category": "skill",
+        "description": "List skills with optional filtering by project, tags, or importance threshold (returns summaries without full content)",
+        "example": "execute_forgetful_tool(\"list_skills\", {})",
+        "mutates": false,
+        "name": "list_skills",
+        "parameters": {
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "importance_threshold": {
+            "description": "Minimum importance level (1-10)",
+            "example": 7,
+            "required": false,
+            "type": "Optional[int]"
+          },
+          "project_id": {
+            "description": "Filter by project",
+            "example": 1,
+            "required": false,
+            "type": "Optional[int]"
+          },
+          "tags": {
+            "description": "Filter by tags (returns skills with ANY of these tags)",
+            "example": [
+              "code",
+              "review"
+            ],
+            "required": false,
+            "type": "Optional[List[str]]"
+          }
+        },
+        "returns": "Dictionary with skills list (summaries) and total_count"
+      },
+      {
+        "category": "skill",
+        "description": "Update skill (PATCH semantics - only provided fields changed)",
+        "example": "execute_forgetful_tool(\"update_skill\", {\"skill_id\": 1, \"importance\": 9, \"tags\": [\"updated\"]})",
+        "mutates": true,
+        "name": "update_skill",
+        "parameters": {
+          "agent_id": {
+            "description": "Agent identity for provenance tracking",
+            "example": "CodeAgentUltra",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "agent_model": {
+            "description": "LLM model used for provenance tracking",
+            "example": "claude-sonnet-4-6",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "agent_version": {
+            "description": "Agent version for provenance tracking",
+            "example": "1.0",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "allowed_tools": {
+            "description": "New tool restrictions (replaces existing)",
+            "example": [
+              "Read",
+              "Write"
+            ],
+            "required": false,
+            "type": "Optional[List[str]]"
+          },
+          "compatibility": {
+            "description": "New compatibility string",
+            "example": "Requires Node 20+",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "confidence": {
+            "description": "Encoding confidence score (0.0-1.0) for provenance tracking",
+            "example": 0.85,
+            "required": false,
+            "type": "Optional[float]"
+          },
+          "content": {
+            "description": "New content (markdown body)",
+            "example": "## Updated Steps\\n1. New step",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "description": {
+            "description": "New description",
+            "example": "Updated description",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "encoding_agent": {
+            "description": "Software running the agent for provenance tracking",
+            "example": "OpenCode",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "encoding_version": {
+            "description": "Version of encoding software for provenance tracking",
+            "example": "1.0.0",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "importance": {
+            "description": "New importance 1-10",
+            "example": 9,
+            "required": false,
+            "type": "Optional[int]"
+          },
+          "license": {
+            "description": "New license",
+            "example": "Apache-2.0",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "metadata": {
+            "description": "New metadata (replaces existing)",
+            "example": {
+              "version": "2.0.0"
+            },
+            "required": false,
+            "type": "Optional[Dict[str, Any]]"
+          },
+          "name": {
+            "description": "New kebab-case name",
+            "example": "updated-skill",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "project_id": {
+            "description": "New project association",
+            "example": 2,
+            "required": false,
+            "type": "Optional[int]"
+          },
+          "skill_id": {
+            "description": "ID of the skill to update",
+            "example": 1,
+            "required": true,
+            "type": "int"
+          },
+          "source_files": {
+            "description": "Files that informed this for provenance tracking",
+            "example": [
+              "src/main.py"
+            ],
+            "required": false,
+            "type": "Optional[List[str]]"
+          },
+          "source_repo": {
+            "description": "Repository/project source for provenance tracking",
+            "example": "owner/repo",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "source_url": {
+            "description": "URL to source material for provenance tracking",
+            "example": "https://example.com",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "tags": {
+            "description": "New tags (replaces existing)",
+            "example": [
+              "updated"
+            ],
+            "required": false,
+            "type": "Optional[List[str]]"
+          }
+        },
+        "returns": "Updated Skill object"
+      },
+      {
+        "category": "skill",
+        "description": "Delete skill (removes skill and its memory associations)",
+        "example": "execute_forgetful_tool(\"delete_skill\", {\"skill_id\": 1})",
+        "mutates": true,
+        "name": "delete_skill",
+        "parameters": {
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "skill_id": {
+            "description": "ID of the skill to delete",
+            "example": 1,
+            "required": true,
+            "type": "int"
+          }
+        },
+        "returns": "Dictionary with deletion confirmation"
+      },
+      {
+        "category": "skill",
+        "description": "Semantic search across skills to find relevant procedural knowledge",
+        "example": "execute_forgetful_tool(\"search_skills\", {\"query\": \"code review best practices\"})",
+        "mutates": false,
+        "name": "search_skills",
+        "parameters": {
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "k": {
+            "description": "Number of results to return (default: 5)",
+            "example": 5,
+            "required": false,
+            "type": "int"
+          },
+          "project_id": {
+            "description": "Filter by project",
+            "example": 1,
+            "required": false,
+            "type": "Optional[int]"
+          },
+          "query": {
+            "description": "Natural language search query",
+            "example": "how to review code",
+            "required": true,
+            "type": "str"
+          }
+        },
+        "returns": "Dictionary with skills list (summaries), total_count, and search_query"
+      },
+      {
+        "category": "skill",
+        "description": "Import a skill from Agent Skills markdown format (YAML frontmatter between --- delimiters)",
+        "example": "execute_forgetful_tool(\"import_skill\", {\"skill_md_content\": \"---\\nname: my-skill\\ndescription: Does things\\n---\\n\\nInstructions here\"})",
+        "mutates": true,
+        "name": "import_skill",
+        "parameters": {
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "importance": {
+            "description": "Importance level (default: 7)",
+            "example": 8,
+            "required": false,
+            "type": "int"
+          },
+          "project_id": {
+            "description": "Project association (overrides frontmatter)",
+            "example": 1,
+            "required": false,
+            "type": "Optional[int]"
+          },
+          "skill_md_content": {
+            "description": "Raw SKILL.md content with YAML frontmatter between --- delimiters",
+            "example": "---\\nname: my-skill\\ndescription: A skill\\n---\\n\\n## Steps\\n1. Do something",
+            "required": true,
+            "type": "str"
+          }
+        },
+        "returns": "Created Skill from parsed markdown"
+      },
+      {
+        "category": "skill",
+        "description": "Export a skill to Agent Skills markdown format (YAML frontmatter + content body)",
+        "example": "execute_forgetful_tool(\"export_skill\", {\"skill_id\": 1})",
+        "mutates": false,
+        "name": "export_skill",
+        "parameters": {
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "skill_id": {
+            "description": "ID of the skill to export",
+            "example": 1,
+            "required": true,
+            "type": "int"
+          }
+        },
+        "returns": "Formatted SKILL.md string with YAML frontmatter"
+      },
+      {
+        "category": "skill",
+        "description": "Link a skill to a memory (establishes reference relationship)",
+        "example": "execute_forgetful_tool(\"link_skill_to_memory\", {\"skill_id\": 1, \"memory_id\": 5})",
+        "mutates": true,
+        "name": "link_skill_to_memory",
+        "parameters": {
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "memory_id": {
+            "description": "ID of the memory",
+            "example": 5,
+            "required": true,
+            "type": "int"
+          },
+          "skill_id": {
+            "description": "ID of the skill",
+            "example": 1,
+            "required": true,
+            "type": "int"
+          }
+        },
+        "returns": "Dictionary with link confirmation"
+      },
+      {
+        "category": "skill",
+        "description": "Unlink a skill from a memory (removes reference relationship)",
+        "example": "execute_forgetful_tool(\"unlink_skill_from_memory\", {\"skill_id\": 1, \"memory_id\": 5})",
+        "mutates": true,
+        "name": "unlink_skill_from_memory",
+        "parameters": {
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "memory_id": {
+            "description": "ID of the memory",
+            "example": 5,
+            "required": true,
+            "type": "int"
+          },
+          "skill_id": {
+            "description": "ID of the skill",
+            "example": 1,
+            "required": true,
+            "type": "int"
+          }
+        },
+        "returns": "Dictionary with unlink confirmation"
+      },
+      {
+        "category": "skill",
+        "description": "Link a skill to a file (establishes reference relationship)",
+        "example": "execute_forgetful_tool(\"link_skill_to_file\", {\"skill_id\": 1, \"file_id\": 3})",
+        "mutates": true,
+        "name": "link_skill_to_file",
+        "parameters": {
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "file_id": {
+            "description": "ID of the file",
+            "example": 3,
+            "required": true,
+            "type": "int"
+          },
+          "skill_id": {
+            "description": "ID of the skill",
+            "example": 1,
+            "required": true,
+            "type": "int"
+          }
+        },
+        "returns": "Dictionary with link confirmation"
+      },
+      {
+        "category": "skill",
+        "description": "Unlink a skill from a file (removes reference relationship)",
+        "example": "execute_forgetful_tool(\"unlink_skill_from_file\", {\"skill_id\": 1, \"file_id\": 3})",
+        "mutates": true,
+        "name": "unlink_skill_from_file",
+        "parameters": {
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "file_id": {
+            "description": "ID of the file",
+            "example": 3,
+            "required": true,
+            "type": "int"
+          },
+          "skill_id": {
+            "description": "ID of the skill",
+            "example": 1,
+            "required": true,
+            "type": "int"
+          }
+        },
+        "returns": "Dictionary with unlink confirmation"
+      },
+      {
+        "category": "skill",
+        "description": "Link a skill to a code artifact (establishes reference relationship)",
+        "example": "execute_forgetful_tool(\"link_skill_to_code_artifact\", {\"skill_id\": 1, \"code_artifact_id\": 2})",
+        "mutates": true,
+        "name": "link_skill_to_code_artifact",
+        "parameters": {
+          "code_artifact_id": {
+            "description": "ID of the code artifact",
+            "example": 2,
+            "required": true,
+            "type": "int"
+          },
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "skill_id": {
+            "description": "ID of the skill",
+            "example": 1,
+            "required": true,
+            "type": "int"
+          }
+        },
+        "returns": "Dictionary with link confirmation"
+      },
+      {
+        "category": "skill",
+        "description": "Unlink a skill from a code artifact (removes reference relationship)",
+        "example": "execute_forgetful_tool(\"unlink_skill_from_code_artifact\", {\"skill_id\": 1, \"code_artifact_id\": 2})",
+        "mutates": true,
+        "name": "unlink_skill_from_code_artifact",
+        "parameters": {
+          "code_artifact_id": {
+            "description": "ID of the code artifact",
+            "example": 2,
+            "required": true,
+            "type": "int"
+          },
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "skill_id": {
+            "description": "ID of the skill",
+            "example": 1,
+            "required": true,
+            "type": "int"
+          }
+        },
+        "returns": "Dictionary with unlink confirmation"
+      },
+      {
+        "category": "skill",
+        "description": "Link a skill to a document (establishes reference relationship)",
+        "example": "execute_forgetful_tool(\"link_skill_to_document\", {\"skill_id\": 1, \"document_id\": 4})",
+        "mutates": true,
+        "name": "link_skill_to_document",
+        "parameters": {
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "document_id": {
+            "description": "ID of the document",
+            "example": 4,
+            "required": true,
+            "type": "int"
+          },
+          "skill_id": {
+            "description": "ID of the skill",
+            "example": 1,
+            "required": true,
+            "type": "int"
+          }
+        },
+        "returns": "Dictionary with link confirmation"
+      },
+      {
+        "category": "skill",
+        "description": "Unlink a skill from a document (removes reference relationship)",
+        "example": "execute_forgetful_tool(\"unlink_skill_from_document\", {\"skill_id\": 1, \"document_id\": 4})",
+        "mutates": true,
+        "name": "unlink_skill_from_document",
+        "parameters": {
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "document_id": {
+            "description": "ID of the document",
+            "example": 4,
+            "required": true,
+            "type": "int"
+          },
+          "skill_id": {
+            "description": "ID of the skill",
+            "example": 1,
+            "required": true,
+            "type": "int"
+          }
+        },
+        "returns": "Dictionary with unlink confirmation"
+      },
+      {
+        "category": "skill",
+        "description": "Get IDs of all content linked to a skill (memories, files, code artifacts, documents) - reverse lookup for skill associations",
+        "example": "execute_forgetful_tool(\"get_skill_links\", {\"skill_id\": 1})",
+        "mutates": false,
+        "name": "get_skill_links",
+        "parameters": {
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "skill_id": {
+            "description": "ID of the skill to look up links for",
+            "example": 1,
+            "required": true,
+            "type": "int"
+          }
+        },
+        "returns": "Dictionary with memory_ids, file_ids, code_artifact_ids, document_ids (lists of int) and total_count (int)"
+      }
+    ],
+    "task": [
+      {
+        "category": "task",
+        "description": "Create a new task within a plan with optional acceptance criteria and dependencies",
+        "example": "execute_forgetful_tool(\"create_task\", {\"title\": \"Add login\", \"plan_id\": 1, \"priority\": \"P1\"})",
+        "mutates": true,
+        "name": "create_task",
+        "parameters": {
+          "agent_id": {
+            "description": "Agent identity for provenance tracking",
+            "example": "CodeAgentUltra",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "agent_model": {
+            "description": "LLM model used for provenance tracking",
+            "example": "claude-sonnet-4-6",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "agent_version": {
+            "description": "Agent version for provenance tracking",
+            "example": "1.0",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "assigned_agent": {
+            "description": "Agent ID to assign this task to",
+            "example": "agent-123",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "confidence": {
+            "description": "Encoding confidence score (0.0-1.0) for provenance tracking",
+            "example": 0.85,
+            "required": false,
+            "type": "Optional[float]"
+          },
+          "criteria": {
+            "description": "Acceptance criteria list (each with 'description' key)",
+            "example": [
+              {
+                "description": "Returns JWT token"
+              }
+            ],
+            "required": false,
+            "type": "Optional[List[dict]]"
+          },
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "dependency_ids": {
+            "description": "IDs of tasks this task depends on",
+            "example": [
+              1,
+              2
+            ],
+            "required": false,
+            "type": "Optional[List[int]]"
+          },
+          "description": {
+            "description": "Detailed task description",
+            "example": "Create POST /auth/login with JWT response",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "encoding_agent": {
+            "description": "Software running the agent for provenance tracking",
+            "example": "OpenCode",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "encoding_version": {
+            "description": "Version of encoding software for provenance tracking",
+            "example": "1.0.0",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "plan_id": {
+            "description": "Plan this task belongs to",
+            "example": 1,
+            "required": true,
+            "type": "int"
+          },
+          "priority": {
+            "description": "Task priority (P0, P1, P2, P3)",
+            "example": "P1",
+            "required": false,
+            "type": "str"
+          },
+          "source_files": {
+            "description": "Files that informed this for provenance tracking",
+            "example": [
+              "src/main.py"
+            ],
+            "required": false,
+            "type": "Optional[List[str]]"
+          },
+          "source_repo": {
+            "description": "Repository/project source for provenance tracking",
+            "example": "owner/repo",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "source_url": {
+            "description": "URL to source material for provenance tracking",
+            "example": "https://example.com",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "title": {
+            "description": "Task title",
+            "example": "Implement login endpoint",
+            "required": true,
+            "type": "str"
+          }
+        },
+        "returns": "Task object with id, title, state, priority, and timestamps"
+      },
+      {
+        "category": "task",
+        "description": "Update task metadata using PATCH semantics (only specified fields are updated)",
+        "example": "execute_forgetful_tool(\"update_task\", {\"task_id\": 1, \"priority\": \"P0\"})",
+        "mutates": true,
+        "name": "update_task",
+        "parameters": {
+          "agent_id": {
+            "description": "Agent identity for provenance tracking",
+            "example": "CodeAgentUltra",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "agent_model": {
+            "description": "LLM model used for provenance tracking",
+            "example": "claude-sonnet-4-6",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "agent_version": {
+            "description": "Agent version for provenance tracking",
+            "example": "1.0",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "confidence": {
+            "description": "Encoding confidence score (0.0-1.0) for provenance tracking",
+            "example": 0.85,
+            "required": false,
+            "type": "Optional[float]"
+          },
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "description": {
+            "description": "New description",
+            "example": "Updated description",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "encoding_agent": {
+            "description": "Software running the agent for provenance tracking",
+            "example": "OpenCode",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "encoding_version": {
+            "description": "Version of encoding software for provenance tracking",
+            "example": "1.0.0",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "priority": {
+            "description": "New priority (P0, P1, P2, P3)",
+            "example": "P0",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "source_files": {
+            "description": "Files that informed this for provenance tracking",
+            "example": [
+              "src/main.py"
+            ],
+            "required": false,
+            "type": "Optional[List[str]]"
+          },
+          "source_repo": {
+            "description": "Repository/project source for provenance tracking",
+            "example": "owner/repo",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "source_url": {
+            "description": "URL to source material for provenance tracking",
+            "example": "https://example.com",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "task_id": {
+            "description": "ID of the task to update",
+            "example": 1,
+            "required": true,
+            "type": "int"
+          },
+          "title": {
+            "description": "New task title",
+            "example": "Updated task title",
+            "required": false,
+            "type": "Optional[str]"
+          }
+        },
+        "returns": "Updated Task object"
+      },
+      {
+        "category": "task",
+        "description": "Retrieve complete task details by ID including criteria and dependencies",
+        "example": "execute_forgetful_tool(\"get_task\", {\"task_id\": 1})",
+        "mutates": false,
+        "name": "get_task",
+        "parameters": {
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "task_id": {
+            "description": "ID of the task to retrieve",
+            "example": 1,
+            "required": true,
+            "type": "int"
+          }
+        },
+        "returns": "Complete Task object with criteria, dependencies, and state history"
+      },
+      {
+        "category": "task",
+        "description": "Query tasks within a plan with optional state, priority, and agent filters",
+        "example": "execute_forgetful_tool(\"query_tasks\", {\"plan_id\": 1})",
+        "mutates": false,
+        "name": "query_tasks",
+        "parameters": {
+          "assigned_agent": {
+            "description": "Filter by assigned agent",
+            "example": "agent-123",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "plan_id": {
+            "description": "Plan to query tasks from",
+            "example": 1,
+            "required": true,
+            "type": "int"
+          },
+          "priority": {
+            "description": "Filter by priority (P0, P1, P2, P3)",
+            "example": "P1",
+            "required": false,
+            "type": "Optional[str]"
+          },
+          "state": {
+            "description": "Filter by task state (todo, doing, waiting, done, cancelled)",
+            "example": "todo",
+            "required": false,
+            "type": "Optional[str]"
+          }
+        },
+        "returns": "Dictionary with tasks list and total_count"
+      },
+      {
+        "category": "task",
+        "description": "Claim a task for an agent with optimistic concurrency control",
+        "example": "execute_forgetful_tool(\"claim_task\", {\"task_id\": 1, \"agent_id\": \"agent-123\", \"version\": 1})",
+        "mutates": true,
+        "name": "claim_task",
+        "parameters": {
+          "agent_id": {
+            "description": "ID of the agent claiming the task",
+            "example": "agent-123",
+            "required": true,
+            "type": "str"
+          },
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "task_id": {
+            "description": "ID of the task to claim",
+            "example": 1,
+            "required": true,
+            "type": "int"
+          },
+          "version": {
+            "description": "Expected task version for optimistic locking",
+            "example": 1,
+            "required": true,
+            "type": "int"
+          }
+        },
+        "returns": "Updated Task object with agent assignment"
+      },
+      {
+        "category": "task",
+        "description": "Transition task to a new state with optimistic concurrency control",
+        "example": "execute_forgetful_tool(\"transition_task\", {\"task_id\": 1, \"state\": \"done\", \"version\": 2})",
+        "mutates": true,
+        "name": "transition_task",
+        "parameters": {
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "state": {
+            "description": "Target state (todo, doing, waiting, done, cancelled)",
+            "example": "done",
+            "required": true,
+            "type": "str"
+          },
+          "task_id": {
+            "description": "ID of the task to transition",
+            "example": 1,
+            "required": true,
+            "type": "int"
+          },
+          "version": {
+            "description": "Expected task version for optimistic locking",
+            "example": 2,
+            "required": true,
+            "type": "int"
+          }
+        },
+        "returns": "Updated Task object with new state"
+      },
+      {
+        "category": "task",
+        "description": "Add an acceptance criterion to a task",
+        "example": "execute_forgetful_tool(\"add_criterion\", {\"task_id\": 1, \"description\": \"Returns JWT token\"})",
+        "mutates": true,
+        "name": "add_criterion",
+        "parameters": {
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "description": {
+            "description": "Criterion description",
+            "example": "Returns 200 on valid credentials",
+            "required": true,
+            "type": "str"
+          },
+          "task_id": {
+            "description": "ID of the task to add criterion to",
+            "example": 1,
+            "required": true,
+            "type": "int"
+          }
+        },
+        "returns": "Created Criterion object"
+      },
+      {
+        "category": "task",
+        "description": "Mark an acceptance criterion as met or unmet",
+        "example": "execute_forgetful_tool(\"verify_criterion\", {\"criterion_id\": 1, \"met\": true})",
+        "mutates": true,
+        "name": "verify_criterion",
+        "parameters": {
+          "criterion_id": {
+            "description": "ID of the criterion to verify",
+            "example": 1,
+            "required": true,
+            "type": "int"
+          },
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "met": {
+            "description": "Whether the criterion has been met",
+            "example": true,
+            "required": true,
+            "type": "bool"
+          }
+        },
+        "returns": "Updated Criterion object"
+      },
+      {
+        "category": "task",
+        "description": "Delete an acceptance criterion from a task",
+        "example": "execute_forgetful_tool(\"delete_criterion\", {\"criterion_id\": 1})",
+        "mutates": true,
+        "name": "delete_criterion",
+        "parameters": {
+          "criterion_id": {
+            "description": "ID of the criterion to delete",
+            "example": 1,
+            "required": true,
+            "type": "int"
+          },
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          }
+        },
+        "returns": "Dictionary with deletion confirmation"
+      },
+      {
+        "category": "task",
+        "description": "Add a dependency between tasks (task depends on another task)",
+        "example": "execute_forgetful_tool(\"add_dependency\", {\"task_id\": 2, \"depends_on_task_id\": 1})",
+        "mutates": true,
+        "name": "add_dependency",
+        "parameters": {
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "depends_on_task_id": {
+            "description": "ID of the task it depends on",
+            "example": 1,
+            "required": true,
+            "type": "int"
+          },
+          "task_id": {
+            "description": "ID of the dependent task",
+            "example": 2,
+            "required": true,
+            "type": "int"
+          }
+        },
+        "returns": "Dependency object"
+      },
+      {
+        "category": "task",
+        "description": "Remove a dependency between tasks",
+        "example": "execute_forgetful_tool(\"remove_dependency\", {\"task_id\": 2, \"depends_on_task_id\": 1})",
+        "mutates": true,
+        "name": "remove_dependency",
+        "parameters": {
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "depends_on_task_id": {
+            "description": "ID of the task to remove dependency on",
+            "example": 1,
+            "required": true,
+            "type": "int"
+          },
+          "task_id": {
+            "description": "ID of the dependent task",
+            "example": 2,
+            "required": true,
+            "type": "int"
+          }
+        },
+        "returns": "Dictionary with deletion confirmation"
+      }
+    ],
+    "user": [
+      {
+        "category": "user",
+        "description": "Returns information about the current authenticated user",
+        "example": "execute_forgetful_tool(\"get_current_user\", {})",
+        "mutates": false,
+        "name": "get_current_user",
+        "parameters": {
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          }
+        },
+        "returns": "UserResponse with id, external_id, name, email, notes, timestamps"
+      },
+      {
+        "category": "user",
+        "description": "Update the notes field for the current user",
+        "example": "execute_forgetful_tool(\"update_user_notes\", {\"user_notes\": \"Prefers React over Vue\"})",
+        "mutates": true,
+        "name": "update_user_notes",
+        "parameters": {
+          "ctx": {
+            "description": "FastMCP Context (automatically injected)",
+            "example": null,
+            "required": true,
+            "type": "Context"
+          },
+          "user_notes": {
+            "description": "The new notes content to store for the user",
+            "example": "User prefers TypeScript, uses VSCode, timezone: PST",
+            "required": true,
+            "type": "str"
+          }
+        },
+        "returns": "Updated UserResponse with new notes value"
+      }
+    ]
+  },
+  "total_count": 80
+}

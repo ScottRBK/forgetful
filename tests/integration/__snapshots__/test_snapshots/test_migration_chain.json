@@ -1,0 +1,46 @@
+{
+  "0c7b964dd1e7_initial_schema_with_entity_many_to_many.py": {
+    "down_revision": "None",
+    "revision": "0c7b964dd1e7"
+  },
+  "20251216143413_add_aka_to_entities.py": {
+    "down_revision": "0c7b964dd1e7",
+    "revision": "20251216143413"
+  },
+  "20260106_add_activity_log_table.py": {
+    "down_revision": "20260106_provenance",
+    "revision": "20260106_activity"
+  },
+  "20260106_add_provenance_tracking_to_memories.py": {
+    "down_revision": "20251216143413",
+    "revision": "20260106_provenance"
+  },
+  "20260312_add_plans_tasks_criteria_dependencies.py": {
+    "down_revision": "20260106_activity",
+    "revision": "20260312_planning"
+  },
+  "20260315_add_files_table.py": {
+    "down_revision": "20260312_planning",
+    "revision": "20260315_files"
+  },
+  "20260321_add_skills_table.py": {
+    "down_revision": "20260315_files",
+    "revision": "20260321_skills"
+  },
+  "20260408_add_provenance_to_all_object_types.py": {
+    "down_revision": "20260321_skills",
+    "revision": "20260408_provenance_all"
+  },
+  "20260704_add_memory_usage_tracking.py": {
+    "down_revision": "20260408_provenance_all",
+    "revision": "20260704_usage_tracking"
+  },
+  "20260822_add_project_last_encoding_point.py": {
+    "down_revision": "20260704_usage_tracking",
+    "revision": "20260822_project_encoding_point"
+  },
+  "20261008_add_plan_external_ref.py": {
+    "down_revision": "20260822_project_encoding_point",
+    "revision": "20261008_plan_external_ref"
+  }
+}

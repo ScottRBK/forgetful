@@ -1,0 +1,57 @@
+{
+  "discover_forgetful_tools": {
+    "description": "Discover available tools, optionally filtered by category\n\nReturns enough information for LLMs to call tools directly without needing how_to_use.\n\nArgs:\n    category: Optional category filter (user, memory, project, code_artifact, document, entity, linking)\n    ctx: FastMCP Context (automatically injected)\n\nReturns:\n    Dictionary with:\n    - tools_by_category: Tools grouped by category\n    - total_count: Total number of tools\n    - categories_available: List of available categories\n    - filtered_by: Category filter applied (if any)\n\n## All Available Tools\n\n**User Tools** - User profile and preferences\n- get_current_user: Get authenticated user info\n- update_user_notes: Store user preferences/notes\n\n**Memory Tools** - Atomic knowledge storage (<400 words per memory)\n- create_memory: Store a single concept with auto-linking to similar memories (supports provenance tracking)\n- query_memory: Semantic search across memories (use query_context for better ranking)\n- get_memory: Retrieve memory by ID\n- update_memory: Modify memory fields (PATCH semantics, supports provenance tracking)\n- link_memories: Manually connect related memories bidirectionally\n- unlink_memories: Remove link between memories\n- mark_memory_obsolete: Soft-delete with audit trail and optional superseded_by\n- unobsolete_memory: Restore a memory previously marked obsolete\n- get_recent_memories: Get newest memories (timeline view)\n\n**Provenance Tracking** (optional fields for create_memory/update_memory):\n- source_repo, source_files, source_url: Track where knowledge came from\n- confidence: Reliability score (0.0-1.0) for AI-generated content\n- encoding_agent, encoding_version: Track which agent/version created the memory\n\n**Project Tools** - Organize memories by context/scope\n- create_project: Create project container (development, personal, work, etc.)\n- get_project: Retrieve project details\n- list_projects: List all projects with optional status/repo filter\n- update_project: Modify project metadata\n- delete_project: Remove project (memories preserved)\n\n**Code Artifact Tools** - Reusable code snippets and patterns\n- create_code_artifact: Store code with language, tags, project link\n- get_code_artifact: Retrieve code artifact by ID\n- list_code_artifacts: List artifacts with project/language/tags filter\n- update_code_artifact: Modify artifact fields\n- delete_code_artifact: Remove artifact\n\n**Document Tools** - Long-form content (>300 words)\n- create_document: Store detailed docs, analysis, guides\n- get_document: Retrieve document by ID\n- list_documents: List documents with project/type/tags filter\n- update_document: Modify document fields\n- delete_document: Remove document\n\n**Entity Tools** - Real-world entities (people, orgs, devices)\n- create_entity: Create entity with type, aka (aliases), notes\n- get_entity: Retrieve entity by ID\n- list_entities: List entities with project/type/tags filter\n- search_entities: Text search by name or aka (aliases)\n- update_entity: Modify entity fields\n- delete_entity: Remove entity (cascades links)\n- link_entity_to_memory: Connect entity to memory\n- unlink_entity_from_memory: Remove entity-memory link\n- link_entity_to_project: Connect entity to project (organizational grouping)\n- unlink_entity_from_project: Remove entity-project link\n- get_entity_memories: Get all memories linked to entity\n- get_memory_entities: Get all entities linked to memory\n- create_entity_relationship: Create relationship (part_of, depends_on, works_for, etc.)\n- get_entity_relationships: Get relationships for entity\n- update_entity_relationship: Modify relationship\n- delete_entity_relationship: Remove relationship\n\n## Workflow\n1. Call discover_forgetful_tools() to see this catalog\n2. Call execute_forgetful_tool(tool_name, {args}) to run any tool\n3. If needed, call how_to_use_forgetful_tool(tool_name) for full parameter docs",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "category": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "type": "object"
+    }
+  },
+  "execute_forgetful_tool": {
+    "description": "Execute any registered tool dynamically. Forgetful is a semantic memory system for LLMs.\n\n## Quick Start - One-Shot Examples (all required params shown)\n\n**Memory Operations:**\n- Search: execute_forgetful_tool(\"query_memory\", {\"query\": \"search terms\", \"query_context\": \"why searching\"})\n- Create: execute_forgetful_tool(\"create_memory\", {\"title\": \"Short title\", \"content\": \"Memory content (<2000 chars)\", \"context\": \"Why this matters\", \"keywords\": [\"kw1\", \"kw2\"], \"tags\": [\"tag1\"], \"importance\": 7, \"project_ids\": [1]})\n- Create with provenance: execute_forgetful_tool(\"create_memory\", {\"title\": \"...\", \"content\": \"...\", \"context\": \"...\", \"keywords\": [...], \"tags\": [...], \"importance\": 7, \"source_repo\": \"owner/repo\", \"source_files\": [\"src/main.py\"], \"confidence\": 0.85, \"encoding_agent\": \"claude-sonnet-4\"})\n- Update: execute_forgetful_tool(\"update_memory\", {\"memory_id\": 1, \"content\": \"new content\"})\n- Get: execute_forgetful_tool(\"get_memory\", {\"memory_id\": 1})\n- Link: execute_forgetful_tool(\"link_memories\", {\"memory_id\": 1, \"related_ids\": [2, 3]})\n- Unlink: execute_forgetful_tool(\"unlink_memories\", {\"source_id\": 1, \"target_id\": 2})\n- Obsolete: execute_forgetful_tool(\"mark_memory_obsolete\", {\"memory_id\": 42, \"reason\": \"Outdated approach\", \"superseded_by\": 100})\n\n**Project Organization:**\n- List: execute_forgetful_tool(\"list_projects\", {})\n- Create: execute_forgetful_tool(\"create_project\", {\"name\": \"Project Name\", \"description\": \"What this project is about\", \"project_type\": \"development\"})\n- Get: execute_forgetful_tool(\"get_project\", {\"project_id\": 1})\n- Query: execute_forgetful_tool(\"query_memory\", {\"query\": \"search terms\", \"query_context\": \"why searching\", \"project_ids\": [1]})\n\n**Entities (people, orgs, devices):**\n- Create: execute_forgetful_tool(\"create_entity\", {\"name\": \"Sarah Chen\", \"entity_type\": \"Individual\", \"notes\": \"Backend developer\", \"aka\": [\"Sarah\", \"S.C.\"]})\n- Search: execute_forgetful_tool(\"search_entities\", {\"query\": \"Sarah\"})  # Searches name AND aka\n- Link to memory: execute_forgetful_tool(\"link_entity_to_memory\", {\"entity_id\": 1, \"memory_id\": 1})\n- Unlink from memory: execute_forgetful_tool(\"unlink_entity_from_memory\", {\"entity_id\": 1, \"memory_id\": 1})\n- Link to project: execute_forgetful_tool(\"link_entity_to_project\", {\"entity_id\": 1, \"project_id\": 1})\n- Unlink from project: execute_forgetful_tool(\"unlink_entity_from_project\", {\"entity_id\": 1, \"project_id\": 1})\n\n**Documents (long-form content >300 words):**\n- Create: execute_forgetful_tool(\"create_document\", {\"title\": \"Doc Title\", \"description\": \"Brief summary\", \"content\": \"Long content...\", \"document_type\": \"text\", \"project_id\": 1})\n\n**Code Artifacts (reusable snippets):**\n- Create: execute_forgetful_tool(\"create_code_artifact\", {\"title\": \"Snippet Title\", \"description\": \"What this does\", \"code\": \"def example(): pass\", \"language\": \"python\", \"project_id\": 1})\n\n## Linking Best Practices\n**Always link related items for discoverability:**\n- When creating documents, link atomic memories: `create_memory(..., document_ids=[doc_id])`\n- When creating code artifacts, link to memories: `create_memory(..., code_artifact_ids=[artifact_id])`\n- Link memories to each other: `link_memories(memory_id=1, related_ids=[2, 3])`\n- Link entities to memories: `link_entity_to_memory(entity_id=1, memory_id=1)`\n- Link entities to projects: `link_entity_to_project(entity_id=1, project_id=1)`\n\n## Tool Categories\nmemory | project | entity | document | code_artifact | linking | user\n\nUse discover_forgetful_tools(category?) for full parameter details and optional params.\n\n---\n\nArgs:\n    tool_name: Name of the tool to execute\n    arguments: Dictionary of arguments to pass to the tool\n    ctx: FastMCP Context (automatically injected)\n\nReturns:\n    Tool execution result (format depends on the specific tool)",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "arguments": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "tool_name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "tool_name",
+        "arguments"
+      ],
+      "type": "object"
+    }
+  },
+  "how_to_use_forgetful_tool": {
+    "description": "Get detailed documentation for a specific tool\n\nReturns complete documentation including JSON schema, multiple examples, and full parameter details.\n\nArgs:\n    tool_name: Name of the tool to get documentation for\n    ctx: FastMCP Context (automatically injected)\n\nReturns:\n    Detailed tool documentation with JSON schema",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "tool_name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "tool_name"
+      ],
+      "type": "object"
+    }
+  }
+}

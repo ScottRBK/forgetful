@@ -1,0 +1,142 @@
+{
+  "activity_log": [
+    "CREATE TABLE activity_log (\n\tid SERIAL NOT NULL, \n\tuser_id UUID NOT NULL, \n\tentity_type VARCHAR(50) NOT NULL, \n\tentity_id INTEGER NOT NULL, \n\taction VARCHAR(20) NOT NULL, \n\tchanges JSONB, \n\tsnapshot JSONB NOT NULL, \n\tactor VARCHAR(50) NOT NULL, \n\tactor_id VARCHAR(255), \n\tmetadata JSONB, \n\tcreated_at TIMESTAMP WITH TIME ZONE NOT NULL, \n\tPRIMARY KEY (id), \n\tFOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE\n)",
+    "CREATE INDEX ix_activity_log_action ON activity_log (action)",
+    "CREATE INDEX ix_activity_log_actor ON activity_log (actor)",
+    "CREATE INDEX ix_activity_log_created_at ON activity_log (created_at)",
+    "CREATE INDEX ix_activity_log_entity_id ON activity_log (entity_id)",
+    "CREATE INDEX ix_activity_log_entity_type ON activity_log (entity_type)",
+    "CREATE INDEX ix_activity_log_user_created ON activity_log (user_id, created_at)",
+    "CREATE INDEX ix_activity_log_user_entity ON activity_log (user_id, entity_type, entity_id)",
+    "CREATE INDEX ix_activity_log_user_id ON activity_log (user_id)"
+  ],
+  "code_artifacts": [
+    "CREATE TABLE code_artifacts (\n\tid SERIAL NOT NULL, \n\tuser_id UUID NOT NULL, \n\tproject_id INTEGER, \n\ttitle VARCHAR(500) NOT NULL, \n\tdescription TEXT NOT NULL, \n\tcode TEXT NOT NULL, \n\tlanguage VARCHAR(100) NOT NULL, \n\ttags VARCHAR[] NOT NULL, \n\tsource_repo TEXT, \n\tsource_files VARCHAR[], \n\tsource_url TEXT, \n\tconfidence FLOAT, \n\tencoding_agent TEXT, \n\tencoding_version TEXT, \n\tagent_id TEXT, \n\tagent_version TEXT, \n\tagent_model TEXT, \n\tcreated_at TIMESTAMP WITH TIME ZONE NOT NULL, \n\tupdated_at TIMESTAMP WITH TIME ZONE NOT NULL, \n\tPRIMARY KEY (id), \n\tFOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE, \n\tFOREIGN KEY(project_id) REFERENCES projects (id) ON DELETE SET NULL\n)",
+    "CREATE INDEX ix_code_artifacts_language ON code_artifacts (language)",
+    "CREATE INDEX ix_code_artifacts_project_id ON code_artifacts (project_id)",
+    "CREATE INDEX ix_code_artifacts_tags ON code_artifacts USING gin (tags)",
+    "CREATE INDEX ix_code_artifacts_user_id ON code_artifacts (user_id)"
+  ],
+  "criteria": [
+    "CREATE TABLE criteria (\n\tid SERIAL NOT NULL, \n\tuser_id UUID NOT NULL, \n\ttask_id INTEGER NOT NULL, \n\tdescription TEXT NOT NULL, \n\tmet BOOLEAN NOT NULL, \n\tmet_at TIMESTAMP WITH TIME ZONE, \n\tcreated_at TIMESTAMP WITH TIME ZONE NOT NULL, \n\tupdated_at TIMESTAMP WITH TIME ZONE NOT NULL, \n\tPRIMARY KEY (id), \n\tFOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE, \n\tFOREIGN KEY(task_id) REFERENCES tasks (id) ON DELETE CASCADE\n)",
+    "CREATE INDEX ix_criteria_met ON criteria (met)",
+    "CREATE INDEX ix_criteria_task_id ON criteria (task_id)"
+  ],
+  "documents": [
+    "CREATE TABLE documents (\n\tid SERIAL NOT NULL, \n\tuser_id UUID NOT NULL, \n\tproject_id INTEGER, \n\ttitle VARCHAR(500) NOT NULL, \n\tdescription TEXT NOT NULL, \n\tcontent TEXT NOT NULL, \n\tdocument_type VARCHAR(100), \n\tfilename VARCHAR(500), \n\tsize_bytes INTEGER NOT NULL, \n\ttags VARCHAR[] NOT NULL, \n\tsource_repo TEXT, \n\tsource_files VARCHAR[], \n\tsource_url TEXT, \n\tconfidence FLOAT, \n\tencoding_agent TEXT, \n\tencoding_version TEXT, \n\tagent_id TEXT, \n\tagent_version TEXT, \n\tagent_model TEXT, \n\tcreated_at TIMESTAMP WITH TIME ZONE NOT NULL, \n\tupdated_at TIMESTAMP WITH TIME ZONE NOT NULL, \n\tPRIMARY KEY (id), \n\tFOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE, \n\tFOREIGN KEY(project_id) REFERENCES projects (id) ON DELETE SET NULL\n)",
+    "CREATE INDEX ix_documents_document_type ON documents (document_type)",
+    "CREATE INDEX ix_documents_project_id ON documents (project_id)",
+    "CREATE INDEX ix_documents_tags ON documents USING gin (tags)",
+    "CREATE INDEX ix_documents_user_id ON documents (user_id)"
+  ],
+  "entities": [
+    "CREATE TABLE entities (\n\tid SERIAL NOT NULL, \n\tuser_id UUID NOT NULL, \n\tname VARCHAR(200) NOT NULL, \n\tentity_type VARCHAR(100) NOT NULL, \n\tcustom_type VARCHAR(100), \n\tnotes TEXT, \n\ttags VARCHAR[] NOT NULL, \n\taka VARCHAR[] NOT NULL, \n\tsource_repo TEXT, \n\tsource_files VARCHAR[], \n\tsource_url TEXT, \n\tconfidence FLOAT, \n\tencoding_agent TEXT, \n\tencoding_version TEXT, \n\tagent_id TEXT, \n\tagent_version TEXT, \n\tagent_model TEXT, \n\tcreated_at TIMESTAMP WITH TIME ZONE NOT NULL, \n\tupdated_at TIMESTAMP WITH TIME ZONE NOT NULL, \n\tPRIMARY KEY (id), \n\tFOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE\n)",
+    "CREATE INDEX ix_entities_aka ON entities USING gin (aka)",
+    "CREATE INDEX ix_entities_entity_type ON entities (entity_type)",
+    "CREATE INDEX ix_entities_name ON entities (name)",
+    "CREATE INDEX ix_entities_tags ON entities USING gin (tags)",
+    "CREATE INDEX ix_entities_user_id ON entities (user_id)"
+  ],
+  "entity_file_association": [
+    "CREATE TABLE entity_file_association (\n\tentity_id INTEGER NOT NULL, \n\tfile_id INTEGER NOT NULL, \n\tPRIMARY KEY (entity_id, file_id), \n\tFOREIGN KEY(entity_id) REFERENCES entities (id) ON DELETE CASCADE, \n\tFOREIGN KEY(file_id) REFERENCES files (id) ON DELETE CASCADE\n)"
+  ],
+  "entity_project_association": [
+    "CREATE TABLE entity_project_association (\n\tentity_id INTEGER NOT NULL, \n\tproject_id INTEGER NOT NULL, \n\tPRIMARY KEY (entity_id, project_id), \n\tFOREIGN KEY(entity_id) REFERENCES entities (id) ON DELETE CASCADE, \n\tFOREIGN KEY(project_id) REFERENCES projects (id) ON DELETE CASCADE\n)"
+  ],
+  "entity_relationships": [
+    "CREATE TABLE entity_relationships (\n\tid SERIAL NOT NULL, \n\tuser_id UUID NOT NULL, \n\tsource_entity_id INTEGER NOT NULL, \n\ttarget_entity_id INTEGER NOT NULL, \n\trelationship_type VARCHAR(100) NOT NULL, \n\tstrength FLOAT, \n\tconfidence FLOAT, \n\trelationship_metadata JSONB, \n\tsource_repo TEXT, \n\tsource_files VARCHAR[], \n\tsource_url TEXT, \n\tencoding_agent TEXT, \n\tencoding_version TEXT, \n\tagent_id TEXT, \n\tagent_version TEXT, \n\tagent_model TEXT, \n\tcreated_at TIMESTAMP WITH TIME ZONE NOT NULL, \n\tupdated_at TIMESTAMP WITH TIME ZONE NOT NULL, \n\tPRIMARY KEY (id), \n\tFOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE, \n\tFOREIGN KEY(source_entity_id) REFERENCES entities (id) ON DELETE CASCADE, \n\tFOREIGN KEY(target_entity_id) REFERENCES entities (id) ON DELETE CASCADE\n)",
+    "CREATE INDEX ix_entity_relationships_relationship_type ON entity_relationships (relationship_type)",
+    "CREATE INDEX ix_entity_relationships_source_entity_id ON entity_relationships (source_entity_id)",
+    "CREATE INDEX ix_entity_relationships_target_entity_id ON entity_relationships (target_entity_id)",
+    "CREATE UNIQUE INDEX ix_entity_relationships_unique ON entity_relationships (source_entity_id, target_entity_id, relationship_type)",
+    "CREATE INDEX ix_entity_relationships_user_id ON entity_relationships (user_id)"
+  ],
+  "files": [
+    "CREATE TABLE files (\n\tid SERIAL NOT NULL, \n\tuser_id UUID NOT NULL, \n\tproject_id INTEGER, \n\tfilename VARCHAR(255) NOT NULL, \n\tdescription TEXT NOT NULL, \n\tdata BYTEA NOT NULL, \n\tmime_type VARCHAR(255) NOT NULL, \n\tsize_bytes INTEGER NOT NULL, \n\ttags VARCHAR[] NOT NULL, \n\tsource_repo TEXT, \n\tsource_files VARCHAR[], \n\tsource_url TEXT, \n\tconfidence FLOAT, \n\tencoding_agent TEXT, \n\tencoding_version TEXT, \n\tagent_id TEXT, \n\tagent_version TEXT, \n\tagent_model TEXT, \n\tcreated_at TIMESTAMP WITH TIME ZONE NOT NULL, \n\tupdated_at TIMESTAMP WITH TIME ZONE NOT NULL, \n\tPRIMARY KEY (id), \n\tFOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE, \n\tFOREIGN KEY(project_id) REFERENCES projects (id) ON DELETE SET NULL\n)",
+    "CREATE INDEX ix_files_mime_type ON files (mime_type)",
+    "CREATE INDEX ix_files_project_id ON files (project_id)",
+    "CREATE INDEX ix_files_tags ON files USING gin (tags)",
+    "CREATE INDEX ix_files_user_id ON files (user_id)"
+  ],
+  "memories": [
+    "CREATE TABLE memories (\n\tid SERIAL NOT NULL, \n\tuser_id UUID NOT NULL, \n\ttitle TEXT NOT NULL, \n\tcontent TEXT NOT NULL, \n\tcontext TEXT NOT NULL, \n\tkeywords VARCHAR[] NOT NULL, \n\ttags VARCHAR[] NOT NULL, \n\timportance INTEGER NOT NULL, \n\tembedding VECTOR(384) NOT NULL, \n\tsource_repo TEXT, \n\tsource_files VARCHAR[], \n\tsource_url TEXT, \n\tconfidence FLOAT, \n\tencoding_agent TEXT, \n\tencoding_version TEXT, \n\tagent_id TEXT, \n\tagent_version TEXT, \n\tagent_model TEXT, \n\tis_obsolete BOOLEAN NOT NULL, \n\tobsolete_reason TEXT, \n\tsuperseded_by INTEGER, \n\tobsoleted_at TIMESTAMP WITH TIME ZONE, \n\taccess_count INTEGER NOT NULL, \n\tlast_accessed_at TIMESTAMP WITH TIME ZONE, \n\tcreated_at TIMESTAMP WITH TIME ZONE NOT NULL, \n\tupdated_at TIMESTAMP WITH TIME ZONE NOT NULL, \n\tPRIMARY KEY (id), \n\tFOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE, \n\tFOREIGN KEY(superseded_by) REFERENCES memories (id) ON DELETE SET NULL\n)",
+    "CREATE INDEX ix_memories_confidence ON memories (confidence)",
+    "CREATE INDEX ix_memories_embedding ON memories USING hnsw (embedding vector_cosine_ops)",
+    "CREATE INDEX ix_memories_importance ON memories (importance)",
+    "CREATE INDEX ix_memories_is_obsolete ON memories (is_obsolete)",
+    "CREATE INDEX ix_memories_keywords ON memories USING gin (keywords)",
+    "CREATE INDEX ix_memories_last_accessed_at ON memories (last_accessed_at)",
+    "CREATE INDEX ix_memories_superseded_by ON memories (superseded_by)",
+    "CREATE INDEX ix_memories_tags ON memories USING gin (tags)",
+    "CREATE INDEX ix_memories_user_id ON memories (user_id)"
+  ],
+  "memory_code_artifact_association": [
+    "CREATE TABLE memory_code_artifact_association (\n\tmemory_id INTEGER NOT NULL, \n\tcode_artifact_id INTEGER NOT NULL, \n\tPRIMARY KEY (memory_id, code_artifact_id), \n\tFOREIGN KEY(memory_id) REFERENCES memories (id) ON DELETE CASCADE, \n\tFOREIGN KEY(code_artifact_id) REFERENCES code_artifacts (id) ON DELETE CASCADE\n)"
+  ],
+  "memory_document_association": [
+    "CREATE TABLE memory_document_association (\n\tmemory_id INTEGER NOT NULL, \n\tdocument_id INTEGER NOT NULL, \n\tPRIMARY KEY (memory_id, document_id), \n\tFOREIGN KEY(memory_id) REFERENCES memories (id) ON DELETE CASCADE, \n\tFOREIGN KEY(document_id) REFERENCES documents (id) ON DELETE CASCADE\n)"
+  ],
+  "memory_entity_association": [
+    "CREATE TABLE memory_entity_association (\n\tmemory_id INTEGER NOT NULL, \n\tentity_id INTEGER NOT NULL, \n\tPRIMARY KEY (memory_id, entity_id), \n\tFOREIGN KEY(memory_id) REFERENCES memories (id) ON DELETE CASCADE, \n\tFOREIGN KEY(entity_id) REFERENCES entities (id) ON DELETE CASCADE\n)"
+  ],
+  "memory_file_association": [
+    "CREATE TABLE memory_file_association (\n\tmemory_id INTEGER NOT NULL, \n\tfile_id INTEGER NOT NULL, \n\tPRIMARY KEY (memory_id, file_id), \n\tFOREIGN KEY(memory_id) REFERENCES memories (id) ON DELETE CASCADE, \n\tFOREIGN KEY(file_id) REFERENCES files (id) ON DELETE CASCADE\n)"
+  ],
+  "memory_links": [
+    "CREATE TABLE memory_links (\n\tid SERIAL NOT NULL, \n\tuser_id UUID NOT NULL, \n\tsource_id INTEGER NOT NULL, \n\ttarget_id INTEGER NOT NULL, \n\tcreated_at TIMESTAMP WITH TIME ZONE NOT NULL, \n\tPRIMARY KEY (id), \n\tFOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE, \n\tFOREIGN KEY(source_id) REFERENCES memories (id) ON DELETE CASCADE, \n\tFOREIGN KEY(target_id) REFERENCES memories (id) ON DELETE CASCADE\n)",
+    "CREATE UNIQUE INDEX ix_memory_links_source_target ON memory_links (source_id, target_id)",
+    "CREATE INDEX ix_memory_links_target_source ON memory_links (target_id, source_id)"
+  ],
+  "memory_project_association": [
+    "CREATE TABLE memory_project_association (\n\tmemory_id INTEGER NOT NULL, \n\tproject_id INTEGER NOT NULL, \n\tPRIMARY KEY (memory_id, project_id), \n\tFOREIGN KEY(memory_id) REFERENCES memories (id) ON DELETE CASCADE, \n\tFOREIGN KEY(project_id) REFERENCES projects (id) ON DELETE CASCADE\n)"
+  ],
+  "memory_skill_association": [
+    "CREATE TABLE memory_skill_association (\n\tmemory_id INTEGER NOT NULL, \n\tskill_id INTEGER NOT NULL, \n\tPRIMARY KEY (memory_id, skill_id), \n\tFOREIGN KEY(memory_id) REFERENCES memories (id) ON DELETE CASCADE, \n\tFOREIGN KEY(skill_id) REFERENCES skills (id) ON DELETE CASCADE\n)"
+  ],
+  "plans": [
+    "CREATE TABLE plans (\n\tid SERIAL NOT NULL, \n\tuser_id UUID NOT NULL, \n\tproject_id INTEGER NOT NULL, \n\ttitle VARCHAR(500) NOT NULL, \n\tgoal TEXT, \n\tcontext TEXT, \n\tstatus VARCHAR(20) NOT NULL, \n\texternal_ref VARCHAR(255), \n\tsource_repo TEXT, \n\tsource_files VARCHAR[], \n\tsource_url TEXT, \n\tconfidence FLOAT, \n\tencoding_agent TEXT, \n\tencoding_version TEXT, \n\tagent_id TEXT, \n\tagent_version TEXT, \n\tagent_model TEXT, \n\tcreated_at TIMESTAMP WITH TIME ZONE NOT NULL, \n\tupdated_at TIMESTAMP WITH TIME ZONE NOT NULL, \n\tPRIMARY KEY (id), \n\tFOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE, \n\tFOREIGN KEY(project_id) REFERENCES projects (id) ON DELETE CASCADE\n)",
+    "CREATE INDEX ix_plans_project_id ON plans (project_id)",
+    "CREATE INDEX ix_plans_status ON plans (status)",
+    "CREATE UNIQUE INDEX ix_plans_user_external_ref ON plans (user_id, external_ref)",
+    "CREATE INDEX ix_plans_user_id ON plans (user_id)"
+  ],
+  "projects": [
+    "CREATE TABLE projects (\n\tid SERIAL NOT NULL, \n\tuser_id UUID NOT NULL, \n\tname VARCHAR(500) NOT NULL, \n\tdescription TEXT NOT NULL, \n\tproject_type VARCHAR(50), \n\tstatus VARCHAR(50) NOT NULL, \n\trepo_name VARCHAR(255), \n\tlast_encoding_point VARCHAR(255), \n\tnotes TEXT, \n\tsource_repo TEXT, \n\tsource_files VARCHAR[], \n\tsource_url TEXT, \n\tconfidence FLOAT, \n\tencoding_agent TEXT, \n\tencoding_version TEXT, \n\tagent_id TEXT, \n\tagent_version TEXT, \n\tagent_model TEXT, \n\tcreated_at TIMESTAMP WITH TIME ZONE NOT NULL, \n\tupdated_at TIMESTAMP WITH TIME ZONE NOT NULL, \n\tPRIMARY KEY (id), \n\tFOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE\n)",
+    "CREATE INDEX ix_projects_status ON projects (status)",
+    "CREATE INDEX ix_projects_user_id ON projects (user_id)"
+  ],
+  "skill_code_artifact_association": [
+    "CREATE TABLE skill_code_artifact_association (\n\tskill_id INTEGER NOT NULL, \n\tcode_artifact_id INTEGER NOT NULL, \n\tPRIMARY KEY (skill_id, code_artifact_id), \n\tFOREIGN KEY(skill_id) REFERENCES skills (id) ON DELETE CASCADE, \n\tFOREIGN KEY(code_artifact_id) REFERENCES code_artifacts (id) ON DELETE CASCADE\n)"
+  ],
+  "skill_document_association": [
+    "CREATE TABLE skill_document_association (\n\tskill_id INTEGER NOT NULL, \n\tdocument_id INTEGER NOT NULL, \n\tPRIMARY KEY (skill_id, document_id), \n\tFOREIGN KEY(skill_id) REFERENCES skills (id) ON DELETE CASCADE, \n\tFOREIGN KEY(document_id) REFERENCES documents (id) ON DELETE CASCADE\n)"
+  ],
+  "skill_file_association": [
+    "CREATE TABLE skill_file_association (\n\tskill_id INTEGER NOT NULL, \n\tfile_id INTEGER NOT NULL, \n\tPRIMARY KEY (skill_id, file_id), \n\tFOREIGN KEY(skill_id) REFERENCES skills (id) ON DELETE CASCADE, \n\tFOREIGN KEY(file_id) REFERENCES files (id) ON DELETE CASCADE\n)"
+  ],
+  "skills": [
+    "CREATE TABLE skills (\n\tid SERIAL NOT NULL, \n\tuser_id UUID NOT NULL, \n\tproject_id INTEGER, \n\tname VARCHAR(64) NOT NULL, \n\tdescription VARCHAR(1024) NOT NULL, \n\tcontent TEXT NOT NULL, \n\tlicense VARCHAR(100), \n\tcompatibility VARCHAR(500), \n\tallowed_tools VARCHAR[], \n\tskill_metadata JSONB, \n\ttags VARCHAR[] NOT NULL, \n\timportance INTEGER NOT NULL, \n\tembedding VECTOR(384) NOT NULL, \n\tsource_repo TEXT, \n\tsource_files VARCHAR[], \n\tsource_url TEXT, \n\tconfidence FLOAT, \n\tencoding_agent TEXT, \n\tencoding_version TEXT, \n\tagent_id TEXT, \n\tagent_version TEXT, \n\tagent_model TEXT, \n\tcreated_at TIMESTAMP WITH TIME ZONE NOT NULL, \n\tupdated_at TIMESTAMP WITH TIME ZONE NOT NULL, \n\tPRIMARY KEY (id), \n\tFOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE, \n\tFOREIGN KEY(project_id) REFERENCES projects (id) ON DELETE SET NULL\n)",
+    "CREATE INDEX ix_skills_embedding ON skills USING hnsw (embedding vector_cosine_ops)",
+    "CREATE INDEX ix_skills_importance ON skills (importance)",
+    "CREATE INDEX ix_skills_name ON skills (name)",
+    "CREATE INDEX ix_skills_project_id ON skills (project_id)",
+    "CREATE INDEX ix_skills_tags ON skills USING gin (tags)",
+    "CREATE INDEX ix_skills_user_id ON skills (user_id)"
+  ],
+  "task_dependencies": [
+    "CREATE TABLE task_dependencies (\n\tid SERIAL NOT NULL, \n\tuser_id UUID NOT NULL, \n\ttask_id INTEGER NOT NULL, \n\tdepends_on_task_id INTEGER NOT NULL, \n\tcreated_at TIMESTAMP WITH TIME ZONE NOT NULL, \n\tPRIMARY KEY (id), \n\tFOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE, \n\tFOREIGN KEY(task_id) REFERENCES tasks (id) ON DELETE CASCADE, \n\tFOREIGN KEY(depends_on_task_id) REFERENCES tasks (id) ON DELETE CASCADE\n)",
+    "CREATE UNIQUE INDEX ix_task_deps_unique ON task_dependencies (task_id, depends_on_task_id)"
+  ],
+  "tasks": [
+    "CREATE TABLE tasks (\n\tid SERIAL NOT NULL, \n\tuser_id UUID NOT NULL, \n\tplan_id INTEGER NOT NULL, \n\ttitle VARCHAR(500) NOT NULL, \n\tdescription TEXT, \n\tstate VARCHAR(20) NOT NULL, \n\tpriority VARCHAR(5) NOT NULL, \n\tassigned_agent VARCHAR(200), \n\tversion INTEGER NOT NULL, \n\tsource_repo TEXT, \n\tsource_files VARCHAR[], \n\tsource_url TEXT, \n\tconfidence FLOAT, \n\tencoding_agent TEXT, \n\tencoding_version TEXT, \n\tagent_id TEXT, \n\tagent_version TEXT, \n\tagent_model TEXT, \n\tcreated_at TIMESTAMP WITH TIME ZONE NOT NULL, \n\tupdated_at TIMESTAMP WITH TIME ZONE NOT NULL, \n\tPRIMARY KEY (id), \n\tFOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE, \n\tFOREIGN KEY(plan_id) REFERENCES plans (id) ON DELETE CASCADE\n)",
+    "CREATE INDEX ix_tasks_assigned_agent ON tasks (assigned_agent)",
+    "CREATE INDEX ix_tasks_plan_id ON tasks (plan_id)",
+    "CREATE INDEX ix_tasks_priority ON tasks (priority)",
+    "CREATE INDEX ix_tasks_state ON tasks (state)",
+    "CREATE INDEX ix_tasks_user_id ON tasks (user_id)"
+  ],
+  "users": [
+    "CREATE TABLE users (\n\tid UUID NOT NULL, \n\texternal_id VARCHAR(255) NOT NULL, \n\tname VARCHAR(255) NOT NULL, \n\temail VARCHAR(255) NOT NULL, \n\tidp_metadata JSONB, \n\tnotes TEXT, \n\tupdated_at TIMESTAMP WITH TIME ZONE NOT NULL, \n\tcreated_at TIMESTAMP WITH TIME ZONE NOT NULL, \n\tPRIMARY KEY (id)\n)",
+    "CREATE UNIQUE INDEX ix_users_external_id ON users (external_id)"
+  ]
+}
