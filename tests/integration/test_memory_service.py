@@ -339,7 +339,7 @@ async def test_mark_memory_obsolete(test_memory_service):
         superseded_by=new_memory.id,
     )
 
-    assert success is True
+    assert success.success is True
 
     # Old memory should still be retrievable for audit purposes
     obsolete_memory = await test_memory_service.get_memory(user_id, old_memory.id)

@@ -5,6 +5,7 @@ MCP server, REST API, and CLI — builds the identical adapter/repo/service/regi
 stack from one place. Heavy imports stay inside functions to keep module import cheap.
 """
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -230,11 +231,16 @@ async def build_runtime() -> Runtime:
     from app.config.write_plugin import load_write_plugin
     from app.services.write_plugin_service import WritePluginService
 
-    handler = load_write_plugin(settings)
+    plugin = load_write_plugin(settings)
     plugin_logger_states = {}
-    if handler is not None:
+    if plugin is not None:
         configured_module = settings.MEMORY_WRITE_PLUGIN.strip().partition(":")[0]
-        module_names = {configured_module, handler.__module__}
+        handlers = (*plugin.before_save.values(), *plugin.after_save.values())
+        module_names = {configured_module}
+        for handler in handlers:
+            while isinstance(handler, partial):
+                handler = handler.func
+            module_names.add(handler.__module__)
         # Include re-exported handlers and existing child loggers, retaining intentional disables.
         for name, plugin_logger in logging.Logger.manager.loggerDict.copy().items():
             if isinstance(plugin_logger, logging.Logger) and any(
@@ -242,9 +248,9 @@ async def build_runtime() -> Runtime:
             ):
                 plugin_logger_states[plugin_logger] = plugin_logger.disabled
     write_plugin = (WritePluginService(
-        handler, mode=settings.MEMORY_WRITE_PLUGIN_MODE,
+        plugin, mode=settings.MEMORY_WRITE_PLUGIN_MODE,
         timeout_seconds=settings.MEMORY_WRITE_PLUGIN_TIMEOUT_SECONDS,
-    ) if handler is not None else None)
+    ) if plugin is not None else None)
 
     check_first_run_models()
 

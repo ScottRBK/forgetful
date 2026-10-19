@@ -532,37 +532,79 @@ directory; the server-side session is untouched.
 
 ---
 
-## Memory Write Plugin
+## Memory Plugin
 
-An optional Write Plugin checks memory **create and update** before embeddings, persistence,
-automatic links, and events. Other operations are unaffected. Empty configuration disables it.
+One optional administrator-configured registration maps memory operations to async handlers in
+`before_save` and `after_save`. Supported operations are `create`, `update`, `obsolete`, and
+`restore` (the last two correspond to `mark_memory_obsolete` and `unobsolete_memory`). Only
+explicitly mapped operations run a handler. An empty setting disables the plugin.
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| `MEMORY_WRITE_PLUGIN` | empty | Importable `module:function` |
-| `MEMORY_WRITE_PLUGIN_MODE` | `enforce` | `warn` or `enforce` |
-| `MEMORY_WRITE_PLUGIN_TIMEOUT_SECONDS` | `5.0` | Positive, finite async deadline in seconds |
+| `MEMORY_WRITE_PLUGIN` | empty | Importable `module:object` containing a `MemoryPlugin` |
+| `MEMORY_WRITE_PLUGIN_MODE` | `enforce` | `warn` or `enforce`, for **before_save only** |
+| `MEMORY_WRITE_PLUGIN_TIMEOUT_SECONDS` | `5.0` | Positive, finite deadline for each handler |
 
-Set `MEMORY_WRITE_PLUGIN=my_plugins.memory_checks:check_write` for the example below.
-Install your own Python module in the server's import environment. It must expose one `async def`
-function accepting a `MemoryWriteRequest` and returning a `WriteDecision`. The handler is loaded
-once per runtime, before model/database initialization. Invalid references, imports, synchronous
-handlers, or settings fail startup, even in warn mode. This is trusted administrator Python
-running inside the server, with the server's privileges. It is not a filesystem path, sandbox,
-or client-uploaded code. Restart the runtime after changing configuration or plugin code.
+This replaces the unreleased single-function Write Plugin contract. Configure
+`MEMORY_WRITE_PLUGIN=my_plugins.memory_checks:plugin` for the example below. Install your module
+in the server's Python environment and restart the runtime after changing code or configuration.
+The registration loads once, before model/database initialization. Invalid references, imports,
+objects, operation names, non-async handlers, or signatures that cannot accept one context fail
+startup, including in warn mode. Registration mappings are copied and frozen.
+
+This is trusted administrator Python running with the server's privileges. It is not a filesystem
+path, sandbox, or client-uploaded code. The contract passes data only: no database, repository,
+FastMCP context, or write capabilities. Handlers cannot rewrite a write through their snapshots.
 
 ```python
-# my_plugins/memory_checks.py (example administrator rule, not built into Forgetful)
-from app.models.write_plugin_models import MemoryWriteRequest, WriteDecision
+# my_plugins/memory_checks.py (example rules, not built into Forgetful)
+from app.models.write_plugin_models import (
+    MemoryLifecycleRequest,
+    MemorySavedRequest,
+    MemoryWriteRequest,
+    PluginWarning,
+    WriteDecision,
+)
+from app.protocols.write_plugin_protocol import MemoryPlugin
 
 
-async def check_write(request: MemoryWriteRequest) -> WriteDecision:
+async def validate_memory(request: MemoryWriteRequest) -> WriteDecision:
     if "blocked" in request.proposed.tags:
         return WriteDecision(
             outcome="reject", message="Remove the blocked tag.", code="blocked_tag",
         )
     return WriteDecision(outcome="allow")
+
+
+async def check_lifecycle(request: MemoryLifecycleRequest) -> WriteDecision:
+    if request.previous.importance >= 9:
+        return WriteDecision(outcome="warn", message="Review this important memory's state.")
+    return WriteDecision(outcome="allow")
+
+
+async def warn_about_duplicates(request: MemorySavedRequest) -> PluginWarning | None:
+    if request.similar_memories is None:
+        return None
+    if any(match.similarity >= 0.95 for match in request.similar_memories):
+        return PluginWarning(message="Review the linked memories for duplicates.", code="duplicate")
+    return None
+
+
+plugin = MemoryPlugin(
+    before_save={
+        "create": validate_memory,
+        "update": validate_memory,
+        "obsolete": check_lifecycle,
+        "restore": check_lifecycle,
+    },
+    after_save={"create": warn_about_duplicates},
+)
 ```
+
+### Before save
+
+The handler returns a validated `WriteDecision` with `outcome`, a client-safe `message` (required
+and nonblank for warn/reject), and optional `code`.
 
 | Decision | Enforce mode | Warn mode |
 | --- | --- | --- |
@@ -571,76 +613,100 @@ async def check_write(request: MemoryWriteRequest) -> WriteDecision:
 | `reject` | Block write with plugin message | Write with downgraded warning |
 | Error, invalid result, timeout | Generic unavailable error | Unavailable warning |
 
-Use a nonblank, client-safe `message` for warn/reject and an optional stable `code`. Prefer the
-`WriteDecision` type; returned values are explicitly validated. There is no replacement payload
-or mutation support. Core provides no built-in site rules, LLM judge, chaining, or automatic retry.
-A handler may use its own deterministic checks or external decision service. Custom codes are
-currently retained in warnings only, including rejections downgraded in warn mode. Enforced
-rejections expose the plugin message and standard transport classification (MCP/CLI
-`WRITE_PLUGIN_REJECTED`, REST 400), without the custom code.
+All contexts include `operation` and the authenticated internal `user_id` (or the configured
+default user's internal ID). The snapshot types depend on the operation:
 
-The request contains:
-
-- `operation`: `create` or `update`; use this to distinguish operations (`Memory` inherits
-  `MemoryCreate`).
-- `user_id`: authenticated internal user ID, or the configured default user's internal ID.
-- `submitted`: parsed `MemoryCreate`/`MemoryUpdate`, before provenance defaults. Update field-set
-  information is preserved at this domain boundary; existing MCP coercion may already omit nulls.
-- `previous`: full `Memory` for update, including its ID, or `None` for create.
-- `proposed`: complete writable `MemoryCreate` after defaults and merging, without read-only IDs,
+- Create/update use `MemoryWriteRequest`. `submitted` is the parsed `MemoryCreate` or
+  `MemoryUpdate` before provenance defaults. Update field-set information is preserved; MCP
+  coercion may already omit nulls. `previous` is the full memory for update, or `None` for create.
+  `proposed` is a writable `MemoryCreate` after defaults and merging, without stored IDs,
   timestamps, or access counters.
+- Obsolete/restore use `MemoryLifecycleRequest`. `submitted` contains `memory_id`, `reason`, and
+  `superseded_by`; restore supplies only the ID, leaving the other fields null. `previous` is the
+  full memory. `proposed` is `MemoryLifecycleState`, containing `is_obsolete`, `obsolete_reason`,
+  and `superseded_by`. Restore proposes false/null/null. The database assigns the actual
+  obsolescence timestamp; a proposed timestamp is not invented.
 
-Each snapshot is separately deep detached. Changing one cannot change another or the pending
-write. The plugin receives no repository, database session, or FastMCP context. MemoryService
-retains validation, defaults, merging, persistence, automatic links, and post-write events.
-No-op updates skip the plugin and retain existing timestamp/event behavior.
+Each snapshot is separately deep detached. Mutating it cannot change another snapshot or the
+pending write. Core validation, ownership, permission, and state checks still apply. Missing
+memories, invalid restores, and invalid replacement ownership never reach the lifecycle policy.
+No-op updates skip both phases and preserve timestamps/events. Repeating obsolete remains a real
+mutation: existing behavior updates the reason, replacement, and obsolescence timestamp.
 
-Memory updates treat explicit nulls as unchanged at the shared service boundary across transports,
-before provenance enforcement and change detection. Null fields remain in the raw `submitted`
-snapshot when supplied there, but are omitted from the effective patch and `proposed` merge.
-Null relationship lists leave associations unchanged; empty lists still clear them, and zero
-confidence is preserved. A null-only update is a no-op and skips the plugin. An invalid candidate
-uses normal validation handling before the plugin. Non-null skill-link update limitations (#96)
-remain; dropping null `skill_ids` does not implement skill association updates.
-The candidate does not guarantee referenced IDs exist or that a later database write will succeed.
-No database transaction is held across the plugin await. After a successful update decision,
-MemoryService re-reads the user-owned memory and applies the submitted patch to that current state
-for embedding input and event differences. If it is now a no-op, the current timestamp is preserved,
-no update event is emitted, and any plugin warning is still returned. The plugin retains its
-original `previous`/`proposed` snapshots and is not re-evaluated.
+Explicit null update fields mean unchanged before provenance enforcement and change detection.
+They remain in `submitted` when present, but are omitted from the effective patch and proposed
+merge. Empty relationship lists still clear associations, and zero confidence is preserved.
+Non-null skill-link update limitations (#96) remain. A valid candidate does not guarantee that
+all referenced IDs exist or a later database write will succeed.
 
-This refresh removes the stale-state window introduced by waiting for the plugin; it does not
-make decisions or writes atomic. Another update can still occur after the refresh, including during
-the existing embedding-provider await. There are no new global or concurrent-state guarantees.
+No transaction/session spans a handler await. After a before-update handler completes, the
+service re-reads the owned memory and recomputes the patch against current state. If it has become
+a no-op, it returns any before warning without another event or an after handler. Lifecycle writes
+change only lifecycle fields; restore still uses the repository's conditional state transition.
+After lifecycle checks, previous state is refreshed for subsequent reporting. The policy's
+original snapshots are not re-evaluated. These measures avoid stale overwrites caused by the
+plugin wait; they do not make policy decisions or later writes atomic, including existing races
+during embedding-provider awaits.
 
-The timeout is a cooperative asyncio deadline, not a sandbox or hard kill. Blocking Python and
-handlers that suppress cancellation can exceed it. Request cancellation propagates. Keep handlers
-asynchronous and make any downstream network calls with their own appropriate timeouts.
+### After save
 
-The callable signature, documented request/decision fields, and their import paths form the public
-v1 plugin contract. The reused memory schemas are part of that contract too. Optional fields may be
-added compatibly; removing fields or changing their meaning requires a documented deprecation or
-versioned replacement. Internal service result and transport response classes are not plugin APIs.
-A compatible interface does not guarantee that custom rules cover every future memory feature.
+The handler receives `MemorySavedRequest` and returns `PluginWarning(message=..., code=...)` or
+`None`. A warning has only `outcome="warn"`; allow/reject decisions are invalid in this phase.
+After handlers are advisory in **both modes**. They run after a successful mutation, existing
+create similarity/automatic links, and the operation's event emission.
 
-Successful responses add `plugin_warnings` only when nonempty. Each entry has `outcome="warn"`,
-`message`, and optional `code` (serialized as null when absent). Existing empty lists and
-`obsolete_matches` are preserved. Reads, queries, and event snapshots have no transient warnings.
-The human CLI shows warnings alongside success; JSON puts them only in the response payload.
-Rejections exit nonzero. Existing CLI JSON errors are the last stderr line (startup libraries can
-also write diagnostics to stderr); successful JSON output remains on stdout.
+- `operation` and `user_id` identify the operation and caller.
+- `previous` is the state read before persistence (refreshed after any before-handler wait), or
+  `None` for create. `saved` is the actual persisted memory, including resulting link IDs.
+- `similar_memories` contains the existing scored `MemorySummary` results for create, with the
+  same four-decimal similarities as the normal create response. `[]` means the search ran without
+  matches. `None` means it was not computed: automatic linking was disabled, or this was an
+  update/obsolete/restore. No extra similarity search is added. The saved memory's
+  `linked_memory_ids` reports resulting links, which need not equal the candidate matches.
 
-MCP and local CLI errors use `WRITE_PLUGIN_REJECTED` or `WRITE_PLUGIN_UNAVAILABLE` prefixes.
-REST returns 400 for rejection and 503 for unavailable. Unavailable messages are generic:
-`Memory Write Plugin unavailable.` Server diagnostics record operation, mode, and exception type,
-without exception text, tracebacks, or memory content. Plugin authors must likewise keep their
-returned messages and their own logs free of secrets and full memory contents.
+Snapshots are deep detached from stored data, responses, and each other. A handler exception,
+malformed return, or timeout adds the generic warning `Memory saved, but after-save plugin
+unavailable.` with code `MEMORY_PLUGIN_AFTER_SAVE_UNAVAILABLE`. The successful mutation remains
+successful. A failed post-obsolete snapshot read likewise warns without inventing saved state.
+There is no rollback, persistent queue, retry, guaranteed delivery, duplicate prevention, or
+automatic merge. Create similarity is already computed after persistence; duplicate checks here
+can only advise the caller.
 
-Startup import failures identify the configured module (or reference for attribute lookup), phase,
-and exception type, without the original exception text or traceback. After database initialization,
-bootstrap restores the pre-initialization enabled/disabled state of existing loggers named for the
-configured plugin module, the handler's defining module if re-exported, and their children. This
-scoped restoration does not cover arbitrary third-party names or custom logger configurations.
+Each deadline is cooperative asyncio cancellation, not a hard kill. Blocking Python or a handler
+that suppresses cancellation can exceed it. External cancellation propagates, including after
+persistence. A cancelled request or lost network response may leave a successful write whose
+response was not delivered; verify state before retrying.
+Cancellation raised inside an after handler (including by an awaited child task) becomes the
+generic advisory warning when the request task itself has not been cancelled. Before-save
+cancellation still propagates.
+
+### Responses and diagnostics
+
+Successful create, update, obsolete, and restore responses add `plugin_warnings` only when
+nonempty, in before-then-after order. Each entry has `outcome="warn"`, `message`, and optional
+`code` (null when absent). Create preserves its normal fields, including `obsolete_matches`;
+update stays flat; lifecycle tools and REST DELETE retain `{"success": true}` plus any warnings.
+There is no new REST restore endpoint. Reads, queries, and events have no transient warnings.
+The human memory-save CLI shows warnings alongside success; JSON includes them in the payload.
+
+Before-save rejections exit nonzero. MCP/local CLI use `WRITE_PLUGIN_REJECTED: <message>` or
+`WRITE_PLUGIN_UNAVAILABLE: Memory Write Plugin unavailable.`; REST returns 400 or 503 respectively.
+Custom rejection codes are retained only when downgraded to warnings. CLI JSON errors remain the
+last stderr line; successful JSON stays on stdout. Post-save failures never use rejection or
+unavailable error responses; clients should review their warning without repeating the write.
+
+Core runtime diagnostics record phase, operation, and exception type (also mode before save),
+without exception text, tracebacks, or memory content. Startup import diagnostics identify the
+module/reference, loading phase, and exception type. Plugin authors must keep their messages and
+own logs free of secrets. Bootstrap restores the pre-initialization logger state for the configured
+module, all handler-defining modules (including re-exports and `functools.partial` handlers), and
+existing children after Alembic initialization. It does not change arbitrary third-party logger
+configuration.
+
+The registration, documented context/result fields, and import paths above are the plugin API.
+Internal service results and transport response models are not plugin APIs. There is one
+registration and at most one handler per operation per phase; there is no discovery system,
+handler chain, or marketplace. Linking/unlinking and entity operations have no hooks.
 
 ## Memory Configuration
 

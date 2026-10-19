@@ -9,9 +9,14 @@ from test_memory_write_plugin import RecordingEmbeddings, candidate
 
 from app.bootstrap import build_runtime, dispose_runtime
 from app.models.write_plugin_models import WriteDecision
+from app.protocols.write_plugin_protocol import MemoryPlugin
 from app.routes.api import memories
 from app.routes.mcp import meta_tools
 from app.services.write_plugin_service import WritePluginService
+
+
+def checks(handler):
+    return MemoryPlugin(before_save={"create": handler, "update": handler})
 
 
 @pytest.fixture(params=[False, True], ids=["plugin-disabled", "plugin-enabled"])
@@ -31,7 +36,7 @@ async def memory_app(sqlite_runtime_settings, monkeypatch, request):
         app._instance_permitted_tools = runtime.permitted_tools
         app._instance_scopes = runtime.instance_scopes
         if request.param:
-            runtime.services.memory._write_plugin = WritePluginService(allow)
+            runtime.services.memory._write_plugin = WritePluginService(checks(allow))
         try:
             yield
         finally:

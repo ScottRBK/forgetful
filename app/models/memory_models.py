@@ -269,6 +269,14 @@ class MemoryUpdate(BaseModel):
             return None
         return [item.strip() for item in v if item.strip()]
 
+
+class MemoryObsoleteRequest(BaseModel):
+    """Optional REST body for marking a memory obsolete."""
+
+    reason: str = "Marked obsolete via API"
+    superseded_by: int | None = None
+
+
 class Memory(MemoryCreate):
     id: int
     created_at: datetime = Field(default_factory=lambda: datetime.now(tz=UTC), frozen=True)

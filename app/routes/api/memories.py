@@ -20,11 +20,13 @@ from app.middleware.auth import get_user_from_request
 from app.models.memory_models import (
     MemoryCreate,
     MemoryListResponse,
+    MemoryObsoleteRequest,
     MemoryQueryRequest,
     MemoryUpdate,
 )
 from app.routes.write_plugin_responses import (
     MemoryCreateWriteResponse,
+    MemoryLifecycleResponse,
     MemoryUpdateResponse,
 )
 
@@ -283,24 +285,32 @@ def register(mcp: FastMCP):
         memory_id = int(request.path_params["memory_id"])
 
         try:
-            body = await request.json()
-            reason = body.get("reason", "Marked obsolete via API")
-            superseded_by = body.get("superseded_by")
-        except Exception:
-            reason = "Marked obsolete via API"
-            superseded_by = None
+            body = await request.body()
+            obsolete = MemoryObsoleteRequest.model_validate_json(body or b"{}", strict=True)
+        except ValidationError:
+            return JSONResponse({
+                "error": "Invalid obsolete request: expected a JSON object with a string reason "
+                         "and an integer or null superseded_by",
+            }, status_code=400)
 
-        success = await mcp.memory_service.mark_memory_obsolete(
-            user_id=user.id,
-            memory_id=memory_id,
-            reason=reason,
-            superseded_by=superseded_by,
-        )
+        try:
+            result = await mcp.memory_service.mark_memory_obsolete(
+                user_id=user.id,
+                memory_id=memory_id,
+                reason=obsolete.reason,
+                superseded_by=obsolete.superseded_by,
+            )
+        except WritePluginRejectedError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        except WritePluginUnavailableError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=503)
 
-        if not success:
+        if not result.success:
             return JSONResponse({"error": "Memory not found"}, status_code=404)
 
-        return JSONResponse({"success": True})
+        return JSONResponse(MemoryLifecycleResponse(
+            success=result.success, plugin_warnings=result.plugin_warnings,
+        ).model_dump(mode="json"))
 
     @mcp.custom_route("/api/v1/memories/search", methods=["POST"])
     async def search_memories(request: Request) -> JSONResponse:

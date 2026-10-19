@@ -9,7 +9,7 @@ They prevent the imports agreed in the architecture review:
 - Shared code and services must not import the listed database/provider/backup libraries.
 - API/MCP handlers must not import repositories or bootstrap.
 - CLI code must use services, with two explicit bootstrap imports allowed for startup.
-- The Write Plugin loader (`app.config.write_plugin`) is startup integration. Models, protocols,
+- The Memory Plugin loader (`app.config.write_plugin`) is startup integration. Models, protocols,
   services, repositories, and routes cannot import it; bootstrap may load and inject it.
   Existing deliberate-violation proofs cover the new target, including indirect imports.
   Arbitrary trusted plugin dynamic imports are outside these static checks.

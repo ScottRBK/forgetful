@@ -48,6 +48,7 @@ from app.models.user_models import UserResponse, UserUpdate
 from app.routes.mcp.pagination import clamp_list_pagination
 from app.routes.write_plugin_responses import (
     MemoryCreateWriteResponse,
+    MemoryLifecycleResponse,
     MemoryUpdateResponse,
 )
 from app.services.code_artifact_service import CodeArtifactService
@@ -681,14 +682,21 @@ class MemoryToolAdapters:
 
         user = await get_user_from_auth(ctx)
 
-        success = await self.memory_service.mark_memory_obsolete(
-            user_id=user.id,
-            memory_id=mid,
-            reason=reason,
-            superseded_by=superseded_by,
-        )
+        try:
+            result = await self.memory_service.mark_memory_obsolete(
+                user_id=user.id,
+                memory_id=mid,
+                reason=reason,
+                superseded_by=superseded_by,
+            )
+        except WritePluginRejectedError as exc:
+            raise ToolError(f"WRITE_PLUGIN_REJECTED: {exc}") from None
+        except WritePluginUnavailableError as exc:
+            raise ToolError(f"WRITE_PLUGIN_UNAVAILABLE: {exc}") from None
 
-        return {"success": success}
+        return MemoryLifecycleResponse(
+            success=result.success, plugin_warnings=result.plugin_warnings,
+        ).model_dump(mode="json")
 
     async def unobsolete_memory(
         self,
@@ -706,12 +714,16 @@ class MemoryToolAdapters:
 
         user = await get_user_from_auth(ctx)
 
-        success = await self.memory_service.unobsolete_memory(
-            user_id=user.id,
-            memory_id=mid,
-        )
+        try:
+            result = await self.memory_service.unobsolete_memory(user_id=user.id, memory_id=mid)
+        except WritePluginRejectedError as exc:
+            raise ToolError(f"WRITE_PLUGIN_REJECTED: {exc}") from None
+        except WritePluginUnavailableError as exc:
+            raise ToolError(f"WRITE_PLUGIN_UNAVAILABLE: {exc}") from None
 
-        return {"success": success}
+        return MemoryLifecycleResponse(
+            success=result.success, plugin_warnings=result.plugin_warnings,
+        ).model_dump(mode="json")
 
     async def get_recent_memories(
         self,

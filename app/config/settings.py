@@ -47,7 +47,7 @@ class Settings(BaseSettings):
     CORS_ENABLED: bool = False
     CORS_ORIGINS: list[str] = ["*"]
 
-    # Trusted administrator memory Write Plugin (empty disables).
+    # Trusted administrator Memory Plugin registration (empty disables).
     MEMORY_WRITE_PLUGIN: str = ""
     MEMORY_WRITE_PLUGIN_MODE: Literal["warn", "enforce"] = "enforce"
     MEMORY_WRITE_PLUGIN_TIMEOUT_SECONDS: float = Field(default=5.0, gt=0, allow_inf_nan=False)
