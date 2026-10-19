@@ -1,0 +1,178 @@
+name: Quality gates
+
+# Mirrors the local Git hooks (.githooks/, scripts/quality): the same gate names run here.
+# mypy, bandit, semgrep, vulture, radon-cc and radon-mi are baselined: they fail only on findings
+# that are new or worse than scripts/quality/baselines/*.json (see docs/quality-gates.md).
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+  schedule:
+    - cron: "17 3 * * 1"  # weekly mutation run
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FASTEMBED_CACHE_DIR: ${{ github.workspace }}/.cache/fastembed
+
+jobs:
+  static:
+    name: static (${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: uv sync --locked --all-extras --dev
+      - uses: actions/cache@v6
+        with:
+          path: ${{ env.FASTEMBED_CACHE_DIR }}
+          key: fastembed-${{ runner.os }}-${{ hashFiles('**/pyproject.toml') }}
+          restore-keys: |
+            fastembed-${{ runner.os }}-
+      - name: ruff
+        run: uv run --frozen python -m scripts.quality gate ruff
+      - name: import boundaries
+        run: uv run --frozen python -m scripts.quality gate imports
+      - name: bandit
+        run: uv run --frozen python -m scripts.quality gate bandit
+      - name: semgrep
+        run: uv run --frozen python -m scripts.quality gate semgrep
+      - name: vulture
+        run: uv run --frozen python -m scripts.quality gate vulture
+      - name: radon complexity (nothing new below B)
+        run: uv run --frozen python -m scripts.quality gate radon-cc
+      - name: radon maintainability (nothing new below A)
+        run: uv run --frozen python -m scripts.quality gate radon-mi
+      - name: mypy
+        run: uv run --frozen python -m scripts.quality gate mypy
+      - name: pylint (score floor)
+        run: uv run --frozen python -m scripts.quality gate pylint
+      - name: snapshots
+        run: uv run --frozen python -m scripts.quality gate snapshots
+
+  coverage:
+    name: coverage floor (SQLite + PostgreSQL e2e)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: uv sync --locked --all-extras --dev
+      - name: Install PostgreSQL backup tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
+      - uses: actions/cache@v6
+        with:
+          path: ${{ env.FASTEMBED_CACHE_DIR }}
+          key: fastembed-${{ runner.os }}-${{ hashFiles('**/pyproject.toml') }}
+          restore-keys: |
+            fastembed-${{ runner.os }}-
+      - run: uv run --frozen python -m scripts.quality gate tests
+      - run: uv run --frozen python -m scripts.quality gate e2e-postgres
+      - run: uv run --frozen python -m scripts.quality gate coverage
+
+  memory:
+    name: memray budgets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: uv sync --locked --all-extras --dev
+      - uses: actions/cache@v6
+        with:
+          path: ${{ env.FASTEMBED_CACHE_DIR }}
+          key: fastembed-${{ runner.os }}-${{ hashFiles('**/pyproject.toml') }}
+          restore-keys: |
+            fastembed-${{ runner.os }}-
+      - run: uv run --frozen python -m scripts.quality gate memray
+
+  trivy:
+    name: trivy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m scripts.quality gate trivy
+
+  qodana:
+    name: qodana
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    env:
+      QODANA_TOKEN: ${{ secrets.QODANA_TOKEN }}
+    steps:
+      # Qodana Ultimate Plus needs a licence token. Without the repository secret the job reports
+      # that and passes instead of failing every run (forks and unconfigured repositories).
+      - name: Check for the QODANA_TOKEN secret
+        if: ${{ env.QODANA_TOKEN == '' }}
+        run: echo "::notice::QODANA_TOKEN is not configured, skipping Qodana"
+      - uses: actions/checkout@v4
+        if: ${{ env.QODANA_TOKEN != '' }}
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: JetBrains/qodana-action@v2026.2
+        if: ${{ env.QODANA_TOKEN != '' }}
+
+  mutation:
+    name: mutation (weekly)
+    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: uv sync --locked --all-extras --dev
+      # Informational ratchet: mutmut needs a scope (a full run is ~33k mutants). Lower the tolerance
+      # as surviving mutants get killed, then drop continue-on-error.
+      - run: uv run --frozen python -m scripts.quality gate mutation
+        continue-on-error: true
+        env:
+          MUTATION: "1"
+          MUTATION_TARGETS: "app.utils.* app.config.*"
+          MUTATION_MAX_SURVIVORS: "50"

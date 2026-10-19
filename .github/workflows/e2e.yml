@@ -16,8 +16,13 @@ concurrency:
 
 jobs:
   e2e:
+    name: e2e (py${{ matrix.python }})
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.14"]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -32,7 +37,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
+          python-version: ${{ matrix.python }}
 
       - name: Install dependencies
         run: uv sync --frozen --all-extras --dev

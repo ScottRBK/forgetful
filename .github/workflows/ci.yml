@@ -15,10 +15,12 @@ concurrency:
 
 jobs:
   test:
+    name: test (${{ matrix.os }}, py${{ matrix.python }})
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
+        python: ["3.12", "3.14"]
     runs-on: ${{ matrix.os }}
     env:
       FASTEMBED_CACHE_DIR: ${{ github.workspace }}/.cache/fastembed
@@ -37,7 +39,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
+          python-version: ${{ matrix.python }}
 
       - name: Install dependencies
         run: uv sync --locked --all-extras --dev
@@ -49,7 +51,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ${{ env.FASTEMBED_CACHE_DIR }}
-          key: fastembed-${{ runner.os }}-${{ hashFiles('**/pyproject.toml') }}
+          key: fastembed-${{ runner.os }}-${{ matrix.python }}-${{ hashFiles('**/pyproject.toml') }}
           restore-keys: |
             fastembed-${{ runner.os }}-
 
