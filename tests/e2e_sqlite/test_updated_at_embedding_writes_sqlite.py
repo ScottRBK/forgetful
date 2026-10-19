@@ -215,7 +215,8 @@ async def test_rebuild_does_not_clobber_embedding_of_concurrent_update(stack):
     repo, db_adapter, embedder, user_id = stack
     memory_service = MemoryService(memory_repo=repo)
     re_service = ReEmbeddingService(repo, embedder, batch_size=20)
-    memory, _ = await memory_service.create_memory(user_id=user_id, memory_data=_memory("OLD-CONTENT"))
+    write_result = await memory_service.create_memory(user_id=user_id, memory_data=_memory("OLD-CONTENT"))
+    memory = write_result.memory
 
     # Hold the rebuild inside generate_embedding(OLD text) ...
     embedder.gate_marker = "OLD-CONTENT"
@@ -224,10 +225,11 @@ async def test_rebuild_does_not_clobber_embedding_of_concurrent_update(stack):
 
     # ... while update_memory commits NEW content together with its fresh vector.
     embedder.gate_marker = None
-    updated = await memory_service.update_memory(
+    update_result = await memory_service.update_memory(
         user_id=user_id, memory_id=memory.id, updated_memory=MemoryUpdate(content="NEW-CONTENT"),
     )
-    assert updated.content == "NEW-CONTENT"
+    assert update_result.memory is not None
+    assert update_result.memory.content == "NEW-CONTENT"
     new_vector = sqlite_vec.serialize_float32(embedder.vector("T NEW-CONTENT c k t"))
     assert await _vec_blob(db_adapter, memory.id) == new_vector
 
