@@ -263,7 +263,8 @@ async def build_runtime() -> Runtime:
         logger.info(f"Data directory ensured: {data_dir}")
 
     await db_adapter.init_db()
-    # Alembic fileConfig disables existing loggers; plugin failures must remain diagnosable.
+    # Alembic's fileConfig re-enables existing loggers, including plugin loggers muted on purpose,
+    # so restore their previous state; plugin failures must remain diagnosable.
     logging.getLogger("app.services.write_plugin_service").disabled = False
     for plugin_logger, was_disabled in plugin_logger_states.items():
         plugin_logger.disabled = was_disabled
