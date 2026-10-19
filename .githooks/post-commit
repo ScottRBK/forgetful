@@ -1,0 +1,7 @@
+#!/bin/sh
+# Keep the local GitNexus index fresh after each commit (best effort, never blocks).
+cd "$(git rev-parse --show-toplevel)" || exit 0
+if [ -f .gitnexus/run.cjs ] && command -v node >/dev/null 2>&1; then
+    (node .gitnexus/run.cjs analyze --index-only >/dev/null 2>&1 &)
+fi
+exit 0

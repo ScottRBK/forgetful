@@ -1,0 +1,5 @@
+#!/bin/sh
+# Fast gates on staged files: lint, security, complexity, types, snapshots, tests, impact.
+# Bypass a gate:  SKIP=mypy,pylint git commit ...   (see docs/quality-gates.md)
+cd "$(git rev-parse --show-toplevel)" || exit 1
+exec uv run --frozen python -m scripts.quality stage pre-commit

@@ -1,0 +1,2 @@
+# Git hooks run under /bin/sh: keep LF line endings on Windows checkouts.
+.githooks/* text eol=lf
