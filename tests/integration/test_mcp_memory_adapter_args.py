@@ -109,7 +109,7 @@ async def _seed(service, user_id, importances=(3, 9, 6)):
     """Create memories oldest to newest; the stub repository stamps increasing created_at values"""
     ids = []
     for i, importance in enumerate(importances):
-        memory, _ = await service.create_memory(
+        write_result = await service.create_memory(
             user_id=user_id,
             memory_data=MemoryCreate(
                 title=f"sort probe {i}",
@@ -120,7 +120,7 @@ async def _seed(service, user_id, importances=(3, 9, 6)):
                 importance=importance,
             ),
         )
-        ids.append(memory.id)
+        ids.append(write_result.memory.id)
     return ids
 
 
