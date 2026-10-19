@@ -71,8 +71,8 @@ async def test_unlink_memories_is_not_counted_as_a_read(mock_memory_repository, 
     service.register_access_tracking_handlers(event_bus)
     user_id = uuid4()
 
-    m1, _ = await service.create_memory(user_id, _memory_data("alpha", "quasar"))
-    m2, _ = await service.create_memory(user_id, _memory_data("beta", "granite"))
+    m1 = (await service.create_memory(user_id, _memory_data("alpha", "quasar"))).memory
+    m2 = (await service.create_memory(user_id, _memory_data("beta", "granite"))).memory
     await service.link_memories(user_id=user_id, memory_id=m1.id, related_ids=[m2.id])
     await event_bus.wait_for_pending()
 

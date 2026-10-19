@@ -239,7 +239,7 @@ async def test_unlink_memories_does_not_count_as_a_read(stack):
     uid = s["user_id"]
 
     async def make(title):
-        mem, _ = await s["memory"].create_memory(
+        result = await s["memory"].create_memory(
             user_id=uid,
             memory_data=MemoryCreate(
                 title=title,
@@ -250,7 +250,7 @@ async def test_unlink_memories_does_not_count_as_a_read(stack):
                 importance=5,
             ),
         )
-        return mem
+        return result.memory
 
     m1 = await make("alpha")
     m2 = await make("beta")
