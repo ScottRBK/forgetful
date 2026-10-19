@@ -1,0 +1,24 @@
+{
+  "gate": "bandit",
+  "kind": "count",
+  "total": 24,
+  "findings": {
+    "app/config/settings.py::B104": 1,
+    "app/repositories/backup_adapter.py::B404": 1,
+    "app/repositories/backup_adapter.py::B603": 2,
+    "app/repositories/postgres/memory_repository.py::B608": 1,
+    "app/repositories/sqlite/memory_repository.py::B608": 1,
+    "app/routes/mcp/scope_resolver.py::B105": 3,
+    "test_harness/container.py::B103": 1,
+    "test_harness/container.py::B108": 1,
+    "test_harness/container.py::B404": 1,
+    "test_harness/container.py::B603": 3,
+    "test_harness/container.py::B607": 3,
+    "test_harness/docker/runner.py::B108": 1,
+    "test_harness/server.py::B404": 1,
+    "test_harness/server.py::B603": 1,
+    "test_harness/walkthrough.py::B404": 1,
+    "test_harness/walkthrough.py::B603": 1,
+    "test_harness/walkthrough.py::B607": 1
+  }
+}

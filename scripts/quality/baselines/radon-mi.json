@@ -1,0 +1,26 @@
+{
+  "gate": "radon-mi",
+  "kind": "rank",
+  "total": 19,
+  "findings": {
+    "app/repositories/postgres/memory_repository.py": "B",
+    "app/repositories/sqlite/memory_repository.py": "B",
+    "app/routes/mcp/tool_adapters.py": "C",
+    "app/services/graph_service.py": "C",
+    "tests/e2e/test_api_activity.py": "C",
+    "tests/e2e/test_entity_tools_e2e.py": "C",
+    "tests/e2e/test_graph_e2e.py": "C",
+    "tests/e2e/test_memory_tools_e2e.py": "C",
+    "tests/e2e/test_project_tools_e2e.py": "B",
+    "tests/e2e_sqlite/test_api_graph.py": "C",
+    "tests/e2e_sqlite/test_api_memories.py": "B",
+    "tests/e2e_sqlite/test_api_skills.py": "B",
+    "tests/e2e_sqlite/test_entity_tools_sqlite.py": "C",
+    "tests/e2e_sqlite/test_memory_tools_sqlite.py": "C",
+    "tests/e2e_sqlite/test_project_tools_sqlite.py": "B",
+    "tests/integration/conftest.py": "C",
+    "tests/integration/test_entity_service.py": "B",
+    "tests/integration/test_memory_write_plugin.py": "B",
+    "tests/integration/test_skill_service.py": "B"
+  }
+}

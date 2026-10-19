@@ -1,0 +1,12 @@
+{
+  "gate": "semgrep",
+  "kind": "count",
+  "total": 6,
+  "findings": {
+    "app/repositories/embeddings/reranker_adapter.py::forgetful-deprecated-asyncio": 1,
+    "app/repositories/postgres/memory_repository.py::forgetful-sql-text-built-from-string": 1,
+    "app/repositories/sqlite/memory_repository.py::forgetful-sql-text-built-from-string": 1,
+    "app/repositories/sqlite/sqlite_adapter.py::forgetful-sql-text-built-from-string": 2,
+    "main.py::forgetful-deprecated-asyncio": 1
+  }
+}
