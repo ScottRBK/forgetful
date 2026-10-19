@@ -48,13 +48,23 @@ disabled. See `docs/api_reference.md` for the capability document. MCP tool disc
 
 ## Auth and scopes
 
-A local server defaults to no-auth single-user mode — connect and go. Deployed servers use
-bearer tokens or OAuth (the server's configured provider). `FORGETFUL_SCOPES` on the server
-side sets a capability ceiling (e.g. read-only) that both MCP and CLI honour; a client that
-should only recall can be scoped so writes are refused. A bearer token's own `scope`/`scp`
-claim narrows access further (unrelated scopes such as `openid` are ignored); a token whose
-scopes include no Forgetful scope (`*`, `read`, `write`, `read:<category>`, `write:<category>`)
-is refused every tool.
+A local server defaults to no-auth single-user mode. Deployed servers use bearer tokens or OAuth.
+`FASTMCP_SERVER_AUTH_*_REQUIRED_SCOPES` controls IdP admission requirements.
+`FORGETFUL_SCOPES` sets the server's MCP/local CLI tool limit.
+Recognised scopes in verified token `scope`/`scp` claims
+can narrow MCP access further; they also apply to the remote CLI's MCP calls.
+
+For JWT/introspection tokens, `api:read api:write read` can satisfy IdP requirements while allowing
+only read tools. `openid read` also stays read-only. Accepted Forgetful labels are `*`, `read`,
+`write`, `read:<category>` and `write:<category>`. A nonempty claim with no recognised label denies
+all MCP tools. Absent/empty claims retain server permissions after successful authentication.
+
+After upgrading, api-only token users must add appropriate tool scopes at the issuer and obtain new
+tokens or update introspection responses. Changing `REQUIRED_SCOPES` alone does not change a token.
+Built-in GitHub/Google OAuth logins normally expose no scope claim to this resolver and retain the
+server permissions; do not request arbitrary Forgetful API scopes from those providers.
+See `docs/configuration.md`, "Authentication scopes and Forgetful tool permissions", for examples
+and upgrade steps. Do not assume MCP scope restrictions also protect REST endpoints.
 
 ## Verify — the completion criterion
 
