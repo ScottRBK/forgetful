@@ -1,0 +1,11 @@
+.venv/
+.venv314/
+.git/
+.gitnexus/
+.idea/
+node_modules/
+build/
+dist/
+test_harness/runs/
+uv.lock
+app/_version.py

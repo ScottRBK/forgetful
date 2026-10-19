@@ -1,0 +1,47 @@
+#-------------------------------------------------------------------------------#
+#            Qodana analysis is configured by qodana.yaml file                  #
+#            https://www.jetbrains.com/help/qodana/qodana-yaml.html             #
+#                                                                               #
+#  Never put QODANA_TOKEN here: it lives in the git-ignored .env file locally   #
+#  and in the QODANA_TOKEN repository secret in CI.                             #
+#-------------------------------------------------------------------------------#
+version: "1.0"
+
+# Qodana Ultimate Plus (Python): inspections + taint/vulnerable-dependency + licence audit.
+linter: jetbrains/qodana-python:2026.2
+
+profile:
+  name: qodana.recommended
+
+include:
+  - name: VulnerableLibrariesLocal
+  - name: CheckDependencyLicenses
+
+bootstrap: export UV_CACHE_DIR=/tmp/uv-cache SETUPTOOLS_SCM_PRETEND_VERSION=0.0.0+qodana && pip install uv && uv sync --locked --all-extras --dev
+
+exclude:
+  - name: All
+    paths:
+      - .venv
+      - .venv314
+      - .gitnexus
+      - .idea
+      - .qodana-results
+      - node_modules
+      - test_harness/runs
+      - docs/assets
+      - app/_version.py
+
+  # A vulture whitelist is a list of bare names on purpose.
+  - name: PyStatementEffectInspection
+    paths:
+      - vulture_whitelist.py
+
+# Ratchet. The thresholds are the number of Critical and High findings measured on the code base
+# when the gate was introduced (see docs/quality-gates.md): the build fails when a severity has MORE
+# problems than listed, so existing findings do not block anyone while no new one gets in. Lower a
+# number in the same change that fixes findings; never raise it to get a change through.
+failureConditions:
+  severityThresholds:
+    critical: 1
+    high: 12

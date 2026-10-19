@@ -1,0 +1,22 @@
+# Accepted findings: one ID per line, each group with a reason and a review date.
+
+# docker/Dockerfile runs as root. Existing deployments bind-mount ./data and the offline
+# model cache owned by root; switching to a non-root USER needs a migration note and
+# volume-ownership handling, so it is tracked as a separate change. Review by 2026-12-01.
+AVD-DS-0002
+
+# Known-vulnerable pins in this base's uv.lock (fsspec, pyjwt, urllib3). The dependency bump in
+# pull request #102 (fix/deps-security-bump) moves them to fixed releases: delete these lines
+# when #102 (dependency bump) merges; the trivy gate then guards the lock again.
+# fsspec
+CVE-2026-104851
+# pyjwt
+CVE-2026-102266
+CVE-2026-102267
+CVE-2026-102268
+CVE-2026-102271
+CVE-2026-102272
+CVE-2026-102273
+# urllib3
+CVE-2026-97687
+CVE-2026-97689

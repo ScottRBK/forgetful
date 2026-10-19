@@ -1,0 +1,21 @@
+# Trivy filesystem scan configuration (run via `python -m scripts.quality gate trivy`).
+format: table
+exit-code: 1
+severity:
+  - HIGH
+  - CRITICAL
+scan:
+  scanners:
+    - vuln
+    - secret
+    - misconfig
+  skip-dirs:
+    - .venv
+    - .venv314
+    - .git
+    - .gitnexus
+    - .idea
+    - node_modules
+    - test_harness/runs
+vulnerability:
+  ignore-unfixed: true

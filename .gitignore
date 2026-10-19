@@ -15,6 +15,20 @@ data/
 
 # Virtual environments
 .venv
+.venv*
+
+# Quality-gate artefacts
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+mutants/
+.mutmut-cache
+.qodana-results/
+.gitnexus/
 
 # Environment files
 .env
@@ -40,3 +54,6 @@ test_harness/docker/requirements.lock
 # Nix build output symlinks (never commit)
 result
 result-*
+
+# JetBrains
+.idea/

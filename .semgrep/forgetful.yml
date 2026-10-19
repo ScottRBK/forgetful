@@ -1,0 +1,147 @@
+rules:
+  - id: forgetful-no-print-in-app
+    languages: [python]
+    severity: ERROR
+    message: >-
+      print() writes to stdout, which carries the MCP STDIO transport and would corrupt
+      the protocol stream. Use the logging module (see app/config/logging_config.py).
+    pattern: print(...)
+    paths:
+      include: ["app/"]
+      exclude: ["app/routes/cli/"]  # the CLI prints results on purpose
+
+  - id: forgetful-no-naive-utcnow
+    languages: [python]
+    severity: ERROR
+    message: >-
+      datetime.utcnow()/utcfromtimestamp() return naive datetimes and are deprecated since
+      Python 3.12. Use datetime.now(timezone.utc).
+    pattern-either:
+      - pattern: datetime.utcnow()
+      - pattern: datetime.datetime.utcnow()
+      - pattern: datetime.utcfromtimestamp(...)
+      - pattern: datetime.datetime.utcfromtimestamp(...)
+
+  - id: forgetful-deprecated-asyncio
+    languages: [python]
+    severity: ERROR
+    message: >-
+      asyncio.iscoroutinefunction and asyncio.get_event_loop() are deprecated (removal
+      slated on newer Pythons). Use inspect.iscoroutinefunction / asyncio.get_running_loop().
+    pattern-either:
+      - pattern: asyncio.iscoroutinefunction(...)
+      - pattern: asyncio.get_event_loop()
+      - pattern: asyncio.get_event_loop_policy()
+
+  - id: forgetful-sql-text-built-from-string
+    languages: [python]
+    severity: ERROR
+    message: >-
+      SQL assembled with f-strings, %, .format() or concatenation passed to text()/execute().
+      Use bound parameters (:name) and only interpolate vetted internal identifiers.
+    pattern-either:
+      - pattern: text(f"...")
+      - pattern: text("..." % ...)
+      - pattern: text("...".format(...))
+      - pattern: text("..." + ...)
+      - pattern: $CONN.execute(f"...")
+      - pattern: $CONN.exec_driver_sql(f"...")
+    paths:
+      include: ["app/"]
+
+  - id: forgetful-subprocess-shell-true
+    languages: [python]
+    severity: ERROR
+    message: subprocess with shell=True invites command injection. Pass an argv list.
+    pattern-either:
+      - pattern: subprocess.$FUNC(..., shell=True, ...)
+      - pattern: os.system(...)
+
+  - id: forgetful-swallowed-exception
+    languages: [python]
+    severity: WARNING
+    message: Exception swallowed without logging or re-raising hides real failures.
+    pattern-either:
+      - pattern: |
+          try:
+              ...
+          except Exception:
+              pass
+      - pattern: |
+          try:
+              ...
+          except:
+              pass
+    paths:
+      include: ["app/", "main.py"]
+
+  - id: forgetful-http-call-without-timeout
+    languages: [python]
+    severity: ERROR
+    message: HTTP calls without an explicit timeout can hang the server indefinitely.
+    patterns:
+      - pattern-either:
+          - pattern: requests.$M($URL, ...)
+          - pattern: httpx.$M($URL, ...)
+      - pattern-not: requests.$M($URL, ..., timeout=..., ...)
+      - pattern-not: httpx.$M($URL, ..., timeout=..., ...)
+      - metavariable-regex:
+          metavariable: $M
+          regex: ^(get|post|put|patch|delete|head|options|request)$
+    paths:
+      include: ["app/", "main.py"]
+
+  - id: forgetful-tls-verification-disabled
+    languages: [python]
+    severity: ERROR
+    message: TLS certificate verification must not be disabled.
+    pattern: $F(..., verify=False, ...)
+
+  - id: forgetful-unsafe-deserialization
+    languages: [python]
+    severity: ERROR
+    message: Unsafe deserialization / dynamic evaluation of untrusted data.
+    pattern-either:
+      - pattern: pickle.loads(...)
+      - pattern: pickle.load(...)
+      - pattern: yaml.load(...)
+      - pattern: eval(...)
+      - pattern: exec(...)
+    paths:
+      include: ["app/", "main.py"]
+
+  - id: forgetful-mutable-default-argument
+    languages: [python]
+    severity: ERROR
+    message: Mutable default argument is shared across calls. Use None and create inside.
+    pattern-either:
+      - pattern: |
+          def $F(..., $A=[], ...):
+              ...
+      - pattern: |
+          def $F(..., $A={}, ...):
+              ...
+      - pattern: |
+          async def $F(..., $A=[], ...):
+              ...
+      - pattern: |
+          async def $F(..., $A={}, ...):
+              ...
+
+  - id: forgetful-blocking-call-in-async
+    languages: [python]
+    severity: WARNING
+    message: >-
+      Blocking call inside an async function stalls the event loop. Use the async
+      equivalent or asyncio.to_thread().
+    patterns:
+      - pattern-inside: |
+          async def $F(...):
+              ...
+      - pattern-either:
+          - pattern: time.sleep(...)
+          - pattern: requests.$M(...)
+          - pattern: subprocess.run(...)
+          - pattern: subprocess.check_output(...)
+    paths:
+      include: ["app/", "main.py"]
