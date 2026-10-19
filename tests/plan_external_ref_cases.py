@@ -287,11 +287,14 @@ class TestPlanExternalRefStorage:
         assert created.external_ref == "race:43"
 
     async def test_unrelated_integrity_error_is_not_a_reference_conflict(self, reference_store):
-        repos, user, _ = reference_store
+        repos, user, project = reference_store
+        # A missing project is rejected up front with NotFoundError, so bypass model
+        # validation to force a NOT NULL violation that reaches the database instead.
+        invalid_plan = PlanCreate.model_construct(
+            title=None, project_id=project.id, external_ref="not-null:42",
+        )
         with pytest.raises(IntegrityError):
-            await repos["plan"].create_plan(user.id, PlanCreate(
-                title="Missing project", project_id=-1, external_ref="foreign-key:42",
-            ))
+            await repos["plan"].create_plan(user.id, invalid_plan)
 
     async def test_migration_preserves_existing_plans_and_tasks(
         self, reference_db, reference_store,

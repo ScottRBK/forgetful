@@ -13,6 +13,7 @@ from app.models.document_models import (
     DocumentSummary,
     DocumentUpdate,
 )
+from app.repositories.sqlite.project_reference import ensure_project_owned
 from app.repositories.sqlite.sqlite_adapter import SqliteDatabaseAdapter
 from app.repositories.sqlite.sqlite_tables import DocumentsTable
 
@@ -44,9 +45,14 @@ class SqliteDocumentRepository:
 
         Returns:
             Created Document with generated ID and timestamps
+
+        Raises:
+            NotFoundError: If project_id is not one of the user's projects
         """
         try:
             async with self.db_adapter.session(user_id) as session:
+                await ensure_project_owned(session, user_id, document_data.project_id)
+
                 # Calculate size_bytes from content if not provided
                 size_bytes = document_data.size_bytes
                 if size_bytes is None:
@@ -81,6 +87,8 @@ class SqliteDocumentRepository:
                 # Convert ORM to Pydantic
                 return Document.model_validate(document_table)
 
+        except NotFoundError:
+            raise
         except Exception as e:
             logger.error(
                 "Failed to create document",
@@ -211,7 +219,8 @@ class SqliteDocumentRepository:
             Updated Document
 
         Raises:
-            NotFoundError: If document not found or not owned by user
+            NotFoundError: If document not found or not owned by user,
+                or project_id is not one of the user's projects
         """
         try:
             async with self.db_adapter.session(user_id) as session:
@@ -229,6 +238,7 @@ class SqliteDocumentRepository:
 
                 # Update only provided fields (PATCH)
                 update_data = document_data.model_dump(exclude_unset=True)
+                await ensure_project_owned(session, user_id, update_data.get("project_id"))
 
                 # Recalculate size_bytes if content is being updated
                 if update_data.get("content"):

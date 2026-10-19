@@ -18,6 +18,7 @@ from app.models.plan_models import (
 )
 from app.repositories.postgres.postgres_adapter import PostgresDatabaseAdapter
 from app.repositories.postgres.postgres_tables import PlansTable
+from app.repositories.postgres.project_reference import ensure_project_owned
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,8 @@ class PostgresPlanRepository:
 
         try:
             async with self.db_adapter.session(user_id) as session:
+                await ensure_project_owned(session, user_id, plan_data.project_id)
+
                 data = plan_data.model_dump(exclude={"criteria", "dependency_ids"})
                 new_plan = PlansTable(**data, user_id=user_id)
                 session.add(new_plan)
