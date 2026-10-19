@@ -159,6 +159,7 @@ async def _run_reembed(args):
     atexit.register(shutdown_logging)
 
     from app.bootstrap import (
+        _close_embedding_adapter,
         create_backup_service,
         create_db_adapter,
         create_repositories,
@@ -167,144 +168,148 @@ async def _run_reembed(args):
     from app.services.re_embedding_service import ReEmbeddingService
 
     embeddings_adapter = get_embedding_adapter()
-    backup_service = create_backup_service()
-
-    print("\n[1/5] Validating configuration...")
-    model_display = settings.AZURE_DEPLOYMENT if settings.EMBEDDING_PROVIDER == "Azure" else settings.EMBEDDING_MODEL
-    print(f"  Provider: {settings.EMBEDDING_PROVIDER} ({model_display})")
-    print(f"  Dimensions: {settings.EMBEDDING_DIMENSIONS}")
-    if settings.DATABASE == "SQLite":
-        print(f"  Database: SQLite ({settings.SQLITE_PATH})")
-    else:
-        print(f"  Database: PostgreSQL ({settings.POSTGRES_HOST}:{settings.PGPORT}/{settings.POSTGRES_DB})")
-    print(f"  Batch size: {args.batch_size}")
-
-    # Initialize database
-    db_adapter = create_db_adapter()
-
-    if settings.DATABASE == "SQLite" and not settings.SQLITE_MEMORY:
-        data_dir = Path(settings.SQLITE_PATH).parent
-        data_dir.mkdir(parents=True, exist_ok=True)
-
-    await db_adapter.init_db()
-
-    # Create memory repository (reranker not needed for re-embedding)
-    repos = create_repositories(db_adapter, embeddings_adapter, None)
-    memory_repository = repos["memory"]
-
-    # Count memories for dry run / estimation
-    total = await memory_repository.count_all_memories()
-    print(f"  Memories to process: {total}")
-
-    if args.dry_run:
-        print(f"\n[DRY RUN] Would re-embed {total} memories with the above configuration.")
-        print("  No changes were made.")
-        await db_adapter.dispose()
-        return
-
-    if total == 0:
-        print("\n  No memories to re-embed. Done.")
-        await db_adapter.dispose()
-        return
-
-    # Create backup (skip for in-memory SQLite)
-    backup_path = None
-    if settings.DATABASE == "SQLite" and settings.SQLITE_MEMORY:
-        print("\n[2/5] Skipping backup (in-memory database)...")
-    else:
-        print("\n[2/5] Creating backup...")
-        backup_path = await backup_service.create_backup()
-        print(f"  Backup saved: {backup_path}")
-
-    # Set up signal handling for graceful restore
-    restore_triggered = False
-
-    def signal_handler(signum, frame):
-        nonlocal restore_triggered
-        if restore_triggered:
-            return
-        restore_triggered = True
-        print("\n\nInterrupted! Restoring from backup...")
-        if backup_path:
-            asyncio.get_event_loop().run_until_complete(
-                backup_service.restore_backup(backup_path),
-            )
-            print(f"  Restored: {backup_path}")
-        sys.exit(1)
-
-    original_sigint = signal.getsignal(signal.SIGINT)
-    original_sigterm = signal.getsignal(signal.SIGTERM)
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
-
     try:
-        # Reset schema
-        print("\n[3/5] Updating vector schema...")
-        await memory_repository.reset_embedding_storage()
+        backup_service = create_backup_service()
+
+        print("\n[1/5] Validating configuration...")
+        model_display = settings.AZURE_DEPLOYMENT if settings.EMBEDDING_PROVIDER == "Azure" else settings.EMBEDDING_MODEL
+        print(f"  Provider: {settings.EMBEDDING_PROVIDER} ({model_display})")
+        print(f"  Dimensions: {settings.EMBEDDING_DIMENSIONS}")
         if settings.DATABASE == "SQLite":
-            print(f"  Recreated vec_memories table with {settings.EMBEDDING_DIMENSIONS} dimensions")
+            print(f"  Database: SQLite ({settings.SQLITE_PATH})")
         else:
-            print(f"  Altered embedding column to vector({settings.EMBEDDING_DIMENSIONS})")
+            print(f"  Database: PostgreSQL ({settings.POSTGRES_HOST}:{settings.PGPORT}/{settings.POSTGRES_DB})")
+        print(f"  Batch size: {args.batch_size}")
 
-        # Re-embed
-        print("\n[4/5] Re-embedding memories...")
+        # Initialize database
+        db_adapter = create_db_adapter()
 
-        def progress(processed, total_count):
-            pct = int((processed / total_count) * 100) if total_count > 0 else 100
-            bar_filled = int(pct / 4)
-            bar = "#" * bar_filled + "-" * (25 - bar_filled)
-            print(f"\r  [{bar}] {processed}/{total_count} memories ({pct}%)", end="", flush=True)
+        if settings.DATABASE == "SQLite" and not settings.SQLITE_MEMORY:
+            data_dir = Path(settings.SQLITE_PATH).parent
+            data_dir.mkdir(parents=True, exist_ok=True)
 
-        service = ReEmbeddingService(
-            memory_repository=memory_repository,
-            embedding_adapter=embeddings_adapter,
-            batch_size=args.batch_size,
-        )
+        await db_adapter.init_db()
 
-        result = await service.re_embed_all(progress_callback=progress)
-        print()  # newline after progress bar
+        # Create memory repository (reranker not needed for re-embedding)
+        repos = create_repositories(db_adapter, embeddings_adapter, None)
+        memory_repository = repos["memory"]
 
-        # Validate
-        print("\n[5/5] Validating...")
-        if result.validation:
-            print(f"  Count check: {result.total_memories} memories, "
-                  f"{result.total_processed} embeddings "
-                  f"{'OK' if result.validation.count_ok else 'FAILED'}")
-            print(f"  Dimension check: {'OK' if result.validation.dimensions_ok else 'FAILED'}")
-            print(f"  Search check: {'OK' if result.validation.search_ok else 'FAILED'}")
+        # Count memories for dry run / estimation
+        total = await memory_repository.count_all_memories()
+        print(f"  Memories to process: {total}")
 
-            if not result.validation.all_passed:
-                print("\n  Validation FAILED!")
-                # Release SQLite file handles before replacing database/WAL files.
-                await db_adapter.dispose()
-                if backup_path:
-                    print("  Restoring from backup...")
-                    await backup_service.restore_backup(backup_path)
-                    print(f"  Restored: {backup_path}")
-                    print("  Database returned to pre-migration state.")
-                sys.exit(1)
+        if args.dry_run:
+            print(f"\n[DRY RUN] Would re-embed {total} memories with the above configuration.")
+            print("  No changes were made.")
+            await db_adapter.dispose()
+            return
 
-        print(f"\n  Successfully re-embedded {result.total_processed} memories")
-        if backup_path:
-            print(f"  Backup retained at: {backup_path}")
-            print("  (Delete manually when satisfied with results)")
+        if total == 0:
+            print("\n  No memories to re-embed. Done.")
+            await db_adapter.dispose()
+            return
 
-    except Exception as e:
-        print(f"\n  ERROR: {e}")
-        # Release SQLite file handles before replacing database/WAL files.
+        # Create backup (skip for in-memory SQLite)
+        backup_path = None
+        if settings.DATABASE == "SQLite" and settings.SQLITE_MEMORY:
+            print("\n[2/5] Skipping backup (in-memory database)...")
+        else:
+            print("\n[2/5] Creating backup...")
+            backup_path = await backup_service.create_backup()
+            print(f"  Backup saved: {backup_path}")
+
+        # Set up signal handling for graceful restore
+        restore_triggered = False
+
+        def signal_handler(signum, frame):
+            nonlocal restore_triggered
+            if restore_triggered:
+                return
+            restore_triggered = True
+            print("\n\nInterrupted! Restoring from backup...")
+            if backup_path:
+                asyncio.get_event_loop().run_until_complete(
+                    backup_service.restore_backup(backup_path),
+                )
+                print(f"  Restored: {backup_path}")
+            sys.exit(1)
+
+        original_sigint = signal.getsignal(signal.SIGINT)
+        original_sigterm = signal.getsignal(signal.SIGTERM)
+        signal.signal(signal.SIGINT, signal_handler)
+        signal.signal(signal.SIGTERM, signal_handler)
+
+        try:
+            # Reset schema
+            print("\n[3/5] Updating vector schema...")
+            await memory_repository.reset_embedding_storage()
+            if settings.DATABASE == "SQLite":
+                print(f"  Recreated vec_memories table with {settings.EMBEDDING_DIMENSIONS} dimensions")
+            else:
+                print(f"  Altered embedding column to vector({settings.EMBEDDING_DIMENSIONS})")
+
+            # Re-embed
+            print("\n[4/5] Re-embedding memories...")
+
+            def progress(processed, total_count):
+                pct = int((processed / total_count) * 100) if total_count > 0 else 100
+                bar_filled = int(pct / 4)
+                bar = "#" * bar_filled + "-" * (25 - bar_filled)
+                print(f"\r  [{bar}] {processed}/{total_count} memories ({pct}%)", end="", flush=True)
+
+            service = ReEmbeddingService(
+                memory_repository=memory_repository,
+                embedding_adapter=embeddings_adapter,
+                batch_size=args.batch_size,
+            )
+
+            result = await service.re_embed_all(progress_callback=progress)
+            print()  # newline after progress bar
+
+            # Validate
+            print("\n[5/5] Validating...")
+            if result.validation:
+                print(f"  Count check: {result.total_memories} memories, "
+                      f"{result.total_processed} embeddings "
+                      f"{'OK' if result.validation.count_ok else 'FAILED'}")
+                print(f"  Dimension check: {'OK' if result.validation.dimensions_ok else 'FAILED'}")
+                print(f"  Search check: {'OK' if result.validation.search_ok else 'FAILED'}")
+
+                if not result.validation.all_passed:
+                    print("\n  Validation FAILED!")
+                    # Release SQLite file handles before replacing database/WAL files.
+                    await db_adapter.dispose()
+                    if backup_path:
+                        print("  Restoring from backup...")
+                        await backup_service.restore_backup(backup_path)
+                        print(f"  Restored: {backup_path}")
+                        print("  Database returned to pre-migration state.")
+                    sys.exit(1)
+
+            print(f"\n  Successfully re-embedded {result.total_processed} memories")
+            if backup_path:
+                print(f"  Backup retained at: {backup_path}")
+                print("  (Delete manually when satisfied with results)")
+
+        except Exception as e:
+            print(f"\n  ERROR: {e}")
+            # Release SQLite file handles before replacing database/WAL files.
+            await db_adapter.dispose()
+            if backup_path:
+                print("\n  Restoring from backup...")
+                await backup_service.restore_backup(backup_path)
+                print(f"  Restored: {backup_path}")
+                print("  Database returned to pre-migration state.")
+            raise
+        finally:
+            # Restore original signal handlers
+            signal.signal(signal.SIGINT, original_sigint)
+            signal.signal(signal.SIGTERM, original_sigterm)
+
         await db_adapter.dispose()
-        if backup_path:
-            print("\n  Restoring from backup...")
-            await backup_service.restore_backup(backup_path)
-            print(f"  Restored: {backup_path}")
-            print("  Database returned to pre-migration state.")
-        raise
-    finally:
-        # Restore original signal handlers
-        signal.signal(signal.SIGINT, original_sigint)
-        signal.signal(signal.SIGTERM, original_sigterm)
 
-    await db_adapter.dispose()
+    finally:
+        await _close_embedding_adapter(embeddings_adapter)
 
 
 def _serve(transport, host, port):

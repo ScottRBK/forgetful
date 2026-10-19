@@ -64,6 +64,12 @@ The bootstrap factories select PostgreSQL or SQLite repositories at
 `FILES_ENABLED`, `SKILLS_ENABLED`, and `PLANNING_ENABLED` control matching repositories, services,
 metadata registration, and HTTP route registration. `GraphService` receives memory/entity repositories
 plus the other services, including optional ones ([bootstrap.py:311](app/bootstrap.py#L311)).
+The runtime owns the optional embedding adapter and closes its dedicated workers after
+draining pending events, before database disposal. Startup failures also close the adapter;
+the standalone re-embedding CLI closes it on every exit. FastEmbed uses one model and an
+adapter-layer bounded executor shared by memory and skill operations. Admission precedes
+submission; cancelled running inference remains counted until its worker finishes.
+
 Settings and validation live in [settings.py:33](app/config/settings.py#L33).
 
 The [local executor:18](app/routes/cli/local_executor.py#L18) builds the same runtime, supplies a
