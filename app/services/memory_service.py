@@ -299,8 +299,9 @@ class MemoryService:
         if self._write_plugin:
             proposed_data = existing_memory.model_dump(include=set(MemoryCreate.model_fields))
             updates = updated_memory.model_dump(exclude_unset=True)
-            # Explicit nulls were removed before provenance and change detection.
-            # skill_ids is a persisted relationship on update, like the other id lists.
+            # Explicit nulls were removed before provenance and change detection, so the
+            # null guard on `relationships` below is only defensive. skill_ids is persisted
+            # on update like the other id lists but is not listed: no null can reach it.
             relationships = {"project_ids", "code_artifact_ids", "document_ids", "file_ids"}
             proposed_data.update({
                 key: value for key, value in updates.items()
