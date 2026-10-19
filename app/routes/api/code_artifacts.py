@@ -99,10 +99,13 @@ def register(mcp: FastMCP):
         except ValidationError as e:
             return JSONResponse({"error": e.errors()}, status_code=400)
 
-        artifact = await mcp.code_artifact_service.create_code_artifact(
-            user_id=user.id,
-            artifact_data=artifact_data,
-        )
+        try:
+            artifact = await mcp.code_artifact_service.create_code_artifact(
+                user_id=user.id,
+                artifact_data=artifact_data,
+            )
+        except NotFoundError as e:
+            return JSONResponse({"error": str(e)}, status_code=404)
 
         return JSONResponse(artifact.model_dump(mode="json"), status_code=201)
 

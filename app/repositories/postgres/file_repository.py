@@ -11,6 +11,7 @@ from app.exceptions import NotFoundError
 from app.models.file_models import File, FileCreate, FileSummary, FileUpdate
 from app.repositories.postgres.postgres_adapter import PostgresDatabaseAdapter
 from app.repositories.postgres.postgres_tables import FilesTable
+from app.repositories.postgres.project_reference import ensure_project_owned
 
 logger = logging.getLogger(__name__)
 
@@ -40,9 +41,14 @@ class PostgresFileRepository:
 
         Returns:
             Created File with generated ID, size_bytes, and timestamps
+
+        Raises:
+            NotFoundError: If project_id is not one of the user's projects
         """
         try:
             async with self.db_adapter.session(user_id) as session:
+                await ensure_project_owned(session, user_id, file_data.project_id)
+
                 # Decode base64 to bytes for storage
                 decoded_data = base64.b64decode(file_data.data)
                 size_bytes = len(decoded_data)
@@ -73,6 +79,8 @@ class PostgresFileRepository:
 
                 return self._to_file_model(file_table)
 
+        except NotFoundError:
+            raise
         except Exception as e:
             logger.error(
                 "Failed to create file",
@@ -194,7 +202,8 @@ class PostgresFileRepository:
             Updated File
 
         Raises:
-            NotFoundError: If file not found or not owned by user
+            NotFoundError: If file not found or not owned by user,
+                or project_id is not one of the user's projects
         """
         try:
             async with self.db_adapter.session(user_id) as session:
@@ -210,6 +219,7 @@ class PostgresFileRepository:
                     raise NotFoundError(f"File {file_id} not found")
 
                 update_data = file_data.model_dump(exclude_unset=True)
+                await ensure_project_owned(session, user_id, update_data.get("project_id"))
 
                 # Handle data field specially - decode base64 and update size
                 if "data" in update_data and update_data["data"] is not None:

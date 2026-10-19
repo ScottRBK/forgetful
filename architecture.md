@@ -64,6 +64,12 @@ The bootstrap factories select PostgreSQL or SQLite repositories at
 `FILES_ENABLED`, `SKILLS_ENABLED`, and `PLANNING_ENABLED` control matching repositories, services,
 metadata registration, and HTTP route registration. `GraphService` receives memory/entity repositories
 plus the other services, including optional ones ([bootstrap.py:311](app/bootstrap.py#L311)).
+The runtime owns the optional embedding adapter and closes its dedicated workers after
+draining pending events, before database disposal. Startup failures also close the adapter;
+the standalone re-embedding CLI closes it on every exit. FastEmbed uses one model and an
+adapter-layer bounded executor shared by memory and skill operations. Admission precedes
+submission; cancelled running inference remains counted until its worker finishes.
+
 Settings and validation live in [settings.py:33](app/config/settings.py#L33).
 
 The [local executor:18](app/routes/cli/local_executor.py#L18) builds the same runtime, supplies a
@@ -108,9 +114,10 @@ files, skills, plans, and tasks are conditional. The root service-info route sta
 or introspection providers, or no authentication. MCP identity comes from validated tokens or a
 default user ([auth.py:106](app/middleware/auth.py#L106)); HTTP identity has its own bearer-token
 verification/cache path ([auth.py:157](app/middleware/auth.py#L157)). Services receive an internal user ID.
-[scope_resolver.py:159](app/routes/mcp/scope_resolver.py#L159) intersects token permissions with
-the instance ceiling for MCP. Its empty-ceiling fallback permits all registered tools; do not
-interpret an empty set as deny-all. HTTP routes do not automatically inherit registry scope checks:
+[scope_resolver.py:162](app/routes/mcp/scope_resolver.py#L162) intersects token permissions with
+the instance ceiling for MCP. Token scopes come from the `scope`/`scp` claim; unrecognised scopes are
+ignored, and a claim with scopes but none recognised permits nothing. Its empty-ceiling fallback
+permits all registered tools; do not interpret an empty ceiling as deny-all. HTTP routes do not automatically inherit registry scope checks:
 inspect their own authorization path before assuming parity. This overview is not a security audit.
 
 ## Memory write, retrieval, and linking
@@ -127,7 +134,8 @@ Automatic linking uses the configured neighbor limit and similarity threshold, e
 memories and the source memory ([PostgreSQL:456](app/repositories/postgres/memory_repository.py#L456),
 [SQLite:516](app/repositories/sqlite/memory_repository.py#L516)). Explicit linking is a separate
 service operation ([memory_service.py:631](app/services/memory_service.py#L631)); repository link
-methods maintain the bidirectional memory relation. Obsolescence is a soft state with reason and
+methods maintain the bidirectional memory relation and only link memories owned by the calling user.
+Obsolescence is a soft state with reason and
 optional replacement; create responses can additionally warn about similar obsolete memories
 ([memory_service.py:552](app/services/memory_service.py#L552)).
 

@@ -16,6 +16,7 @@ from app.models.plan_models import (
     PlanSummary,
     PlanUpdate,
 )
+from app.repositories.sqlite.project_reference import ensure_project_owned
 from app.repositories.sqlite.sqlite_adapter import SqliteDatabaseAdapter
 from app.repositories.sqlite.sqlite_tables import PlansTable
 
@@ -34,6 +35,8 @@ class SqlitePlanRepository:
 
         try:
             async with self.db_adapter.session(user_id) as session:
+                await ensure_project_owned(session, user_id, plan_data.project_id)
+
                 data = plan_data.model_dump(exclude={"criteria", "dependency_ids"})
                 new_plan = PlansTable(**data, user_id=str(user_id))
                 session.add(new_plan)

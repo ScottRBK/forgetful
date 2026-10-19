@@ -241,8 +241,13 @@ FASTMCP_SERVER_AUTH=fastmcp.server.auth.providers.introspection.IntrospectionTok
 FASTMCP_SERVER_AUTH_INTROSPECTION_URL=https://auth.yourcompany.com/oauth/introspect
 FASTMCP_SERVER_AUTH_INTROSPECTION_CLIENT_ID=forgetful-resource-server
 FASTMCP_SERVER_AUTH_INTROSPECTION_CLIENT_SECRET=your-client-secret
+# These are IdP admission requirements, not Forgetful tool permissions.
 FASTMCP_SERVER_AUTH_INTROSPECTION_REQUIRED_SCOPES=api:read,api:write
 ```
+
+The introspection response must also supply any intended Forgetful tool permissions. For example,
+`"scope": "api:read api:write read"` allows read-only MCP tool access. See
+[authentication scopes and tool permissions](#authentication-scopes-and-forgetful-tool-permissions).
 
 **How it works**:
 - Client sends bearer token in `Authorization` header
@@ -259,8 +264,14 @@ FASTMCP_SERVER_AUTH=fastmcp.server.auth.providers.jwt.JWTVerifier
 FASTMCP_SERVER_AUTH_JWT_JWKS_URI=https://auth.yourcompany.com/.well-known/jwks.json
 FASTMCP_SERVER_AUTH_JWT_ISSUER=https://auth.yourcompany.com
 FASTMCP_SERVER_AUTH_JWT_AUDIENCE=forgetful-api
+# These are IdP admission requirements, not Forgetful tool permissions.
 FASTMCP_SERVER_AUTH_JWT_REQUIRED_SCOPES=api:read,api:write
 ```
+
+Configure the issuer to include any intended Forgetful tool permissions in the signed token.
+For example, `"scope": "api:read api:write read write"` allows both reads and writes, within the
+server's tool limits. See
+[authentication scopes and tool permissions](#authentication-scopes-and-forgetful-tool-permissions).
 
 **How it works**:
 - Client sends JWT in `Authorization: Bearer <token>` header
@@ -285,6 +296,78 @@ FASTMCP_SERVER_AUTH_GITHUB_BASE_URL=https://forgetful.yourcompany.com
 - See [FastMCP docs](https://github.com/jlowin/fastmcp/tree/main/docs/servers/auth) for full list
 
 ---
+
+### Authentication scopes and Forgetful tool permissions
+
+Authentication requirements and tool permissions serve different purposes:
+
+- `FASTMCP_SERVER_AUTH_*_REQUIRED_SCOPES` tells the authentication provider which IdP scopes it
+  requires. For JWT and introspection, a token missing a required scope is rejected. These settings
+  neither add scopes to issued tokens nor grant Forgetful tool access.
+- `FORGETFUL_SCOPES` sets the server's MCP tool limit. Its default is `*` (all tools).
+  `FORGETFUL_SCOPES=read` limits the server to reads.
+  `FORGETFUL_SCOPES=read,write:memories` also allows memory writes.
+  The local CLI uses this server setting too.
+- Recognised Forgetful scopes in a verified token's `scope` or `scp` claim narrow MCP access for
+  that token. `read` permits read tools, `write` permits mutating tools, and `read:<category>` or
+  `write:<category>` limits the category. `write` does not include `read`; `*` requests the server's
+  full tool limit. A token cannot widen a nonempty server tool limit.
+
+IdP and Forgetful scopes can share the same claim. This example meets the `api:read,api:write`
+JWT admission requirement above but permits only read tools:
+
+```json
+{
+  "sub": "user-123",
+  "scope": "api:read api:write read"
+}
+```
+
+To allow both reads and writes, the issuer would use `"api:read api:write read write"` instead.
+The example shows only relevant claims; normal signature, issuer, audience and expiry checks still
+apply. This is an issued token claim, not a field the client can edit after signing.
+
+Environment settings use commas. Token scope strings use spaces; lists such as
+`["api:read", "read"]` are also understood by Forgetful. The resolver checks `scope` first, then
+`scp` if `scope` supplies no values. The authentication provider must accept the token format too;
+for example, an introspection provider's required-scope check uses its `scope` response field.
+
+- Recognised scopes alongside unrelated labels are retained: `openid read` remains read-only.
+- A nonempty claim containing only unrelated labels, such as `api:read api:write`, permits no MCP
+  tools. Authentication can succeed while discovery is empty and tool execution is denied.
+- If neither claim supplies scopes (absent, blank or an empty list), the server's permissions apply
+  unchanged. Authentication still runs; configured required scopes can reject such a token first.
+
+The built-in GitHub and Google OAuth providers currently expose upstream scopes separately from
+identity claims, without a top-level `scope`/`scp` claim for this resolver. Their ordinary logins
+retain the server tool permissions. Do not add Forgetful labels such as `write:memories` to those
+providers' requested API scopes. JWT and introspection deployments control the claims described
+above. There is no separate `forgetful_scopes` claim in this change.
+
+These rules govern MCP tools, including calls from the remote CLI. REST endpoints do not currently
+apply the MCP tool-scope checks. The empty-server-permission-set fallback is also a separate known
+limitation; an empty set must not be used as a deny-all configuration.
+
+#### Upgrading existing scoped tokens
+
+The token-scope fix in [PR #107][token-scope-pr] changes access for JWT/introspection tokens whose
+nonempty scope claims contain no recognised Forgetful permission. Before upgrading:
+
+1. Check which claims your issuer places in tokens or introspection responses. If they contain only
+   labels such as `api:read api:write`, add the appropriate Forgetful scopes at the issuer.
+2. Keep the IdP admission labels and append the intended tool permissions: `read` for reads only,
+   `read write` for both, or narrower category permissions. Use `*` only when the token should have
+   every tool permitted by the server.
+3. Obtain replacement tokens or update the introspection response, then check tool discovery and
+   an allowed operation with the new credentials. Changing `REQUIRED_SCOPES` alone does not add
+   permissions to an existing token.
+
+Users with absent/empty scope claims keep the existing server-permission fallback. Normal built-in
+GitHub/Google OAuth logins and local no-auth usage do not need this token change. No database
+migration or embedding rebuild is needed. See the [unreleased notes](release_notes.md#unreleased).
+
+[token-scope-pr]: https://github.com/ScottRBK/forgetful/pull/107
+[scope-rules]: #authentication-scopes-and-forgetful-tool-permissions
 
 ### Configuration Reference
 
@@ -365,8 +448,10 @@ When authentication is enabled, Forgetful automatically provisions users from to
    - Bind to localhost: `BIND_ADDRESS=127.0.0.1`
 
 2. **Token Scopes**:
-   - Define required scopes: `FASTMCP_SERVER_AUTH_*_REQUIRED_SCOPES`
-   - Implement least-privilege access
+   - Configure IdP admission requirements with `FASTMCP_SERVER_AUTH_*_REQUIRED_SCOPES`.
+   - Set `FORGETFUL_SCOPES` to the tools the server needs, then narrow individual JWT/introspection
+     tokens with recognised Forgetful scopes. Avoid granting `*` when a smaller permission fits.
+   - Read [the scope rules and upgrade steps][scope-rules] before changing issued token claims.
 
 3. **Development vs Production**:
    ```bash
@@ -1354,3 +1439,30 @@ DB_LOGGING=true
 - [Connectivity Guide](connectivity_guide.md) - Connecting MCP clients
 - [Search Documentation](search.md) - Search architecture details
 - [Settings Source](../app/config/settings.py) - Default values and validation
+
+### FastEmbed request concurrency
+
+`EMBEDDING_MAX_CONCURRENCY` is a positive integer (default `1`). Restart the
+server or CLI process after changing it. The limit is shared by memory and skill
+operations using that process's embedding adapter. Each process has its own limit.
+
+FastEmbed inference and vector conversion run on a dedicated bounded worker pool.
+At `1`, inference remains serial while the event loop stays responsive. Higher
+values permit overlapping calls on one model and can increase CPU and memory use;
+measure throughput and resource use before increasing the value. This controls
+active requests, independently of ONNX inference threads and FastEmbed's batch
+`parallel` option. Waiting callers are not bounded by this setting. A cancelled
+waiter never starts inference; cancelling a running caller keeps its capacity
+occupied until inference actually finishes. Shutdown rejects waiting/new calls,
+drains running work and closes workers, including after runtime startup failures.
+
+`DmlExecutionProvider` requires `EMBEDDING_MAX_CONCURRENCY=1`, even when other
+providers also appear in `EMBEDDING_ONNX_PROVIDERS`. FastEmbed 0.8.0 defaults to
+CPU/CUDA, never DirectML, and rejects unavailable explicit providers, so this
+explicit-list check covers its effective DirectML selection. An empty adapter
+provider list is normalized to the FastEmbed default rather than ONNX Runtime
+selecting all available providers.
+
+This setting currently applies only to FastEmbed. Azure/OpenAI provider rollout
+is tracked separately in issues #90/#91. It does not parallelize bulk re-embedding,
+limit requests per minute or tokens, or change reranking workers.

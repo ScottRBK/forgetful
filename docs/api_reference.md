@@ -54,7 +54,7 @@ See [FastMCP Auth Documentation](https://fastmcp.wiki/en/servers/auth/authentica
 | 201 | Created |
 | 400 | Bad Request (validation error, `CyclicDependencyError`) |
 | 401 | Unauthorized (missing/invalid token) |
-| 404 | Not Found |
+| 404 | Not Found (also returned when a referenced `project_id` does not exist or belongs to another user) |
 | 409 | Conflict (`ConflictError` -- version mismatch in optimistic concurrency) |
 | 422 | Unprocessable Entity (`InvalidStateTransitionError`, `DependencyNotMetError`) |
 | 500 | Internal Server Error |
@@ -1343,7 +1343,8 @@ when supplied. Multiple null references are allowed. Uniqueness covers every pro
 owned by the authenticated user; other users may reuse the same value. `source_url` remains
 independent provenance, and existing plans receive no automatic reference backfill.
 
-**Errors:** 400 for invalid references; 409 when a reference already belongs to one of your plans.
+**Errors:** 400 for invalid references; 404 when `project_id` is not one of your projects;
+409 when a reference already belongs to one of your plans.
 Concurrent duplicate requests cannot both succeed. After a conflict, look up the reference alone,
 without project or status filters, to include completed and archived plans. URL-encode the query
 value (especially `#`, which otherwise starts a URL fragment):

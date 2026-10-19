@@ -3,7 +3,7 @@
 Resolves OAuth-style scopes to sets of permitted tool names.
 Two-layer model:
   1. Instance-level ceiling via FORGETFUL_SCOPES env var (default "*")
-  2. Per-session restriction via OAuth token `scope` claim (intersection model)
+  2. Per-session restriction via OAuth token `scope`/`scp` claim (intersection model)
 
 Scope tokens:
   *                -> all tools
@@ -47,6 +47,9 @@ CATEGORY_TO_SCOPE: dict[str, str] = {
 _SCOPE_TO_CATEGORIES: dict[str, list[str]] = {}
 for _cat_value, _scope_name in CATEGORY_TO_SCOPE.items():
     _SCOPE_TO_CATEGORIES.setdefault(_scope_name, []).append(_cat_value)
+
+# Token claims that can carry the OAuth scopes, in precedence order (as in FastMCP's JWTVerifier)
+_TOKEN_SCOPE_CLAIMS = ("scope", "scp")
 
 VALID_ACTIONS = frozenset({"read", "write"})
 VALID_CATEGORIES = frozenset(_SCOPE_TO_CATEGORIES.keys())
@@ -162,6 +165,7 @@ def get_effective_scopes(ctx: Context) -> tuple[set[str], frozenset[str]]:
     Intersection model:
     1. Start with instance-level scopes from ctx.fastmcp._instance_permitted_tools
     2. If OAuth token has scopes, intersect with token-level permissions
+       (a token whose scopes include no Forgetful scope permits nothing)
     3. If no token scopes, fall back to instance-level permissions
 
     Args:
@@ -202,8 +206,18 @@ def get_effective_scopes(ctx: Context) -> tuple[set[str], frozenset[str]]:
 def _extract_token_scopes(ctx: Context) -> frozenset[str] | None:
     """Extract scopes from OAuth access token if present.
 
-    Returns None if no auth is configured or token has no scope claim.
-    Token scopes are space-separated per RFC 6749.
+    Returns None if no auth is configured or token has no scope claim, in which
+    case the instance ceiling applies unchanged.
+
+    The scopes are read from the `scope` claim, then the `scp` claim (the same
+    precedence as FastMCP's JWTVerifier). Each claim may be a space-separated
+    string (RFC 6749) or a list. Tokens that are not Forgetful scopes (for example
+    `openid` or another API's scopes) are ignored one by one, so they never drop
+    the Forgetful scopes next to them.
+
+    A token that carries scopes but none of them is a Forgetful scope gets an
+    empty set (nothing permitted): a token must never widen to the full instance
+    ceiling because of scopes this module does not understand.
     """
     try:
         from fastmcp.server.dependencies import get_access_token
@@ -214,18 +228,37 @@ def _extract_token_scopes(ctx: Context) -> frozenset[str] | None:
     if token is None:
         return None
 
-    scope_claim = token.claims.get("scope")
-    if not scope_claim or not isinstance(scope_claim, str):
-        return None
+    raw_scopes: list[str] = []
+    for claim_name in _TOKEN_SCOPE_CLAIMS:
+        claim = token.claims.get(claim_name)
+        if isinstance(claim, str):
+            raw_scopes = claim.split()
+        elif isinstance(claim, list | tuple):
+            raw_scopes = " ".join(str(item) for item in claim).split()
+        elif claim:
+            # Not a type that can carry scopes, but the token was meant to be limited
+            raw_scopes = [str(claim)]
+        if raw_scopes:
+            break
 
-    # RFC 6749: scopes are space-separated
-    raw_scopes = scope_claim.strip()
     if not raw_scopes:
         return None
 
-    try:
-        # Re-parse as comma-separated (our format) by converting spaces to commas
-        return parse_scopes(raw_scopes.replace(" ", ","))
-    except ValueError as e:
-        logger.warning(f"Invalid scopes in OAuth token: {e}")
-        return None
+    recognised: set[str] = set()
+    ignored: list[str] = []
+    for raw_scope in raw_scopes:
+        try:
+            recognised |= parse_scopes(raw_scope)
+        except ValueError:
+            ignored.append(raw_scope)
+
+    if not recognised:
+        logger.warning(
+            f"OAuth token scopes {ignored} contain no recognised Forgetful scope, denying all tools",
+        )
+        return frozenset()
+
+    if ignored:
+        logger.debug(f"Ignoring unrecognised OAuth token scopes: {ignored}")
+
+    return frozenset(recognised)

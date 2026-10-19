@@ -44,6 +44,8 @@ def register(mcp: FastMCP):
             )
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=400)
+        except NotFoundError as e:
+            return JSONResponse({"error": str(e)}, status_code=404)
 
         return JSONResponse(skill.model_dump(mode="json"), status_code=201)
 
@@ -270,6 +272,8 @@ def register(mcp: FastMCP):
             return JSONResponse({"error": str(e)}, status_code=400)
         except ValidationError as e:
             return JSONResponse({"error": str(e)}, status_code=400)
+        except NotFoundError as e:
+            return JSONResponse({"error": str(e)}, status_code=404)
 
         return JSONResponse(skill.model_dump(mode="json"), status_code=201)
 

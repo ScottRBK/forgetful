@@ -9,6 +9,7 @@ from openai import AzureOpenAI, OpenAI
 
 from app.config.settings import settings
 from app.protocols.embedding_protocol import EmbeddingsAdapter
+from app.repositories.embeddings.bounded_executor import BoundedExecutor
 from app.repositories.embeddings.fastembed_offline import load_fastembed_model
 
 logger = logging.getLogger(__name__)
@@ -16,7 +17,16 @@ logger = logging.getLogger(__name__)
 class FastEmbeddingAdapter(EmbeddingsAdapter):
     """Generate embeddings using the fastembed library"""
 
-    def __init__(self, providers: list[str] | None = None):
+    def __init__(self, providers: list[str] | None = None, max_concurrency: int = 1):
+        # An empty list must not delegate provider selection to ORT (which can select DirectML).
+        providers = providers or None
+        if max_concurrency < 1:
+            raise ValueError("EMBEDDING_MAX_CONCURRENCY must be at least 1")
+        if providers and any(p.strip() == "DmlExecutionProvider" for p in providers) and max_concurrency > 1:
+            raise ValueError(
+                "DirectML supports only one inference call per session; "
+                "set EMBEDDING_MAX_CONCURRENCY=1",
+            )
         logger.info("Initialising Fastembed model", extra={
             "embedding_model": settings.EMBEDDING_MODEL,
             "cache_dir": settings.FASTEMBED_CACHE_DIR,
@@ -30,6 +40,7 @@ class FastEmbeddingAdapter(EmbeddingsAdapter):
             cache_dir=settings.FASTEMBED_CACHE_DIR,
             factory=lambda fastembed_kwargs: self._create_text_embedding(fastembed_kwargs),
         )
+        self._workers = BoundedExecutor(max_concurrency)
         elapsed = time.time() - start_time
 
         logger.info("FasteEmbed model loaded successfully", extra={
@@ -49,6 +60,12 @@ class FastEmbeddingAdapter(EmbeddingsAdapter):
         )
 
     async def generate_embedding(self, text: str) -> list[float]:
+        return await self._workers.run(self._generate_embedding_sync, text)
+
+    async def aclose(self) -> None:
+        await self._workers.aclose()
+
+    def _generate_embedding_sync(self, text: str) -> list[float]:
         try:
             embeddings = list(self.model.embed(text))
         except Exception:

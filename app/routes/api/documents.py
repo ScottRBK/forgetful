@@ -99,10 +99,13 @@ def register(mcp: FastMCP):
         except ValidationError as e:
             return JSONResponse({"error": e.errors()}, status_code=400)
 
-        document = await mcp.document_service.create_document(
-            user_id=user.id,
-            document_data=document_data,
-        )
+        try:
+            document = await mcp.document_service.create_document(
+                user_id=user.id,
+                document_data=document_data,
+            )
+        except NotFoundError as e:
+            return JSONResponse({"error": str(e)}, status_code=404)
 
         return JSONResponse(document.model_dump(mode="json"), status_code=201)
 

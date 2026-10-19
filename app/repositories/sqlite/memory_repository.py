@@ -545,9 +545,14 @@ class SqliteMemoryRepository:
         max_links: int,
     ) -> list[tuple[Memory, float]]:
         async with self.db_adapter.session(user_id) as session:
+            # vec_memories has no user_id, so ownership is checked against memories:
+            # another user's embedding must never be used as the query vector.
             embedding_result = await session.execute(
-                text("SELECT embedding FROM vec_memories WHERE memory_id = :memory_id"),
-                {"memory_id": str(memory_id)},
+                text(
+                    "SELECT embedding FROM vec_memories WHERE memory_id = :memory_id "
+                    "AND EXISTS (SELECT 1 FROM memories WHERE id = :memory_pk AND user_id = :user_id)",
+                ),
+                {"memory_id": str(memory_id), "memory_pk": memory_id, "user_id": str(user_id)},
             )
             embedding_row = embedding_result.fetchone()
             if not embedding_row:
@@ -617,9 +622,14 @@ class SqliteMemoryRepository:
         min_similarity: float,
     ) -> list[tuple[Memory, float]]:
         async with self.db_adapter.session(user_id) as session:
+            # vec_memories has no user_id, so ownership is checked against memories:
+            # another user's embedding must never be used as the query vector.
             embedding_result = await session.execute(
-                text("SELECT embedding FROM vec_memories WHERE memory_id = :memory_id"),
-                {"memory_id": str(memory_id)},
+                text(
+                    "SELECT embedding FROM vec_memories WHERE memory_id = :memory_id "
+                    "AND EXISTS (SELECT 1 FROM memories WHERE id = :memory_pk AND user_id = :user_id)",
+                ),
+                {"memory_id": str(memory_id), "memory_pk": memory_id, "user_id": str(user_id)},
             )
             embedding_row = embedding_result.fetchone()
             if not embedding_row:
@@ -753,13 +763,21 @@ class SqliteMemoryRepository:
             IntegrityError: If link already exists
         """
         async with self.db_adapter.session(user_id) as session:
-            # Query both memories within the same session
-            source_memory = await session.get(MemoryTable, source_id)
-            if not source_memory:
+            # Both endpoints must belong to this user. session.get() has no user
+            # filter, so it would accept (and so reveal the existence of) another
+            # user's memory ids and let a link be written across users.
+            owned_result = await session.execute(
+                select(MemoryTable.id).where(
+                    MemoryTable.user_id == str(user_id),
+                    MemoryTable.id.in_([source_id, target_id]),
+                ),
+            )
+            owned_ids = set(owned_result.scalars().all())
+
+            if source_id not in owned_ids:
                 raise NotFoundError(f"Source memory with id {source_id} not found")
 
-            target_memory = await session.get(MemoryTable, target_id)
-            if not target_memory:
+            if target_id not in owned_ids:
                 raise NotFoundError(f"Target memory with id {target_id} not found")
 
             # Swap IDs if needed to ensure no duplicates
