@@ -102,7 +102,7 @@ async def test_empty_reference_disables_plugin(plugin_runtime, monkeypatch):
         await dispose_runtime(runtime)
 
 
-async def test_runtime_unavailable_logs_safe_diagnostics(plugin_runtime, capsys):
+async def test_runtime_unavailable_logs_safe_diagnostics(plugin_runtime, caplog):
     from app.exceptions import WritePluginUnavailableError
 
     runtime = await build_runtime()
@@ -110,7 +110,7 @@ async def test_runtime_unavailable_logs_safe_diagnostics(plugin_runtime, capsys)
         user = await runtime_user(runtime)
         with pytest.raises(WritePluginUnavailableError):
             await runtime.services.memory.create_memory(user.id, data(["error"]))
-        diagnostics = capsys.readouterr().err
+        diagnostics = caplog.text
         assert "Memory Write Plugin unavailable" in diagnostics
         assert "RuntimeError" in diagnostics
         assert "SECRET" not in diagnostics
@@ -134,7 +134,7 @@ def test_settings_reject_invalid_write_plugin_values(overrides):
 
 @pytest.mark.parametrize("reexport", [False, True])
 async def test_runtime_preserves_plugin_module_diagnostics(
-    plugin_runtime, tmp_path, monkeypatch, capsys, reexport,
+    plugin_runtime, tmp_path, monkeypatch, caplog, reexport,
 ):
     import sys
     from uuid import uuid4
@@ -165,7 +165,7 @@ async def check_write(request):
     try:
         user = await runtime_user(runtime)
         result = await runtime.services.memory.create_memory(user.id, data())
-        diagnostics = capsys.readouterr().err
+        diagnostics = caplog.text
         assert result.memory.title == "Runtime test"
         assert "Safe handler diagnostic" in diagnostics
         assert "Safe child diagnostic" in diagnostics
