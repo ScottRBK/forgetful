@@ -1288,3 +1288,30 @@ DB_LOGGING=true
 - [Connectivity Guide](connectivity_guide.md) - Connecting MCP clients
 - [Search Documentation](search.md) - Search architecture details
 - [Settings Source](../app/config/settings.py) - Default values and validation
+
+### FastEmbed request concurrency
+
+`EMBEDDING_MAX_CONCURRENCY` is a positive integer (default `1`). Restart the
+server or CLI process after changing it. The limit is shared by memory and skill
+operations using that process's embedding adapter. Each process has its own limit.
+
+FastEmbed inference and vector conversion run on a dedicated bounded worker pool.
+At `1`, inference remains serial while the event loop stays responsive. Higher
+values permit overlapping calls on one model and can increase CPU and memory use;
+measure throughput and resource use before increasing the value. This controls
+active requests, independently of ONNX inference threads and FastEmbed's batch
+`parallel` option. Waiting callers are not bounded by this setting. A cancelled
+waiter never starts inference; cancelling a running caller keeps its capacity
+occupied until inference actually finishes. Shutdown rejects waiting/new calls,
+drains running work and closes workers, including after runtime startup failures.
+
+`DmlExecutionProvider` requires `EMBEDDING_MAX_CONCURRENCY=1`, even when other
+providers also appear in `EMBEDDING_ONNX_PROVIDERS`. FastEmbed 0.8.0 defaults to
+CPU/CUDA, never DirectML, and rejects unavailable explicit providers, so this
+explicit-list check covers its effective DirectML selection. An empty adapter
+provider list is normalized to the FastEmbed default rather than ONNX Runtime
+selecting all available providers.
+
+This setting currently applies only to FastEmbed. Azure/OpenAI provider rollout
+is tracked separately in issues #90/#91. It does not parallelize bulk re-embedding,
+limit requests per minute or tokens, or change reranking workers.

@@ -42,7 +42,10 @@ def get_embedding_adapter():
         return OpenAIEmbeddingsAdapter()
     if settings.EMBEDDING_PROVIDER == "Ollama":
         return OllamaEmbeddingsAdapter()
-    return FastEmbeddingAdapter(providers=settings.embedding_onnx_providers)
+    return FastEmbeddingAdapter(
+        providers=settings.embedding_onnx_providers,
+        max_concurrency=settings.EMBEDDING_MAX_CONCURRENCY,
+    )
 
 
 def get_reranker_adapter():
@@ -219,6 +222,7 @@ class Runtime:
     permitted_tools: set[str]
     instance_scopes: frozenset[str]
     event_bus: Any | None
+    embedding_adapter: Any | None = None
 
 
 async def build_runtime() -> Runtime:
@@ -245,156 +249,165 @@ async def build_runtime() -> Runtime:
     check_first_run_models()
 
     embeddings_adapter = get_embedding_adapter()
-    reranker_adapter = get_reranker_adapter()
-    logger.info("Embedding adapters initialized")
+    try:
+        reranker_adapter = get_reranker_adapter()
+        logger.info("Embedding adapters initialized")
 
-    db_adapter = create_db_adapter()
+        db_adapter = create_db_adapter()
 
-    if settings.DATABASE == "SQLite" and not settings.SQLITE_MEMORY:
-        data_dir = Path(settings.SQLITE_PATH).parent
-        data_dir.mkdir(parents=True, exist_ok=True)
-        logger.info(f"Data directory ensured: {data_dir}")
+        if settings.DATABASE == "SQLite" and not settings.SQLITE_MEMORY:
+            data_dir = Path(settings.SQLITE_PATH).parent
+            data_dir.mkdir(parents=True, exist_ok=True)
+            logger.info(f"Data directory ensured: {data_dir}")
 
-    await db_adapter.init_db()
-    # Alembic fileConfig disables existing loggers; plugin failures must remain diagnosable.
-    logging.getLogger("app.services.write_plugin_service").disabled = False
-    for plugin_logger, was_disabled in plugin_logger_states.items():
-        plugin_logger.disabled = was_disabled
-    logger.info("Database initialized")
+        await db_adapter.init_db()
+        # Alembic fileConfig disables existing loggers; plugin failures must remain diagnosable.
+        logging.getLogger("app.services.write_plugin_service").disabled = False
+        for plugin_logger, was_disabled in plugin_logger_states.items():
+            plugin_logger.disabled = was_disabled
+        logger.info("Database initialized")
 
-    repos = create_repositories(db_adapter, embeddings_adapter, reranker_adapter)
+        repos = create_repositories(db_adapter, embeddings_adapter, reranker_adapter)
 
-    from app.events import EventBus
-    from app.services.activity_service import ActivityService
-    from app.services.code_artifact_service import CodeArtifactService
-    from app.services.document_service import DocumentService
-    from app.services.entity_service import EntityService
-    from app.services.graph_service import GraphService
-    from app.services.memory_service import MemoryService
-    from app.services.project_service import ProjectService
-    from app.services.re_embedding_service import ReEmbeddingService
-    from app.services.user_service import UserService
+        from app.events import EventBus
+        from app.services.activity_service import ActivityService
+        from app.services.code_artifact_service import CodeArtifactService
+        from app.services.document_service import DocumentService
+        from app.services.entity_service import EntityService
+        from app.services.graph_service import GraphService
+        from app.services.memory_service import MemoryService
+        from app.services.project_service import ProjectService
+        from app.services.re_embedding_service import ReEmbeddingService
+        from app.services.user_service import UserService
 
-    # Create activity service (always available for API queries)
-    # Event bus only created when activity tracking is enabled
-    activity_service = ActivityService(repos["activity"])
-    event_bus = None
+        # Create activity service (always available for API queries)
+        # Event bus only created when activity tracking is enabled
+        activity_service = ActivityService(repos["activity"])
+        event_bus = None
 
-    if settings.ACTIVITY_ENABLED:
-        event_bus = EventBus()
-        event_bus.subscribe("*.*", activity_service.handle_event)
-        logger.info("Activity tracking enabled - event bus initialized")
-    else:
-        logger.info("Activity tracking disabled (ACTIVITY_ENABLED=false) - API available but no events emitted")
+        if settings.ACTIVITY_ENABLED:
+            event_bus = EventBus()
+            event_bus.subscribe("*.*", activity_service.handle_event)
+            logger.info("Activity tracking enabled - event bus initialized")
+        else:
+            logger.info("Activity tracking disabled (ACTIVITY_ENABLED=false) - API available but no events emitted")
 
-    user_service = UserService(repos["user"])
-    memory_service = MemoryService(repos["memory"], event_bus=event_bus, write_plugin=write_plugin)
-    re_embedding_service = ReEmbeddingService(repos["memory"], embeddings_adapter)
-    if event_bus is not None:
-        memory_service.register_access_tracking_handlers(event_bus)
-    project_service = ProjectService(repos["project"], event_bus=event_bus)
-    code_artifact_service = CodeArtifactService(repos["code_artifact"], event_bus=event_bus)
-    document_service = DocumentService(repos["document"], event_bus=event_bus)
-    entity_service = EntityService(repos["entity"], event_bus=event_bus)
-    # Conditionally create file service behind FILES_ENABLED
-    file_service = None
+        user_service = UserService(repos["user"])
+        memory_service = MemoryService(repos["memory"], event_bus=event_bus, write_plugin=write_plugin)
+        re_embedding_service = ReEmbeddingService(repos["memory"], embeddings_adapter)
+        if event_bus is not None:
+            memory_service.register_access_tracking_handlers(event_bus)
+        project_service = ProjectService(repos["project"], event_bus=event_bus)
+        code_artifact_service = CodeArtifactService(repos["code_artifact"], event_bus=event_bus)
+        document_service = DocumentService(repos["document"], event_bus=event_bus)
+        entity_service = EntityService(repos["entity"], event_bus=event_bus)
+        # Conditionally create file service behind FILES_ENABLED
+        file_service = None
 
-    if settings.FILES_ENABLED:
-        from app.services.file_service import FileService
-        file_service = FileService(repos["file"], event_bus=event_bus)
-        logger.info("Files feature enabled")
-    else:
-        logger.info("Files feature disabled (FILES_ENABLED=false)")
+        if settings.FILES_ENABLED:
+            from app.services.file_service import FileService
+            file_service = FileService(repos["file"], event_bus=event_bus)
+            logger.info("Files feature enabled")
+        else:
+            logger.info("Files feature disabled (FILES_ENABLED=false)")
 
-    # Conditionally create skill service behind SKILLS_ENABLED
-    skill_service = None
+        # Conditionally create skill service behind SKILLS_ENABLED
+        skill_service = None
 
-    if settings.SKILLS_ENABLED:
-        from app.services.skill_service import SkillService
-        skill_service = SkillService(repos["skill"], event_bus=event_bus)
-        logger.info("Skills feature enabled")
-    else:
-        logger.info("Skills feature disabled (SKILLS_ENABLED=false)")
+        if settings.SKILLS_ENABLED:
+            from app.services.skill_service import SkillService
+            skill_service = SkillService(repos["skill"], event_bus=event_bus)
+            logger.info("Skills feature enabled")
+        else:
+            logger.info("Skills feature disabled (SKILLS_ENABLED=false)")
 
-    # Conditionally create plan/task services behind PLANNING_ENABLED (built before GraphService
-    # so they can be passed in as optional services)
-    plan_service = None
-    task_service = None
+        # Conditionally create plan/task services behind PLANNING_ENABLED (built before GraphService
+        # so they can be passed in as optional services)
+        plan_service = None
+        task_service = None
 
-    if settings.PLANNING_ENABLED:
-        from app.services.plan_service import PlanService
-        from app.services.task_service import TaskService
+        if settings.PLANNING_ENABLED:
+            from app.services.plan_service import PlanService
+            from app.services.task_service import TaskService
 
-        plan_service = PlanService(repos["plan"], event_bus=event_bus)
-        task_service = TaskService(repos["task"], plan_service=plan_service, event_bus=event_bus)
-        logger.info("Planning feature enabled")
-    else:
-        logger.info("Planning feature disabled (PLANNING_ENABLED=false)")
+            plan_service = PlanService(repos["plan"], event_bus=event_bus)
+            task_service = TaskService(repos["task"], plan_service=plan_service, event_bus=event_bus)
+            logger.info("Planning feature enabled")
+        else:
+            logger.info("Planning feature disabled (PLANNING_ENABLED=false)")
 
-    graph_service = GraphService(
-        repos["memory"],
-        repos["entity"],
-        project_service=project_service,
-        document_service=document_service,
-        code_artifact_service=code_artifact_service,
-        file_service=file_service,
-        skill_service=skill_service,
-        plan_service=plan_service,
-        task_service=task_service,
-    )
+        graph_service = GraphService(
+            repos["memory"],
+            repos["entity"],
+            project_service=project_service,
+            document_service=document_service,
+            code_artifact_service=code_artifact_service,
+            file_service=file_service,
+            skill_service=skill_service,
+            plan_service=plan_service,
+            task_service=task_service,
+        )
 
-    registry = ToolRegistry()
-    register_all_tools_metadata(
-        registry=registry,
-        user_service=user_service,
-        memory_service=memory_service,
-        re_embedding_service=re_embedding_service,
-        project_service=project_service,
-        code_artifact_service=code_artifact_service,
-        document_service=document_service,
-        entity_service=entity_service,
-        plan_service=plan_service,
-        task_service=task_service,
-        file_service=file_service,
-        skill_service=skill_service,
-    )
+        registry = ToolRegistry()
+        register_all_tools_metadata(
+            registry=registry,
+            user_service=user_service,
+            memory_service=memory_service,
+            re_embedding_service=re_embedding_service,
+            project_service=project_service,
+            code_artifact_service=code_artifact_service,
+            document_service=document_service,
+            entity_service=entity_service,
+            plan_service=plan_service,
+            task_service=task_service,
+            file_service=file_service,
+            skill_service=skill_service,
+        )
 
-    categories = registry.list_categories()
-    total_tools = sum(categories.values())
-    logger.info(f"Tool registration complete: {total_tools} tools across {len(categories)} categories")
-    logger.info(f"Categories: {categories}")
+        categories = registry.list_categories()
+        total_tools = sum(categories.values())
+        logger.info(f"Tool registration complete: {total_tools} tools across {len(categories)} categories")
+        logger.info(f"Categories: {categories}")
 
-    # Resolve instance-level scope ceiling
-    from app.routes.mcp.scope_resolver import parse_scopes, resolve_permitted_tools
-    instance_scopes = parse_scopes(settings.FORGETFUL_SCOPES)
-    permitted_tools = resolve_permitted_tools(instance_scopes, registry)
-    logger.info(f"Scoped permissions: scopes={list(instance_scopes)}, permitted_tools={len(permitted_tools)}")
+        # Resolve instance-level scope ceiling
+        from app.routes.mcp.scope_resolver import parse_scopes, resolve_permitted_tools
+        instance_scopes = parse_scopes(settings.FORGETFUL_SCOPES)
+        permitted_tools = resolve_permitted_tools(instance_scopes, registry)
+        logger.info(f"Scoped permissions: scopes={list(instance_scopes)}, permitted_tools={len(permitted_tools)}")
 
-    services = Services(
-        user=user_service,
-        memory=memory_service,
-        project=project_service,
-        code_artifact=code_artifact_service,
-        document=document_service,
-        entity=entity_service,
-        graph=graph_service,
-        activity=activity_service,
-        re_embedding=re_embedding_service,
-        file=file_service,
-        skill=skill_service,
-        plan=plan_service,
-        task=task_service,
-    )
+        services = Services(
+            user=user_service,
+            memory=memory_service,
+            project=project_service,
+            code_artifact=code_artifact_service,
+            document=document_service,
+            entity=entity_service,
+            graph=graph_service,
+            activity=activity_service,
+            re_embedding=re_embedding_service,
+            file=file_service,
+            skill=skill_service,
+            plan=plan_service,
+            task=task_service,
+        )
 
-    return Runtime(
-        db_adapter=db_adapter,
-        repos=repos,
-        services=services,
-        registry=registry,
-        permitted_tools=permitted_tools,
-        instance_scopes=instance_scopes,
-        event_bus=event_bus,
-    )
+        return Runtime(
+            db_adapter=db_adapter,
+            repos=repos,
+            services=services,
+            registry=registry,
+            permitted_tools=permitted_tools,
+            instance_scopes=instance_scopes,
+            event_bus=event_bus,
+            embedding_adapter=embeddings_adapter,
+        )
+
+    except BaseException:
+        try:
+            await _close_embedding_adapter(embeddings_adapter)
+        except Exception:
+            logger.exception("Failed to close embeddings after startup failure")
+        raise
 
 
 async def dispose_runtime(runtime: Runtime) -> None:
@@ -403,6 +416,17 @@ async def dispose_runtime(runtime: Runtime) -> None:
     Draining matters for one-shot consumers (the CLI): activity handlers are
     fire-and-forget tasks, and asyncio.run() would cancel any still pending.
     """
-    if runtime.event_bus is not None:
-        await runtime.event_bus.wait_for_pending()
-    await runtime.db_adapter.dispose()
+    try:
+        if runtime.event_bus is not None:
+            await runtime.event_bus.wait_for_pending()
+    finally:
+        try:
+            await _close_embedding_adapter(runtime.embedding_adapter)
+        finally:
+            await runtime.db_adapter.dispose()
+
+
+async def _close_embedding_adapter(adapter) -> None:
+    close = getattr(adapter, "aclose", None)
+    if close is not None:
+        await close()
