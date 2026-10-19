@@ -453,6 +453,14 @@ See [Contributors Guide](docs/contributors.md) for:
 - CI/CD pipeline details
 - Release process
 
+### Development
+
+After `uv sync --locked --all-extras --dev`, enable the Git hooks with
+`uv run python -m scripts.quality install`. Commits and pushes then run the lint, type, security,
+snapshot, coverage and memory-budget gates described in
+[docs/quality-gates.md](docs/quality-gates.md), which also explains how to run or bypass a single gate.
+Before changing code, read the [architecture overview](architecture.md).
+
 ---
 
 ## License

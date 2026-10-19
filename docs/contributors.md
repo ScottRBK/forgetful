@@ -30,6 +30,49 @@ analysis, keep the JSON outside the repository, and export full detail to
 [mycelium-mermaid]:
   https://github.com/ScottRBK/mycelium/blob/master/skills/mycelium-mermaid/SKILL.md
 
+## Quality gates and Git hooks
+
+Install the toolchain and hooks once:
+
+```bash
+uv sync --locked --all-extras --dev
+uv run python -m scripts.quality install     # sets core.hooksPath to .githooks
+```
+
+`pre-commit` checks the staged files (lint, import boundaries, security, dead code, complexity, types,
+snapshots, fast tests, GitNexus impact when a local index exists); `pre-push` runs the full pipeline
+over the whole project: the same static gates, the architecture, integration and SQLite e2e suites
+with coverage, PostgreSQL e2e (needs Docker), the combined **coverage floor**, the SQLite suites on
+Python 3.14, memory budgets (memray), trivy, Qodana (needs a token) and, only when asked for, mutation
+testing. CI runs the same gates by name on Python 3.12 and 3.14.
+
+Some of those gates are **baselined**: mypy, bandit, semgrep, vulture, radon complexity and radon
+maintainability already have findings in the code base, so they fail only on findings that are *new
+or worse* than the ones recorded in `scripts/quality/baselines/`. Fixing old findings never breaks a
+gate; lock the improvement in with `uv run python -m scripts.quality baseline update <gate>`. A
+baseline that would grow is refused unless `--allow-growth` is passed, and a growing baseline needs a
+reviewer's explicit agreement. The other gates (ruff, import-linter, pylint floor, snapshots, tests,
+coverage floor, memray, trivy) are strict.
+
+Everyday commands:
+
+```bash
+uv run python -m scripts.quality stage pre-commit            # what the commit hook runs
+uv run python -m scripts.quality gate mypy                   # one gate, whole project
+uv run python -m scripts.quality baseline update mypy        # after fixing old findings
+SKIP=qodana,trivy git push                                   # skip named gates once; say so in the PR
+ONLY=mypy uv run python -m scripts.quality stage pre-commit  # only these gates
+QUALITY_FULL=1 git commit                                    # pre-commit over the whole project
+MUTATION=1 git push                                          # add mutation testing (changed app/ modules)
+```
+
+When a change alters a public surface (CLI flags, settings defaults, routes, MCP tools, tables, migrations)
+the syrupy snapshots fail on purpose: review the diff, then refresh them with
+`uv run pytest -m snapshot --snapshot-update` and commit the snapshot files with the change. The
+Qodana token (`QODANA_TOKEN`) lives in your git-ignored dotenv file (see `.env.example` for the key
+name), never in a tracked file. All of this, including what each tool is for, the gate list, scoping
+rules and the cost of the mutation gate, is in [quality-gates.md](quality-gates.md).
+
 ## Running with Docker with source 
 This will approach will fall back to using the build and as such allow you to check any changes you have made inside of a container. 
 
@@ -156,13 +199,17 @@ uv tool run ruff check .
 
 **Purpose**: Fast feedback for contributors
 
+**Matrix**: Python 3.12 and 3.14 on Ubuntu and Windows (the checks are named
+`test (<os>, py<version>)`).
+
 **Steps**:
 1. Check architecture boundaries and rule proofs (no database or provider calls).
 2. Run integration tests (stubbed, no Docker).
 3. Run SQLite E2E tests (real SQLite, full stack).
 4. Run linting.
 
-**Merge requirements**: Configure branch rules to require this workflow's `test` check.
+**Merge requirements**: Configure branch rules to require this workflow's `test` checks (one per
+operating system and Python version).
 The workflow alone does not make it mandatory for merging.
 
 **Test Coverage**: Integration tests validate business logic with stubs. SQLite E2E tests validate the complete application stack including real database interactions, all without Docker dependencies.
@@ -173,15 +220,30 @@ The workflow alone does not make it mandatory for merging.
 
 **Purpose**: Validate with real PostgreSQL database
 
+**Matrix**: Python 3.12 and 3.14 (the checks are named `e2e (py<version>)`).
+
 **Steps**:
 1. Install PostgreSQL backup client tools.
 2. Run PostgreSQL E2E tests (`tests/e2e/` with `-m e2e` marker), including backup recovery.
 
-**Merge requirements**: Configure the repository's branch rules to require the `e2e` check.
+**Merge requirements**: Configure the repository's branch rules to require the `e2e` checks.
 The workflow alone does not make a check mandatory for merging.
 
 **Test Coverage**: Validates the full application stack with PostgreSQL, including real
 `pg_dump`/`psql` backup and restore.
+
+### `quality.yml` - Quality Gates
+
+**Triggers**: Every push and pull request, a weekly schedule (mutation testing) and manual dispatch
+
+**Purpose**: Run the same gates as the local Git hooks (`scripts/quality`) so a bypassed hook is caught
+
+**Jobs**: `static` (lint, import boundaries, security, dead code, complexity, types, pylint and the
+snapshot tests, on Python 3.12 and 3.14), `coverage` (SQLite and PostgreSQL suites combined, with the
+coverage floor), `memory` (memray budgets), `trivy`, `qodana` (needs the `QODANA_TOKEN` repository
+secret and reports a notice instead of failing when it is missing; skipped for pull requests from
+forks) and `mutation` (weekly and manual only, informational: it never fails the workflow). See
+[quality-gates.md](quality-gates.md).
 
 ### `build.yml` - Docker Image Build
 
