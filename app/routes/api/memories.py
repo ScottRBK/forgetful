@@ -20,6 +20,7 @@ from app.middleware.auth import get_user_from_request
 from app.models.memory_models import (
     MemoryCreate,
     MemoryListResponse,
+    MemoryObsoleteRequest,
     MemoryQueryRequest,
     MemoryUpdate,
 )
@@ -284,19 +285,20 @@ def register(mcp: FastMCP):
         memory_id = int(request.path_params["memory_id"])
 
         try:
-            body = await request.json()
-            reason = body.get("reason", "Marked obsolete via API")
-            superseded_by = body.get("superseded_by")
-        except Exception:
-            reason = "Marked obsolete via API"
-            superseded_by = None
+            body = await request.body()
+            obsolete = MemoryObsoleteRequest.model_validate_json(body or b"{}", strict=True)
+        except ValidationError:
+            return JSONResponse({
+                "error": "Invalid obsolete request: expected a JSON object with a string reason "
+                         "and an integer or null superseded_by",
+            }, status_code=400)
 
         try:
             result = await mcp.memory_service.mark_memory_obsolete(
                 user_id=user.id,
                 memory_id=memory_id,
-                reason=reason,
-                superseded_by=superseded_by,
+                reason=obsolete.reason,
+                superseded_by=obsolete.superseded_by,
             )
         except WritePluginRejectedError as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)

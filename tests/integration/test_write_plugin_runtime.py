@@ -147,6 +147,22 @@ async def test_invalid_registration_fails_startup(
         sys.modules.pop(module_name, None)
 
 
+def test_registration_validates_the_mapping_it_keeps():
+    from app.protocols.write_plugin_protocol import MemoryPlugin
+
+    async def after(request):
+        return None
+
+    class StaleItems(dict):
+        def items(self):
+            return {"create": after}.items()
+
+    handlers = StaleItems(create=lambda request: None)
+
+    with pytest.raises(ValueError, match="after_save handlers must be async functions"):
+        MemoryPlugin(after_save=handlers)
+
+
 async def test_empty_reference_disables_plugin(plugin_runtime, monkeypatch):
     monkeypatch.setattr(settings, "MEMORY_WRITE_PLUGIN", "")
     runtime = await build_runtime()
@@ -211,9 +227,9 @@ def test_settings_reject_invalid_write_plugin_values(overrides):
         Settings(_env_file=None, **overrides)
 
 
-@pytest.mark.parametrize("reexport", [False, True])
+@pytest.mark.parametrize("reexport,use_partial", [(False, False), (True, False), (True, True)])
 async def test_runtime_preserves_plugin_module_diagnostics(
-    plugin_runtime, tmp_path, monkeypatch, capsys, reexport,
+    plugin_runtime, tmp_path, monkeypatch, capsys, reexport, use_partial,
 ):
     import sys
     from uuid import uuid4
@@ -222,6 +238,7 @@ async def test_runtime_preserves_plugin_module_diagnostics(
     handler_module = f"{configured_module}_impl" if reexport else configured_module
     (tmp_path / f"{handler_module}.py").write_text(f"""
 import logging
+from functools import partial
 from app.models.write_plugin_models import WriteDecision
 from app.protocols.write_plugin_protocol import MemoryPlugin
 logger = logging.getLogger(__name__)
@@ -234,7 +251,8 @@ async def check_write(request):
     muted.warning("Muted diagnostic must stay disabled")
     logging.getLogger("{configured_module}").warning("Safe configured-module diagnostic")
     return WriteDecision(outcome="allow")
-plugin = MemoryPlugin(before_save={{"create": check_write}})
+handler = partial(check_write) if {use_partial} else check_write
+plugin = MemoryPlugin(before_save={{"create": handler}})
 """)
     if reexport:
         (tmp_path / f"{configured_module}.py").write_text(

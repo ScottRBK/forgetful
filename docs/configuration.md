@@ -591,6 +591,9 @@ Each deadline is cooperative asyncio cancellation, not a hard kill. Blocking Pyt
 that suppresses cancellation can exceed it. External cancellation propagates, including after
 persistence. A cancelled request or lost network response may leave a successful write whose
 response was not delivered; verify state before retrying.
+Cancellation raised inside an after handler (including by an awaited child task) becomes the
+generic advisory warning when the request task itself has not been cancelled. Before-save
+cancellation still propagates.
 
 ### Responses and diagnostics
 
@@ -611,8 +614,9 @@ Core runtime diagnostics record phase, operation, and exception type (also mode 
 without exception text, tracebacks, or memory content. Startup import diagnostics identify the
 module/reference, loading phase, and exception type. Plugin authors must keep their messages and
 own logs free of secrets. Bootstrap restores the pre-initialization logger state for the configured
-module, all handler-defining modules (including re-exports), and existing children after Alembic
-initialization. It does not change arbitrary third-party logger configuration.
+module, all handler-defining modules (including re-exports and `functools.partial` handlers), and
+existing children after Alembic initialization. It does not change arbitrary third-party logger
+configuration.
 
 The registration, documented context/result fields, and import paths above are the plugin API.
 Internal service results and transport response models are not plugin APIs. There is one

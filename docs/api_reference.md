@@ -290,6 +290,11 @@ Mark a memory as obsolete (soft delete). Registered `obsolete` handlers run in b
 Before rejection/unavailability uses the same 400/503 responses as create. Successful responses
 include `plugin_warnings` only when nonempty; after-handler failures remain successful.
 
+When supplied, `reason` must be a string and `superseded_by` must be an integer or null. Omitted
+fields default to `"Marked obsolete via API"` and null; omitting the body uses both defaults.
+Malformed JSON, a non-object body, or invalid field types return 400 before changing the memory,
+whether or not a plugin is configured.
+
 **Request Body:** (optional)
 ```json
 {

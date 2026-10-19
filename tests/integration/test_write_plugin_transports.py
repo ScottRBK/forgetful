@@ -10,12 +10,16 @@ from test_write_plugin_runtime import data
 from test_write_plugin_runtime import plugin_runtime as plugin_runtime
 
 from app.bootstrap import build_runtime, dispose_runtime
+from app.config.settings import settings
 from app.routes.api import memories
 from app.routes.mcp import meta_tools
 
 
 @pytest.fixture
-async def plugin_app(plugin_runtime):
+async def plugin_app(plugin_runtime, request, monkeypatch):
+    if getattr(request, "param", True) is False:
+        monkeypatch.setattr(settings, "MEMORY_WRITE_PLUGIN", "")
+
     @asynccontextmanager
     async def lifespan(app):
         runtime = await build_runtime()
@@ -34,7 +38,8 @@ async def plugin_app(plugin_runtime):
     memories.register(app)
     async with Client(app) as client:
         async with AsyncClient(
-            transport=ASGITransport(app=app.http_app()), base_url="http://test",
+            transport=ASGITransport(app=app.http_app(), raise_app_exceptions=False),
+            base_url="http://test",
         ) as http:
             yield app, client, http
 
@@ -205,6 +210,51 @@ async def test_rest_delete_warning_rejection_and_unavailability(plugin_app):
             assert response.json() == {"success": True}
         saved = (await http.get(f"/api/v1/memories/{memory_id}")).json()
         assert saved["is_obsolete"] is (status == 200)
+
+
+@pytest.mark.parametrize("plugin_app", [True, False], indirect=True)
+async def test_rest_delete_rejects_invalid_body_without_mutation(plugin_app):
+    _, _, http = plugin_app
+    created = await http.post("/api/v1/memories", json=data().model_dump(exclude_unset=True))
+    path = f"/api/v1/memories/{created.json()['id']}"
+
+    for body in (
+        '{"reason": 123}', '{"superseded_by": "SECRET"}',
+        '{"superseded_by": true}', '{"superseded_by": 1.5}',
+        "[]", '{"reason":',
+    ):
+        response = await http.request(
+            "DELETE", path, content=body, headers={"content-type": "application/json"},
+        )
+
+        assert response.status_code == 400
+        assert response.json()["error"].startswith("Invalid obsolete request")
+        assert "SECRET" not in response.text
+        saved = (await http.get(path)).json()
+        assert saved["is_obsolete"] is False
+        assert saved["obsolete_reason"] is None
+        assert saved["superseded_by"] is None
+
+
+@pytest.mark.parametrize("plugin_app", [True, False], indirect=True)
+async def test_rest_delete_preserves_defaults_and_valid_replacement(plugin_app):
+    _, _, http = plugin_app
+    replacement = await http.post("/api/v1/memories", json=data().model_dump(exclude_unset=True))
+    replacement_id = replacement.json()["id"]
+    for body in (None, {}, {"reason": "Use revised fact", "superseded_by": replacement_id}):
+        created = await http.post("/api/v1/memories", json=data().model_dump(exclude_unset=True))
+        path = f"/api/v1/memories/{created.json()['id']}"
+
+        response = await http.request("DELETE", path, **({} if body is None else {"json": body}))
+
+        assert response.status_code == 200
+        assert response.json() == {"success": True}
+        saved = (await http.get(path)).json()
+        assert saved["is_obsolete"] is True
+        assert saved["obsolete_reason"] == (
+            "Use revised fact" if body else "Marked obsolete via API"
+        )
+        assert saved["superseded_by"] == (replacement_id if body else None)
 
 
 @pytest.mark.parametrize("tag", ["post_warn", "post_error"])

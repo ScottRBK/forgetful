@@ -74,7 +74,7 @@ async def test_after_create_sees_saved_links_and_scores_without_mutating_them(wr
 
 
 @pytest.mark.parametrize("mode", ["warn", "enforce"])
-@pytest.mark.parametrize("failure", ["error", "timeout", "reject", "mutated"])
+@pytest.mark.parametrize("failure", ["error", "timeout", "reject", "mutated", "cancelled_child"])
 async def test_after_failure_warns_without_failing_saved_create(write_store, mode, failure, caplog):
     repo, user_id, _, bus = write_store
     logging.getLogger("app.services.write_plugin_service").disabled = False
@@ -85,6 +85,10 @@ async def test_after_failure_warns_without_failing_saved_create(write_store, mod
             raise RuntimeError("SECRET memory content")
         if failure == "timeout":
             await asyncio.sleep(10)
+        if failure == "cancelled_child":
+            child = asyncio.create_task(asyncio.sleep(10))
+            child.cancel("SECRET memory content")
+            await child
         if failure == "reject":
             return {"outcome": "reject", "message": "SECRET memory content"}
         warning = PluginWarning(message="Valid originally")
@@ -103,6 +107,7 @@ async def test_after_failure_warns_without_failing_saved_create(write_store, mod
     result = await service.create_memory(user_id, candidate())
     await bus.wait_for_pending()
 
+    assert asyncio.current_task().cancelling() == 0
     assert result.plugin_warnings == [PluginWarning(
         message="Memory saved, but after-save plugin unavailable.",
         code="MEMORY_PLUGIN_AFTER_SAVE_UNAVAILABLE",
@@ -110,6 +115,8 @@ async def test_after_failure_warns_without_failing_saved_create(write_store, mod
     assert (await service.get_memory(user_id, result.memory.id)).title == "A useful memory"
     assert [event.action for event in events] == ["created"]
     assert "after_save" in caplog.text
+    if failure == "cancelled_child":
+        assert "error_type=CancelledError" in caplog.text
     assert "SECRET" not in caplog.text
 
 

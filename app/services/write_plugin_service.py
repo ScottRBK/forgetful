@@ -73,10 +73,18 @@ class WritePluginService:
             async with asyncio.timeout(self._timeout_seconds):
                 result = await handler(request.model_copy(deep=True))
                 return [] if result is None else [PluginWarning.model_validate(result)]
+        except asyncio.CancelledError as exc:
+            task = asyncio.current_task()
+            if task is not None and task.cancelling():
+                raise
+            # A cancelled child awaited by the plugin must not fail an already persisted write.
+            return [self.after_save_unavailable(request.operation, exc)]
         except Exception as exc:
             return [self.after_save_unavailable(request.operation, exc)]
 
-    def after_save_unavailable(self, operation: MemoryOperation, exc: Exception) -> PluginWarning:
+    def after_save_unavailable(
+        self, operation: MemoryOperation, exc: Exception | asyncio.CancelledError,
+    ) -> PluginWarning:
         """Keep a persisted write successful when advisory work cannot complete."""
         logger.warning(
             "Memory Plugin unavailable (phase=after_save, operation=%s, error_type=%s)",

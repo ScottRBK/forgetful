@@ -5,6 +5,7 @@ MCP server, REST API, and CLI — builds the identical adapter/repo/service/regi
 stack from one place. Heavy imports stay inside functions to keep module import cheap.
 """
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -231,7 +232,11 @@ async def build_runtime() -> Runtime:
     if plugin is not None:
         configured_module = settings.MEMORY_WRITE_PLUGIN.strip().partition(":")[0]
         handlers = (*plugin.before_save.values(), *plugin.after_save.values())
-        module_names = {configured_module, *(handler.__module__ for handler in handlers)}
+        module_names = {configured_module}
+        for handler in handlers:
+            while isinstance(handler, partial):
+                handler = handler.func
+            module_names.add(handler.__module__)
         # Include re-exported handlers and existing child loggers, retaining intentional disables.
         for name, plugin_logger in logging.Logger.manager.loggerDict.copy().items():
             if isinstance(plugin_logger, logging.Logger) and any(

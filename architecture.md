@@ -170,7 +170,9 @@ fabricating saved state. These reads are separate repository calls, not transact
 After handlers return `PluginWarning` or nothing. Exception, malformed return, or cooperative
 timeout produces a sanitized diagnostic and a generic advisory warning in either mode; it cannot
 veto or roll back the saved write. External cancellation propagates even after persistence, so a
-cancelled request or lost response may leave a completed write. There are no durable queues,
+cancelled request or lost response may leave a completed write. Cancellation raised inside an
+after handler or its awaited child becomes advisory when the request task has no cancellation
+pending. Before-save cancellation still propagates. There are no durable queues,
 retries, delivery guarantees, duplicate prevention, merging, or link/entity hooks.
 
 `app/routes/write_plugin_responses.py` combines nonempty-only before/after warnings. Create/update
@@ -178,15 +180,18 @@ shapes stay intact; lifecycle results use an internal success/warnings model, un
 `{"success": true}` plus optional warnings by live MCP/local CLI and REST DELETE. No REST restore
 route is added. Stored/read memories and event payloads have no transient warnings. Before errors
 remain `WRITE_PLUGIN_REJECTED` / `WRITE_PLUGIN_UNAVAILABLE` through MCP/CLI and 400/503 through REST.
+REST DELETE validates supplied lifecycle field types before the service call, with or without a
+plugin; absent-body defaults are preserved.
 After failures return success with `MEMORY_PLUGIN_AFTER_SAVE_UNAVAILABLE`. The legacy unregistered
 `memory_tools.py` unwraps lifecycle results to bool, without becoming a supported plugin transport.
 CLI memory-save rendering shows warnings with success.
 
 Bootstrap restores the core diagnostic logger and pre-initialization states of existing loggers
 for the configured module, every handler's defining module, and their children after Alembic's
-logger-disabling setup. Re-exports and intentionally disabled loggers are preserved. Import
-errors identify module/reference, loading phase, and exception type. Runtime diagnostics identify
-phase, operation, exception type, and before-save mode, without exception text or memory snapshots.
+logger-disabling setup. Re-exports, partial handlers, and intentionally disabled loggers are
+preserved. Import errors identify module/reference, loading phase, and exception type. Runtime
+diagnostics identify phase, operation, exception type, and before-save mode, without exception
+text or memory snapshots.
 See the [plugin contract](docs/configuration.md#memory-plugin) for administrator examples.
 
 **Query:** [memory_service.py:77](app/services/memory_service.py#L77) asks the repository for
@@ -233,7 +238,7 @@ These are explanatory groupings; they do not imply separate subsystems in the so
 | Procedural knowledge | Optional [SkillService:72](app/services/skill_service.py#L72) supports CRUD, semantic search, Markdown/frontmatter import/export, and links to memories/files/documents/code artifacts. Skill repositories receive the same provider adapters as memory repositories. |
 | Planning | Optional [PlanService:37](app/services/plan_service.py#L37) and [TaskService:46](app/services/task_service.py#L46) manage plans, task claims, criteria, and dependencies. [transition_task:223](app/services/task_service.py#L223) validates versions, state transitions, dependencies, and completion criteria; task completion can complete the parent plan. |
 | Graph views | [GraphService:73](app/services/graph_service.py#L73) combines repository traversal with domain-service lookups. [get_subgraph:129](app/services/graph_service.py#L129) bounds depth/node count and asks `MemoryRepository.get_subgraph_nodes` for traversal results across supported object types. |
-| Activity and usage | Optional [EventBus:28](app/events/event_bus.py#L28) dispatches background handlers and per-user streams. [ActivityService:24](app/services/activity_service.py#L24) persists and queries events; it remains queryable when event emission is disabled. Memory read/query events optionally update access counters via [memory_service.py:723](app/services/memory_service.py#L723). |
+| Activity and usage | Optional [EventBus:28](app/events/event_bus.py#L28) dispatches background handlers and per-user streams. [ActivityService:24](app/services/activity_service.py#L24) persists and queries events; it remains queryable when event emission is disabled. Memory read/query events optionally update access counters via [memory_service.py:895](app/services/memory_service.py#L895). |
 | Re-embedding | [ReEmbeddingService:40](app/services/re_embedding_service.py#L40) coordinates full storage reset/batch embedding/validation and targeted rebuilds, using a memory contract and embedding adapter. [main.py:153](main.py#L153) is the operational CLI path. |
 | Backup | [BackupService:9](app/services/backup_service.py#L9) supplies the timestamp and delegates through `BackupAdapter`; [DatabaseBackupAdapter:15](app/repositories/backup_adapter.py#L15) owns SQLite file copying and PostgreSQL `pg_dump`/`psql`. [create_backup_service:19](app/bootstrap.py#L19) connects them. |
 

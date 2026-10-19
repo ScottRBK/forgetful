@@ -36,6 +36,7 @@ class MemoryPlugin:
             handlers = getattr(self, phase)
             if not isinstance(handlers, Mapping):
                 raise ValueError(f"{phase} must be an operation-to-handler mapping")
+            handlers = dict(handlers)
             for operation, handler in handlers.items():
                 if operation not in get_args(MemoryOperation):
                     raise ValueError(f"{phase} contains an unsupported memory operation")
@@ -46,4 +47,4 @@ class MemoryPlugin:
                 except (TypeError, ValueError):
                     raise ValueError(f"{phase} handlers must accept one context argument") from None
             # Freeze a copy: changing the administrator's original dict cannot alter dispatch.
-            object.__setattr__(self, phase, MappingProxyType(dict(handlers)))
+            object.__setattr__(self, phase, MappingProxyType(handlers))
