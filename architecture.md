@@ -133,7 +133,7 @@ Automatic linking uses the configured neighbor limit and similarity threshold, e
 memories and the source memory ([PostgreSQL:456](app/repositories/postgres/memory_repository.py#L456),
 [SQLite:516](app/repositories/sqlite/memory_repository.py#L516)). Explicit linking is a separate
 service operation ([memory_service.py:459](app/services/memory_service.py#L459)); repository link
-methods maintain the bidirectional memory relation. Obsolescence is a soft state with reason and
+methods maintain the bidirectional memory relation and only link memories owned by the calling user. Obsolescence is a soft state with reason and
 optional replacement; create responses can additionally warn about similar obsolete memories
 ([memory_service.py:380](app/services/memory_service.py#L380)).
 
