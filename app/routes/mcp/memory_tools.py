@@ -685,14 +685,14 @@ def register(mcp: FastMCP):
 
             memory_service = ctx.fastmcp.memory_service
 
-            success = await memory_service.mark_memory_obsolete(
+            result = await memory_service.mark_memory_obsolete(
                 user_id=user.id,
                 memory_id=memory_id,
                 reason=reason,
                 superseded_by=superseded_by,
             )
 
-            return success
+            return result.success
 
         except NotFoundError as e:
             logger.debug("MCP Tool - mark_memory_obsolete validation error", extra={
@@ -740,10 +740,11 @@ def register(mcp: FastMCP):
             user = await get_user_from_auth(ctx)
             memory_service = ctx.fastmcp.memory_service
 
-            return await memory_service.unobsolete_memory(
+            result = await memory_service.unobsolete_memory(
                 user_id=user.id,
                 memory_id=memory_id,
             )
+            return result.success
 
         except NotFoundError as e:
             logger.debug(

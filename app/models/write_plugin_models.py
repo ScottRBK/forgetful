@@ -1,4 +1,4 @@
-"""Contracts for the trusted, decision-only memory Write Plugin."""
+"""Detached contexts and results for the trusted Memory Plugin."""
 
 from typing import Literal, Self
 from uuid import UUID
@@ -6,6 +6,8 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.models.memory_models import Memory, MemoryCreate, MemorySummary, MemoryUpdate
+
+MemoryOperation = Literal["create", "update", "obsolete", "restore"]
 
 
 class MemoryWriteRequest(BaseModel):
@@ -16,6 +18,30 @@ class MemoryWriteRequest(BaseModel):
     submitted: MemoryCreate | MemoryUpdate
     previous: Memory | None
     proposed: MemoryCreate
+
+
+class MemoryLifecycleSubmission(BaseModel):
+    """Parsed lifecycle input; restore supplies only the memory ID."""
+
+    memory_id: int
+    reason: str | None = None
+    superseded_by: int | None = None
+
+
+class MemoryLifecycleState(BaseModel):
+    """Proposed lifecycle fields. Persistence assigns the obsolescence timestamp."""
+
+    is_obsolete: bool
+    obsolete_reason: str | None
+    superseded_by: int | None
+
+
+class MemoryLifecycleRequest(BaseModel):
+    operation: Literal["obsolete", "restore"]
+    user_id: UUID
+    submitted: MemoryLifecycleSubmission
+    previous: Memory
+    proposed: MemoryLifecycleState
 
 
 class WriteDecision(BaseModel):
@@ -34,12 +60,43 @@ class WriteDecision(BaseModel):
         return self
 
 
+class PluginWarning(BaseModel):
+    """Advisory result: a saved write cannot be rejected."""
+
+    model_config = ConfigDict(extra="forbid", revalidate_instances="always")
+
+    outcome: Literal["warn"] = "warn"
+    message: str
+    code: str | None = None
+
+    @model_validator(mode="after")
+    def require_message(self) -> Self:
+        if not self.message.strip():
+            raise ValueError("warnings require a nonblank message")
+        return self
+
+
+class MemorySavedRequest(BaseModel):
+    """Persisted snapshots; similarity is unavailable except on auto-linked creates."""
+
+    operation: MemoryOperation
+    user_id: UUID
+    previous: Memory | None
+    saved: Memory
+    similar_memories: list[MemorySummary] | None = None
+
+
 class MemoryCreateResult(BaseModel):
     memory: Memory
     similar_memories: list[MemorySummary] = Field(default_factory=list)
-    plugin_warnings: list[WriteDecision] = Field(default_factory=list)
+    plugin_warnings: list[PluginWarning] = Field(default_factory=list)
 
 
 class MemoryUpdateResult(BaseModel):
     memory: Memory | None
-    plugin_warnings: list[WriteDecision] = Field(default_factory=list)
+    plugin_warnings: list[PluginWarning] = Field(default_factory=list)
+
+
+class MemoryLifecycleResult(BaseModel):
+    success: bool
+    plugin_warnings: list[PluginWarning] = Field(default_factory=list)

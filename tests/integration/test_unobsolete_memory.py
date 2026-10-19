@@ -12,6 +12,7 @@ from app.config.settings import settings
 from app.exceptions import InvalidStateTransitionError, NotFoundError
 from app.models.activity_models import ActionType, EntityType
 from app.models.memory_models import MemoryCreate, MemoryQueryRequest
+from app.models.write_plugin_models import MemoryLifecycleResult
 from app.repositories.sqlite.memory_repository import SqliteMemoryRepository
 from app.repositories.sqlite.sqlite_adapter import SqliteDatabaseAdapter
 from app.services.memory_service import MemoryService
@@ -49,7 +50,7 @@ async def test_unobsolete_restores_query_visibility_and_clears_fields(test_memor
     assert all(m.id != mem.id for m in before.primary_memories)
 
     ok = await test_memory_service.unobsolete_memory(user_id=user_id, memory_id=mem.id)
-    assert ok is True
+    assert ok.success is True
 
     refreshed = await test_memory_service.get_memory(user_id=user_id, memory_id=mem.id)
     assert refreshed is not None
@@ -92,7 +93,7 @@ async def test_unobsolete_emits_updated_activity_event(test_memory_service_with_
     event_bus.collected_events.clear()
 
     ok = await service.unobsolete_memory(user_id=user_id, memory_id=mem.id)
-    assert ok is True
+    assert ok.success is True
 
     assert len(event_bus.collected_events) == 1
     event = event_bus.collected_events[0]
@@ -191,7 +192,7 @@ async def test_unobsolete_concurrent_restore_one_success_one_invalid_state(
         return_exceptions=True,
     )
 
-    successes = [r for r in results if r is True]
+    successes = [r for r in results if isinstance(r, MemoryLifecycleResult) and r.success]
     invalid = [r for r in results if isinstance(r, InvalidStateTransitionError)]
     assert len(successes) == 1
     assert len(invalid) == 1
@@ -282,7 +283,7 @@ async def test_unobsolete_concurrent_restore_sqlite_atomic():
             return_exceptions=True,
         )
 
-        successes = [r for r in results if r is True]
+        successes = [r for r in results if isinstance(r, MemoryLifecycleResult) and r.success]
         invalid = [r for r in results if isinstance(r, InvalidStateTransitionError)]
         assert len(successes) == 1
         assert len(invalid) == 1

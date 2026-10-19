@@ -28,6 +28,11 @@ from app.models.memory_models import (
 )
 from app.models.write_plugin_models import (
     MemoryCreateResult,
+    MemoryLifecycleRequest,
+    MemoryLifecycleResult,
+    MemoryLifecycleState,
+    MemoryLifecycleSubmission,
+    MemorySavedRequest,
     MemoryUpdateResult,
     MemoryWriteRequest,
 )
@@ -191,8 +196,8 @@ class MemoryService:
         submitted = memory_data.model_copy(deep=True)
         memory_data = apply_provenance_defaults(memory_data)
         plugin_warnings = []
-        if self._write_plugin:
-            plugin_warnings = await self._write_plugin.evaluate(MemoryWriteRequest(
+        if self._write_plugin and self._write_plugin.has_before("create"):
+            plugin_warnings = await self._write_plugin.before_save(MemoryWriteRequest(
                 operation="create", user_id=user_id, submitted=submitted, previous=None,
                 proposed=MemoryCreate.model_validate(
                     memory_data.model_dump(include=set(MemoryCreate.model_fields)),
@@ -204,6 +209,7 @@ class MemoryService:
         )
 
         similar_memories = []
+        similar_scored = None
         linked_ids = []
         if settings.MEMORY_NUM_AUTO_LINK > 0:
             similar_scored = await self.memory_repo.find_similar_memories_scored(
@@ -251,6 +257,12 @@ class MemoryService:
             snapshot=memory.model_dump(mode="json"),
         )
 
+        if self._write_plugin:
+            plugin_warnings += await self._write_plugin.after_save(MemorySavedRequest(
+                operation="create", user_id=user_id, previous=None, saved=memory,
+                similar_memories=similar_memories if similar_scored is not None else None,
+            ))
+
         return MemoryCreateResult(
             memory=memory, similar_memories=similar_memories, plugin_warnings=plugin_warnings,
         )
@@ -296,7 +308,7 @@ class MemoryService:
             return MemoryUpdateResult(memory=existing_memory)
 
         plugin_warnings = []
-        if self._write_plugin:
+        if self._write_plugin and self._write_plugin.has_before("update"):
             proposed_data = existing_memory.model_dump(include=set(MemoryCreate.model_fields))
             updates = updated_memory.model_dump(exclude_unset=True)
             # Explicit nulls were removed before provenance and change detection.
@@ -307,7 +319,7 @@ class MemoryService:
                 if key not in relationships or value is not None
             })
             proposed = MemoryCreate.model_validate(proposed_data)
-            plugin_warnings = await self._write_plugin.evaluate(MemoryWriteRequest(
+            plugin_warnings = await self._write_plugin.before_save(MemoryWriteRequest(
                 operation="update", user_id=user_id, submitted=submitted,
                 previous=existing_memory.model_copy(deep=True), proposed=proposed,
             ))
@@ -330,6 +342,7 @@ class MemoryService:
         search_fields = {"title", "content", "context", "keywords", "tags"}
         search_fields_changed = bool(search_fields & changed_fields.keys())
 
+        previous = existing_memory.model_copy(deep=True)
         modified_memory = await self.memory_repo.update_memory(
             memory_id=memory_id,
             user_id=user_id,
@@ -352,6 +365,10 @@ class MemoryService:
                 snapshot=modified_memory.model_dump(mode="json"),
                 changes=changes_dict,
             )
+            if self._write_plugin:
+                plugin_warnings += await self._write_plugin.after_save(MemorySavedRequest(
+                    operation="update", user_id=user_id, previous=previous, saved=modified_memory,
+                ))
 
         return MemoryUpdateResult(memory=modified_memory, plugin_warnings=plugin_warnings)
 
@@ -361,7 +378,7 @@ class MemoryService:
             memory_id: int,
             reason: str,
             superseded_by: int | None = None,
-    ) -> bool:
+    ) -> MemoryLifecycleResult:
         """Mark a memory as obsolete (soft delete)
         
         Args:
@@ -371,7 +388,7 @@ class MemoryService:
             superseded_by: Optional ID of memories that have superseded this one
 
         Returns:
-            True if marked obsolete, False if not found
+            Success flag with any transient plugin warnings.
         """
         logger.info("Marking memory as obsolete", extra={
             "memory_id": memory_id,
@@ -384,6 +401,29 @@ class MemoryService:
             user_id=user_id,
         )
 
+        plugin_warnings = []
+        if memory and self._write_plugin and self._write_plugin.has_before("obsolete"):
+            # Validate replacement ownership before calling policy; the repository rechecks it.
+            if superseded_by:
+                try:
+                    replacement = await self.memory_repo.get_memory_by_id(user_id, superseded_by)
+                except NotFoundError:
+                    replacement = None
+                if replacement is None:
+                    raise NotFoundError(f"Superseding memory {superseded_by} not found")
+            plugin_warnings = await self._write_plugin.before_save(MemoryLifecycleRequest(
+                operation="obsolete", user_id=user_id,
+                submitted=MemoryLifecycleSubmission(
+                    memory_id=memory_id, reason=reason, superseded_by=superseded_by,
+                ),
+                previous=memory.model_copy(deep=True),
+                proposed=MemoryLifecycleState(
+                    is_obsolete=True, obsolete_reason=reason, superseded_by=superseded_by,
+                ),
+            ))
+            memory = await self.memory_repo.get_memory_by_id(user_id, memory_id)
+
+        previous = memory.model_copy(deep=True) if memory else None
         success = await self.memory_repo.mark_obsolete(
             memory_id=memory_id,
             user_id=user_id,
@@ -404,14 +444,46 @@ class MemoryService:
                 snapshot=snapshot,
             )
 
-        return success
+        if success and self._write_plugin and self._write_plugin.has_after("obsolete"):
+            # Read actual persisted state; never synthesize a successful lifecycle snapshot.
+            try:
+                saved = await self.memory_repo.get_memory_by_id(user_id, memory_id)
+                if saved is None:
+                    raise NotFoundError(f"Memory {memory_id} not found after save")
+                plugin_warnings += await self._write_plugin.after_save(MemorySavedRequest(
+                    operation="obsolete", user_id=user_id, previous=previous, saved=saved,
+                ))
+            except Exception as exc:
+                plugin_warnings.append(self._write_plugin.after_save_unavailable("obsolete", exc))
+        return MemoryLifecycleResult(success=success, plugin_warnings=plugin_warnings)
 
-    async def unobsolete_memory(self, user_id: UUID, memory_id: int) -> bool:
+    async def unobsolete_memory(self, user_id: UUID, memory_id: int) -> MemoryLifecycleResult:
         """Restore a soft-deleted memory to active search results."""
         logger.info(
             "Restoring obsolete memory",
             extra={"memory_id": memory_id, "user_id": user_id},
         )
+        plugin_warnings = []
+        previous = None
+        if self._write_plugin and (
+            self._write_plugin.has_before("restore") or self._write_plugin.has_after("restore")
+        ):
+            memory = await self.memory_repo.get_memory_by_id(user_id, memory_id)
+            if memory is None:
+                raise NotFoundError(f"Memory {memory_id} not found")
+            if not memory.is_obsolete:
+                raise InvalidStateTransitionError(f"Memory {memory_id} is not obsolete")
+            plugin_warnings = await self._write_plugin.before_save(MemoryLifecycleRequest(
+                operation="restore", user_id=user_id,
+                submitted=MemoryLifecycleSubmission(memory_id=memory_id),
+                previous=memory.model_copy(deep=True),
+                proposed=MemoryLifecycleState(
+                    is_obsolete=False, obsolete_reason=None, superseded_by=None,
+                ),
+            ))
+            # The conditional restore still arbitrates concurrent restores at persistence time.
+            previous = await self.memory_repo.get_memory_by_id(user_id, memory_id)
+            previous = previous.model_copy(deep=True) if previous else None
         success = await self.memory_repo.restore_obsolete(
             user_id=user_id,
             memory_id=memory_id,
@@ -436,7 +508,15 @@ class MemoryService:
                 action=ActionType.UPDATED,
                 snapshot=restored.model_dump(mode="json"),
             )
-        return True
+            if self._write_plugin:
+                plugin_warnings += await self._write_plugin.after_save(MemorySavedRequest(
+                    operation="restore", user_id=user_id, previous=previous, saved=restored,
+                ))
+        elif self._write_plugin and self._write_plugin.has_after("restore"):
+            plugin_warnings.append(self._write_plugin.after_save_unavailable(
+                "restore", NotFoundError(f"Memory {memory_id} not found after save"),
+            ))
+        return MemoryLifecycleResult(success=True, plugin_warnings=plugin_warnings)
 
     async def get_memory(
             self,

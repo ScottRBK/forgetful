@@ -238,12 +238,18 @@ def warning_http_server_url(cli_remote_env, monkeypatch, tmp_path, request):
     """Reuse the real HTTP fixture with a trusted plugin and deterministic embeddings."""
     plugin_name = "remote_warning_plugin"
     (tmp_path / f"{plugin_name}.py").write_text(
-        'from app.models.write_plugin_models import WriteDecision\n'
+        'from app.models.write_plugin_models import PluginWarning, WriteDecision\n'
+        'from app.protocols.write_plugin_protocol import MemoryPlugin\n'
         'async def check_write(request):\n'
-        '    return WriteDecision(outcome="warn", message="Check the remote source.")\n',
+        '    return WriteDecision(outcome="warn", message="Check the remote source.")\n'
+        'async def after(request):\n'
+        '    return PluginWarning(message="Review saved memory.")\n'
+        'plugin = MemoryPlugin(\n'
+        '    before_save={"create": check_write}, after_save={"create": after},\n'
+        ')\n',
     )
     monkeypatch.syspath_prepend(str(tmp_path))
-    monkeypatch.setattr(settings, "MEMORY_WRITE_PLUGIN", f"{plugin_name}:check_write")
+    monkeypatch.setattr(settings, "MEMORY_WRITE_PLUGIN", f"{plugin_name}:plugin")
     monkeypatch.setattr(settings, "MEMORY_WRITE_PLUGIN_MODE", "enforce")
 
     class DeterministicEmbeddings:
@@ -264,3 +270,4 @@ def test_remote_memory_save_shows_plugin_warning(warning_http_server_url, monkey
     assert code == 0
     assert "Created memory" in out
     assert "Warning: Check the remote source." in out
+    assert "Warning: Review saved memory." in out

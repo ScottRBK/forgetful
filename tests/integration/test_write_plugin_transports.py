@@ -112,11 +112,19 @@ async def test_scopes_and_rest_auth_stop_before_plugin(plugin_app, plugin_runtim
     )
     with pytest.raises(ToolError, match="not permitted under current scopes"):
         await execute(client, "create_memory", data().model_dump(exclude_unset=True))
+    for tool, args in [
+        ("mark_memory_obsolete", {"memory_id": 1, "reason": "Old fact"}),
+        ("unobsolete_memory", {"memory_id": 1}),
+    ]:
+        with pytest.raises(ToolError, match="not permitted under current scopes"):
+            await execute(client, tool, args)
     # REST has its own auth path; it does not inherit the MCP scope ceiling.
     monkeypatch.setattr(app, "auth", object())
     response = await http.post("/api/v1/memories", json=data().model_dump(exclude_unset=True))
     assert response.status_code == 401
     assert response.json()["error"] == "Missing or invalid Authorization header"
+    response = await http.delete("/api/v1/memories/1")
+    assert response.status_code == 401
     assert importlib.import_module(plugin_runtime).calls == []
 
 
@@ -135,3 +143,100 @@ async def test_plugin_warning_coexists_with_obsolete_match_and_query_stays_clean
     query = await execute(client, "query_memory", {"query": "A fact", "query_context": "Testing"})
     assert [memory["id"] for memory in query["primary_memories"]] == [new["id"]]
     assert "plugin_warnings" not in query["primary_memories"][0]
+
+
+@pytest.mark.parametrize("operation,tool", [
+    ("obsolete", "mark_memory_obsolete"), ("restore", "unobsolete_memory"),
+])
+async def test_mcp_lifecycle_success_warning_and_error_shapes(plugin_app, operation, tool):
+    _, client, _ = plugin_app
+
+    async def prepare(tags):
+        result = await execute(client, "create_memory", data(tags).model_dump(exclude_unset=True))
+        if operation == "restore":
+            await execute(client, "mark_memory_obsolete", {
+                "memory_id": result["id"], "reason": "Old fact",
+            })
+        args = {"memory_id": result["id"]}
+        if operation == "obsolete":
+            args["reason"] = "Old fact"
+        return args
+
+    plain = await execute(client, tool, await prepare([]))
+    assert plain == {"success": True}
+    warned = await execute(client, tool, await prepare([f"{operation}_warn", "post_warn"]))
+    assert warned == {"success": True, "plugin_warnings": [
+        {"outcome": "warn", "message": "Check the lifecycle change.", "code": None},
+        {"outcome": "warn", "message": "Review saved memory.", "code": "review"},
+    ]}
+    for marker, error in [("blocked", "WRITE_PLUGIN_REJECTED: Keep this state"),
+                          ("error", "WRITE_PLUGIN_UNAVAILABLE: Memory Write Plugin unavailable")]:
+        args = await prepare([f"{operation}_{marker}"])
+        with pytest.raises(ToolError, match=error):
+            await execute(client, tool, args)
+        saved = await execute(client, "get_memory", {"memory_id": args["memory_id"]})
+        assert saved["is_obsolete"] is (operation == "restore")
+
+
+async def test_rest_delete_warning_rejection_and_unavailability(plugin_app):
+    _, _, http = plugin_app
+    for tags, status, error in [
+        ([], 200, None),
+        (["obsolete_warn", "post_warn"], 200, None),
+        (["obsolete_blocked"], 400, "Keep this state."),
+        (["obsolete_error"], 503, "Memory Write Plugin unavailable."),
+    ]:
+        created = await http.post(
+            "/api/v1/memories", json=data(tags).model_dump(exclude_unset=True),
+        )
+        memory_id = created.json()["id"]
+
+        response = await http.request(
+            "DELETE", f"/api/v1/memories/{memory_id}", json={"reason": "Old fact"},
+        )
+
+        assert response.status_code == status
+        if error:
+            assert response.json() == {"error": error}
+        elif tags:
+            assert response.json()["success"] is True
+            assert len(response.json()["plugin_warnings"]) == 2
+        else:
+            assert response.json() == {"success": True}
+        saved = (await http.get(f"/api/v1/memories/{memory_id}")).json()
+        assert saved["is_obsolete"] is (status == 200)
+
+
+@pytest.mark.parametrize("tag", ["post_warn", "post_error"])
+async def test_live_after_save_warnings_preserve_create_and_update_success(plugin_app, tag):
+    _, client, http = plugin_app
+    for transport in ("mcp", "rest"):
+        if transport == "mcp":
+            created = await execute(
+                client, "create_memory", data([tag]).model_dump(exclude_unset=True),
+            )
+            updated = await execute(client, "update_memory", {
+                "memory_id": created["id"], "importance": 8,
+            })
+        else:
+            response = await http.post(
+                "/api/v1/memories", json=data([tag]).model_dump(exclude_unset=True),
+            )
+            assert response.status_code == 201
+            created = response.json()
+            response = await http.put(
+                f"/api/v1/memories/{created['id']}", json={"importance": 8},
+            )
+            assert response.status_code == 200
+            updated = response.json()
+
+        for payload in (created, updated):
+            assert "memory" not in payload
+            assert payload["id"] == created["id"]
+            assert payload["plugin_warnings"][0]["code"] == (
+                "review" if tag == "post_warn" else "MEMORY_PLUGIN_AFTER_SAVE_UNAVAILABLE"
+            )
+            assert "SECRET" not in str(payload)
+        saved = await execute(client, "get_memory", {"memory_id": created["id"]})
+        assert saved["importance"] == 8
+        assert "plugin_warnings" not in saved

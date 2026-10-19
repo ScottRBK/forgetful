@@ -1,6 +1,6 @@
 # Forgetful architecture
 
-Reviewable, agent-authored overview, checked against source on 2026-10-08, with boundary changes checked on 2026-10-17.
+Reviewable, agent-authored overview, checked against source on 2026-10-08, with boundary changes checked on 2026-10-17 and Memory Plugin phases on 2026-10-19.
 This is a selective interpretation, not an exhaustive dependency inventory.
 The component groupings below are inferred for readability; the described execution paths
 and wiring were verified against source. Line numbers are inspection starting points and may drift.
@@ -23,10 +23,10 @@ flowchart TD
     ToolAdapters --> Services["Domain services"]
     HTTP["HTTP custom routes"] --> Services
     Services --> Contracts["Repository protocols"]
-    Services --> WritePlugin["WritePluginService: decision before memory create/update"]
-    WritePlugin --> Callable["WritePlugin callable protocol"]
-    Bootstrap --> Loader["config.write_plugin: trusted module:function loader"]
-    Loader -. supplies handler .-> WritePlugin
+    Services --> WritePlugin["WritePluginService: before_save and advisory after_save"]
+    WritePlugin --> Callable["MemoryPlugin: explicit operation-to-handler mappings"]
+    Bootstrap --> Loader["config.write_plugin: trusted module:object loader"]
+    Loader -. supplies registration .-> WritePlugin
     SQLite["SQLite repositories"] -. implements .-> Contracts
     Postgres["PostgreSQL repositories"] -. implements .-> Contracts
     SQLite --> SQLiteDB["SQLite adapter and sqlite-vec"]
@@ -115,8 +115,8 @@ inspect their own authorization path before assuming parity. This overview is no
 
 ## Memory write, retrieval, and linking
 
-**Create:** route/tool adapter → `MemoryService.create_memory` → optional `WritePluginService` decision → repository → embedding provider
-and database. [memory_service.py:169](app/services/memory_service.py#L169) applies provenance
+**Create:** route/tool adapter → `MemoryService.create_memory` → optional before-save decision → repository → embedding provider
+and database. [memory_service.py:185](app/services/memory_service.py#L185) applies provenance
 defaults, persists the memory, then optionally finds similar memories and creates links in a batch.
 The repository builds embedding text and persists associations as part of its create operation:
 [PostgreSQL:191](app/repositories/postgres/memory_repository.py#L191),
@@ -126,46 +126,75 @@ Memory creation and subsequent automatic linking are separate repository calls, 
 Automatic linking uses the configured neighbor limit and similarity threshold, excluding obsolete
 memories and the source memory ([PostgreSQL:456](app/repositories/postgres/memory_repository.py#L456),
 [SQLite:516](app/repositories/sqlite/memory_repository.py#L516)). Explicit linking is a separate
-service operation ([memory_service.py:459](app/services/memory_service.py#L459)); repository link
+service operation ([memory_service.py:631](app/services/memory_service.py#L631)); repository link
 methods maintain the bidirectional memory relation. Obsolescence is a soft state with reason and
 optional replacement; create responses can additionally warn about similar obsolete memories
-([memory_service.py:380](app/services/memory_service.py#L380)).
+([memory_service.py:552](app/services/memory_service.py#L552)).
 
-**Write Plugin:** `app/config/write_plugin.py` loads one trusted async `module:function` at runtime
-startup before costly resources. Bootstrap injects `WritePluginService` into MemoryService; services
-never import the loader. `app/protocols/write_plugin_protocol.py` defines the callable boundary, and
-`app/models/write_plugin_models.py` owns the request, decision, and explicit internal write results.
-The plugin gets separately detached submitted/previous/proposed snapshots, with the writable
-candidate built by MemoryService after defaults and update merging. No-op updates skip evaluation.
-A rejection in enforce mode, malformed decision, exception, or timeout blocks before repository work;
-warn mode proceeds with warnings. Cancellation propagates; the deadline is cooperative, not a hard kill.
-No session spans the plugin await. After a successful update decision, MemoryService re-reads the
-user-owned memory and recomputes patch differences before repository work, using the refreshed state
-for embeddings and event differences. A resulting no-op preserves the current timestamp and any
-plugin warning without emitting an update event. The original plugin snapshots are not re-evaluated.
-This removes the new plugin-wait stale-state window; it does not prevent later concurrent changes,
-including the pre-existing embedding-provider await race, or promise atomic global checks.
-MemoryService normalizes explicit-null update fields to unchanged before provenance enforcement
-and change detection (#95), preserving raw submitted snapshots. Non-null skill update limitations
-(#96) remain; null normalization does not implement skill association updates.
+**Memory Plugin:** `app/config/write_plugin.py` loads one trusted `module:object` registration before
+costly resources. `MemoryPlugin` in `app/protocols/write_plugin_protocol.py` owns copied, frozen
+`before_save` and `after_save` mappings from explicit operations to async handlers. Supported
+operations are create, update, obsolete, and restore; an absent mapping skips that handler.
+Invalid registrations fail startup. This replaces the unreleased function contract without a
+compatibility layer. Bootstrap injects `WritePluginService`; services never import the loader.
+`app/models/write_plugin_models.py` owns detached contexts, decisions, advisory warnings, and
+internal write results. The existing `MEMORY_WRITE_PLUGIN*` settings remain.
 
-`app/routes/write_plugin_responses.py` adds nonempty-only warnings to write responses; update remains
-flat. Stored/read `Memory` and event snapshots are unchanged. The live MCP adapter maps plugin errors
-for both meta-tools and local CLI; REST maps rejection to 400 and unavailable to 503. The legacy
-unregistered `memory_tools.py` only unwraps the changed internal results for compatibility; it is not
-a supported Write Plugin transport. CLI memory-save rendering shows warnings with success.
-Bootstrap restores the core plugin diagnostic logger after Alembic's existing logger-disabling setup.
-It also preserves pre-initialization enabled/disabled state for existing configured-module and
-handler-module loggers (including children and re-exports), without changing global logging setup.
-Import diagnostics identify module/reference, phase, and exception type; neither import nor decision
-diagnostics expose original exception text or full memory snapshots.
+Before create/update, the plugin gets separately detached submitted/previous/proposed snapshots,
+with the writable candidate built by MemoryService after defaults and merging. Lifecycle contexts
+use `MemoryLifecycleRequest` and `MemoryLifecycleState`: submitted ID/reason/replacement, full
+previous memory, and proposed obsolete flag/reason/replacement. They do not pretend lifecycle state
+is a `MemoryCreate`, or invent a database timestamp. Core permissions, ownership, validation, and
+state checks still apply. Invalid operations skip policies; no-op updates skip both phases.
+Repeating obsolete retains its existing mutation behavior, including a new obsolescence timestamp.
 
-**Query:** [memory_service.py:61](app/services/memory_service.py#L61) asks the repository for
+Enforce-mode rejection or before-handler failure blocks persistence/events; warn mode proceeds
+with warnings. No session spans a handler await. After a before-update handler completes, the
+service re-reads the owned memory and recomputes patch differences for embeddings and events.
+A resulting no-op retains timestamp and warnings without an event or after handler. Lifecycle
+mutations patch only lifecycle fields, refresh previous state after before-handler waits, and
+retain the repository's conditional restore check. Original policy snapshots are not re-evaluated.
+These measures remove avoidable stale overwrites caused by plugin waits; they do not make checks
+atomic or prevent later concurrent changes, including the existing embedding-provider await race.
+MemoryService still normalizes explicit-null updates before provenance/change detection (#95),
+preserving submitted snapshots. Non-null skill association update limitations (#96) remain.
+
+After successful persistence, existing create similarity/link work, and event emission,
+`MemorySavedRequest` supplies detached user/operation/previous/saved state. Create reuses existing
+scored `MemorySummary` matches (four-decimal scores); saved link IDs report actual resulting links.
+Similarity is `None` for other operations or disabled auto-linking, and `[]` for a computed empty
+search. No new similarity query is introduced. Obsolete reads back saved state for a registered
+after handler; restore reuses its existing read. A missing post-obsolete snapshot warns without
+fabricating saved state. These reads are separate repository calls, not transaction-wide snapshots.
+
+After handlers return `PluginWarning` or nothing. Exception, malformed return, or cooperative
+timeout produces a sanitized diagnostic and a generic advisory warning in either mode; it cannot
+veto or roll back the saved write. External cancellation propagates even after persistence, so a
+cancelled request or lost response may leave a completed write. There are no durable queues,
+retries, delivery guarantees, duplicate prevention, merging, or link/entity hooks.
+
+`app/routes/write_plugin_responses.py` combines nonempty-only before/after warnings. Create/update
+shapes stay intact; lifecycle results use an internal success/warnings model, unwrapped to
+`{"success": true}` plus optional warnings by live MCP/local CLI and REST DELETE. No REST restore
+route is added. Stored/read memories and event payloads have no transient warnings. Before errors
+remain `WRITE_PLUGIN_REJECTED` / `WRITE_PLUGIN_UNAVAILABLE` through MCP/CLI and 400/503 through REST.
+After failures return success with `MEMORY_PLUGIN_AFTER_SAVE_UNAVAILABLE`. The legacy unregistered
+`memory_tools.py` unwraps lifecycle results to bool, without becoming a supported plugin transport.
+CLI memory-save rendering shows warnings with success.
+
+Bootstrap restores the core diagnostic logger and pre-initialization states of existing loggers
+for the configured module, every handler's defining module, and their children after Alembic's
+logger-disabling setup. Re-exports and intentionally disabled loggers are preserved. Import
+errors identify module/reference, loading phase, and exception type. Runtime diagnostics identify
+phase, operation, exception type, and before-save mode, without exception text or memory snapshots.
+See the [plugin contract](docs/configuration.md#memory-plugin) for administrator examples.
+
+**Query:** [memory_service.py:77](app/services/memory_service.py#L77) asks the repository for
 scored primary results, optionally expands one-hop links, deduplicates, and applies token/count
 budgets. Project restrictions apply to primaries; linked memories use the same project filter only
 when `strict_project_filter` is enabled. Budget allocation prioritizes primary results before links
-([memory_service.py:595](app/services/memory_service.py#L595)). Within each tier, the budget helper
-sorts by importance ([memory_service.py:672](app/services/memory_service.py#L672)); the final response
+([memory_service.py:767](app/services/memory_service.py#L767)). Within each tier, the budget helper
+sorts by importance ([memory_service.py:844](app/services/memory_service.py#L844)); the final response
 is not an untouched vector-ranking list. Scores are returned for retained primaries.
 
 The repositories embed the query and search active, user-owned memories with optional importance
@@ -221,12 +250,12 @@ The six contracts in `pyproject.toml` enforce these rules, including indirect im
 
 | Source | Must not import |
 | --- | --- |
-| Models, protocols, events, utilities, settings, logging support, exceptions, version | Services, repositories, routes, bootstrap, authentication middleware/configuration, Write Plugin loader |
-| Services | Repositories, routes, bootstrap, authentication middleware/configuration, Write Plugin loader |
-| Repositories | Services, routes, bootstrap, authentication middleware/configuration, Write Plugin loader |
+| Models, protocols, events, utilities, settings, logging support, exceptions, version | Services, repositories, routes, bootstrap, authentication middleware/configuration, Memory Plugin loader |
+| Services | Repositories, routes, bootstrap, authentication middleware/configuration, Memory Plugin loader |
+| Repositories | Services, routes, bootstrap, authentication middleware/configuration, Memory Plugin loader |
 | Shared code above and services | `sqlalchemy`, `openai`, `google`, `fastembed`, `httpx`, `ollama`, `subprocess`, `shutil` |
-| API/MCP routes, write response models, and authentication middleware | Repositories, bootstrap, or Write Plugin loader |
-| CLI | Repositories, bootstrap, or Write Plugin loader, except the two startup imports below |
+| API/MCP routes, write response models, and authentication middleware | Repositories, bootstrap, or Memory Plugin loader |
+| CLI | Repositories, bootstrap, or Memory Plugin loader, except the two startup imports below |
 
 All Python files under `app` must be visible to the checker; a regression test verifies this.
 Package markers are required, including for SQLite repositories, middleware, and utilities.

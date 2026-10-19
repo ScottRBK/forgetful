@@ -25,6 +25,7 @@ from app.models.memory_models import (
 )
 from app.routes.write_plugin_responses import (
     MemoryCreateWriteResponse,
+    MemoryLifecycleResponse,
     MemoryUpdateResponse,
 )
 
@@ -290,17 +291,24 @@ def register(mcp: FastMCP):
             reason = "Marked obsolete via API"
             superseded_by = None
 
-        success = await mcp.memory_service.mark_memory_obsolete(
-            user_id=user.id,
-            memory_id=memory_id,
-            reason=reason,
-            superseded_by=superseded_by,
-        )
+        try:
+            result = await mcp.memory_service.mark_memory_obsolete(
+                user_id=user.id,
+                memory_id=memory_id,
+                reason=reason,
+                superseded_by=superseded_by,
+            )
+        except WritePluginRejectedError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        except WritePluginUnavailableError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=503)
 
-        if not success:
+        if not result.success:
             return JSONResponse({"error": "Memory not found"}, status_code=404)
 
-        return JSONResponse({"success": True})
+        return JSONResponse(MemoryLifecycleResponse(
+            success=result.success, plugin_warnings=result.plugin_warnings,
+        ).model_dump(mode="json"))
 
     @mcp.custom_route("/api/v1/memories/search", methods=["POST"])
     async def search_memories(request: Request) -> JSONResponse:

@@ -314,7 +314,8 @@ def register_memory_tools_metadata(
             ],
             "returns": (
                 "MemoryCreateResponse with id, title, linked_memory_ids, similar_memories, "
-                "obsolete_matches, and plugin_warnings only when nonempty. Write Plugin errors: "
+                "obsolete_matches, and plugin_warnings only when nonempty. After-save warnings "
+                "are advisory, including near duplicates and handler failures. Before-save errors: "
                 "WRITE_PLUGIN_REJECTED (correct the stated issue) or WRITE_PLUGIN_UNAVAILABLE."
             ),
             "examples": [
@@ -575,7 +576,8 @@ def register_memory_tools_metadata(
             ],
             "returns": (
                 "Flat Memory object after update, with plugin_warnings only when nonempty. "
-                "Write Plugin errors: WRITE_PLUGIN_REJECTED (correct the stated issue) or "
+                "After-save warnings preserve success. Before-save errors: "
+                "WRITE_PLUGIN_REJECTED (correct the stated issue) or "
                 "WRITE_PLUGIN_UNAVAILABLE. No-op updates skip the plugin."
             ),
             "examples": [
@@ -714,7 +716,11 @@ def register_memory_tools_metadata(
                     "example": 100,
                 },
             ],
-            "returns": "Boolean indicating success",
+            "returns": (
+                "Dict with success boolean and plugin_warnings only when nonempty. "
+                "After-save warnings preserve success. Before-save errors: WRITE_PLUGIN_REJECTED "
+                "or WRITE_PLUGIN_UNAVAILABLE. Review warnings without repeating the write."
+            ),
             "examples": [
                 'execute_forgetful_tool("mark_memory_obsolete", {"memory_id": 42, "reason": "Outdated approach", "superseded_by": 100})',
             ],
@@ -739,7 +745,11 @@ def register_memory_tools_metadata(
                     "required": True,
                 },
             ],
-            "returns": "Boolean indicating success",
+            "returns": (
+                "Dict with success boolean and plugin_warnings only when nonempty. "
+                "After-save warnings preserve success. Before-save errors: WRITE_PLUGIN_REJECTED "
+                "or WRITE_PLUGIN_UNAVAILABLE. Missing/active memories keep normal core errors."
+            ),
             "examples": [
                 'execute_forgetful_tool("unobsolete_memory", {"memory_id": 42})',
             ],

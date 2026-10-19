@@ -144,18 +144,24 @@ execute_forgetful_tool(
 
 ## Memory Tools
 
-Memory create/update can be checked by an administrator's
-[Write Plugin](configuration.md#memory-write-plugin). Success adds `plugin_warnings` only when
+Memory create/update/obsolete/restore can be checked by an administrator's
+[Memory Plugin](configuration.md#memory-plugin). Success adds `plugin_warnings` only when
 nonempty; each entry contains `outcome="warn"`, a client-safe `message`, and optional `code`.
 Create keeps its existing confirmation fields and `obsolete_matches`. Update stays a flat memory
-object. Reads, lists, queries, and events do not contain these transient warnings.
+object. Lifecycle tools keep `{"success": true}` plus any warnings. Reads, lists, queries, and
+events do not contain these transient warnings.
 
 A warning means the write succeeded: review the message without creating a duplicate. Rejection
 raises `WRITE_PLUGIN_REJECTED: <message>` and leaves the write unapplied. Correct the stated issue
-within the user's authorization before making another attempt. Runtime failure/timeout raises
+within the user's authorization before making another attempt. Before-handler failure/timeout raises
 `WRITE_PLUGIN_UNAVAILABLE: Memory Write Plugin unavailable.` in enforce mode; warn mode writes
 with that generic warning instead. Do not automatically retry or claim a rejected write succeeded.
-No-op updates skip the plugin. Other tools, including obsolescence and linking, are unaffected.
+After handlers are advisory in both modes. Failure adds warning code
+`MEMORY_PLUGIN_AFTER_SAVE_UNAVAILABLE` while retaining success. Create's after handler can use
+existing scored matches and links to warn about near duplicates after persistence; it cannot
+prevent creation. No-op updates skip both phases. Linking/unlinking and entity tools are unaffected.
+External cancellation or network failure can lose a response after persistence; verify state
+before retrying.
 
 
 The core of Forgetful - atomic knowledge storage and semantic retrieval.
@@ -421,7 +427,7 @@ Soft delete a memory with audit trail and supersession tracking.
 - `superseded_by` (optional): ID of replacement memory
 
 **Returns:**
-- Updated memory with obsolete flag
+- `{"success": true}`, with `plugin_warnings` only when nonempty
 
 **Example:**
 ```python
@@ -443,7 +449,7 @@ Restore a memory previously marked obsolete (undo `mark_memory_obsolete`).
 - `memory_id` (required): ID of the obsolete memory to restore
 
 **Returns:**
-- Boolean success flag
+- `{"success": true}`, with `plugin_warnings` only when nonempty
 
 **Example:**
 ```python

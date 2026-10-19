@@ -8,11 +8,16 @@ from app.config.settings import settings
 from app.events import EventBus
 from app.models.memory_models import MemoryCreate
 from app.models.user_models import UserCreate
+from app.protocols.write_plugin_protocol import MemoryPlugin
 from app.repositories.sqlite.memory_repository import SqliteMemoryRepository
 from app.repositories.sqlite.sqlite_adapter import SqliteDatabaseAdapter
 from app.repositories.sqlite.user_repository import SqliteUserRepository
 from app.services.memory_service import MemoryService
 from app.services.user_service import UserService
+
+
+def checks(handler):
+    return MemoryPlugin(before_save={"create": handler, "update": handler})
 
 
 class RecordingEmbeddings:
@@ -61,7 +66,7 @@ async def test_allowed_create_persists_and_blocked_tag_returns_plugin_message(wr
             return WriteDecision(outcome="reject", message="Remove the blocked tag.")
         return WriteDecision(outcome="allow")
 
-    service = MemoryService(repo, write_plugin=WritePluginService(check_write))
+    service = MemoryService(repo, write_plugin=WritePluginService(checks(check_write)))
     await service.create_memory(user_id, candidate())
     with pytest.raises(WritePluginRejectedError, match=r"^Remove the blocked tag\.$"):
         await service.create_memory(user_id, candidate(tags=["blocked"]))
@@ -129,7 +134,7 @@ async def test_warn_returns_explicit_result_without_persisting_warning(write_sto
     async def check_write(request):
         return WriteDecision(outcome="warn", message="Check the source.", code="source")
 
-    service = MemoryService(repo, bus, WritePluginService(check_write, mode=mode))
+    service = MemoryService(repo, bus, WritePluginService(checks(check_write), mode=mode))
     result = await service.create_memory(user_id, candidate())
     assert result.plugin_warnings[0].message == "Check the source."
     memory = await service.get_memory(user_id, result.memory.id)
@@ -158,7 +163,7 @@ async def test_update_rejection_precedes_embeddings_links_and_events(write_store
         return WriteDecision(outcome="allow")
 
     bus.subscribe("*.*", collect)
-    service = MemoryService(repo, bus, WritePluginService(check_write))
+    service = MemoryService(repo, bus, WritePluginService(checks(check_write)))
     first = await service.create_memory(user_id, candidate())
     await bus.wait_for_pending()
     with pytest.raises(WritePluginRejectedError, match="Remove the blocked tag"):
@@ -199,7 +204,7 @@ async def test_snapshots_detached_and_candidate_matches_update_semantics(write_s
             request.previous.tags.append("previous-mutation")
         return WriteDecision(outcome="allow")
 
-    service = MemoryService(repo, write_plugin=WritePluginService(check_write))
+    service = MemoryService(repo, write_plugin=WritePluginService(checks(check_write)))
     submitted = candidate(tags=["original"], encoding_agent="client-agent", source_url="old")
     created = await service.create_memory(user_id, submitted)
     update = MemoryUpdate(tags=["revised"], source_url=None, project_ids=None)
@@ -249,7 +254,7 @@ async def test_unavailable_is_generic_and_mode_controls_persistence(
         return {"outcome": "invalid", "message": "SECRET full memory content"}
 
     service = MemoryService(
-        repo, write_plugin=WritePluginService(check_write, mode=mode, timeout_seconds=0.01),
+        repo, write_plugin=WritePluginService(checks(check_write), mode=mode, timeout_seconds=0.01),
     )
     if mode == "enforce":
         with pytest.raises(
@@ -280,7 +285,7 @@ async def test_warn_mode_downgrades_reject_and_cancellation_propagates(write_sto
             raise asyncio.CancelledError()
         return WriteDecision(outcome="reject", message="Check the source.", code="source")
 
-    service = MemoryService(repo, write_plugin=WritePluginService(check_write, mode="warn"))
+    service = MemoryService(repo, write_plugin=WritePluginService(checks(check_write), mode="warn"))
     result = await service.create_memory(user_id, candidate())
     assert result.plugin_warnings[0].outcome == "warn"
     assert result.plugin_warnings[0].code == "source"
@@ -303,7 +308,7 @@ async def test_null_update_and_missing_memory_do_not_reach_plugin(write_store):
         calls.append(request)
         return WriteDecision(outcome="allow")
 
-    service = MemoryService(repo, write_plugin=WritePluginService(check_write))
+    service = MemoryService(repo, write_plugin=WritePluginService(checks(check_write)))
     created = await service.create_memory(user_id, candidate())
     before = await service.get_memory(user_id, created.memory.id)
     unchanged = await service.update_memory(user_id, created.memory.id, MemoryUpdate(title=None))
@@ -338,7 +343,7 @@ async def test_update_candidate_preserves_null_relationship_and_clears_empty_lis
         candidates.append(request.proposed)
         return WriteDecision(outcome="allow")
 
-    service = MemoryService(repo, write_plugin=WritePluginService(check_write))
+    service = MemoryService(repo, write_plugin=WritePluginService(checks(check_write)))
     created = await service.create_memory(user_id, candidate(project_ids=[project.id]))
     preserved = await service.update_memory(
         user_id, created.memory.id, MemoryUpdate(project_ids=None, importance=9),
@@ -382,7 +387,7 @@ async def test_update_refreshes_state_after_plugin_wait(
         return WriteDecision(outcome="allow")
 
     bus.subscribe("memory.*", collect)
-    service = MemoryService(repo, bus, WritePluginService(check_write))
+    service = MemoryService(repo, bus, WritePluginService(checks(check_write)))
     created = await service.create_memory(user_id, candidate(content="ORIGINAL content"))
     async with asyncio.timeout(5), asyncio.TaskGroup() as tasks:
         pending = tasks.create_task(service.update_memory(

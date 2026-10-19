@@ -197,9 +197,9 @@ The object includes server-managed `access_count` (int, default 0) and `last_acc
 
 Create a new memory.
 
-A configured [Write Plugin](configuration.md#memory-write-plugin) can allow, warn, or reject the
-write before persistence. Successful create and update responses add `plugin_warnings` only when
-nonempty, for example:
+A configured [Memory Plugin](configuration.md#memory-plugin) can allow, warn, or reject before
+persistence, and advise after a successful save. Successful create, update, and DELETE responses
+add `plugin_warnings` only when nonempty, for example:
 
 ```json
 {"plugin_warnings": [{"outcome": "warn", "message": "Check the source.", "code": "source"}]}
@@ -207,8 +207,12 @@ nonempty, for example:
 
 This field augments the normal response; existing lists (including `obsolete_matches`) remain.
 Warnings are not stored or returned by reads, lists, queries, or events. In enforce mode, rejection
-returns **400** with `{"error": "<plugin message>"}`; failure/timeout returns **503** with
-`{"error": "Memory Write Plugin unavailable."}`. In warn mode both proceed with warnings.
+returns **400** with `{"error": "<plugin message>"}`; before-handler failure/timeout returns **503**
+with `{"error": "Memory Write Plugin unavailable."}`. In warn mode both proceed with warnings.
+After-handler failures preserve success and add a generic warning with code
+`MEMORY_PLUGIN_AFTER_SAVE_UNAVAILABLE`. Near-duplicate warnings use create's existing similarity
+results after persistence; they do not prevent duplicates. External cancellation or network failure
+can still lose a response after a write; verify state before retrying.
 
 
 **Request Body:**
@@ -277,12 +281,14 @@ Update an existing memory.
 Provenance fields can be added or updated after memory creation. See POST /api/v1/memories for field descriptions.
 
 **Response:** Flat updated memory object, with `plugin_warnings` only when nonempty (see create
-above). No-op updates skip the plugin. Write Plugin rejection returns 400; unavailable returns 503.
+above). No-op updates skip both phases. Before rejection returns 400; unavailable returns 503.
 An invalid merged candidate returns 400 through validation handling.
 
 ### DELETE /api/v1/memories/{id}
 
-Mark a memory as obsolete (soft delete).
+Mark a memory as obsolete (soft delete). Registered `obsolete` handlers run in both phases.
+Before rejection/unavailability uses the same 400/503 responses as create. Successful responses
+include `plugin_warnings` only when nonempty; after-handler failures remain successful.
 
 **Request Body:** (optional)
 ```json

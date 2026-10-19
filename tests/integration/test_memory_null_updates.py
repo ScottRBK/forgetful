@@ -7,8 +7,13 @@ from test_memory_write_plugin import write_store as write_store
 from app.config.settings import settings
 from app.models.memory_models import MemoryUpdate
 from app.models.write_plugin_models import WriteDecision
+from app.protocols.write_plugin_protocol import MemoryPlugin
 from app.services.memory_service import MemoryService
 from app.services.write_plugin_service import WritePluginService
+
+
+def checks(handler):
+    return MemoryPlugin(before_save={"create": handler, "update": handler})
 
 
 @pytest.mark.parametrize("field", ["title", "content", "context", "tags", "confidence"])
@@ -81,7 +86,7 @@ async def test_plugin_keeps_raw_nulls_but_proposes_unchanged_values(write_store)
         calls.append(request.model_copy(deep=True))
         return WriteDecision(outcome="allow")
 
-    service = MemoryService(repo, write_plugin=WritePluginService(check))
+    service = MemoryService(repo, write_plugin=WritePluginService(checks(check)))
     created = (await service.create_memory(user_id, candidate(source_url="old"))).memory
     before = await service.get_memory(user_id, created.id)
     noop = (await service.update_memory(user_id, before.id, MemoryUpdate(title=None))).memory
