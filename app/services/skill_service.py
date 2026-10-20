@@ -41,6 +41,20 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+class _SkillFrontmatterLoader(yaml.SafeLoader):
+    """Keep safe YAML construction without references that expand during JSON storage."""
+
+    def compose_node(
+        self, parent: yaml.Node | None, index: int | yaml.Node | None,
+    ) -> yaml.Node:
+        if self.check_event(yaml.AliasEvent):
+            raise ValueError(
+                "YAML references are not supported in skill frontmatter. "
+                "Write the values directly instead.",
+            )
+        return super().compose_node(parent, index)
+
+
 def _quote_unquoted_frontmatter_scalars(raw: str) -> str:
     """Quote scalar frontmatter values that contain unescaped colons."""
     quoted_lines: list[str] = []
@@ -503,7 +517,7 @@ class SkillService:
             Created Skill
 
         Raises:
-            ValueError: If frontmatter is missing or malformed
+            ValueError: If frontmatter is missing, malformed, or contains YAML references
         """
         logger.info(
             "importing skill from markdown",
@@ -520,7 +534,10 @@ class SkillService:
         frontmatter_raw = parts[1].strip()
         body = parts[2].strip()
 
-        frontmatter = yaml.safe_load(_quote_unquoted_frontmatter_scalars(frontmatter_raw))
+        frontmatter = yaml.load(
+            _quote_unquoted_frontmatter_scalars(frontmatter_raw),
+            Loader=_SkillFrontmatterLoader,  # noqa: S506 - SafeLoader subclass rejects aliases.
+        )
         if not isinstance(frontmatter, dict):
             raise ValueError("Invalid YAML frontmatter: expected a mapping")
 
