@@ -50,7 +50,7 @@ class SqliteDatabaseAdapter:
     - No Row-Level Security (RLS) - user isolation via application-level filtering
     - Uses sqlite-vec extension for vector operations
     - WAL mode enabled for better concurrency
-    - No connection pooling (SQLite single writer model)
+    - Dialect-default pooling: StaticPool in memory, AsyncAdaptedQueuePool for files
     """
 
     def __init__(self):
@@ -70,15 +70,14 @@ class SqliteDatabaseAdapter:
             url=connection_string,
             echo=settings.DB_LOGGING,
             future=True,
-            # SQLite-specific: disable pooling for better behavior
-            poolclass=None,  # No connection pool for SQLite
+            # Use the SQLite dialect's default pool for memory/file databases.
+            poolclass=None,
             connect_args={
                 "check_same_thread": False,  # Required for async
             },
         )
 
-        # Register event to load extension on EVERY connection (not just first)
-        # This is critical since poolclass=None means each session gets a new connection
+        # Register the extension on every new connection, including pooled connections.
         @event.listens_for(self._engine.sync_engine, "connect")
         def on_connect(dbapi_conn, connection_record):
             """Load sqlite-vec extension on every connection"""

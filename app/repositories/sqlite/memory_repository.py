@@ -1306,9 +1306,11 @@ class SqliteMemoryRepository:
                 return True  # no memories to test
 
             query_text = row[0]
-            embeddings = await self._generate_embeddings(query_text)
-            embedding_bytes = sqlite_vec.serialize_float32(embeddings)
 
+        embeddings = await self._generate_embeddings(query_text)
+        embedding_bytes = sqlite_vec.serialize_float32(embeddings)
+
+        async with self.db_adapter.system_session() as session:
             search_result = await session.execute(
                 text("""
                     SELECT vm.memory_id

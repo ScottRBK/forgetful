@@ -262,6 +262,25 @@ class PostgresSkillRepository:
                 or project_id is not one of the user's projects
         """
         try:
+            update_data = skill_data.model_dump(exclude_unset=True)
+            if "description" in update_data:
+                # Preserve validation precedence without holding a connection during embedding.
+                async with self.db_adapter.session(user_id) as session:
+                    result = await session.execute(
+                        select(SkillsTable.id).where(
+                            SkillsTable.id == skill_id,
+                            SkillsTable.user_id == user_id,
+                        ),
+                    )
+                    if result.scalar_one_or_none() is None:
+                        raise NotFoundError(f"Skill {skill_id} not found")
+                    await ensure_project_owned(session, user_id, update_data.get("project_id"))
+
+                embedding_text = build_skill_embedding_text(skill_data)
+                embedding = await self.embedding_adapter.generate_embedding(text=embedding_text)
+                update_data["embedding"] = embedding
+
+            # Re-fetch and recheck after the provider wait; apply only the submitted patch.
             async with self.db_adapter.session(user_id) as session:
                 stmt = select(SkillsTable).where(
                     SkillsTable.id == skill_id,
@@ -274,18 +293,11 @@ class PostgresSkillRepository:
                 if not skill_table:
                     raise NotFoundError(f"Skill {skill_id} not found")
 
-                update_data = skill_data.model_dump(exclude_unset=True)
                 await ensure_project_owned(session, user_id, update_data.get("project_id"))
 
                 # Map Pydantic 'metadata' field to ORM 'skill_metadata' column
                 if "metadata" in update_data:
                     update_data["skill_metadata"] = update_data.pop("metadata")
-
-                # Regenerate embedding if description changed
-                if "description" in update_data:
-                    embedding_text = build_skill_embedding_text(skill_data)
-                    embedding = await self.embedding_adapter.generate_embedding(embedding_text)
-                    update_data["embedding"] = embedding
 
                 for field, value in update_data.items():
                     setattr(skill_table, field, value)
@@ -396,20 +408,20 @@ class PostgresSkillRepository:
                 stmt = stmt.limit(candidates_k)
 
                 result = await session.execute(stmt)
-                skills = result.scalars().all()
+                skills = [SkillSummary.model_validate(s) for s in result.scalars().all()]
 
-                if not skills:
-                    return []
+            if not skills:
+                return []
 
-                # Apply cross-encoder reranking if available
-                if self.rerank_adapter is not None and len(skills) > k:
-                    documents = [s.description for s in skills]
-                    ranked = await self.rerank_adapter.rerank(
-                        query=query, documents=documents,
-                    )
-                    skills = [skills[idx] for idx, score in ranked[:k]]
+            # Apply cross-encoder reranking if available
+            if self.rerank_adapter is not None and len(skills) > k:
+                documents = [s.description for s in skills]
+                ranked = await self.rerank_adapter.rerank(
+                    query=query, documents=documents,
+                )
+                skills = [skills[idx] for idx, score in ranked[:k]]
 
-                return [SkillSummary.model_validate(s) for s in skills]
+            return skills
 
         except Exception as e:
             logger.error(

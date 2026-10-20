@@ -231,6 +231,14 @@ When reranking is enabled, they retrieve a larger candidate set and rerank when 
 | Embeddings | [EmbeddingsAdapter:6](app/protocols/embedding_protocol.py#L6) defines `generate_embedding`. Implementations: local FastEmbed, Azure OpenAI, Google, OpenAI, and Ollama. Selection is explicit in [bootstrap.py:27](app/bootstrap.py#L27). |
 | Reranking | [RerankAdapter:13](app/repositories/embeddings/reranker_adapter.py#L13) has local FastEmbed cross-encoder and HTTP implementations. [bootstrap.py:48](app/bootstrap.py#L48) selects one or disables reranking. |
 
+Memory/skill update embeddings and skill search reranking do not retain a borrowed database
+connection during provider waits. Skill description updates use a short owned-skill/project
+precheck, then embed, then re-fetch and recheck in the write transaction. Description and vector
+are saved atomically, including SQLite's separate vector table. Searches rerank detached summaries
+of the original candidates without refetching. Re-embedding search validation reads a title, embeds
+outside the session, then searches in a new session. These are connection-lifetime guarantees, not
+locking or full concurrency guarantees; the memory snapshot race described above still applies.
+
 The two persistence backends implement the same broad contracts but use different SQL/vector
 mechanisms. This source review does not establish complete behavioral parity or transaction equivalence.
 Provider availability, model cache contents, and live database policy configuration were not exercised.

@@ -261,21 +261,20 @@ class PostgresMemoryRepository:
         Raises:
             NotFoundError: If memory not found
         """
+        update_data = updated_memory.model_dump(
+            exclude_unset=True,
+            exclude={"project_ids", "code_artifact_ids", "document_ids", "file_ids"},
+        )
+
+        update_data["updated_at"] = datetime.now(UTC)
+
+        if search_fields_changed:
+            merged_memory = existing_memory.model_copy(update=update_data)
+            embedding_text = build_embedding_text(memory_data=merged_memory)
+            embeddings = await self._generate_embeddings(embedding_text)
+            update_data["embedding"] = embeddings
+
         async with self.db_adapter.session(user_id) as session:
-
-            update_data = updated_memory.model_dump(
-                exclude_unset=True,
-                exclude={"project_ids", "code_artifact_ids", "document_ids", "file_ids"},
-                )
-
-            update_data["updated_at"] = datetime.now(UTC)
-
-            if search_fields_changed:
-                merged_memory = existing_memory.model_copy(update=update_data)
-                embedding_text = build_embedding_text(memory_data=merged_memory)
-                embeddings = await self._generate_embeddings(embedding_text)
-                update_data["embedding"] = embeddings
-
             stmt = (
                 update(MemoryTable)
                 .where(MemoryTable.user_id==user_id, MemoryTable.id==memory_id)
@@ -1226,8 +1225,10 @@ class PostgresMemoryRepository:
                 return True
 
             query_text = row[0]
-            embeddings = await self._generate_embeddings(query_text)
 
+        embeddings = await self._generate_embeddings(query_text)
+
+        async with self.db_adapter.system_session() as session:
             search_result = await session.execute(
                 select(MemoryTable.id)
                 .where(MemoryTable.embedding.isnot(None))
