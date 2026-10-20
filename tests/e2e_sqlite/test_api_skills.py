@@ -215,13 +215,17 @@ license: MIT
 allowed-tools:
   - Read
   - Grep
+metadata:
+  author: Scott
+  version: 1
+  labels: [normal, "*person"]
+  note: |-
+    *person is literal text here.
 ---
 
 # API Imported Skill
 
-## Steps
-1. First step
-2. Second step
+* Keep **Markdown** and *person as text.
 """
         response = await http_client.post("/api/v1/skills/import", json={
             "skill_md": skill_md,
@@ -233,6 +237,61 @@ allowed-tools:
         assert data["description"] == "Imported via REST API"
         assert data["license"] == "MIT"
         assert data["importance"] == 8
+
+        read_back = await http_client.get(f"/api/v1/skills/{data['id']}")
+        assert read_back.status_code == 200
+        assert read_back.json()["metadata"] == {
+            "author": "Scott",
+            "version": 1,
+            "labels": ["normal", "*person"],
+            "note": "*person is literal text here.",
+        }
+        assert read_back.json()["content"] == (
+            "# API Imported Skill\n\n* Keep **Markdown** and *person as text."
+        )
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("frontmatter", [
+        pytest.param(
+            "name: alias-skill\n"
+            "description: A bounded YAML reference example\n"
+            "metadata:\n"
+            "  pair: &pair [hello, hello]\n"
+            "  repeated: [*pair, *pair]\n",
+            id="nested-metadata",
+        ),
+        pytest.param(
+            "name: &name alias-skill\n"
+            "description: *name\n",
+            id="outside-metadata",
+        ),
+        pytest.param(
+            "name: alias-skill\n"
+            "description: A YAML merge reference\n"
+            "metadata:\n"
+            "  original: &original {author: Scott}\n"
+            "  copy:\n"
+            "    <<: *original\n",
+            id="merge-reference",
+        ),
+    ])
+    async def test_import_skill_rejects_yaml_alias_without_saving(self, http_client, frontmatter):
+        """Reject YAML references anywhere in frontmatter before persisting a skill."""
+        skill_md = f"---\n{frontmatter}---\n# Alias skill\n"
+
+        response = await http_client.post(
+            "/api/v1/skills/import", json={"skill_md": skill_md},
+        )
+
+        assert response.status_code == 400
+        assert response.json()["error"] == (
+            "YAML references are not supported in skill frontmatter. "
+            "Write the values directly instead."
+        )
+        listing = await http_client.get("/api/v1/skills")
+        assert listing.status_code == 200
+        assert listing.json()["skills"] == []
+        assert listing.json()["total"] == 0
 
     @pytest.mark.asyncio
     async def test_export_skill_api(self, http_client):

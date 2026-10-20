@@ -1060,6 +1060,10 @@ Import a skill from Agent Skills markdown format (SKILL.md).
 
 Scalar frontmatter values may contain unquoted colons (for example `Keywords:` in a description); the importer quotes them before parsing.
 
+YAML references (`*name` referring to an `&name` anchor) are not supported in frontmatter.
+Write the referenced values directly instead. Quoted strings such as `"*person"` and Markdown
+asterisks in the body remain valid.
+
 **Returns:**
 - Created Skill with generated ID
 

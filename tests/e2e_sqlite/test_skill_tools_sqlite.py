@@ -1,6 +1,7 @@
 """E2E tests for skill MCP tools with sqlite-backed MCP server
 """
 import pytest
+from fastmcp.exceptions import ToolError
 
 
 @pytest.mark.asyncio
@@ -230,13 +231,17 @@ license: MIT
 allowed-tools:
   - Read
   - Grep
+metadata:
+  author: Scott
+  version: 1
+  labels: [normal, "*person"]
+  note: |-
+    *person is literal text here.
 ---
 
 # Imported Skill
 
-## Steps
-1. First step
-2. Second step
+* Keep **Markdown** and *person as text.
 """
     result = await mcp_client.call_tool("execute_forgetful_tool", {
         "tool_name": "import_skill",
@@ -253,6 +258,50 @@ allowed-tools:
     assert result.data["allowed_tools"] == ["Read", "Grep"]
     assert result.data["importance"] == 8
     assert "# Imported Skill" in result.data["content"]
+
+    read_back = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "get_skill",
+        "arguments": {"skill_id": result.data["id"]},
+    })
+    assert read_back.data["metadata"] == {
+        "author": "Scott",
+        "version": 1,
+        "labels": ["normal", "*person"],
+        "note": "*person is literal text here.",
+    }
+    assert read_back.data["content"] == (
+        "# Imported Skill\n\n* Keep **Markdown** and *person as text."
+    )
+
+
+@pytest.mark.asyncio
+async def test_import_skill_rejects_yaml_alias_without_saving(mcp_client):
+    """MCP reports the same validation error and leaves the skill list empty."""
+    skill_md = """---
+name: alias-skill
+description: A bounded YAML reference example
+metadata:
+  pair: &pair [hello, hello]
+  repeated: [*pair, *pair]
+---
+# Alias skill
+"""
+
+    with pytest.raises(ToolError, match=(
+        "YAML references are not supported in skill frontmatter. "
+        "Write the values directly instead."
+    )):
+        await mcp_client.call_tool("execute_forgetful_tool", {
+            "tool_name": "import_skill",
+            "arguments": {"skill_md_content": skill_md},
+        })
+
+    listing = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "list_skills",
+        "arguments": {},
+    })
+    assert listing.data["skills"] == []
+    assert listing.data["total_count"] == 0
 
 
 @pytest.mark.asyncio
