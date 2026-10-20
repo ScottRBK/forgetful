@@ -57,7 +57,7 @@ jobs:
         run: uv run pytest tests/integration/ -v
 
       - name: Run SQLite E2E tests
-        run: uv run pytest tests/e2e_sqlite/ -v
+        run: uv run pytest tests/e2e_sqlite/ tests/e2e_provider_sessions/ -v
 
       - name: Run linting
         run: uv tool run ruff check .

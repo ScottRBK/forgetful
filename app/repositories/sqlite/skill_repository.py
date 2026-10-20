@@ -297,6 +297,25 @@ class SqliteSkillRepository:
                 or project_id is not one of the user's projects.
         """
         try:
+            update_data = skill_data.model_dump(exclude_unset=True)
+            if "description" in update_data:
+                # Preserve validation precedence without holding a connection during embedding.
+                async with self.db_adapter.session(user_id) as session:
+                    result = await session.execute(
+                        select(SkillsTable.id).where(
+                            SkillsTable.id == skill_id,
+                            SkillsTable.user_id == str(user_id),
+                        ),
+                    )
+                    if result.scalar_one_or_none() is None:
+                        raise NotFoundError(f"Skill {skill_id} not found")
+                    await ensure_project_owned(session, user_id, update_data.get("project_id"))
+
+                embedding_text = build_skill_embedding_text(skill_data)
+                embedding = await self.embedding_adapter.generate_embedding(text=embedding_text)
+                embedding_bytes = sqlite_vec.serialize_float32(embedding)
+
+            # Re-fetch and recheck after the provider wait; apply only the submitted patch.
             async with self.db_adapter.session(user_id) as session:
                 stmt = select(SkillsTable).where(
                     SkillsTable.id == skill_id,
@@ -311,9 +330,6 @@ class SqliteSkillRepository:
                         f"Skill {skill_id} not found",
                     )
 
-                update_data = skill_data.model_dump(
-                    exclude_unset=True,
-                )
                 await ensure_project_owned(session, user_id, update_data.get("project_id"))
 
                 # Map metadata -> skill_metadata column
@@ -322,20 +338,8 @@ class SqliteSkillRepository:
                         update_data.pop("metadata")
                     )
 
-                # Regenerate embedding if description changed
+                # Persist the vector and description in the same transaction.
                 if "description" in update_data:
-                    embedding_text = (
-                        build_skill_embedding_text(skill_data)
-                    )
-                    embeddings = (
-                        await self.embedding_adapter.generate_embedding(
-                            text=embedding_text,
-                        )
-                    )
-
-                    embedding_bytes = (
-                        sqlite_vec.serialize_float32(embeddings)
-                    )
                     await session.execute(
                         text(
                             "UPDATE vec_skills "
@@ -531,29 +535,29 @@ class SqliteSkillRepository:
                     for s in ordered_skills
                 ]
 
-                # Apply reranking if enabled
-                if (
-                    settings.RERANKING_ENABLED
-                    and self.rerank_adapter
-                    and len(summaries) > k
-                ):
-                    documents = [
-                        f"Name: {s.name}\n"
-                        f"Description: {s.description}"
-                        for s in summaries
-                    ]
+            # Apply reranking if enabled
+            if (
+                settings.RERANKING_ENABLED
+                and self.rerank_adapter
+                and len(summaries) > k
+            ):
+                documents = [
+                    f"Name: {s.name}\n"
+                    f"Description: {s.description}"
+                    for s in summaries
+                ]
 
-                    ranked = await self.rerank_adapter.rerank(
-                        query=query_text,
-                        documents=documents,
-                    )
+                ranked = await self.rerank_adapter.rerank(
+                    query=query_text,
+                    documents=documents,
+                )
 
-                    summaries = [
-                        summaries[idx]
-                        for idx, _score in ranked[:k]
-                    ]
+                summaries = [
+                    summaries[idx]
+                    for idx, _score in ranked[:k]
+                ]
 
-                return summaries
+            return summaries
 
         except Exception:
             logger.exception(

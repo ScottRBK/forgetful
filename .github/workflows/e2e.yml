@@ -54,3 +54,9 @@ jobs:
 
       - name: Run E2E tests
         run: uv run --frozen pytest tests/e2e/ -v -m e2e
+
+      - name: Run PostgreSQL provider session lifecycle tests
+        env:
+          # The preceding E2E fixture starts the disposable CI database on this host port.
+          SESSION_TEST_POSTGRES_PORT: "5099"
+        run: uv run --frozen pytest tests/e2e_provider_sessions/ -v -m e2e
