@@ -98,8 +98,9 @@ def _build_introspection():
         client_id=_required(settings.FASTMCP_SERVER_AUTH_INTROSPECTION_CLIENT_ID, "FASTMCP_SERVER_AUTH_INTROSPECTION_CLIENT_ID"),
         client_secret=_required(settings.FASTMCP_SERVER_AUTH_INTROSPECTION_CLIENT_SECRET, "FASTMCP_SERVER_AUTH_INTROSPECTION_CLIENT_SECRET"),
         required_scopes=_scopes(settings.FASTMCP_SERVER_AUTH_INTROSPECTION_REQUIRED_SCOPES),
-        cache_ttl_seconds=settings.TOKEN_CACHE_TTL_SECONDS,
-        max_cache_size=settings.TOKEN_CACHE_MAX_SIZE,
+        # TOKEN_CACHE_ENABLED=false must also switch off the verifier's own cache (None = no caching)
+        cache_ttl_seconds=settings.TOKEN_CACHE_TTL_SECONDS if settings.TOKEN_CACHE_ENABLED else None,
+        max_cache_size=settings.TOKEN_CACHE_MAX_SIZE if settings.TOKEN_CACHE_ENABLED else None,
     )
 
 
