@@ -1,5 +1,11 @@
 # Forgetful Development Guide
 
+## Contributions
+
+Before opening issues or pull requests, read the contributor guide's
+[AI tool guidance](docs/contributors.md#using-ai-tools) and
+[submission policy](docs/contributors.md#issues-pull-requests-and-review-capacity).
+
 ## Architecture
 
 Before changing code or reasoning about this repository's architecture, read the

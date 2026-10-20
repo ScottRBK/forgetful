@@ -1,6 +1,49 @@
 # Contributing to Forgetful
 
-This guide covers testing and deployment workflows for contributors.
+This guide covers contribution expectations, local development, testing, and releases.
+
+## Using AI tools
+
+You're welcome to use coding agents, LLMs, and other AI tools when contributing.
+You are responsible for everything you submit. Before opening a pull request,
+read the full diff and make sure you understand how the changes work and why
+they are needed.
+
+Check the output yourself. Run the relevant tests and checks, inspect their
+results, and explain in the PR how you verified the change. Be clear about
+anything you couldn't test. You should be able to explain your approach in
+your own words and answer questions during review.
+
+The same responsibility applies to issues. Verify claims before posting and
+include a reproduction or other concrete evidence. Treat automated audit
+findings as leads to investigate before filing them.
+
+## Issues, pull requests, and review capacity
+
+Please keep contributions focused and check existing issues and PRs first.
+Each submission takes time to review.
+
+If an audit produces many findings, start with one summary issue containing
+the findings you have checked. Agree on scope and priorities with a maintainer
+before opening a batch of issues or pull requests.
+
+Flooding the repository with unverified reports, duplicate issues, or bulk
+PRs without prior agreement is spam. We will close these submissions in bulk,
+without reviewing or responding to each one individually.
+
+## Development setup
+
+You need Python 3.12 or newer and uv. The main CI test jobs use Python 3.13.
+These shell examples use Bash, including Bash in WSL.
+
+```bash
+git clone https://github.com/ScottRBK/forgetful.git
+cd forgetful
+uv sync --locked --all-extras --dev
+```
+
+Run the remaining commands from the repository root. Use `uv run` to run commands in the
+project's Python environment without activating it manually.
 
 ## Architecture
 
@@ -30,94 +73,108 @@ analysis, keep the JSON outside the repository, and export full detail to
 [mycelium-mermaid]:
   https://github.com/ScottRBK/mycelium/blob/master/skills/mycelium-mermaid/SKILL.md
 
-## Running with Docker with source 
-This will approach will fall back to using the build and as such allow you to check any changes you have made inside of a container. 
+## Running the source with Docker
+
+You need Docker with the Compose plugin. The development Compose file builds the application
+from your checkout and runs PostgreSQL alongside it.
+
+If `docker/.env` does not exist, copy the example:
 
 ```bash
-git clone https://github.com/ScottRBK/forgetful.git
-cd forgetful
+cp docker/.env.example docker/.env
 ```
+
+Edit `docker/.env` before starting the containers. Keep `DATABASE=Postgres` and
+`POSTGRES_HOST=forgetful-db` for this setup, and configure the database credentials.
+The PostgreSQL container needs a nonempty `POSTGRES_PASSWORD` when creating its database.
+See the [configuration guide](configuration.md) for the available settings.
+
+Start the database and wait for it to be healthy, then build and start the application:
 
 ```bash
-cd docker
-docker compose up -d --build
+docker compose -f docker/docker-compose.yml up -d --wait forgetful-db
+docker compose -f docker/docker-compose.yml up -d --build --wait forgetful-service
 ```
 
-**Optional**: Customize configuration by copying the example environment file:
+With the default port, the health endpoint is `http://127.0.0.1:8020/health`.
+The first application startup may need to download local embedding and reranking models.
+To inspect startup output:
 
 ```bash
-cd docker
-cp .env.example .env
-# Edit .env with your custom values
-docker compose up -d
+docker compose -f docker/docker-compose.yml logs -f forgetful-service
 ```
 
+Re-run the application build command after source changes. The default configuration copies
+source into the image; it does not mount your checkout for live updates.
 
-## Testing Philosophy
+## Testing
 
-We focus on **integration and E2E tests** over unit tests. Tests should cover critical workflows without exhaustive edge case coverage.
+We focus on integration and end-to-end tests that cover critical workflows. Add regression
+coverage for changed behaviour, including a test that demonstrates a bug before fixing it.
 
-### Integration Tests
+The default embedding and reranking providers use local models. Tests that load these adapters
+need network access on first use, or an existing model cache. Shared E2E adapters follow your
+provider settings, so configuring a remote provider can make those tests call that service.
 
-**Location**: `tests/integration/`
+### Integration tests
 
-**Purpose**: Test business logic with stubbed I/O (no real database required)
+Most tests in `tests/integration/` use in-memory stubs. Some, including the bootstrap and local
+CLI tests, use real SQLite databases and local embeddings. This suite does not require Docker.
 
-**Run locally**:
 ```bash
-pytest tests/integration/
+uv run pytest tests/integration/
 ```
 
-These tests use in-memory stubs and run fast (~seconds). They form the bulk of our test suite and catch 90% of issues.
+### SQLite E2E tests
 
-### End-to-End Tests
+These tests exercise the application through MCP, HTTP, and CLI entry points using real SQLite.
+Most use an in-memory database; tests that need persistence use temporary files.
+Docker is not required.
 
-#### SQLite E2E Tests
-
-**Location**: `tests/e2e_sqlite/`
-
-**Purpose**: Test complete stack with in-memory SQLite
-
-**Requirements**: None (no Docker required)
-
-**Run locally**:
 ```bash
-pytest tests/e2e_sqlite/
+uv run pytest tests/e2e_sqlite/
 ```
 
-**CI Status**: ✅ Runs automatically in CI workflow on every push/PR
+### PostgreSQL E2E tests
 
-These tests use an in-memory SQLite database for test isolation. Fast execution (~30 seconds for 94 tests) with automatic cleanup. They provide full-stack coverage without Docker dependencies, making them ideal for CI.
+These tests require Docker with Compose and use PostgreSQL 16 with pgvector. The fixtures
+start or reuse the container named `forgetful-db`, copying `docker/.env.example` to `docker/.env`
+if that file is missing. The application runs inside the test process.
 
-#### PostgreSQL E2E Tests
+Use a disposable database: the fixtures delete application data before each test. They will
+reuse an existing `forgetful-db` container, so check what it contains before running the suite.
+Run these tests sequentially; concurrent runs would clear each other's data.
 
-**Location**: `tests/e2e/`
-
-**Purpose**: Test complete stack with real PostgreSQL
-
-**Requirements**: PostgreSQL running in Docker
-
-**Run locally**:
 ```bash
-# Start PostgreSQL
-docker compose -f docker/docker-compose.yml up -d forgetful-db
-
-# Run E2E tests
-pytest -m e2e
+uv run pytest tests/e2e/ -m e2e
 ```
 
-**CI Status**: Runs on every branch push, pull request, and manual workflow dispatch.
+The fixtures leave the container running for later test runs. PostgreSQL tests are excluded
+by default in `pytest.ini`; `-m e2e` selects them. Backup tests also need the client tools
+described below. See the [PostgreSQL test guide](../tests/e2e/README.md) for fixture details.
 
-These tests are marked with `@pytest.mark.e2e` and validate the full application stack with
-PostgreSQL. Use a disposable database: the E2E fixtures clear its application tables.
+### Docker image checks
 
-#### User creation tests
+Run these checks against an image already present in your Docker daemon. They prepare model and
+tokenizer caches with network access, then test startup and search with networking disabled.
+They also check the installed version and that data survives restart and container recreation.
+
+```bash
+docker build -f docker/Dockerfile --build-arg VERSION=0.0.0+dev -t forgetful:offline-test .
+FORGETFUL_TEST_IMAGE=forgetful:offline-test FORGETFUL_TEST_VERSION=0.0.0+dev \
+  uv run pytest tests/docker/ -v
+```
+
+The test skips when `FORGETFUL_TEST_IMAGE` is unset. It creates temporary containers and volumes
+and removes them during cleanup.
+
+### User creation tests
 
 `test_user_creation_sqlite.py` and `test_user_creation_e2e.py` share cases that check real duplicate
 inserts, preservation of the existing user, recovery when another request creates the user first,
 and propagation of unrelated database errors; only the timing of the competing lookup is arranged.
 
-#### Backup and recovery tests
+### Backup and recovery tests
 
 These tests use a temporary SQLite file or the PostgreSQL E2E database. They check that a
 backup restores memories, metadata, links, obsolete state, and searchable vectors. They also
@@ -134,88 +191,78 @@ uv run pytest tests/e2e/test_backup_recovery_e2e.py \
   tests/e2e/test_zz_backup_restore_e2e.py -m e2e -q --durations=5
 ```
 
-To target a disposable database already running on port 55099, prefix the PostgreSQL command
-with `PGPORT=55099 POSTGRES_DB=forgetful_backup_tests`. Set `POSTGRES_USER` and
-`POSTGRES_PASSWORD` to that test database's credentials as needed.
+To select a different disposable database on localhost, set `PGPORT`, `POSTGRES_DB`,
+`POSTGRES_USER`, and `POSTGRES_PASSWORD` to match it. The PostgreSQL fixtures still check
+for the `forgetful-db` Docker container.
 
-Both suites run in the existing CI jobs. A push to a branch with an open PR starts both a push
-run and a PR run; newer runs cancel older runs for the same workflow and ref.
-
----
 ## Linting
-linting with ruff and uv
+
+Run Ruff before submitting changes:
+
 ```bash
 uv tool run ruff check .
 ```
 
-## CI/CD Workflows
+## GitHub Actions
 
-### `ci.yml` - Continuous Integration
+The workflow files in [`.github/workflows/`](../.github/workflows/) define the checks and release
+jobs. CI and PostgreSQL tests run on branch pushes and pull requests. A push to a branch with an
+open PR can start both runs; newer runs cancel older runs for the same workflow and ref.
 
-**Triggers**: Every push and pull request
+### CI
 
-**Purpose**: Fast feedback for contributors
+[`ci.yml`](../.github/workflows/ci.yml) contains three jobs:
 
-**Steps**:
-1. Check architecture boundaries and rule proofs (no database or provider calls).
-2. Run integration tests (stubbed, no Docker).
-3. Run SQLite E2E tests (real SQLite, full stack).
-4. Run linting.
+- `test` runs architecture checks, integration tests, SQLite E2E tests, and Ruff on Ubuntu
+  and Windows with Python 3.13.
+- `smoke-test` runs after the test matrix succeeds. It builds the Python wheel, checks for
+  migration files, and verifies installation and the CLI help command.
+- `docker-offline` builds an image and runs the Docker image checks described above.
 
-**Merge requirements**: Configure branch rules to require this workflow's `test` check.
-The workflow alone does not make it mandatory for merging.
+### PostgreSQL tests
 
-**Test Coverage**: Integration tests validate business logic with stubs. SQLite E2E tests validate the complete application stack including real database interactions, all without Docker dependencies.
+[`e2e.yml`](../.github/workflows/e2e.yml) runs the PostgreSQL suite on Ubuntu with Python 3.13.
+It installs the PostgreSQL client tools and runs `tests/e2e/` with `-m e2e`, including backup
+and recovery checks. It also supports manual runs through `workflow_dispatch`.
 
-### `e2e.yml` - PostgreSQL E2E Validation
+Workflow definitions alone do not block merges. Maintainers must configure required status
+checks in GitHub branch rules, including the relevant matrix checks.
 
-**Triggers**: Every branch push, pull request, and manual workflow dispatch
+### Docker image publishing
 
-**Purpose**: Validate with real PostgreSQL database
+[`build.yml`](../.github/workflows/build.yml) runs when a tag matching `v*` is pushed. Use a
+semantic version such as `v1.2.3`. It builds the image, runs the Docker image checks against
+that image, and publishes it to `ghcr.io/scottrbk/forgetful` only after those checks pass.
 
-**Steps**:
-1. Install PostgreSQL backup client tools.
-2. Run PostgreSQL E2E tests (`tests/e2e/` with `-m e2e` marker), including backup recovery.
+A stable release such as `v1.2.3` produces `1.2.3`, `1.2`, and `latest` image tags.
+Prerelease version tags retain their full version without updating the stable image tags.
+The workflow keeps image provenance and does not cancel an in-progress publication.
 
-**Merge requirements**: Configure the repository's branch rules to require the `e2e` check.
-The workflow alone does not make a check mandatory for merging.
+### Python package publishing
 
-**Test Coverage**: Validates the full application stack with PostgreSQL, including real
-`pg_dump`/`psql` backup and restore.
+[`publish.yml`](../.github/workflows/publish.yml) runs when a GitHub release is published.
+It builds the Python package with `uv build` and publishes to PyPI through the `pypi` GitHub
+environment using trusted publishing. This workflow does not run the test suites itself.
 
-### `build.yml` - Docker Image Build
+## Creating a release
 
-**Triggers**: Version tag push only (e.g., `v0.1.0`, `v1.0.0`)
+These steps are for maintainers with permission to publish releases.
 
-**Purpose**: Build and publish release images
+1. Merge the release changes and check out the commit you intend to release. Confirm that CI
+   and the PostgreSQL suite passed for that commit.
+2. Choose an unused semantic version, replace `vX.Y.Z` below, then create and push the tag:
 
-**Steps**:
-1. Build Docker image
-2. Tag with semver, SHA, and `latest`
-3. Push to GitHub Container Registry (`ghcr.io/scottrbk/forgetful`)
-
-**Note**: Only runs when you manually create a release tag
-
----
-
-## Creating a Release
-
-1. Commit your changes to `main` branch
-2. Create and push a version tag:
    ```bash
-   git tag v0.1.0
-   git push origin v0.1.0
+   RELEASE_TAG=vX.Y.Z
+   git tag "$RELEASE_TAG"
+   git push origin "$RELEASE_TAG"
    ```
-3. Build workflow automatically creates Docker image
 
----
+3. Check that the Build workflow succeeds and publishes the expected container image.
+4. Publish a GitHub release for the same tag to trigger PyPI publishing, then check that
+   the Publish to PyPI workflow succeeds.
 
-## Deployment
-
-**Workflow**: `deploy.yml`
-
-**Purpose**: Deploy to staging/production environments
-
-**Method**: Self-hosted runners with sparse checkout
-
-**Environment Selection**: Runners match environment by label (e.g., `staging` runner for staging deployment)
+To run a published image, use the [SQLite](../docker/docker-compose.sqlite.yml) or
+[PostgreSQL](../docker/docker-compose.postgres.yml) Compose file. The
+[README's Docker instructions](../README.md#option-3-docker-deployment-productionscale)
+describe their configuration.
