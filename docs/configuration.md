@@ -1440,7 +1440,7 @@ DB_LOGGING=true
 - [Search Documentation](search.md) - Search architecture details
 - [Settings Source](../app/config/settings.py) - Default values and validation
 
-### FastEmbed request concurrency
+### Embedding request concurrency
 
 `EMBEDDING_MAX_CONCURRENCY` is a positive integer (default `1`). Restart the
 server or CLI process after changing it. The limit is shared by memory and skill
@@ -1463,6 +1463,17 @@ explicit-list check covers its effective DirectML selection. An empty adapter
 provider list is normalized to the FastEmbed default rather than ONNX Runtime
 selecting all available providers.
 
-This setting currently applies only to FastEmbed. Azure/OpenAI provider rollout
-is tracked separately in issues #90/#91. It does not parallelize bulk re-embedding,
-limit requests per minute or tokens, or change reranking workers.
+For `EMBEDDING_PROVIDER=OpenAI`, embedding HTTP operations use one native async
+SDK client with the same request limit. The default of `1` reduces concurrency
+compared with earlier versions, which used the shared thread pool without an
+adapter limit. Set a higher value to retain overlapping OpenAI or compatible-endpoint
+requests. Slots cover the complete SDK operation, including its retries and backoff.
+A cancelled waiter never sends; cancelling an active request releases its local
+slot when cancellation propagates. The remote provider may still finish that work.
+Shutdown stops admission, drains active requests, and closes the client, including
+after startup errors and on CLI exit. Changing the limit requires a process restart.
+
+The setting applies to FastEmbed and OpenAI, not Azure, Google or Ollama.
+Azure rollout is tracked separately in issue #90. It does not parallelize bulk
+re-embedding, limit requests per minute or tokens, bound waiters, or change
+reranking workers.

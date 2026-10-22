@@ -5,10 +5,11 @@ import time
 
 from google import genai
 from google.genai import types
-from openai import AzureOpenAI, OpenAI
+from openai import AsyncOpenAI, AzureOpenAI
 
 from app.config.settings import settings
 from app.protocols.embedding_protocol import EmbeddingsAdapter
+from app.repositories.embeddings.async_request_limiter import AsyncRequestLimiter
 from app.repositories.embeddings.bounded_executor import BoundedExecutor
 from app.repositories.embeddings.fastembed_offline import load_fastembed_model
 
@@ -160,7 +161,9 @@ class OpenAIEmbeddingsAdapter(EmbeddingsAdapter):
     Set OPENAI_SUPPORTS_DIMENSIONS=false for endpoints that don't support the dimensions param.
     """
 
-    def __init__(self):
+    def __init__(self, *, max_concurrency: int = 1):
+        self._requests = AsyncRequestLimiter(max_concurrency)
+        self._close_task: asyncio.Task | None = None
         base_url = settings.OPENAI_BASE_URL or None
         self.supports_dimensions = settings.OPENAI_SUPPORTS_DIMENSIONS
 
@@ -181,7 +184,7 @@ class OpenAIEmbeddingsAdapter(EmbeddingsAdapter):
         if base_url:
             client_kwargs["base_url"] = base_url
 
-        self.client = OpenAI(**client_kwargs)
+        self.client = AsyncOpenAI(**client_kwargs)
         self.model = settings.EMBEDDING_MODEL
 
     async def generate_embedding(self, text: str) -> list[float]:
@@ -193,10 +196,8 @@ class OpenAIEmbeddingsAdapter(EmbeddingsAdapter):
             kwargs["dimensions"] = settings.EMBEDDING_DIMENSIONS
 
         try:
-            response = await asyncio.to_thread(
-                self.client.embeddings.create,
-                **kwargs,
-            )
+            async with self._requests.request():
+                response = await self.client.embeddings.create(**kwargs)
         except Exception:
             logger.error("Error generating embeddings", exc_info=True, extra={
                 "embedding_provider": "openai",
@@ -208,6 +209,18 @@ class OpenAIEmbeddingsAdapter(EmbeddingsAdapter):
             raise RuntimeError("OpenAI response did not contain embedding vector")
 
         return response.data[0].embedding
+
+
+    async def _close(self) -> None:
+        await self._requests.aclose()
+        await self.client.close()
+
+    async def aclose(self) -> None:
+        """Stop admission, drain active calls, and close the shared async client."""
+        self._requests.close_admission()
+        if self._close_task is None:
+            self._close_task = asyncio.create_task(self._close())
+        await asyncio.shield(self._close_task)
 
 
 class OllamaEmbeddingsAdapter(EmbeddingsAdapter):

@@ -40,7 +40,7 @@ def get_embedding_adapter():
     if settings.EMBEDDING_PROVIDER == "Google":
         return GoogleEmbeddingsAdapter()
     if settings.EMBEDDING_PROVIDER == "OpenAI":
-        return OpenAIEmbeddingsAdapter()
+        return OpenAIEmbeddingsAdapter(max_concurrency=settings.EMBEDDING_MAX_CONCURRENCY)
     if settings.EMBEDDING_PROVIDER == "Ollama":
         return OllamaEmbeddingsAdapter()
     return FastEmbeddingAdapter(

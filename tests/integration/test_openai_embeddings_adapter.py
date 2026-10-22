@@ -2,7 +2,7 @@
 
 Tests the adapter class in isolation - no real API key required.
 """
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -22,8 +22,10 @@ def mock_settings():
 @pytest.fixture
 def mock_openai_client():
     """Provide a mock OpenAI client."""
-    with patch("app.repositories.embeddings.embedding_adapter.OpenAI") as mock_cls:
+    with patch("app.repositories.embeddings.embedding_adapter.AsyncOpenAI") as mock_cls:
         mock_client = MagicMock()
+        mock_client.embeddings.create = AsyncMock()
+        mock_client.close = AsyncMock()
         mock_cls.return_value = mock_client
         yield mock_cls, mock_client
 
