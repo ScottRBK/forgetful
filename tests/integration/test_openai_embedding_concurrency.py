@@ -82,9 +82,12 @@ async def make_adapter(monkeypatch):
     # raising=False lets the unchanged-head contract control use the same fixture.
     monkeypatch.setattr(module, "DefaultAsyncHttpxClient", http_client, raising=False)
 
-    def make(handler=embedding_response, capacity=None, **sdk_options):
+    def make(
+        handler=embedding_response, capacity=None, *, use_default_retries=False, **sdk_options,
+    ):
         handler_box[0] = handler
-        sdk_options.setdefault("max_retries", 0)
+        if not use_default_retries:
+            sdk_options.setdefault("max_retries", 0)
         monkeypatch.setattr(module, "AsyncOpenAI", lambda **kwargs: AsyncOpenAI(**kwargs, **sdk_options))
         adapter = module.OpenAIEmbeddingsAdapter() if capacity is None else module.OpenAIEmbeddingsAdapter(max_concurrency=capacity)
         adapters.append(adapter)
@@ -132,6 +135,12 @@ async def test_configured_timeout_reaches_the_shared_sdk_client(
     assert adapter.client.timeout.read == configured_timeout
     assert adapter.client.timeout.write == configured_timeout
     assert adapter.client.timeout.pool == configured_timeout
+
+
+async def test_sdk_default_retry_count_is_unchanged(make_adapter):
+    adapter = make_adapter(use_default_retries=True)
+
+    assert adapter.client.max_retries == 2
 
 
 async def test_native_async_does_not_use_shared_thread_pool(make_adapter, monkeypatch):

@@ -1211,10 +1211,10 @@ ACTIVITY_TRACK_READS=false
 
 #### `OPENAI_TIMEOUT_SECONDS`
 - **Default**: `120`
-- **Description**: Read, write and connection-pool timeout for each embedding API attempt
+- **Description**: Separate timeout for read inactivity, write inactivity and connection-pool waits
 - **Validation**: Must be a positive, finite number
 - **Note**: The connection-establishment timeout remains fixed at 5 seconds
-- **Retries**: The OpenAI SDK retries timeouts twice by default, for up to three attempts
+- **Retries**: The SDK retries twice by default; this setting is not an overall deadline
 - **Example**: `OPENAI_TIMEOUT_SECONDS=180`
 
 ### Ollama Embedding Provider Configuration
@@ -1484,13 +1484,13 @@ finish that work. Shutdown closes the SDK client without waiting for in-flight O
 operations to finish; those operations can fail as the client closes. The client is also
 closed after startup errors and on CLI exit. Changing the limit requires a process restart.
 
-Each OpenAI embedding attempt has a configurable read, write and pool timeout set by
-`OPENAI_TIMEOUT_SECONDS` (default `120`). Connection establishment retains a separate 5-second
-timeout. The SDK retries timeouts twice by default, so a failing logical operation can take close
-to 6 minutes plus retry delays. Increase the setting for a slower compatible endpoint. A timed-out
-attempt releases its HTTP connection capacity while it waits to retry. Pool time includes time
-spent waiting for a connection, so queued requests can time out when all configured connections
-remain occupied. Changing the timeout requires a process restart.
+`OPENAI_TIMEOUT_SECONDS` (default `120`) applies separately to read inactivity, write inactivity
+and time spent waiting for a pooled connection. Connection establishment retains a separate
+5-second timeout. These phase limits are not a deadline for one attempt; read and write limits
+restart as data moves. The SDK also retries timeouts twice by default, so there is no fixed overall
+operation deadline. Increase the setting for a slower compatible endpoint. A timed-out attempt
+releases its HTTP connection capacity while it waits to retry. Queued requests can time out when
+all configured connections remain occupied. Changing the timeout requires a process restart.
 
 The setting applies to FastEmbed and OpenAI, not Azure, Google or Ollama.
 Azure rollout is tracked separately in issue #90. It does not parallelize bulk
