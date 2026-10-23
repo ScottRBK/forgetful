@@ -1,11 +1,12 @@
 """Real async SDK requests against synthetic HTTP; no provider or model calls."""
 import asyncio
+import inspect
 import json
 from unittest.mock import AsyncMock
 
 import httpx
 import pytest
-from openai import APIStatusError, APITimeoutError, AsyncOpenAI
+from openai import APIStatusError, APITimeoutError, AsyncOpenAI, DefaultAsyncHttpxClient
 
 from app.repositories.embeddings import embedding_adapter as module
 
@@ -21,30 +22,96 @@ def embedding_response(request):
 
 @pytest.fixture
 async def make_adapter(monkeypatch):
+    # A real loopback socket exercises httpx's pool; MockTransport bypasses it.
+    for name in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy", "no_proxy"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("NO_PROXY", "127.0.0.1,localhost")
+    handler_box = [embedding_response]
+    connections = set()
+    errors = []
+
+    async def serve(reader, writer):
+        task = asyncio.current_task()
+        connections.add(task)
+        try:
+            header = await reader.readuntil(b"\r\n\r\n")
+            lines = header.decode("latin1").split("\r\n")
+            method, path, _ = lines[0].split(" ", 2)
+            headers = dict(line.split(": ", 1) for line in lines[1:] if line)
+            size = int(next(value for key, value in headers.items() if key.lower() == "content-length"))
+            body = await reader.readexactly(size)
+            request = httpx.Request(method, endpoint + path, headers=headers, content=body)
+            response = handler_box[0](request)
+            if inspect.isawaitable(response):
+                response = await response
+            output = f"HTTP/1.1 {response.status_code} {response.reason_phrase}\r\n".encode()
+            output += b"".join(f"{key}: {value}\r\n".encode() for key, value in response.headers.items()
+                               if key.lower() != "connection")
+            writer.write(output + b"Connection: close\r\n\r\n" + response.content)
+            await writer.drain()
+        except (asyncio.IncompleteReadError, ConnectionError):
+            pass  # A cancelled client can disconnect before a request or response finishes.
+        except asyncio.CancelledError:
+            raise
+        except Exception as error:
+            errors.append(error)
+        finally:
+            writer.close()
+            try:
+                await writer.wait_closed()
+            except ConnectionError:
+                pass
+            connections.discard(task)
+
+    server = await asyncio.start_server(serve, "127.0.0.1", 0)
+    endpoint = f"http://127.0.0.1:{server.sockets[0].getsockname()[1]}"
     monkeypatch.setattr(module.settings, "OPENAI_API_KEY", "")
-    monkeypatch.setattr(module.settings, "OPENAI_BASE_URL", "http://synthetic.invalid/v1")
+    monkeypatch.setattr(module.settings, "OPENAI_BASE_URL", endpoint + "/v1")
     monkeypatch.setattr(module.settings, "EMBEDDING_MODEL", "synthetic-model")
     monkeypatch.setattr(module.settings, "EMBEDDING_DIMENSIONS", 1)
     monkeypatch.setattr(module.settings, "OPENAI_SUPPORTS_DIMENSIONS", True)
     adapters = []
-    clients = []
+    http_clients = []
+
+    def http_client(**kwargs):
+        client = DefaultAsyncHttpxClient(**kwargs)
+        http_clients.append((client, kwargs["limits"]))
+        return client
+
+    # raising=False lets the unchanged-head contract control use the same fixture.
+    monkeypatch.setattr(module, "DefaultAsyncHttpxClient", http_client, raising=False)
 
     def make(handler=embedding_response, capacity=None, **sdk_options):
-        client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
-        clients.append(client)
+        handler_box[0] = handler
         sdk_options.setdefault("max_retries", 0)
-        monkeypatch.setattr(module, "AsyncOpenAI", lambda **kwargs: AsyncOpenAI(
-            **kwargs, http_client=client, **sdk_options,
-        ))
+        monkeypatch.setattr(module, "AsyncOpenAI", lambda **kwargs: AsyncOpenAI(**kwargs, **sdk_options))
         adapter = module.OpenAIEmbeddingsAdapter() if capacity is None else module.OpenAIEmbeddingsAdapter(max_concurrency=capacity)
         adapters.append(adapter)
         return adapter
 
-    yield make
-    for adapter in adapters:
-        await adapter.aclose()
-    for client in clients:
-        await client.aclose()
+    make.http_clients = http_clients
+    try:
+        yield make
+    finally:
+        for adapter in adapters:
+            await adapter.aclose()
+        server.close()
+        tasks = list(connections)
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        await server.wait_closed()
+        assert not errors, errors
+
+
+@pytest.mark.parametrize("capacity", [None, 2, 4])
+async def test_configured_limits_reach_the_shared_sdk_http_client(make_adapter, capacity):
+    adapter = make_adapter(capacity=capacity)
+    client, limits = make_adapter.http_clients[-1]
+    assert adapter.client._client is client
+    assert limits.max_connections == (capacity or 1)
+    assert limits.max_keepalive_connections == (capacity or 1)
+    assert await adapter.generate_embedding("configured") == [10.0]
 
 
 async def test_native_async_does_not_use_shared_thread_pool(make_adapter, monkeypatch):
@@ -82,7 +149,7 @@ async def test_real_sdk_overlap_is_bounded_and_results_stay_associated(make_adap
     try:
         await asyncio.wait_for(entered.wait(), 2)
         # A scheduling interval allows the excess caller to attempt admission.
-        await asyncio.sleep(0.02)
+        await asyncio.sleep(0.3)
         assert len(calls) == capacity
         assert not any(task.done() for task in tasks)
         release.set()
@@ -121,10 +188,8 @@ async def test_waiter_and_active_cancellation_release_without_sending_waiter(mak
     assert calls == ["active", "next"]
 
 
-async def test_sdk_retry_holds_capacity_for_whole_operation(make_adapter):
+async def test_sdk_retry_backoff_releases_http_capacity(make_adapter):
     first_attempt = asyncio.Event()
-    retry_entered = asyncio.Event()
-    release = asyncio.Event()
     calls = []
 
     async def handler(request):
@@ -132,24 +197,18 @@ async def test_sdk_retry_holds_capacity_for_whole_operation(make_adapter):
         calls.append(text)
         if text == "first" and calls.count("first") == 1:
             first_attempt.set()
-            return httpx.Response(429, headers={"retry-after-ms": "1"}, json={"error": {"message": "synthetic retry"}})
-        if text == "first":
-            retry_entered.set()
-            await release.wait()
+            return httpx.Response(429, headers={"retry-after": "1"}, json={"error": {"message": "synthetic retry"}})
         return embedding_response(request)
 
     adapter = make_adapter(handler, 1, max_retries=1)
     first = asyncio.create_task(adapter.generate_embedding("first"))
-    await asyncio.wait_for(first_attempt.wait(), 2)
+    await asyncio.wait_for(first_attempt.wait(), 5)
     second = asyncio.create_task(adapter.generate_embedding("second"))
     try:
-        await asyncio.wait_for(retry_entered.wait(), 2)
-        assert calls == ["first", "first"]
-        release.set()
-        assert await asyncio.gather(first, second) == [[5.0], [6.0]]
-        assert calls == ["first", "first", "second"]
+        assert await asyncio.wait_for(asyncio.gather(first, second), 10) == [[5.0], [6.0]]
+        print("RETRY_SERVER_ORDER=" + json.dumps(calls))
+        assert calls == ["first", "second", "first"]
     finally:
-        release.set()
         await asyncio.gather(first, second, return_exceptions=True)
 
 
@@ -158,46 +217,26 @@ async def test_http_failure_releases_capacity(make_adapter, timeout):
     async def handler(request):
         if json.loads(request.content)["input"] == ["fail"]:
             if timeout:
-                raise httpx.ReadTimeout("synthetic timeout", request=request)
+                await asyncio.sleep(3.0)
+                return embedding_response(request)
             return httpx.Response(503, json={"error": {"message": "synthetic failure"}})
         return embedding_response(request)
 
-    adapter = make_adapter(handler, 1)
+    adapter = make_adapter(handler, 1, timeout=1.0 if timeout else 5.0)
     with pytest.raises(APITimeoutError if timeout else APIStatusError):
         await adapter.generate_embedding("fail")
     assert await adapter.generate_embedding("ok") == [2.0]
 
 
-async def test_close_drains_refuses_admission_and_survives_cancelled_waiter(make_adapter):
-    entered = asyncio.Event()
-    release = asyncio.Event()
-
-    async def handler(request):
-        entered.set()
-        await release.wait()
-        return embedding_response(request)
-
-    adapter = make_adapter(handler, 1)
+async def test_close_delegates_to_sdk_and_closes_the_shared_http_client(make_adapter):
+    adapter = make_adapter()
+    await adapter.generate_embedding("open")
+    client = adapter.client._client
     sdk_close = AsyncMock(wraps=adapter.client.close)
     adapter.client.close = sdk_close
-    active = asyncio.create_task(adapter.generate_embedding("active"))
-    await asyncio.wait_for(entered.wait(), 2)
-    queued = asyncio.create_task(adapter.generate_embedding("queued"))
-    close = asyncio.create_task(adapter.aclose())
-    await asyncio.sleep(0)
-    assert not close.done()
-    close.cancel()
-    with pytest.raises(asyncio.CancelledError):
-        await close
-    with pytest.raises(RuntimeError, match="closed"):
-        await adapter.generate_embedding("new")
-    release.set()
-    await active
-    with pytest.raises(RuntimeError, match="closed"):
-        await queued
-    await adapter.aclose()
     await adapter.aclose()
     sdk_close.assert_awaited_once()
+    assert client.is_closed
     assert adapter.client.is_closed()
 
 
@@ -214,7 +253,8 @@ async def test_real_sdk_preserves_compatible_endpoint_request(make_adapter, monk
     assert await adapter.generate_embedding("input") == [5.0]
     request = requests[0]
     body = json.loads(request.content)
-    assert request.url == "http://synthetic.invalid/v1/embeddings"
+    assert request.url.path == "/v1/embeddings"
+    assert request.url.host == "127.0.0.1"
     assert request.headers["authorization"] == "Bearer no-key-required"
     assert body["model"] == "synthetic-model"
     assert body["input"] == ["input"]
@@ -269,7 +309,7 @@ async def test_runtime_memory_and_skill_searches_share_configured_limit(sqlite_r
     )) for query in ("skill-one", "skill-two"))
     try:
         await asyncio.wait_for(entered.wait(), 2)
-        await asyncio.sleep(0.02)
+        await asyncio.sleep(0.3)
         assert len(calls) == 2
         release.set()
         assert await asyncio.gather(*tasks) == [[], [], []]
@@ -285,6 +325,7 @@ async def test_runtime_startup_failure_closes_real_async_client(sqlite_runtime_s
     from app import bootstrap
 
     adapter = make_adapter()
+    monkeypatch.setattr(bootstrap, "get_embedding_adapter", lambda: adapter)
     monkeypatch.setattr(module.settings, "EMBEDDING_PROVIDER", "OpenAI")
 
     def fail_database():
@@ -300,8 +341,10 @@ async def test_reembed_cli_exit_closes_real_async_client(sqlite_runtime_settings
     from argparse import Namespace
 
     import main
+    from app import bootstrap
 
     adapter = make_adapter()
+    monkeypatch.setattr(bootstrap, "get_embedding_adapter", lambda: adapter)
     monkeypatch.setattr(module.settings, "EMBEDDING_PROVIDER", "OpenAI")
     await main._run_reembed(Namespace(batch_size=1, dry_run=True))
     assert adapter.client.is_closed()

@@ -1463,15 +1463,19 @@ explicit-list check covers its effective DirectML selection. An empty adapter
 provider list is normalized to the FastEmbed default rather than ONNX Runtime
 selecting all available providers.
 
-For `EMBEDDING_PROVIDER=OpenAI`, embedding HTTP operations use one native async
-SDK client with the same request limit. The default of `1` reduces concurrency
-compared with earlier versions, which used the shared thread pool without an
-adapter limit. Set a higher value to retain overlapping OpenAI or compatible-endpoint
-requests. Slots cover the complete SDK operation, including its retries and backoff.
-A cancelled waiter never sends; cancelling an active request releases its local
-slot when cancellation propagates. The remote provider may still finish that work.
-Shutdown stops admission, drains active requests, and closes the client, including
-after startup errors and on CLI exit. Changing the limit requires a process restart.
+For `EMBEDDING_PROVIDER=OpenAI`, one native async SDK client shares an HTTP connection
+pool. `EMBEDDING_MAX_CONCURRENCY` caps both its total connections and kept-alive connections.
+The default of `1` reduces concurrency compared with earlier versions, which used the
+shared thread pool without an adapter limit. Set a higher value for overlapping OpenAI
+or compatible-endpoint HTTP requests. SDK retry backoff releases connection capacity,
+so another request can proceed while an earlier operation waits to retry.
+
+This does not bound logical SDK operations, waiting callers, or requests per minute.
+Cancelling a request releases its local connection, but the remote provider may still
+finish that work. Shutdown closes the SDK client without waiting for in-flight OpenAI
+operations to finish; those operations can fail as the client closes. The client is also
+closed after startup errors and on CLI exit. Changing the limit requires a process restart.
+The SDK timeout is unchanged; choosing an explicit timeout is a separate configuration decision.
 
 The setting applies to FastEmbed and OpenAI, not Azure, Google or Ollama.
 Azure rollout is tracked separately in issue #90. It does not parallelize bulk

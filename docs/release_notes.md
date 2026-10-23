@@ -4,14 +4,15 @@
 
 ### OpenAI embedding request concurrency (#91)
 
-OpenAI and compatible endpoints now use a native async client with the per-process
-`EMBEDDING_MAX_CONCURRENCY` request limit already used by FastEmbed. Its default of
-`1` reduces OpenAI concurrency compared with earlier versions. To retain overlapping
-requests, set a higher positive value and restart the server or CLI process. The
-limit covers SDK retries and is shared by memory and skill operations. It is not a
-rate limiter. See [embedding request concurrency](configuration.md#embedding-request-concurrency)
-for cancellation and shutdown behaviour. No database migration or embedding rebuild
-is needed. Other embedding providers are unchanged.
+OpenAI and compatible endpoints now use a native async client with a per-process HTTP
+connection pool capped by `EMBEDDING_MAX_CONCURRENCY`. Its default of `1` reduces
+concurrency compared with earlier versions. Set a higher positive value and restart
+for overlapping requests. Memory and skill operations share the pool, and SDK retry
+backoff releases connection capacity. This is not a logical-operation or rate limit.
+Shutdown closes the client without draining in-flight OpenAI operations. The SDK timeout
+is unchanged pending a separate configuration decision. See
+[embedding request concurrency](configuration.md#embedding-request-concurrency).
+No database migration or embedding rebuild is needed. Other embedding providers are unchanged.
 
 ### Token scope enforcement (#107)
 

@@ -69,11 +69,12 @@ draining pending events, before database disposal. Startup failures also close t
 the standalone re-embedding CLI closes it on every exit. FastEmbed uses one model and an
 adapter-layer bounded executor shared by memory and skill operations. Admission precedes
 submission; cancelled running inference remains counted until its worker finishes.
-OpenAI embedding HTTP calls use one native async SDK client and the same per-process
-request setting through an adapter-layer limiter. Slots cover SDK retries and backoff.
-Cancelling a local request releases its slot, although remote processing may continue.
-Shutdown stops admission, drains active requests, and closes the client through the
-same runtime, startup-error and CLI exit paths.
+OpenAI embedding HTTP calls use one native async SDK client and a shared HTTP connection
+pool capped by the same per-process setting. SDK retry backoff releases connection capacity.
+This is a connection limit, not a logical-operation or request-rate limit; waiting callers
+and remote processing after local cancellation are not bounded. Shutdown closes the SDK
+client without draining in-flight OpenAI operations, through the same runtime,
+startup-error and CLI exit paths.
 
 Settings and validation live in [settings.py:33](app/config/settings.py#L33).
 

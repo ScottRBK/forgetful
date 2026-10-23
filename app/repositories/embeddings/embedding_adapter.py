@@ -1,15 +1,14 @@
 """Embedding Adapter to abstract provider specific implementation details"""
-import asyncio
 import logging
 import time
 
+import httpx
 from google import genai
 from google.genai import types
-from openai import AsyncOpenAI, AzureOpenAI
+from openai import AsyncOpenAI, AzureOpenAI, DefaultAsyncHttpxClient
 
 from app.config.settings import settings
 from app.protocols.embedding_protocol import EmbeddingsAdapter
-from app.repositories.embeddings.async_request_limiter import AsyncRequestLimiter
 from app.repositories.embeddings.bounded_executor import BoundedExecutor
 from app.repositories.embeddings.fastembed_offline import load_fastembed_model
 
@@ -162,8 +161,8 @@ class OpenAIEmbeddingsAdapter(EmbeddingsAdapter):
     """
 
     def __init__(self, *, max_concurrency: int = 1):
-        self._requests = AsyncRequestLimiter(max_concurrency)
-        self._close_task: asyncio.Task | None = None
+        if max_concurrency < 1:
+            raise ValueError("Embedding concurrency must be at least 1")
         base_url = settings.OPENAI_BASE_URL or None
         self.supports_dimensions = settings.OPENAI_SUPPORTS_DIMENSIONS
 
@@ -184,7 +183,11 @@ class OpenAIEmbeddingsAdapter(EmbeddingsAdapter):
         if base_url:
             client_kwargs["base_url"] = base_url
 
-        self.client = AsyncOpenAI(**client_kwargs)
+        http_client = DefaultAsyncHttpxClient(limits=httpx.Limits(
+            max_connections=max_concurrency,
+            max_keepalive_connections=max_concurrency,
+        ))
+        self.client = AsyncOpenAI(**client_kwargs, http_client=http_client)
         self.model = settings.EMBEDDING_MODEL
 
     async def generate_embedding(self, text: str) -> list[float]:
@@ -196,8 +199,7 @@ class OpenAIEmbeddingsAdapter(EmbeddingsAdapter):
             kwargs["dimensions"] = settings.EMBEDDING_DIMENSIONS
 
         try:
-            async with self._requests.request():
-                response = await self.client.embeddings.create(**kwargs)
+            response = await self.client.embeddings.create(**kwargs)
         except Exception:
             logger.error("Error generating embeddings", exc_info=True, extra={
                 "embedding_provider": "openai",
@@ -211,16 +213,9 @@ class OpenAIEmbeddingsAdapter(EmbeddingsAdapter):
         return response.data[0].embedding
 
 
-    async def _close(self) -> None:
-        await self._requests.aclose()
-        await self.client.close()
-
     async def aclose(self) -> None:
-        """Stop admission, drain active calls, and close the shared async client."""
-        self._requests.close_admission()
-        if self._close_task is None:
-            self._close_task = asyncio.create_task(self._close())
-        await asyncio.shield(self._close_task)
+        """Close the shared SDK client without draining logical operations."""
+        await self.client.close()
 
 
 class OllamaEmbeddingsAdapter(EmbeddingsAdapter):
