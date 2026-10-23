@@ -64,11 +64,17 @@ The bootstrap factories select PostgreSQL or SQLite repositories at
 `FILES_ENABLED`, `SKILLS_ENABLED`, and `PLANNING_ENABLED` control matching repositories, services,
 metadata registration, and HTTP route registration. `GraphService` receives memory/entity repositories
 plus the other services, including optional ones ([bootstrap.py:311](app/bootstrap.py#L311)).
-The runtime owns the optional embedding adapter and closes its dedicated workers after
+The runtime owns the optional embedding adapter and closes its resources after
 draining pending events, before database disposal. Startup failures also close the adapter;
 the standalone re-embedding CLI closes it on every exit. FastEmbed uses one model and an
 adapter-layer bounded executor shared by memory and skill operations. Admission precedes
 submission; cancelled running inference remains counted until its worker finishes.
+OpenAI embedding HTTP calls use one native async SDK client and a shared HTTP connection
+pool capped by the same per-process setting. SDK retry backoff releases connection capacity.
+This is a connection limit, not a logical-operation or request-rate limit; waiting callers
+and remote processing after local cancellation are not bounded. Shutdown closes the SDK
+client without draining in-flight OpenAI operations, through the same runtime,
+startup-error and CLI exit paths.
 
 Settings and validation live in [settings.py:33](app/config/settings.py#L33).
 

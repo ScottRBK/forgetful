@@ -2,7 +2,7 @@
 
 Tests the adapter class in isolation - no real API key required.
 """
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -22,8 +22,11 @@ def mock_settings():
 @pytest.fixture
 def mock_openai_client():
     """Provide a mock OpenAI client."""
-    with patch("app.repositories.embeddings.embedding_adapter.OpenAI") as mock_cls:
+    with patch("app.repositories.embeddings.embedding_adapter.AsyncOpenAI") as mock_cls, \
+            patch("app.repositories.embeddings.embedding_adapter.DefaultAsyncHttpxClient"):
         mock_client = MagicMock()
+        mock_client.embeddings.create = AsyncMock()
+        mock_client.close = AsyncMock()
         mock_cls.return_value = mock_client
         yield mock_cls, mock_client
 
@@ -36,7 +39,7 @@ def test_init_success(mock_settings, mock_openai_client):
 
     adapter = OpenAIEmbeddingsAdapter()
 
-    mock_cls.assert_called_once_with(api_key="sk-test-key-123")
+    mock_cls.assert_called_once_with(api_key="sk-test-key-123", http_client=ANY)
     assert adapter.model == "text-embedding-3-small"
     assert adapter.supports_dimensions is True
 
@@ -60,7 +63,7 @@ def test_init_with_base_url(mock_settings, mock_openai_client):
 
     adapter = OpenAIEmbeddingsAdapter()
 
-    mock_cls.assert_called_once_with(api_key="sk-test-key-123", base_url="http://localhost:8080/v1")
+    mock_cls.assert_called_once_with(api_key="sk-test-key-123", base_url="http://localhost:8080/v1", http_client=ANY)
     assert adapter.model == "text-embedding-3-small"
 
 
@@ -74,7 +77,7 @@ def test_init_no_api_key_with_base_url_uses_placeholder(mock_settings, mock_open
 
     adapter = OpenAIEmbeddingsAdapter()
 
-    mock_cls.assert_called_once_with(api_key="no-key-required", base_url="http://localhost:8080/v1")
+    mock_cls.assert_called_once_with(api_key="no-key-required", base_url="http://localhost:8080/v1", http_client=ANY)
     assert adapter.model == "text-embedding-3-small"
 
 
