@@ -1488,8 +1488,9 @@ Each OpenAI embedding attempt has a configurable read, write and pool timeout se
 `OPENAI_TIMEOUT_SECONDS` (default `120`). Connection establishment retains a separate 5-second
 timeout. The SDK retries timeouts twice by default, so a failing logical operation can take close
 to 6 minutes plus retry delays. Increase the setting for a slower compatible endpoint. A timed-out
-attempt releases its HTTP connection capacity while it waits to retry. Changing the timeout
-requires a process restart.
+attempt releases its HTTP connection capacity while it waits to retry. Pool time includes time
+spent waiting for a connection, so queued requests can time out when all configured connections
+remain occupied. Changing the timeout requires a process restart.
 
 The setting applies to FastEmbed and OpenAI, not Azure, Google or Ollama.
 Azure rollout is tracked separately in issue #90. It does not parallelize bulk

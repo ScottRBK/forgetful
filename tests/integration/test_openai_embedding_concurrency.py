@@ -115,16 +115,23 @@ async def test_configured_limits_reach_the_shared_sdk_http_client(make_adapter, 
     assert await adapter.generate_embedding("configured") == [10.0]
 
 
-async def test_configured_timeout_reaches_the_shared_sdk_http_client(make_adapter, monkeypatch):
-    monkeypatch.setattr(module.settings, "OPENAI_TIMEOUT_SECONDS", 47.5)
+@pytest.mark.parametrize("configured_timeout", [5.0, 47.5])
+async def test_configured_timeout_reaches_the_shared_sdk_client(
+    make_adapter, monkeypatch, configured_timeout,
+):
+    monkeypatch.setattr(module.settings, "OPENAI_TIMEOUT_SECONDS", configured_timeout)
 
-    make_adapter()
+    adapter = make_adapter()
 
     client, _ = make_adapter.http_clients[-1]
     assert client.timeout.connect == 5.0
-    assert client.timeout.read == 47.5
-    assert client.timeout.write == 47.5
-    assert client.timeout.pool == 47.5
+    assert client.timeout.read == configured_timeout
+    assert client.timeout.write == configured_timeout
+    assert client.timeout.pool == configured_timeout
+    assert adapter.client.timeout.connect == 5.0
+    assert adapter.client.timeout.read == configured_timeout
+    assert adapter.client.timeout.write == configured_timeout
+    assert adapter.client.timeout.pool == configured_timeout
 
 
 async def test_native_async_does_not_use_shared_thread_pool(make_adapter, monkeypatch):

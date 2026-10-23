@@ -40,7 +40,7 @@ def test_init_success(mock_settings, mock_openai_client):
 
     adapter = OpenAIEmbeddingsAdapter()
 
-    mock_cls.assert_called_once_with(api_key="sk-test-key-123", http_client=ANY)
+    mock_cls.assert_called_once_with(api_key="sk-test-key-123", http_client=ANY, timeout=ANY)
     assert adapter.model == "text-embedding-3-small"
     assert adapter.supports_dimensions is True
 
@@ -64,7 +64,12 @@ def test_init_with_base_url(mock_settings, mock_openai_client):
 
     adapter = OpenAIEmbeddingsAdapter()
 
-    mock_cls.assert_called_once_with(api_key="sk-test-key-123", base_url="http://localhost:8080/v1", http_client=ANY)
+    mock_cls.assert_called_once_with(
+        api_key="sk-test-key-123",
+        base_url="http://localhost:8080/v1",
+        http_client=ANY,
+        timeout=ANY,
+    )
     assert adapter.model == "text-embedding-3-small"
 
 
@@ -78,7 +83,12 @@ def test_init_no_api_key_with_base_url_uses_placeholder(mock_settings, mock_open
 
     adapter = OpenAIEmbeddingsAdapter()
 
-    mock_cls.assert_called_once_with(api_key="no-key-required", base_url="http://localhost:8080/v1", http_client=ANY)
+    mock_cls.assert_called_once_with(
+        api_key="no-key-required",
+        base_url="http://localhost:8080/v1",
+        http_client=ANY,
+        timeout=ANY,
+    )
     assert adapter.model == "text-embedding-3-small"
 
 
