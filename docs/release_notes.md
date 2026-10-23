@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-### OpenAI embedding request concurrency (#91)
+### OpenAI embedding request concurrency and timeout (#91, #180)
 
 OpenAI and compatible endpoints now use a native async client with a per-process HTTP
 connection pool capped by `EMBEDDING_MAX_CONCURRENCY`. Its default of `1` reduces
@@ -10,7 +10,9 @@ concurrency compared with earlier versions. Set a higher positive value and rest
 for overlapping requests. Memory and skill operations share the pool, and SDK retry
 backoff releases connection capacity. This is not a logical-operation or rate limit.
 Shutdown closes the client without draining in-flight OpenAI operations. The SDK timeout
-is unchanged pending a separate configuration decision. See
+is now configurable with `OPENAI_TIMEOUT_SECONDS`, which defaults to 120 seconds per attempt
+while retaining a 5-second connection timeout. The SDK retries timeouts twice by default, so a
+failing operation can take close to 6 minutes plus retry delays. See
 [embedding request concurrency](configuration.md#embedding-request-concurrency).
 No database migration or embedding rebuild is needed. Other embedding providers are unchanged.
 

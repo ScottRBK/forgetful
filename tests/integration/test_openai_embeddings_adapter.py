@@ -16,6 +16,7 @@ def mock_settings():
         mock.EMBEDDING_DIMENSIONS = 256
         mock.OPENAI_BASE_URL = ""
         mock.OPENAI_SUPPORTS_DIMENSIONS = True
+        mock.OPENAI_TIMEOUT_SECONDS = 120.0
         yield mock
 
 

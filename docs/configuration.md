@@ -1209,6 +1209,14 @@ ACTIVITY_TRACK_READS=false
 - **Note**: Set to `false` for endpoints that error on the dimensions param (e.g. llama.cpp)
 - **Example**: `OPENAI_SUPPORTS_DIMENSIONS=false`
 
+#### `OPENAI_TIMEOUT_SECONDS`
+- **Default**: `120`
+- **Description**: Read, write and connection-pool timeout for each embedding API attempt
+- **Validation**: Must be a positive, finite number
+- **Note**: The connection-establishment timeout remains fixed at 5 seconds
+- **Retries**: The OpenAI SDK retries timeouts twice by default, for up to three attempts
+- **Example**: `OPENAI_TIMEOUT_SECONDS=180`
+
 ### Ollama Embedding Provider Configuration
 
 **Note**: These settings only apply when `EMBEDDING_PROVIDER=Ollama`
@@ -1475,7 +1483,13 @@ Cancelling a request releases its local connection, but the remote provider may 
 finish that work. Shutdown closes the SDK client without waiting for in-flight OpenAI
 operations to finish; those operations can fail as the client closes. The client is also
 closed after startup errors and on CLI exit. Changing the limit requires a process restart.
-The SDK timeout is unchanged; choosing an explicit timeout is a separate configuration decision.
+
+Each OpenAI embedding attempt has a configurable read, write and pool timeout set by
+`OPENAI_TIMEOUT_SECONDS` (default `120`). Connection establishment retains a separate 5-second
+timeout. The SDK retries timeouts twice by default, so a failing logical operation can take close
+to 6 minutes plus retry delays. Increase the setting for a slower compatible endpoint. A timed-out
+attempt releases its HTTP connection capacity while it waits to retry. Changing the timeout
+requires a process restart.
 
 The setting applies to FastEmbed and OpenAI, not Azure, Google or Ollama.
 Azure rollout is tracked separately in issue #90. It does not parallelize bulk
