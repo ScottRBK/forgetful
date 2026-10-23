@@ -232,6 +232,7 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = ""
     OPENAI_BASE_URL: str = ""                    # custom endpoint (e.g. http://localhost:8080/v1)
     OPENAI_SUPPORTS_DIMENSIONS: bool = True      # False for endpoints that don't support it (llama.cpp)
+    OPENAI_TIMEOUT_SECONDS: float = Field(default=120.0, gt=0, allow_inf_nan=False)
 
     # OLLAMA EMBEDDING PROVIDER CONFIG
     OLLAMA_BASE_URL: str = "http://localhost:11434"

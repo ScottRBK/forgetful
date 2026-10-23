@@ -183,11 +183,15 @@ class OpenAIEmbeddingsAdapter(EmbeddingsAdapter):
         if base_url:
             client_kwargs["base_url"] = base_url
 
-        http_client = DefaultAsyncHttpxClient(limits=httpx.Limits(
-            max_connections=max_concurrency,
-            max_keepalive_connections=max_concurrency,
-        ))
-        self.client = AsyncOpenAI(**client_kwargs, http_client=http_client)
+        timeout = httpx.Timeout(settings.OPENAI_TIMEOUT_SECONDS, connect=5.0)
+        http_client = DefaultAsyncHttpxClient(
+            limits=httpx.Limits(
+                max_connections=max_concurrency,
+                max_keepalive_connections=max_concurrency,
+            ),
+            timeout=timeout,
+        )
+        self.client = AsyncOpenAI(**client_kwargs, http_client=http_client, timeout=timeout)
         self.model = settings.EMBEDDING_MODEL
 
     async def generate_embedding(self, text: str) -> list[float]:

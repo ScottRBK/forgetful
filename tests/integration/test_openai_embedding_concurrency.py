@@ -70,6 +70,7 @@ async def make_adapter(monkeypatch):
     monkeypatch.setattr(module.settings, "EMBEDDING_MODEL", "synthetic-model")
     monkeypatch.setattr(module.settings, "EMBEDDING_DIMENSIONS", 1)
     monkeypatch.setattr(module.settings, "OPENAI_SUPPORTS_DIMENSIONS", True)
+    monkeypatch.setattr(module.settings, "OPENAI_TIMEOUT_SECONDS", 120.0)
     adapters = []
     http_clients = []
 
@@ -81,9 +82,12 @@ async def make_adapter(monkeypatch):
     # raising=False lets the unchanged-head contract control use the same fixture.
     monkeypatch.setattr(module, "DefaultAsyncHttpxClient", http_client, raising=False)
 
-    def make(handler=embedding_response, capacity=None, **sdk_options):
+    def make(
+        handler=embedding_response, capacity=None, *, use_default_retries=False, **sdk_options,
+    ):
         handler_box[0] = handler
-        sdk_options.setdefault("max_retries", 0)
+        if not use_default_retries:
+            sdk_options.setdefault("max_retries", 0)
         monkeypatch.setattr(module, "AsyncOpenAI", lambda **kwargs: AsyncOpenAI(**kwargs, **sdk_options))
         adapter = module.OpenAIEmbeddingsAdapter() if capacity is None else module.OpenAIEmbeddingsAdapter(max_concurrency=capacity)
         adapters.append(adapter)
@@ -112,6 +116,31 @@ async def test_configured_limits_reach_the_shared_sdk_http_client(make_adapter, 
     assert limits.max_connections == (capacity or 1)
     assert limits.max_keepalive_connections == (capacity or 1)
     assert await adapter.generate_embedding("configured") == [10.0]
+
+
+@pytest.mark.parametrize("configured_timeout", [5.0, 47.5])
+async def test_configured_timeout_reaches_the_shared_sdk_client(
+    make_adapter, monkeypatch, configured_timeout,
+):
+    monkeypatch.setattr(module.settings, "OPENAI_TIMEOUT_SECONDS", configured_timeout)
+
+    adapter = make_adapter()
+
+    client, _ = make_adapter.http_clients[-1]
+    assert client.timeout.connect == 5.0
+    assert client.timeout.read == configured_timeout
+    assert client.timeout.write == configured_timeout
+    assert client.timeout.pool == configured_timeout
+    assert adapter.client.timeout.connect == 5.0
+    assert adapter.client.timeout.read == configured_timeout
+    assert adapter.client.timeout.write == configured_timeout
+    assert adapter.client.timeout.pool == configured_timeout
+
+
+async def test_sdk_default_retry_count_is_unchanged(make_adapter):
+    adapter = make_adapter(use_default_retries=True)
+
+    assert adapter.client.max_retries == 2
 
 
 async def test_native_async_does_not_use_shared_thread_pool(make_adapter, monkeypatch):
@@ -212,20 +241,48 @@ async def test_sdk_retry_backoff_releases_http_capacity(make_adapter):
         await asyncio.gather(first, second, return_exceptions=True)
 
 
-@pytest.mark.parametrize("timeout", [False, True])
-async def test_http_failure_releases_capacity(make_adapter, timeout):
+async def test_http_failure_releases_capacity(make_adapter):
     async def handler(request):
         if json.loads(request.content)["input"] == ["fail"]:
-            if timeout:
-                await asyncio.sleep(3.0)
-                return embedding_response(request)
             return httpx.Response(503, json={"error": {"message": "synthetic failure"}})
         return embedding_response(request)
 
-    adapter = make_adapter(handler, 1, timeout=1.0 if timeout else 5.0)
-    with pytest.raises(APITimeoutError if timeout else APIStatusError):
+    adapter = make_adapter(handler, 1)
+    with pytest.raises(APIStatusError):
         await adapter.generate_embedding("fail")
     assert await adapter.generate_embedding("ok") == [2.0]
+
+
+async def test_configured_timeout_releases_capacity(make_adapter, monkeypatch):
+    async def handler(request):
+        if json.loads(request.content)["input"] == ["fail"]:
+            await asyncio.sleep(0.2)
+        return embedding_response(request)
+
+    monkeypatch.setattr(module.settings, "OPENAI_TIMEOUT_SECONDS", 0.05)
+    adapter = make_adapter(handler, 1)
+
+    with pytest.raises(APITimeoutError):
+        await adapter.generate_embedding("fail")
+    assert await adapter.generate_embedding("ok") == [2.0]
+
+
+def test_openai_timeout_setting_defaults_to_120_seconds():
+    from app.config.settings import Settings
+
+    configured = Settings(_env_file=None)
+
+    assert configured.OPENAI_TIMEOUT_SECONDS == 120.0
+
+
+@pytest.mark.parametrize("value", [0, -1, float("inf"), float("nan")])
+def test_openai_timeout_setting_rejects_invalid_values(value):
+    from pydantic import ValidationError
+
+    from app.config.settings import Settings
+
+    with pytest.raises(ValidationError, match="OPENAI_TIMEOUT_SECONDS"):
+        Settings(_env_file=None, OPENAI_TIMEOUT_SECONDS=value)
 
 
 async def test_close_delegates_to_sdk_and_closes_the_shared_http_client(make_adapter):
