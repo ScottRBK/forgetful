@@ -1,0 +1,82 @@
+name: Bug report
+description: Report a reproducible problem with Forgetful
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for helping improve Forgetful.
+
+        Do not report security vulnerabilities here. Use the repository's
+        private vulnerability reporting page instead.
+
+  - type: input
+    id: version
+    attributes:
+      label: Forgetful version
+      description: Run `forgetful --version` or provide the image tag or commit.
+      placeholder: "0.5.5"
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include your OS, installation, database, transport, and MCP client.
+      placeholder: |
+        OS: Ubuntu 24.04 under WSL2
+        Installation: Docker
+        Database: PostgreSQL
+        Transport: stdio
+        MCP client: Claude Code
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Describe the problem and its effect.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Give the smallest reliable reproduction you can.
+      placeholder: |
+        1. Configure ...
+        2. Run ...
+        3. Observe ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Remove secrets and personal information before posting.
+      render: shell
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues for the same problem.
+          required: true
+        - label: I verified this report and did not submit raw automated findings.
+          required: true
+        - label: This report contains no secrets or security vulnerability details.
+          required: true

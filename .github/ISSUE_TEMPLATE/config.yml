@@ -1,0 +1,9 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions and support
+    url: https://github.com/ScottRBK/forgetful/discussions
+    about: Ask usage questions and discuss ideas with the community.
+
+  - name: Security vulnerability
+    url: https://github.com/ScottRBK/forgetful/security/advisories/new
+    about: Report security vulnerabilities privately.

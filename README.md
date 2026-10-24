@@ -30,7 +30,7 @@
 - [Features](#features)
 - [Quick Start](#quick-start)
 - [CLI](#cli)
-- [Some Examples](#usage-example)
+- [Usage Examples](#usage-examples)
 - [How It Works](#how-it-works)
 - [Configuration](#configuration)
 - [Documentation](#documentation)
@@ -447,7 +447,7 @@ For all 40+ environment variables with detailed explanations, see [Configuration
 
 We welcome contributions! Forgetful uses integration + E2E testing with Docker Compose orchestration.
 
-See [Contributors Guide](docs/contributors.md) for:
+See the [contributor guide](CONTRIBUTING.md) for:
 - Testing workflows (integration tests, E2E tests, GitHub Actions)
 - Development setup (local vs Docker)
 - CI/CD pipeline details
