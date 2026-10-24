@@ -25,11 +25,13 @@ body:
     id: environment
     attributes:
       label: Environment
-      description: Include your operating system, installation method, and database.
+      description: Include your OS, installation, database, transport, and MCP client.
       placeholder: |
         OS: Ubuntu 24.04 under WSL2
         Installation: Docker
         Database: PostgreSQL
+        Transport: stdio
+        MCP client: Claude Code
     validations:
       required: true
 

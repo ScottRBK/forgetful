@@ -7,6 +7,14 @@ Security fixes are normally released for the latest stable version only.
 
 Where practical, confirm that the issue still exists in the latest release before reporting it.
 
+## Deployment notes
+
+The default stdio transport is the safest option for local use. HTTP listens on all network
+interfaces by default and runs without authentication unless `FASTMCP_SERVER_AUTH` is configured.
+Before exposing HTTP beyond your machine, bind it to `127.0.0.1` with `--host`, or configure
+authentication and a TLS-terminating reverse proxy. See the
+[security configuration](docs/configuration.md#security-best-practices) for details.
+
 ## Reporting a vulnerability
 
 Do not report security vulnerabilities through a public GitHub issue.

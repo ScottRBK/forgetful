@@ -30,7 +30,7 @@
 - [Features](#features)
 - [Quick Start](#quick-start)
 - [CLI](#cli)
-- [Some Examples](#usage-example)
+- [Usage Examples](#usage-examples)
 - [How It Works](#how-it-works)
 - [Configuration](#configuration)
 - [Documentation](#documentation)
