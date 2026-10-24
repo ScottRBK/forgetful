@@ -47,13 +47,13 @@ project's Python environment without activating it manually.
 
 ## Architecture
 
-Before changing code, read the [architecture overview](../architecture.md).
-The [detailed class map](assets/mycelium_class_diagram.md) is supporting material;
+Before changing code, read the [architecture overview](architecture.md).
+The [detailed class map](docs/assets/mycelium_class_diagram.md) is supporting material;
 use the overview's advisories to read relevant sections rather than the whole file.
 
 Run `uv run pytest tests/architecture/` before submitting code changes; CI runs the same check.
 It checks imports, verifies that every `app` module is scanned, and proves each rule rejects
-forbidden dependencies; see [the rules and validation notes](dev/architecture-tests.md).
+forbidden dependencies; see [the rules and validation notes](docs/dev/architecture-tests.md).
 
 After major code changes, check whether the architecture diagram or explanations need updating.
 Update them when the architecture has changed; small changes do not require regeneration.
@@ -87,7 +87,7 @@ cp docker/.env.example docker/.env
 Edit `docker/.env` before starting the containers. Keep `DATABASE=Postgres` and
 `POSTGRES_HOST=forgetful-db` for this setup, and configure the database credentials.
 The PostgreSQL container needs a nonempty `POSTGRES_PASSWORD` when creating its database.
-See the [configuration guide](configuration.md) for the available settings.
+See the [configuration guide](docs/configuration.md) for the available settings.
 
 Start the database and wait for it to be healthy, then build and start the application:
 
@@ -151,7 +151,7 @@ uv run pytest tests/e2e/ -m e2e
 
 The fixtures leave the container running for later test runs. PostgreSQL tests are excluded
 by default in `pytest.ini`; `-m e2e` selects them. Backup tests also need the client tools
-described below. See the [PostgreSQL test guide](../tests/e2e/README.md) for fixture details.
+described below. See the [PostgreSQL test guide](tests/e2e/README.md) for fixture details.
 
 ### Docker image checks
 
@@ -205,13 +205,13 @@ uv tool run ruff check .
 
 ## GitHub Actions
 
-The workflow files in [`.github/workflows/`](../.github/workflows/) define the checks and release
+The workflow files in [`.github/workflows/`](.github/workflows/) define the checks and release
 jobs. CI and PostgreSQL tests run on branch pushes and pull requests. A push to a branch with an
 open PR can start both runs; newer runs cancel older runs for the same workflow and ref.
 
 ### CI
 
-[`ci.yml`](../.github/workflows/ci.yml) contains three jobs:
+[`ci.yml`](.github/workflows/ci.yml) contains three jobs:
 
 - `test` runs architecture checks, integration tests, SQLite E2E tests, and Ruff on Ubuntu
   and Windows with Python 3.13.
@@ -221,7 +221,7 @@ open PR can start both runs; newer runs cancel older runs for the same workflow 
 
 ### PostgreSQL tests
 
-[`e2e.yml`](../.github/workflows/e2e.yml) runs the PostgreSQL suite on Ubuntu with Python 3.13.
+[`e2e.yml`](.github/workflows/e2e.yml) runs the PostgreSQL suite on Ubuntu with Python 3.13.
 It installs the PostgreSQL client tools and runs `tests/e2e/` with `-m e2e`, including backup
 and recovery checks. It also supports manual runs through `workflow_dispatch`.
 
@@ -230,7 +230,7 @@ checks in GitHub branch rules, including the relevant matrix checks.
 
 ### Docker image publishing
 
-[`build.yml`](../.github/workflows/build.yml) runs when a tag matching `v*` is pushed. Use a
+[`build.yml`](.github/workflows/build.yml) runs when a tag matching `v*` is pushed. Use a
 semantic version such as `v1.2.3`. It builds the image, runs the Docker image checks against
 that image, and publishes it to `ghcr.io/scottrbk/forgetful` only after those checks pass.
 
@@ -240,7 +240,7 @@ The workflow keeps image provenance and does not cancel an in-progress publicati
 
 ### Python package publishing
 
-[`publish.yml`](../.github/workflows/publish.yml) runs when a GitHub release is published.
+[`publish.yml`](.github/workflows/publish.yml) runs when a GitHub release is published.
 It builds the Python package with `uv build` and publishes to PyPI through the `pypi` GitHub
 environment using trusted publishing. This workflow does not run the test suites itself.
 
@@ -262,7 +262,7 @@ These steps are for maintainers with permission to publish releases.
 4. Publish a GitHub release for the same tag to trigger PyPI publishing, then check that
    the Publish to PyPI workflow succeeds.
 
-To run a published image, use the [SQLite](../docker/docker-compose.sqlite.yml) or
-[PostgreSQL](../docker/docker-compose.postgres.yml) Compose file. The
-[README's Docker instructions](../README.md#option-3-docker-deployment-productionscale)
+To run a published image, use the [SQLite](docker/docker-compose.sqlite.yml) or
+[PostgreSQL](docker/docker-compose.postgres.yml) Compose file. The
+[README's Docker instructions](README.md#option-3-docker-deployment-productionscale)
 describe their configuration.

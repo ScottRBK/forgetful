@@ -3,8 +3,8 @@
 ## Contributions
 
 Before opening issues or pull requests, read the contributor guide's
-[AI tool guidance](docs/contributors.md#using-ai-tools) and
-[submission policy](docs/contributors.md#issues-pull-requests-and-review-capacity).
+[AI tool guidance](CONTRIBUTING.md#using-ai-tools) and
+[submission policy](CONTRIBUTING.md#issues-pull-requests-and-review-capacity).
 
 ## Architecture
 
