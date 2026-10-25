@@ -11,7 +11,11 @@ from pydantic import ValidationError
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-from app.exceptions import NotFoundError
+from app.exceptions import (
+    NotFoundError,
+    WritePluginRejectedError,
+    WritePluginUnavailableError,
+)
 from app.middleware.auth import get_user_from_request
 from app.models.entity_models import (
     EntityCreate,
@@ -21,6 +25,7 @@ from app.models.entity_models import (
     EntityType,
     EntityUpdate,
 )
+from app.routes.write_plugin_responses import EntityDeleteResponse, EntityWriteResponse
 
 logger = logging.getLogger(__name__)
 
@@ -151,12 +156,20 @@ def register(mcp: FastMCP):
         except ValidationError as e:
             return JSONResponse({"error": e.errors()}, status_code=400)
 
-        entity = await mcp.entity_service.create_entity(
-            user_id=user.id,
-            entity_data=entity_data,
-        )
+        try:
+            write_result = await mcp.entity_service.create_entity(
+                user_id=user.id,
+                entity_data=entity_data,
+            )
+        except WritePluginRejectedError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        except WritePluginUnavailableError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=503)
 
-        return JSONResponse(entity.model_dump(mode="json"), status_code=201)
+        response = EntityWriteResponse(
+            **write_result.entity.model_dump(), plugin_warnings=write_result.plugin_warnings,
+        )
+        return JSONResponse(response.model_dump(mode="json"), status_code=201)
 
     @mcp.custom_route("/api/v1/entities/{entity_id}", methods=["PUT"])
     async def update_entity(request: Request) -> JSONResponse:
@@ -175,15 +188,22 @@ def register(mcp: FastMCP):
             return JSONResponse({"error": e.errors()}, status_code=400)
 
         try:
-            entity = await mcp.entity_service.update_entity(
+            write_result = await mcp.entity_service.update_entity(
                 user_id=user.id,
                 entity_id=entity_id,
                 entity_data=update_data,
             )
+        except WritePluginRejectedError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        except WritePluginUnavailableError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=503)
         except NotFoundError:
             return JSONResponse({"error": "Entity not found"}, status_code=404)
 
-        return JSONResponse(entity.model_dump(mode="json"))
+        response = EntityWriteResponse(
+            **write_result.entity.model_dump(), plugin_warnings=write_result.plugin_warnings,
+        )
+        return JSONResponse(response.model_dump(mode="json"))
 
     @mcp.custom_route("/api/v1/entities/{entity_id}", methods=["DELETE"])
     async def delete_entity(request: Request) -> JSONResponse:
@@ -195,15 +215,23 @@ def register(mcp: FastMCP):
 
         entity_id = int(request.path_params["entity_id"])
 
-        success = await mcp.entity_service.delete_entity(
-            user_id=user.id,
-            entity_id=entity_id,
-        )
+        try:
+            delete_result = await mcp.entity_service.delete_entity(
+                user_id=user.id,
+                entity_id=entity_id,
+            )
+        except WritePluginRejectedError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        except WritePluginUnavailableError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=503)
 
-        if not success:
+        if not delete_result.deleted:
             return JSONResponse({"error": "Entity not found"}, status_code=404)
 
-        return JSONResponse({"success": True})
+        response = EntityDeleteResponse(
+            success=True, plugin_warnings=delete_result.plugin_warnings,
+        )
+        return JSONResponse(response.model_dump(mode="json"))
 
     @mcp.custom_route("/api/v1/entities/search", methods=["POST"])
     async def search_entities(request: Request) -> JSONResponse:

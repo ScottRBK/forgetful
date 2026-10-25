@@ -31,6 +31,14 @@ from app.models.entity_models import (
     EntityType,
     EntityUpdate,
 )
+from app.models.write_plugin_models import (
+    EntityDeletedRequest,
+    EntityDeleteResult,
+    EntityDeleteSubmission,
+    EntitySavedRequest,
+    EntityWriteRequest,
+    EntityWriteResult,
+)
 from app.protocols.entity_protocol import EntityRepository
 from app.utils.provenance import (
     apply_provenance_defaults,
@@ -40,6 +48,7 @@ from app.utils.pydantic_helper import get_changed_fields
 
 if TYPE_CHECKING:
     from app.events import EventBus
+    from app.services.entity_write_plugin_service import EntityWritePluginService
 
 logger = logging.getLogger(__name__)
 
@@ -55,15 +64,18 @@ class EntityService:
         self,
         entity_repo: EntityRepository,
         event_bus: "EventBus | None" = None,
+        write_plugin: "EntityWritePluginService | None" = None,
     ):
         """Initialize with repository protocol (not concrete implementation)
 
         Args:
             entity_repo: Entity repository implementing the protocol
             event_bus: Optional event bus for activity tracking
+            write_plugin: Optional Entity Plugin runner
         """
         self.entity_repo = entity_repo
         self._event_bus = event_bus
+        self._write_plugin = write_plugin
         logger.info("Entity service initialized")
 
     async def _emit_event(
@@ -111,7 +123,7 @@ class EntityService:
         self,
         user_id: UUID,
         entity_data: EntityCreate,
-    ) -> Entity:
+    ) -> EntityWriteResult:
         """Create new entity
 
         Args:
@@ -119,7 +131,7 @@ class EntityService:
             entity_data: EntityCreate with name, type, notes, etc.
 
         Returns:
-            Created Entity with generated ID and timestamps
+            Created entity and any plugin warnings
         """
         logger.info(
             "creating entity",
@@ -130,7 +142,16 @@ class EntityService:
             },
         )
 
+        submitted = entity_data.model_copy(deep=True)
         entity_data = apply_provenance_defaults(entity_data)
+        plugin_warnings = []
+        if self._write_plugin and self._write_plugin.has_before("create"):
+            plugin_warnings = await self._write_plugin.before_save(EntityWriteRequest(
+                operation="create", user_id=user_id, submitted=submitted, previous=None,
+                proposed=EntityCreate.model_validate(
+                    entity_data.model_dump(include=set(EntityCreate.model_fields)),
+                ),
+            ))
         entity = await self.entity_repo.create_entity(
             user_id=user_id,
             entity_data=entity_data,
@@ -153,7 +174,12 @@ class EntityService:
             snapshot=entity.model_dump(mode="json"),
         )
 
-        return entity
+        if self._write_plugin:
+            plugin_warnings += await self._write_plugin.after_save(EntitySavedRequest(
+                operation="create", user_id=user_id, previous=None, saved=entity,
+            ))
+
+        return EntityWriteResult(entity=entity, plugin_warnings=plugin_warnings)
 
     async def get_entity(
         self,
@@ -357,7 +383,7 @@ class EntityService:
         user_id: UUID,
         entity_id: int,
         entity_data: EntityUpdate,
-    ) -> Entity:
+    ) -> EntityWriteResult:
         """Update existing entity (PATCH semantics)
 
         Only provided fields are updated. None/omitted fields remain unchanged.
@@ -368,7 +394,7 @@ class EntityService:
             entity_data: EntityUpdate with fields to change
 
         Returns:
-            Updated Entity
+            Updated entity and any plugin warnings
 
         Raises:
             NotFoundError: If entity not found or not owned by user
@@ -381,6 +407,7 @@ class EntityService:
             },
         )
 
+        submitted = entity_data.model_copy(deep=True)
         entity_data = apply_provenance_defaults_for_update(entity_data)
 
         # Get existing entity for change detection
@@ -396,6 +423,34 @@ class EntityService:
         changed_fields = get_changed_fields(
             input_model=entity_data, existing_model=existing_entity,
         )
+
+        plugin_warnings = []
+        if changed_fields and self._write_plugin and self._write_plugin.has_before("update"):
+            proposed_data = existing_entity.model_dump(include=set(EntityCreate.model_fields))
+            updates = entity_data.model_dump(exclude_unset=True)
+            # Explicit null project_ids must not clear associations in the proposed snapshot.
+            relationships = {"project_ids"}
+            proposed_data.update({
+                key: value for key, value in updates.items()
+                if key not in relationships or value is not None
+            })
+            proposed = EntityCreate.model_validate(proposed_data)
+            plugin_warnings = await self._write_plugin.before_save(EntityWriteRequest(
+                operation="update", user_id=user_id, submitted=submitted,
+                previous=existing_entity.model_copy(deep=True), proposed=proposed,
+            ))
+            existing_entity = await self.entity_repo.get_entity_by_id(
+                user_id=user_id, entity_id=entity_id,
+            )
+            if not existing_entity:
+                raise NotFoundError(f"Entity {entity_id} not found")
+            changed_fields = get_changed_fields(
+                input_model=entity_data, existing_model=existing_entity,
+            )
+            if not changed_fields:
+                return EntityWriteResult(
+                    entity=existing_entity, plugin_warnings=plugin_warnings,
+                )
 
         entity = await self.entity_repo.update_entity(
             user_id=user_id,
@@ -425,14 +480,19 @@ class EntityService:
                 snapshot=entity.model_dump(mode="json"),
                 changes=changes_dict,
             )
+            if self._write_plugin:
+                previous = existing_entity.model_copy(deep=True)
+                plugin_warnings += await self._write_plugin.after_save(EntitySavedRequest(
+                    operation="update", user_id=user_id, saved=entity, previous=previous,
+                ))
 
-        return entity
+        return EntityWriteResult(entity=entity, plugin_warnings=plugin_warnings)
 
     async def delete_entity(
         self,
         user_id: UUID,
         entity_id: int,
-    ) -> bool:
+    ) -> EntityDeleteResult:
         """Delete entity (cascade removes memory associations and relationships)
 
         Args:
@@ -440,7 +500,7 @@ class EntityService:
             entity_id: Entity ID to delete
 
         Returns:
-            True if deleted, False if not found or not owned by user
+            Whether the entity was deleted and any plugin warnings
         """
         logger.info(
             "deleting entity",
@@ -455,6 +515,24 @@ class EntityService:
             user_id=user_id,
             entity_id=entity_id,
         )
+
+        if not existing_entity:
+            logger.warning(
+                "entity not found for deletion",
+                extra={
+                    "entity_id": entity_id,
+                    "user_id": str(user_id),
+                },
+            )
+            return EntityDeleteResult(deleted=False, plugin_warnings=[])
+
+        plugin_warnings = []
+        if self._write_plugin and self._write_plugin.has_before("delete"):
+            plugin_warnings = await self._write_plugin.before_save(EntityWriteRequest(
+                operation="delete", user_id=user_id,
+                submitted=EntityDeleteSubmission(entity_id=entity_id),
+                previous=existing_entity.model_copy(deep=True), proposed=None,
+            ))
 
         success = await self.entity_repo.delete_entity(
             user_id=user_id,
@@ -471,14 +549,18 @@ class EntityService:
             )
 
             # Emit deleted event with pre-deletion snapshot
-            if existing_entity:
-                await self._emit_event(
-                    user_id=user_id,
-                    entity_type=ActivityEntityType.ENTITY,
-                    entity_id=entity_id,
-                    action=ActionType.DELETED,
-                    snapshot=existing_entity.model_dump(mode="json"),
-                )
+            await self._emit_event(
+                user_id=user_id,
+                entity_type=ActivityEntityType.ENTITY,
+                entity_id=entity_id,
+                action=ActionType.DELETED,
+                snapshot=existing_entity.model_dump(mode="json"),
+            )
+            if self._write_plugin:
+                plugin_warnings += await self._write_plugin.after_save(EntityDeletedRequest(
+                    user_id=user_id, deleted_entity_id=entity_id,
+                    previous=existing_entity.model_copy(deep=True),
+                ))
         else:
             logger.warning(
                 "entity not found for deletion",
@@ -488,7 +570,7 @@ class EntityService:
                 },
             )
 
-        return success
+        return EntityDeleteResult(deleted=success, plugin_warnings=plugin_warnings)
 
     # Entity-Memory linking operations
 
