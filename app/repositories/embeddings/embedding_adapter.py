@@ -5,7 +5,7 @@ import time
 import httpx
 from google import genai
 from google.genai import types
-from openai import AsyncOpenAI, AzureOpenAI, DefaultAsyncHttpxClient
+from openai import AsyncAzureOpenAI, AsyncOpenAI, DefaultAsyncHttpxClient
 
 from app.config.settings import settings
 from app.protocols.embedding_protocol import EmbeddingsAdapter
@@ -83,20 +83,32 @@ class FastEmbeddingAdapter(EmbeddingsAdapter):
 class AzureOpenAIAdapter(EmbeddingsAdapter):
     """Generate embeddings using Azure Open AI Embeddings Provider"""
 
-    def __init__(self):
+    def __init__(self, *, max_concurrency: int = 1):
+        if max_concurrency < 1:
+            raise ValueError("Embedding concurrency must be at least 1")
         logger.info("Initialising Azure Open AI embeddings adapter", extra={
             "embedding_model": settings.EMBEDDING_MODEL,
         })
-        self.client = AzureOpenAI(
+        timeout = httpx.Timeout(settings.AZURE_TIMEOUT_SECONDS, connect=5.0)
+        http_client = DefaultAsyncHttpxClient(
+            limits=httpx.Limits(
+                max_connections=max_concurrency,
+                max_keepalive_connections=max_concurrency,
+            ),
+            timeout=timeout,
+        )
+        self.client = AsyncAzureOpenAI(
             api_version=settings.AZURE_API_VERSION,
             azure_endpoint=settings.AZURE_ENDPOINT,
             api_key=settings.AZURE_API_KEY,
+            http_client=http_client,
+            timeout=timeout,
         )
         self.model = settings.AZURE_DEPLOYMENT
 
     async def generate_embedding(self, text) -> list[float]:
         try:
-            response = self.client.embeddings.create(
+            response = await self.client.embeddings.create(
                 input=[text],
                 model=self.model,
                 dimensions=settings.EMBEDDING_DIMENSIONS,
@@ -114,6 +126,10 @@ class AzureOpenAIAdapter(EmbeddingsAdapter):
         embeddings  = response.data[0].embedding
 
         return embeddings
+
+    async def aclose(self) -> None:
+        """Close the shared SDK client without draining logical operations."""
+        await self.client.close()
 
 class GoogleEmbeddingsAdapter(EmbeddingsAdapter):
     """Generate embeddings using Google Generative AI embedding models."""
