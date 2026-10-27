@@ -412,9 +412,9 @@ class SkillBundleCases:
         other = await bundle_app.user_service.get_or_create_user(UserCreate(
             external_id="bundle-explicit-other", name="Other", email="other@example.test",
         ))
-        document = await bundle_app.document_service.create_document(other.id, DocumentCreate(
+        document = (await bundle_app.document_service.create_document(other.id, DocumentCreate(
             title="Private", description="Must not reveal existence", content="private",
-        ))
+        ))).document
         errors = []
         for resource_id in (document.id, 99999999):
             with pytest.raises(ToolError, match="not found") as exc:

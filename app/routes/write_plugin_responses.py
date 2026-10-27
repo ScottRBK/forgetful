@@ -2,6 +2,7 @@
 
 from pydantic import BaseModel, Field
 
+from app.models.document_models import Document
 from app.models.entity_models import Entity
 from app.models.memory_models import Memory, MemoryCreateResponse
 from app.models.write_plugin_models import MemoryLinkOutcome, PluginWarning
@@ -26,5 +27,14 @@ class EntityWriteResponse(Entity):
 
 
 class EntityDeleteResponse(BaseModel):
+    success: bool
+    plugin_warnings: list[PluginWarning] = Field(default_factory=list, exclude_if=lambda v: not v)
+
+
+class DocumentWriteResponse(Document):
+    plugin_warnings: list[PluginWarning] = Field(default_factory=list, exclude_if=lambda v: not v)
+
+
+class DocumentDeleteResponse(BaseModel):
     success: bool
     plugin_warnings: list[PluginWarning] = Field(default_factory=list, exclude_if=lambda v: not v)

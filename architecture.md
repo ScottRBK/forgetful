@@ -191,6 +191,13 @@ compatibility layer. Bootstrap injects `WritePluginService`; services never impo
 `app/models/write_plugin_models.py` owns detached contexts, decisions, advisory warnings, and
 internal write results. The existing `MEMORY_WRITE_PLUGIN*` settings remain.
 
+**Document Plugin:** `load_document_plugin` in `app/config/write_plugin.py` mirrors the memory
+loader. `DocumentPlugin` maps `create`, `update`, and `delete` to async handlers; bootstrap
+injects `DocumentWritePluginService` into `DocumentService`. Delete on a missing document keeps the
+existing repository call without plugin hooks (unlike entity delete early return). Document delete
+DB cascades on memory/skill association tables and `SET NULL` on `project_id` when a project is
+removed are outside plugin visibility.
+
 Before create/update, the plugin gets separately detached submitted/previous/proposed snapshots,
 with the writable candidate built by MemoryService after defaults and merging. Lifecycle contexts
 use `MemoryLifecycleRequest` and `MemoryLifecycleState`: submitted ID/reason/replacement, full

@@ -1346,7 +1346,11 @@ def register_document_tools_metadata(
                 {"name": "agent_version", "type": "Optional[str]", "description": "Agent version for provenance tracking", "required": False, "default": None, "example": "1.0"},
                 {"name": "agent_model", "type": "Optional[str]", "description": "LLM model used for provenance tracking", "required": False, "default": None, "example": "claude-sonnet-4-6"},
             ],
-            "returns": "Document with id and timestamps",
+            "returns": (
+                "Flat Document object after create, with plugin_warnings only when nonempty. "
+                "After-save warnings are advisory. Before-save errors: WRITE_PLUGIN_REJECTED "
+                "(correct the stated issue) or WRITE_PLUGIN_UNAVAILABLE."
+            ),
             "examples": [
                 'execute_forgetful_tool("create_document", {"title": "Notes", "description": "Project notes", "content": "# Notes\\n\\nSome content..."})',
             ],
@@ -1405,7 +1409,11 @@ def register_document_tools_metadata(
                 {"name": "agent_version", "type": "Optional[str]", "description": "Agent version for provenance tracking", "required": False, "default": None, "example": "1.0"},
                 {"name": "agent_model", "type": "Optional[str]", "description": "LLM model used for provenance tracking", "required": False, "default": None, "example": "claude-sonnet-4-6"},
             ],
-            "returns": "Updated Document object",
+            "returns": (
+                "Flat Document object after update, with plugin_warnings only when nonempty. "
+                "After-save warnings preserve success. Before-save errors: "
+                "WRITE_PLUGIN_REJECTED or WRITE_PLUGIN_UNAVAILABLE. No-op updates skip the plugin."
+            ),
             "examples": [
                 'execute_forgetful_tool("update_document", {"document_id": 1, "content": "Updated content"})',
             ],
@@ -1419,7 +1427,11 @@ def register_document_tools_metadata(
                 {"name": "document_id", "type": "int", "description": "ID of the document to delete", "required": True, "example": 1},
                 {"name": "ctx", "type": "Context", "description": "FastMCP Context (automatically injected)", "required": True},
             ],
-            "returns": "Dictionary with deletion confirmation",
+            "returns": (
+                "Dict with success boolean, deleted_id, and plugin_warnings only when nonempty. "
+                "After-save warnings preserve success. Before-save errors: WRITE_PLUGIN_REJECTED "
+                "or WRITE_PLUGIN_UNAVAILABLE."
+            ),
             "examples": [
                 'execute_forgetful_tool("delete_document", {"document_id": 1})',
             ],

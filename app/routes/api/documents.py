@@ -10,11 +10,19 @@ from pydantic import ValidationError
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-from app.exceptions import NotFoundError
+from app.exceptions import (
+    NotFoundError,
+    WritePluginRejectedError,
+    WritePluginUnavailableError,
+)
 from app.middleware.auth import get_user_from_request
 from app.models.document_models import (
     DocumentCreate,
     DocumentUpdate,
+)
+from app.routes.write_plugin_responses import (
+    DocumentDeleteResponse,
+    DocumentWriteResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -100,14 +108,21 @@ def register(mcp: FastMCP):
             return JSONResponse({"error": e.errors()}, status_code=400)
 
         try:
-            document = await mcp.document_service.create_document(
+            write_result = await mcp.document_service.create_document(
                 user_id=user.id,
                 document_data=document_data,
             )
+        except WritePluginRejectedError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        except WritePluginUnavailableError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=503)
         except NotFoundError as e:
             return JSONResponse({"error": str(e)}, status_code=404)
 
-        return JSONResponse(document.model_dump(mode="json"), status_code=201)
+        response = DocumentWriteResponse(
+            **write_result.document.model_dump(), plugin_warnings=write_result.plugin_warnings,
+        )
+        return JSONResponse(response.model_dump(mode="json"), status_code=201)
 
     @mcp.custom_route("/api/v1/documents/{document_id}", methods=["PUT"])
     async def update_document(request: Request) -> JSONResponse:
@@ -126,15 +141,22 @@ def register(mcp: FastMCP):
             return JSONResponse({"error": e.errors()}, status_code=400)
 
         try:
-            document = await mcp.document_service.update_document(
+            write_result = await mcp.document_service.update_document(
                 user_id=user.id,
                 document_id=document_id,
                 document_data=update_data,
             )
+        except WritePluginRejectedError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        except WritePluginUnavailableError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=503)
         except NotFoundError:
             return JSONResponse({"error": "Document not found"}, status_code=404)
 
-        return JSONResponse(document.model_dump(mode="json"))
+        response = DocumentWriteResponse(
+            **write_result.document.model_dump(), plugin_warnings=write_result.plugin_warnings,
+        )
+        return JSONResponse(response.model_dump(mode="json"))
 
     @mcp.custom_route("/api/v1/documents/{document_id}", methods=["DELETE"])
     async def delete_document(request: Request) -> JSONResponse:
@@ -147,14 +169,21 @@ def register(mcp: FastMCP):
         document_id = int(request.path_params["document_id"])
 
         try:
-            success = await mcp.document_service.delete_document(
+            delete_result = await mcp.document_service.delete_document(
                 user_id=user.id,
                 document_id=document_id,
             )
+        except WritePluginRejectedError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        except WritePluginUnavailableError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=503)
         except NotFoundError:
             return JSONResponse({"error": "Document not found"}, status_code=404)
 
-        if not success:
+        if not delete_result.deleted:
             return JSONResponse({"error": "Document not found"}, status_code=404)
 
-        return JSONResponse({"success": True})
+        response = DocumentDeleteResponse(
+            success=True, plugin_warnings=delete_result.plugin_warnings,
+        )
+        return JSONResponse(response.model_dump(mode="json"))

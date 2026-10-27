@@ -6,12 +6,20 @@ from fastmcp.exceptions import ToolError
 from pydantic import ValidationError
 
 from app.config.logging_config import logging
-from app.exceptions import NotFoundError
+from app.exceptions import (
+    NotFoundError,
+    WritePluginRejectedError,
+    WritePluginUnavailableError,
+)
 from app.middleware.auth import get_user_from_auth
 from app.models.document_models import (
     Document,
     DocumentCreate,
     DocumentUpdate,
+)
+from app.routes.write_plugin_responses import (
+    DocumentDeleteResponse,
+    DocumentWriteResponse,
 )
 from app.utils.pydantic_helper import filter_none_values
 
@@ -109,16 +117,21 @@ def register(mcp: FastMCP):
 
         try:
             document_service = ctx.fastmcp.document_service
-            document = await document_service.create_document(
+            write_result = await document_service.create_document(
                 user_id=user.id,
                 document_data=document_data,
             )
-
-            return document
-
+        except WritePluginRejectedError as exc:
+            raise ToolError(f"WRITE_PLUGIN_REJECTED: {exc}") from None
+        except WritePluginUnavailableError as exc:
+            raise ToolError(f"WRITE_PLUGIN_UNAVAILABLE: {exc}") from None
         except Exception as e:
             logger.error("Failed to create document", exc_info=True)
             raise ToolError(f"Failed to create document: {e!s}")
+
+        return DocumentWriteResponse(
+            **write_result.document.model_dump(), plugin_warnings=write_result.plugin_warnings,
+        )
 
     @mcp.tool()
     async def get_document(
@@ -311,19 +324,24 @@ def register(mcp: FastMCP):
 
         try:
             document_service = ctx.fastmcp.document_service
-            document = await document_service.update_document(
+            write_result = await document_service.update_document(
                 user_id=user.id,
                 document_id=document_id,
                 document_data=update_data,
             )
-
-            return document
-
+        except WritePluginRejectedError as exc:
+            raise ToolError(f"WRITE_PLUGIN_REJECTED: {exc}") from None
+        except WritePluginUnavailableError as exc:
+            raise ToolError(f"WRITE_PLUGIN_UNAVAILABLE: {exc}") from None
         except NotFoundError:
             raise ToolError(f"Document {document_id} not found")
         except Exception as e:
             logger.error("Failed to update document", exc_info=True)
             raise ToolError(f"Failed to update document: {e!s}")
+
+        return DocumentWriteResponse(
+            **write_result.document.model_dump(), plugin_warnings=write_result.plugin_warnings,
+        )
 
     @mcp.tool()
     async def delete_document(
@@ -357,16 +375,19 @@ def register(mcp: FastMCP):
 
         try:
             document_service = ctx.fastmcp.document_service
-            success = await document_service.delete_document(
+            delete_result = await document_service.delete_document(
                 user_id=user.id,
                 document_id=document_id,
             )
+        except WritePluginRejectedError as exc:
+            raise ToolError(f"WRITE_PLUGIN_REJECTED: {exc}") from None
+        except WritePluginUnavailableError as exc:
+            raise ToolError(f"WRITE_PLUGIN_UNAVAILABLE: {exc}") from None
 
-            if not success:
-                raise ToolError(f"Document {document_id} not found")
+        if not delete_result.deleted:
+            raise ToolError(f"Document {document_id} not found")
 
-            return {"deleted_id": document_id}
-
-        except Exception as e:
-            logger.error("Failed to delete document", exc_info=True)
-            raise ToolError(f"Failed to delete document: {e!s}")
+        response = DocumentDeleteResponse(
+            success=True, plugin_warnings=delete_result.plugin_warnings,
+        )
+        return {**response.model_dump(), "deleted_id": document_id}
