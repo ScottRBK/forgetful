@@ -1467,7 +1467,11 @@ def register_entity_tools_metadata(
                 {"name": "agent_version", "type": "Optional[str]", "description": "Agent version for provenance tracking", "required": False, "default": None, "example": "1.0"},
                 {"name": "agent_model", "type": "Optional[str]", "description": "LLM model used for provenance tracking", "required": False, "default": None, "example": "claude-sonnet-4-6"},
             ],
-            "returns": "Entity with id and timestamps",
+            "returns": (
+                "Flat Entity object after create, with plugin_warnings only when nonempty. "
+                "After-save warnings are advisory. Before-save errors: WRITE_PLUGIN_REJECTED "
+                "(correct the stated issue) or WRITE_PLUGIN_UNAVAILABLE."
+            ),
             "examples": [
                 'execute_forgetful_tool("create_entity", {"name": "Anthropic", "entity_type": "organization", "aka": ["Claude AI"]})',
             ],
@@ -1543,7 +1547,11 @@ def register_entity_tools_metadata(
                 {"name": "agent_version", "type": "Optional[str]", "description": "Agent version for provenance tracking", "required": False, "default": None, "example": "1.0"},
                 {"name": "agent_model", "type": "Optional[str]", "description": "LLM model used for provenance tracking", "required": False, "default": None, "example": "claude-sonnet-4-6"},
             ],
-            "returns": "Updated Entity object",
+            "returns": (
+                "Flat Entity object after update, with plugin_warnings only when nonempty. "
+                "After-save warnings preserve success. Before-save errors: "
+                "WRITE_PLUGIN_REJECTED or WRITE_PLUGIN_UNAVAILABLE. No-op updates skip the plugin."
+            ),
             "examples": [
                 'execute_forgetful_tool("update_entity", {"entity_id": 1, "aka": ["NewAlias", "AnotherName"]})',
             ],
@@ -1557,7 +1565,11 @@ def register_entity_tools_metadata(
                 {"name": "entity_id", "type": "int", "description": "ID of the entity to delete", "required": True, "example": 1},
                 {"name": "ctx", "type": "Context", "description": "FastMCP Context (automatically injected)", "required": True},
             ],
-            "returns": "Dictionary with deletion confirmation",
+            "returns": (
+                "Dict with success boolean, deleted_id, and plugin_warnings only when nonempty. "
+                "After-save warnings preserve success. Before-save errors: WRITE_PLUGIN_REJECTED "
+                "or WRITE_PLUGIN_UNAVAILABLE."
+            ),
             "examples": [
                 'execute_forgetful_tool("delete_entity", {"entity_id": 1})',
             ],
