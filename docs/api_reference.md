@@ -1561,6 +1561,9 @@ Delete a task.
 
 Transition a task to a new state. Uses optimistic concurrency via the `version` field -- the request is rejected if the provided version does not match the current version.
 
+Send a JSON object with the documented field types. Versions must be JSON integers;
+booleans, fractional or integral floats, and numeric strings are rejected rather than coerced.
+
 **Request Body:**
 ```json
 {
@@ -1590,6 +1593,7 @@ Transition a task to a new state. Uses optimistic concurrency via the `version` 
 
 | Code | Condition |
 |------|-----------|
+| 400 | Malformed JSON, non-object body, or missing/invalid fields |
 | 404 | Task not found |
 | 409 | Version mismatch (optimistic concurrency conflict) |
 | 422 | Invalid state transition, or unmet dependencies block the transition |
@@ -1597,6 +1601,9 @@ Transition a task to a new state. Uses optimistic concurrency via the `version` 
 ### POST /api/v1/tasks/{task_id}/claim
 
 Claim a task by assigning an agent and transitioning it to `doing`. Uses optimistic concurrency via the `version` field.
+
+Send a JSON object with a string `agent_id` and a JSON integer `version`.
+Other values are rejected rather than converted to an identifier or version.
 
 **Request Body:**
 ```json
@@ -1617,6 +1624,7 @@ Claim a task by assigning an agent and transitioning it to `doing`. Uses optimis
 
 | Code | Condition |
 |------|-----------|
+| 400 | Malformed JSON, non-object body, or missing/invalid fields |
 | 404 | Task not found |
 | 409 | Version mismatch (optimistic concurrency conflict) |
 | 422 | Invalid state transition, or unmet dependencies block the claim |
@@ -1698,6 +1706,9 @@ Delete an acceptance criterion.
 
 Add a dependency, declaring that `task_id` depends on another task.
 
+Send a JSON object with a JSON integer `depends_on_task_id`. Booleans, floats,
+and numeric strings are rejected rather than converted to a different task ID.
+
 **Request Body:**
 ```json
 {
@@ -1723,7 +1734,7 @@ Add a dependency, declaring that `task_id` depends on another task.
 
 | Code | Condition |
 |------|-----------|
-| 400 | Cyclic dependency detected, or task depends on itself |
+| 400 | Malformed JSON, non-object body, missing/invalid fields, cyclic dependency, or task depends on itself |
 | 404 | Task not found |
 
 ### DELETE /api/v1/tasks/{task_id}/dependencies/{depends_on_task_id}

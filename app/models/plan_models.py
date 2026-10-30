@@ -266,6 +266,23 @@ class PlanSummary(BaseModel):
 # ============================================================================
 
 
+class TaskTransitionRequest(BaseModel):
+    """HTTP input for an optimistic-lock state transition."""
+    state: TaskState
+    version: int
+
+
+class TaskClaimRequest(BaseModel):
+    """HTTP input for claiming a task at its current version."""
+    agent_id: str
+    version: int
+
+
+class TaskDependencyRequest(BaseModel):
+    """HTTP input for adding a dependency to the task in the route."""
+    depends_on_task_id: int
+
+
 class TaskCreate(BaseModel):
     """Input model for creating a task."""
     title: str = Field(..., max_length=settings.TASK_TITLE_MAX_LENGTH)
