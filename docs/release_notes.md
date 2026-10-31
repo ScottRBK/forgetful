@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Azure OpenAI embedding request concurrency and timeout (#90)
+
+Azure embeddings now use a native async `AsyncAzureOpenAI` client with a per-process
+HTTP connection pool capped by `EMBEDDING_MAX_CONCURRENCY` (default `1`; restart to
+change; shared by memory and skill operations). The event loop no longer blocks on
+each request. `AZURE_TIMEOUT_SECONDS` (default `120`) replaces the SDK 600-second
+default with separate read, write and pool-wait limits. This is not a logical-operation
+or rate limit. No database migration or embedding rebuild is needed. See
+[embedding request concurrency](configuration.md#embedding-request-concurrency).
+
 ### OpenAI embedding request concurrency and timeout (#91, #180)
 
 OpenAI and compatible endpoints now use a native async client with a per-process HTTP

@@ -1,0 +1,434 @@
+"""Real async SDK requests against synthetic HTTP; no provider or model calls."""
+import asyncio
+import inspect
+import json
+from argparse import Namespace
+from unittest.mock import AsyncMock
+from uuid import uuid4
+
+import httpx
+import pytest
+from openai import (
+    APIStatusError,
+    APITimeoutError,
+    AsyncAzureOpenAI,
+    DefaultAsyncHttpxClient,
+)
+from pydantic import ValidationError
+
+import main
+from app import bootstrap
+from app.config.settings import Settings
+from app.repositories.embeddings import embedding_adapter as module
+
+
+def embedding_response(request):
+    text = json.loads(request.content)["input"][0]
+    return httpx.Response(200, json={
+        "object": "list", "model": "synthetic-deployment",
+        "data": [{"object": "embedding", "index": 0, "embedding": [float(len(text))]}],
+        "usage": {"prompt_tokens": 1, "total_tokens": 1},
+    })
+
+
+@pytest.fixture
+async def make_adapter(monkeypatch):
+    # A real loopback socket exercises httpx's pool; MockTransport bypasses it.
+    for name in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy", "no_proxy"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("NO_PROXY", "127.0.0.1,localhost")
+    handler_box = [embedding_response]
+    connections = set()
+    errors = []
+
+    async def serve(reader, writer):
+        task = asyncio.current_task()
+        connections.add(task)
+        try:
+            header = await reader.readuntil(b"\r\n\r\n")
+            lines = header.decode("latin1").split("\r\n")
+            method, path, _ = lines[0].split(" ", 2)
+            headers = dict(line.split(": ", 1) for line in lines[1:] if line)
+            size = int(next(value for key, value in headers.items() if key.lower() == "content-length"))
+            body = await reader.readexactly(size)
+            request = httpx.Request(method, endpoint + path, headers=headers, content=body)
+            response = handler_box[0](request)
+            if inspect.isawaitable(response):
+                response = await response
+            output = f"HTTP/1.1 {response.status_code} {response.reason_phrase}\r\n".encode()
+            output += b"".join(f"{key}: {value}\r\n".encode() for key, value in response.headers.items()
+                               if key.lower() != "connection")
+            writer.write(output + b"Connection: close\r\n\r\n" + response.content)
+            await writer.drain()
+        except (asyncio.IncompleteReadError, ConnectionError):
+            pass  # A cancelled client can disconnect before a request or response finishes.
+        except asyncio.CancelledError:
+            raise
+        except Exception as error:
+            errors.append(error)
+        finally:
+            writer.close()
+            try:
+                await writer.wait_closed()
+            except ConnectionError:
+                pass
+            connections.discard(task)
+
+    server = await asyncio.start_server(serve, "127.0.0.1", 0)
+    endpoint = f"http://127.0.0.1:{server.sockets[0].getsockname()[1]}"
+    monkeypatch.setattr(module.settings, "AZURE_ENDPOINT", endpoint)
+    monkeypatch.setattr(module.settings, "AZURE_API_VERSION", "2024-02-01")
+    monkeypatch.setattr(module.settings, "AZURE_API_KEY", "synthetic-key")
+    monkeypatch.setattr(module.settings, "AZURE_DEPLOYMENT", "synthetic-deployment")
+    monkeypatch.setattr(module.settings, "EMBEDDING_DIMENSIONS", 1)
+    monkeypatch.setattr(module.settings, "AZURE_TIMEOUT_SECONDS", 120.0)
+    adapters = []
+    http_clients = []
+
+    def http_client(**kwargs):
+        client = DefaultAsyncHttpxClient(**kwargs)
+        http_clients.append((client, kwargs["limits"]))
+        return client
+
+    monkeypatch.setattr(module, "DefaultAsyncHttpxClient", http_client, raising=False)
+
+    def make(
+        handler=embedding_response, capacity=None, *, use_default_retries=False, **sdk_options,
+    ):
+        handler_box[0] = handler
+        if not use_default_retries:
+            sdk_options.setdefault("max_retries", 0)
+        monkeypatch.setattr(module, "AsyncAzureOpenAI", lambda **kwargs: AsyncAzureOpenAI(**kwargs, **sdk_options))
+        adapter = module.AzureOpenAIAdapter() if capacity is None else module.AzureOpenAIAdapter(max_concurrency=capacity)
+        adapters.append(adapter)
+        return adapter
+
+    make.http_clients = http_clients
+    try:
+        yield make
+    finally:
+        for adapter in adapters:
+            await adapter.aclose()
+        server.close()
+        tasks = list(connections)
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        await server.wait_closed()
+        assert not errors, errors
+
+
+@pytest.mark.parametrize("capacity", [None, 2, 4])
+async def test_configured_limits_reach_the_shared_sdk_http_client(make_adapter, capacity):
+    adapter = make_adapter(capacity=capacity)
+    client, limits = make_adapter.http_clients[-1]
+    assert adapter.client._client is client
+    assert limits.max_connections == (capacity or 1)
+    assert limits.max_keepalive_connections == (capacity or 1)
+    assert await adapter.generate_embedding("configured") == [10.0]
+
+
+@pytest.mark.parametrize("configured_timeout", [5.0, 47.5])
+async def test_configured_timeout_reaches_the_shared_sdk_client(
+    make_adapter, monkeypatch, configured_timeout,
+):
+    monkeypatch.setattr(module.settings, "AZURE_TIMEOUT_SECONDS", configured_timeout)
+
+    adapter = make_adapter()
+
+    client, _ = make_adapter.http_clients[-1]
+    assert client.timeout.connect == 5.0
+    assert client.timeout.read == configured_timeout
+    assert client.timeout.write == configured_timeout
+    assert client.timeout.pool == configured_timeout
+    assert adapter.client.timeout.connect == 5.0
+    assert adapter.client.timeout.read == configured_timeout
+    assert adapter.client.timeout.write == configured_timeout
+    assert adapter.client.timeout.pool == configured_timeout
+
+
+async def test_sdk_default_retry_count_is_unchanged(make_adapter):
+    adapter = make_adapter(use_default_retries=True)
+
+    assert adapter.client.max_retries == 2
+
+
+async def test_native_async_does_not_use_shared_thread_pool(make_adapter, monkeypatch):
+    adapter = make_adapter()
+    # The SDK performs its own one-time platform-metadata lookup in a worker.
+    # Warm that path before checking that embedding HTTP calls need no worker.
+    assert await adapter.generate_embedding("warmup") == [6.0]
+    monkeypatch.setattr(asyncio, "to_thread", AsyncMock(side_effect=AssertionError("shared thread pool used")))
+    assert await adapter.generate_embedding("hello") == [5.0]
+
+
+@pytest.mark.parametrize("capacity", [1, 2, 4])
+async def test_real_sdk_overlap_is_bounded_and_results_stay_associated(make_adapter, capacity):
+    entered = asyncio.Event()
+    release = asyncio.Event()
+    calls = []
+    active = 0
+    peak = 0
+
+    async def handler(request):
+        nonlocal active, peak
+        calls.append(json.loads(request.content)["input"][0])
+        active += 1
+        peak = max(peak, active)
+        if active == capacity:
+            entered.set()
+        try:
+            await release.wait()
+            return embedding_response(request)
+        finally:
+            active -= 1
+
+    adapter = make_adapter(handler, capacity)
+    tasks = [asyncio.create_task(adapter.generate_embedding("x" * i)) for i in range(1, capacity + 2)]
+    try:
+        await asyncio.wait_for(entered.wait(), 2)
+        # A scheduling interval allows the excess caller to attempt admission.
+        await asyncio.sleep(0.3)
+        assert len(calls) == capacity
+        assert not any(task.done() for task in tasks)
+        release.set()
+        assert await asyncio.gather(*tasks) == [[float(i)] for i in range(1, capacity + 2)]
+        assert peak == capacity
+    finally:
+        release.set()
+        await asyncio.gather(*tasks, return_exceptions=True)
+
+
+async def test_waiter_and_active_cancellation_release_without_sending_waiter(make_adapter):
+    entered = asyncio.Event()
+    release = asyncio.Event()
+    calls = []
+
+    async def handler(request):
+        text = json.loads(request.content)["input"][0]
+        calls.append(text)
+        if text == "active":
+            entered.set()
+            await release.wait()
+        return embedding_response(request)
+
+    adapter = make_adapter(handler, 1)
+    active = asyncio.create_task(adapter.generate_embedding("active"))
+    await asyncio.wait_for(entered.wait(), 2)
+    waiting = asyncio.create_task(adapter.generate_embedding("waiting"))
+    await asyncio.sleep(0)
+    waiting.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await waiting
+    active.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await active
+    assert await adapter.generate_embedding("next") == [4.0]
+    assert calls == ["active", "next"]
+
+
+async def test_sdk_retry_backoff_releases_http_capacity(make_adapter):
+    first_attempt = asyncio.Event()
+    calls = []
+
+    async def handler(request):
+        text = json.loads(request.content)["input"][0]
+        calls.append(text)
+        if text == "first" and calls.count("first") == 1:
+            first_attempt.set()
+            return httpx.Response(429, headers={"retry-after": "1"}, json={"error": {"message": "synthetic retry"}})
+        return embedding_response(request)
+
+    adapter = make_adapter(handler, 1, max_retries=1)
+    first = asyncio.create_task(adapter.generate_embedding("first"))
+    await asyncio.wait_for(first_attempt.wait(), 5)
+    second = asyncio.create_task(adapter.generate_embedding("second"))
+    try:
+        assert await asyncio.wait_for(asyncio.gather(first, second), 10) == [[5.0], [6.0]]
+        assert calls == ["first", "second", "first"]
+    finally:
+        await asyncio.gather(first, second, return_exceptions=True)
+
+
+async def test_http_failure_releases_capacity(make_adapter):
+    async def handler(request):
+        if json.loads(request.content)["input"] == ["fail"]:
+            return httpx.Response(503, json={"error": {"message": "synthetic failure"}})
+        return embedding_response(request)
+
+    adapter = make_adapter(handler, 1)
+    with pytest.raises(APIStatusError):
+        await adapter.generate_embedding("fail")
+    assert await adapter.generate_embedding("ok") == [2.0]
+
+
+async def test_configured_timeout_releases_capacity(make_adapter, monkeypatch):
+    async def handler(request):
+        if json.loads(request.content)["input"] == ["fail"]:
+            await asyncio.sleep(0.2)
+        return embedding_response(request)
+
+    monkeypatch.setattr(module.settings, "AZURE_TIMEOUT_SECONDS", 0.05)
+    adapter = make_adapter(handler, 1)
+
+    with pytest.raises(APITimeoutError):
+        await adapter.generate_embedding("fail")
+    assert await adapter.generate_embedding("ok") == [2.0]
+
+
+def test_azure_timeout_setting_defaults_to_120_seconds():
+    configured = Settings(_env_file=None)
+
+    assert configured.AZURE_TIMEOUT_SECONDS == 120.0
+
+
+def test_azure_timeout_setting_honours_environment_override(monkeypatch):
+    monkeypatch.setenv("AZURE_TIMEOUT_SECONDS", "180")
+
+    configured = Settings(_env_file=None)
+
+    assert configured.AZURE_TIMEOUT_SECONDS == 180.0
+
+
+@pytest.mark.parametrize("value", [0, -1, float("inf"), float("nan")])
+def test_azure_timeout_setting_rejects_invalid_values(value):
+    with pytest.raises(ValidationError, match="AZURE_TIMEOUT_SECONDS"):
+        Settings(_env_file=None, AZURE_TIMEOUT_SECONDS=value)
+
+
+async def test_close_delegates_to_sdk_and_closes_the_shared_http_client(make_adapter):
+    adapter = make_adapter()
+    await adapter.generate_embedding("open")
+    client = adapter.client._client
+    sdk_close = AsyncMock(wraps=adapter.client.close)
+    adapter.client.close = sdk_close
+    await adapter.aclose()
+    sdk_close.assert_awaited_once()
+    assert client.is_closed
+    assert adapter.client.is_closed()
+
+
+async def test_real_sdk_sends_azure_deployment_request(make_adapter):
+    requests = []
+
+    async def handler(request):
+        requests.append(request)
+        return embedding_response(request)
+
+    adapter = make_adapter(handler)
+    assert await adapter.generate_embedding("text") == [4.0]
+    request = requests[0]
+    body = json.loads(request.content)
+    assert request.url.path == "/openai/deployments/synthetic-deployment/embeddings"
+    assert request.url.params["api-version"] == "2024-02-01"
+    assert request.headers["api-key"] == "synthetic-key"
+    assert body["input"] == ["text"]
+    assert body["dimensions"] == 1
+
+
+async def test_event_loop_stays_responsive_during_request(make_adapter):
+    gate = asyncio.Event()
+    ticks = 0
+
+    async def handler(request):
+        await gate.wait()
+        return embedding_response(request)
+
+    async def ticker():
+        nonlocal ticks
+        while True:
+            await asyncio.sleep(0.01)
+            ticks += 1
+
+    adapter = make_adapter(handler)
+    tick_task = asyncio.create_task(ticker())
+    try:
+        embed_task = asyncio.create_task(adapter.generate_embedding("text"))
+        for _ in range(50):
+            if ticks >= 3:
+                break
+            await asyncio.sleep(0.01)
+        assert ticks >= 3
+        gate.set()
+        result = await asyncio.wait_for(embed_task, 5)
+        assert result == [4.0]
+    finally:
+        gate.set()
+        tick_task.cancel()
+        await asyncio.gather(tick_task, return_exceptions=True)
+
+
+@pytest.mark.parametrize("capacity", [0, -1])
+def test_invalid_capacity_is_rejected(make_adapter, capacity):
+    with pytest.raises(ValueError, match="at least 1"):
+        make_adapter(capacity=capacity)
+
+
+async def test_runtime_memory_and_skill_searches_share_configured_limit(sqlite_runtime_settings, make_adapter, monkeypatch):
+    entered = asyncio.Event()
+    release = asyncio.Event()
+    calls = []
+    active = 0
+    peak = 0
+
+    async def handler(request):
+        nonlocal active, peak
+        calls.append(json.loads(request.content)["input"][0])
+        active += 1
+        peak = max(peak, active)
+        if active == 2:
+            entered.set()
+        try:
+            await release.wait()
+            return embedding_response(request)
+        finally:
+            active -= 1
+
+    # Install the synthetic SDK factory that bootstrap uses for its own adapter.
+    make_adapter(handler)
+    monkeypatch.setattr(module.settings, "EMBEDDING_PROVIDER", "Azure")
+    monkeypatch.setattr(module.settings, "EMBEDDING_MAX_CONCURRENCY", 2)
+    monkeypatch.setattr(module.settings, "SKILLS_ENABLED", True)
+    runtime = await bootstrap.build_runtime()
+    user_id = uuid4()
+    tasks = [asyncio.create_task(runtime.repos["memory"].search(
+        user_id=user_id, query="memory", query_context="search", k=1,
+        importance_threshold=None, project_ids=None, exclude_ids=None,
+    ))]
+    tasks.extend(asyncio.create_task(runtime.services.skill.search_skills(
+        user_id=user_id, query=query,
+    )) for query in ("skill-one", "skill-two"))
+    try:
+        await asyncio.wait_for(entered.wait(), 2)
+        await asyncio.sleep(0.3)
+        assert len(calls) == 2
+        release.set()
+        assert await asyncio.gather(*tasks) == [[], [], []]
+        assert peak == 2
+    finally:
+        release.set()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        await bootstrap.dispose_runtime(runtime)
+    assert runtime.embedding_adapter.client.is_closed()
+
+
+async def test_runtime_startup_failure_closes_real_async_client(sqlite_runtime_settings, make_adapter, monkeypatch):
+    adapter = make_adapter()
+    monkeypatch.setattr(bootstrap, "get_embedding_adapter", lambda: adapter)
+    monkeypatch.setattr(module.settings, "EMBEDDING_PROVIDER", "Azure")
+
+    def fail_database():
+        raise RuntimeError("synthetic startup failure")
+
+    monkeypatch.setattr(bootstrap, "create_db_adapter", fail_database)
+    with pytest.raises(RuntimeError, match="synthetic startup failure"):
+        await bootstrap.build_runtime()
+    assert adapter.client.is_closed()
+
+
+async def test_reembed_cli_exit_closes_real_async_client(sqlite_runtime_settings, make_adapter, monkeypatch):
+    adapter = make_adapter()
+    monkeypatch.setattr(bootstrap, "get_embedding_adapter", lambda: adapter)
+    monkeypatch.setattr(module.settings, "EMBEDDING_PROVIDER", "Azure")
+    await main._run_reembed(Namespace(batch_size=1, dry_run=True))
+    assert adapter.client.is_closed()
