@@ -18,9 +18,12 @@ from app.middleware.auth import get_user_from_request
 from app.models.plan_models import (
     CriterionCreate,
     CriterionUpdate,
+    TaskClaimRequest,
     TaskCreate,
+    TaskDependencyRequest,
     TaskPriority,
     TaskState,
+    TaskTransitionRequest,
     TaskUpdate,
 )
 
@@ -149,16 +152,14 @@ def register(mcp: FastMCP):
         task_id = int(request.path_params["task_id"])
 
         try:
-            body = await request.json()
-            new_state = TaskState(body["state"])
-            version = int(body["version"])
-        except (KeyError, ValueError) as e:
-            return JSONResponse({"error": f"Invalid body: {e}"}, status_code=400)
+            transition = TaskTransitionRequest.model_validate_json(await request.body(), strict=True)
+        except ValidationError as e:
+            return JSONResponse({"error": e.errors(include_context=False, include_input=False)}, status_code=400)
 
         try:
             task = await mcp.task_service.transition_task(
                 user_id=user.id, task_id=task_id,
-                new_state=new_state, expected_version=version,
+                new_state=transition.state, expected_version=transition.version,
             )
         except NotFoundError as e:
             return JSONResponse({"error": str(e)}, status_code=404)
@@ -182,16 +183,14 @@ def register(mcp: FastMCP):
         task_id = int(request.path_params["task_id"])
 
         try:
-            body = await request.json()
-            agent_id = str(body["agent_id"])
-            version = int(body["version"])
-        except (KeyError, ValueError) as e:
-            return JSONResponse({"error": f"Invalid body: {e}"}, status_code=400)
+            claim = TaskClaimRequest.model_validate_json(await request.body(), strict=True)
+        except ValidationError as e:
+            return JSONResponse({"error": e.errors(include_context=False, include_input=False)}, status_code=400)
 
         try:
             task = await mcp.task_service.claim_task(
                 user_id=user.id, task_id=task_id,
-                agent_id=agent_id, expected_version=version,
+                agent_id=claim.agent_id, expected_version=claim.version,
             )
         except NotFoundError as e:
             return JSONResponse({"error": str(e)}, status_code=404)
@@ -287,14 +286,13 @@ def register(mcp: FastMCP):
         task_id = int(request.path_params["task_id"])
 
         try:
-            body = await request.json()
-            depends_on_task_id = int(body["depends_on_task_id"])
-        except (KeyError, ValueError) as e:
-            return JSONResponse({"error": f"Invalid body: {e}"}, status_code=400)
+            dependency = TaskDependencyRequest.model_validate_json(await request.body(), strict=True)
+        except ValidationError as e:
+            return JSONResponse({"error": e.errors(include_context=False, include_input=False)}, status_code=400)
 
         try:
             dep = await mcp.task_service.add_dependency(
-                user_id=user.id, task_id=task_id, depends_on_task_id=depends_on_task_id,
+                user_id=user.id, task_id=task_id, depends_on_task_id=dependency.depends_on_task_id,
             )
         except NotFoundError as e:
             return JSONResponse({"error": str(e)}, status_code=404)

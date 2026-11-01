@@ -220,7 +220,7 @@ class Settings(BaseSettings):
     EMBEDDING_PROVIDER: str = "FastEmbed" # FastEmbed | Azure | Google | OpenAI | Ollama
     EMBEDDING_MODEL: str = "BAAI/bge-small-en-v1.5"
     EMBEDDING_DIMENSIONS: int = 384
-    EMBEDDING_MAX_CONCURRENCY: int = Field(default=1, ge=1)  # FastEmbed workers / OpenAI HTTP connections per process
+    EMBEDDING_MAX_CONCURRENCY: int = Field(default=1, ge=1)  # FastEmbed workers / OpenAI and Azure HTTP connections per process
     EMBEDDING_ONNX_PROVIDERS: str = ""  # FastEmbed only; comma-separated ONNX Runtime providers, empty = default
 
     # AZURE EMBEDDING PROVIDER CONFIG
@@ -228,6 +228,7 @@ class Settings(BaseSettings):
     AZURE_DEPLOYMENT: str = ""
     AZURE_API_VERSION: str = ""
     AZURE_API_KEY: str = ""
+    AZURE_TIMEOUT_SECONDS: float = Field(default=120.0, gt=0, allow_inf_nan=False)
 
     # GOOGLE EMBEDDING PROVIDER CONFIG
     GOOGLE_AI_API_KEY: str = ""

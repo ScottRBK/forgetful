@@ -1189,6 +1189,14 @@ ACTIVITY_TRACK_READS=false
 - **Security**: **Keep this secret** - never commit to version control
 - **Example**: `AZURE_API_KEY=your-azure-api-key-here`
 
+#### `AZURE_TIMEOUT_SECONDS`
+- **Default**: `120`
+- **Description**: Separate timeout for read inactivity, write inactivity and connection-pool waits
+- **Validation**: Must be a positive, finite number
+- **Note**: The connection-establishment timeout remains fixed at 5 seconds
+- **Retries**: The SDK retries twice by default; this setting is not an overall deadline
+- **Example**: `AZURE_TIMEOUT_SECONDS=180`
+
 ### Google Embedding Provider Configuration
 
 **Note**: These settings only apply when `EMBEDDING_PROVIDER=Google`
@@ -1493,10 +1501,19 @@ shared thread pool without an adapter limit. Set a higher value for overlapping 
 or compatible-endpoint HTTP requests. SDK retry backoff releases connection capacity,
 so another request can proceed while an earlier operation waits to retry.
 
+For `EMBEDDING_PROVIDER=Azure`, the adapter uses the same model: one native async
+`AsyncAzureOpenAI` client with a shared HTTP connection pool capped by
+`EMBEDDING_MAX_CONCURRENCY`, with the same retry, cancellation, shutdown and
+startup-error behaviour. Earlier versions called the synchronous client inside the
+event loop, so each Azure request blocked other work in the process; at the default
+`1` requests still go one at a time but the event loop stays responsive.
+`AZURE_TIMEOUT_SECONDS` (default `120`) has the same phase semantics as
+`OPENAI_TIMEOUT_SECONDS`.
+
 This does not bound logical SDK operations, waiting callers, or requests per minute.
 Cancelling a request releases its local connection, but the remote provider may still
 finish that work. Shutdown closes the SDK client without waiting for in-flight OpenAI
-operations to finish; those operations can fail as the client closes. The client is also
+or Azure operations to finish; those operations can fail as the client closes. The client is also
 closed after startup errors and on CLI exit. Changing the limit requires a process restart.
 
 `OPENAI_TIMEOUT_SECONDS` (default `120`) applies separately to read inactivity, write inactivity
@@ -1507,7 +1524,7 @@ operation deadline. Increase the setting for a slower compatible endpoint. A tim
 releases its HTTP connection capacity while it waits to retry. Queued requests can time out when
 all configured connections remain occupied. Changing the timeout requires a process restart.
 
-The setting applies to FastEmbed and OpenAI, not Azure, Google or Ollama.
-Azure rollout is tracked separately in issue #90. It does not parallelize bulk
+The setting applies to FastEmbed, OpenAI and Azure, not Google or Ollama.
+It does not parallelize bulk
 re-embedding, limit requests per minute or tokens, bound waiters, or change
 reranking workers.

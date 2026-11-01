@@ -36,7 +36,7 @@ def get_embedding_adapter():
     )
 
     if settings.EMBEDDING_PROVIDER == "Azure":
-        return AzureOpenAIAdapter()
+        return AzureOpenAIAdapter(max_concurrency=settings.EMBEDDING_MAX_CONCURRENCY)
     if settings.EMBEDDING_PROVIDER == "Google":
         return GoogleEmbeddingsAdapter()
     if settings.EMBEDDING_PROVIDER == "OpenAI":
