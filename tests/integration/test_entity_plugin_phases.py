@@ -11,6 +11,7 @@ from app.exceptions import (
     WritePluginRejectedError,
     WritePluginUnavailableError,
 )
+from app.models.activity_models import ActionType
 from app.models.entity_models import EntityUpdate
 from app.models.write_plugin_models import PluginWarning, WriteDecision
 from app.protocols.write_plugin_protocol import EntityPlugin
@@ -114,6 +115,81 @@ async def test_noop_update_skips_plugin(entity_store):
     await service.update_entity(user_id, created.id, EntityUpdate(notes="same"))
     await service.update_entity(user_id, created.id, EntityUpdate(notes="same"))
     assert calls == []
+
+
+async def test_null_project_ids_update_skips_plugin(entity_store):
+    repo, user_id, _ = entity_store
+    before_calls, after_calls = [], []
+
+    async def before(request):
+        before_calls.append(request)
+        return WriteDecision(outcome="reject", message="No updates allowed.")
+
+    async def after(request):
+        after_calls.append(request)
+        return None
+
+    plugin = EntityPlugin(before_save={"update": before}, after_save={"update": after})
+    service = EntityService(
+        repo, write_plugin=EntityWritePluginService(plugin),
+    )
+    created = (await service.create_entity(
+        user_id, candidate(name="Example"),
+    )).entity
+    assert created.project_ids == []
+
+    result = await service.update_entity(
+        user_id, created.id, EntityUpdate(project_ids=None),
+    )
+    assert result.entity.project_ids == []
+    assert before_calls == []
+    assert after_calls == []
+
+
+async def test_delete_refreshes_snapshot_after_before_wait(entity_store):
+    repo, user_id, bus = entity_store
+    paused, release = asyncio.Event(), asyncio.Event()
+    after_seen, events = [], []
+
+    async def collect(event):
+        events.append(event)
+
+    bus.subscribe("entity.*", collect)
+
+    async def before(request):
+        if request.operation == "delete":
+            paused.set()
+            await release.wait()
+        return WriteDecision(outcome="allow")
+
+    async def after(request):
+        after_seen.append(request)
+        return None
+
+    plugin = EntityPlugin(
+        before_save={"delete": before}, after_save={"delete": after},
+    )
+    observer = EntityService(repo, bus)
+    created = (await observer.create_entity(user_id, candidate(notes="old"))).entity
+    service = EntityService(
+        repo, bus, EntityWritePluginService(plugin),
+    )
+
+    async with asyncio.timeout(5), asyncio.TaskGroup() as tasks:
+        pending = tasks.create_task(service.delete_entity(user_id, created.id))
+        await paused.wait()
+        try:
+            await observer.update_entity(user_id, created.id, EntityUpdate(notes="new"))
+        finally:
+            release.set()
+    await bus.wait_for_pending()
+
+    assert pending.result().deleted is True
+    assert len(after_seen) == 1
+    assert after_seen[0].previous.notes == "new"
+    deleted_events = [event for event in events if event.action == ActionType.DELETED]
+    assert len(deleted_events) == 1
+    assert deleted_events[0].snapshot["notes"] == "new"
 
 
 async def test_delete_missing_skips_plugin(entity_store):

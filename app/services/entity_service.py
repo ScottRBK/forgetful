@@ -44,7 +44,7 @@ from app.utils.provenance import (
     apply_provenance_defaults,
     apply_provenance_defaults_for_update,
 )
-from app.utils.pydantic_helper import get_changed_fields
+from app.utils.pydantic_helper import filter_none_values, get_changed_fields
 
 if TYPE_CHECKING:
     from app.events import EventBus
@@ -408,6 +408,9 @@ class EntityService:
         )
 
         submitted = entity_data.model_copy(deep=True)
+        entity_data = EntityUpdate.model_validate(
+            filter_none_values(**entity_data.model_dump(exclude_unset=True)),
+        )
         entity_data = apply_provenance_defaults_for_update(entity_data)
 
         # Get existing entity for change detection
@@ -428,7 +431,7 @@ class EntityService:
         if changed_fields and self._write_plugin and self._write_plugin.has_before("update"):
             proposed_data = existing_entity.model_dump(include=set(EntityCreate.model_fields))
             updates = entity_data.model_dump(exclude_unset=True)
-            # Explicit null project_ids must not clear associations in the proposed snapshot.
+            # Explicit nulls were removed before provenance and change detection.
             relationships = {"project_ids"}
             proposed_data.update({
                 key: value for key, value in updates.items()
@@ -533,6 +536,13 @@ class EntityService:
                 submitted=EntityDeleteSubmission(entity_id=entity_id),
                 previous=existing_entity.model_copy(deep=True), proposed=None,
             ))
+            existing_entity = await self.entity_repo.get_entity_by_id(
+                user_id=user_id, entity_id=entity_id,
+            )
+            if not existing_entity:
+                return EntityDeleteResult(
+                    deleted=False, plugin_warnings=plugin_warnings,
+                )
 
         success = await self.entity_repo.delete_entity(
             user_id=user_id,
