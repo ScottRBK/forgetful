@@ -706,7 +706,22 @@ configuration.
 The registration, documented context/result fields, and import paths above are the plugin API.
 Internal service results and transport response models are not plugin APIs. There is one
 registration and at most one handler per operation per phase; there is no discovery system,
-handler chain, or marketplace. Linking/unlinking and entity operations have no hooks.
+handler chain, or marketplace. Memory linking/unlinking has no hooks.
+
+### Entity Plugin
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `ENTITY_WRITE_PLUGIN` | empty | Importable `module:object` containing an `EntityPlugin` |
+| `ENTITY_WRITE_PLUGIN_MODE` | `enforce` | `warn` or `enforce`, for **before_save only** |
+| `ENTITY_WRITE_PLUGIN_TIMEOUT_SECONDS` | `5.0` | Positive, finite deadline for each handler |
+
+Registration, startup validation, before/after semantics, and response shapes mirror the Memory
+Plugin above, scoped to entity `create`, `update`, and `delete` through `EntityService`. Context
+types are `EntityWriteRequest`, `EntitySavedRequest`, and `EntityDeletedRequest`. Delete
+before-save uses `EntityDeleteSubmission`; `proposed` is `None` for delete. Missing entities on
+delete skip both phases. No-op updates skip the plugin but still run the repository update.
+Association rows removed by database `ON DELETE CASCADE` are not visible to the plugin.
 
 ## Memory Configuration
 

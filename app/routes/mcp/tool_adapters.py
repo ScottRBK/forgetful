@@ -47,6 +47,8 @@ from app.models.project_models import (
 from app.models.user_models import UserResponse, UserUpdate
 from app.routes.mcp.pagination import clamp_list_pagination
 from app.routes.write_plugin_responses import (
+    EntityDeleteResponse,
+    EntityWriteResponse,
     MemoryCreateWriteResponse,
     MemoryLifecycleResponse,
     MemoryUpdateResponse,
@@ -1442,11 +1444,18 @@ class EntityToolAdapters:
         )
         entity_data = EntityCreate(**entity_dict)
 
-        entity = await self.entity_service.create_entity(
-            user_id=user.id, entity_data=entity_data,
-        )
+        try:
+            write_result = await self.entity_service.create_entity(
+                user_id=user.id, entity_data=entity_data,
+            )
+        except WritePluginRejectedError as exc:
+            raise ToolError(f"WRITE_PLUGIN_REJECTED: {exc}") from None
+        except WritePluginUnavailableError as exc:
+            raise ToolError(f"WRITE_PLUGIN_UNAVAILABLE: {exc}") from None
 
-        return entity
+        return EntityWriteResponse(
+            **write_result.entity.model_dump(), plugin_warnings=write_result.plugin_warnings,
+        )
 
     async def get_entity(self, entity_id: int, ctx: Context) -> Entity:
         """Adapter for get_entity tool"""
@@ -1557,23 +1566,38 @@ class EntityToolAdapters:
 
         entity_data = EntityUpdate(**updated_dict)
 
-        entity = await self.entity_service.update_entity(
-            user_id=user.id,
-            entity_id=entity_id,
-            entity_data=entity_data,
-        )
+        try:
+            write_result = await self.entity_service.update_entity(
+                user_id=user.id,
+                entity_id=entity_id,
+                entity_data=entity_data,
+            )
+        except WritePluginRejectedError as exc:
+            raise ToolError(f"WRITE_PLUGIN_REJECTED: {exc}") from None
+        except WritePluginUnavailableError as exc:
+            raise ToolError(f"WRITE_PLUGIN_UNAVAILABLE: {exc}") from None
 
-        return entity
+        return EntityWriteResponse(
+            **write_result.entity.model_dump(), plugin_warnings=write_result.plugin_warnings,
+        )
 
     async def delete_entity(self, entity_id: int, ctx: Context) -> dict:
         """Adapter for delete_entity tool"""
         user = await get_user_from_auth(ctx)
 
-        result = await self.entity_service.delete_entity(
-            user_id=user.id, entity_id=entity_id,
-        )
+        try:
+            delete_result = await self.entity_service.delete_entity(
+                user_id=user.id, entity_id=entity_id,
+            )
+        except WritePluginRejectedError as exc:
+            raise ToolError(f"WRITE_PLUGIN_REJECTED: {exc}") from None
+        except WritePluginUnavailableError as exc:
+            raise ToolError(f"WRITE_PLUGIN_UNAVAILABLE: {exc}") from None
 
-        return {"success": result, "deleted_id": entity_id}
+        response = EntityDeleteResponse(
+            success=delete_result.deleted, plugin_warnings=delete_result.plugin_warnings,
+        )
+        return {**response.model_dump(), "deleted_id": entity_id}
 
     async def link_entity_to_memory(
         self, entity_id: int, memory_id: int, ctx: Context,

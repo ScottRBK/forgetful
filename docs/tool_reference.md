@@ -1183,7 +1183,8 @@ Create an entity representing a real-world thing.
 - `metadata` (optional): Additional JSON metadata
 
 **Returns:**
-- Created entity with `entity_id`
+- Flat entity fields after create, with `plugin_warnings` only when nonempty when an Entity
+  Plugin is registered. Before-save errors: `WRITE_PLUGIN_REJECTED` or `WRITE_PLUGIN_UNAVAILABLE`.
 
 **Example:**
 ```python

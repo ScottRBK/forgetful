@@ -1,10 +1,11 @@
-"""Detached contexts and results for the trusted Memory Plugin."""
+"""Detached contexts and results for the trusted Memory and Entity write plugins."""
 
 from typing import Literal, Self
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from app.models.entity_models import Entity, EntityCreate, EntityUpdate
 from app.models.memory_models import Memory, MemoryCreate, MemorySummary, MemoryUpdate
 
 MemoryOperation = Literal["create", "update", "obsolete", "restore"]
@@ -99,4 +100,45 @@ class MemoryUpdateResult(BaseModel):
 
 class MemoryLifecycleResult(BaseModel):
     success: bool
+    plugin_warnings: list[PluginWarning] = Field(default_factory=list)
+
+
+EntityOperation = Literal["create", "update", "delete"]
+
+
+class EntityDeleteSubmission(BaseModel):
+    entity_id: int
+
+
+class EntityWriteRequest(BaseModel):
+    """Detached domain snapshots; operation distinguishes create, update, and delete."""
+
+    operation: EntityOperation
+    user_id: UUID
+    submitted: EntityCreate | EntityUpdate | EntityDeleteSubmission
+    previous: Entity | None
+    proposed: EntityCreate | None
+
+
+class EntitySavedRequest(BaseModel):
+    operation: Literal["create", "update"]
+    user_id: UUID
+    saved: Entity
+    previous: Entity | None
+
+
+class EntityDeletedRequest(BaseModel):
+    operation: Literal["delete"] = "delete"
+    user_id: UUID
+    deleted_entity_id: int
+    previous: Entity
+
+
+class EntityWriteResult(BaseModel):
+    entity: Entity
+    plugin_warnings: list[PluginWarning] = Field(default_factory=list)
+
+
+class EntityDeleteResult(BaseModel):
+    deleted: bool
     plugin_warnings: list[PluginWarning] = Field(default_factory=list)
