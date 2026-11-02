@@ -129,14 +129,14 @@ def test_constructor_backwards_compatible_without_plan_task():
 # ---- TaskService.list_tasks_for_user ----
 
 async def _seed_plan_with_tasks(plan_service, task_service, user_id, project_id, n_tasks):
-    plan = await plan_service.create_plan(
+    plan = (await plan_service.create_plan(
         user_id=user_id,
         plan_data=PlanCreate(title=f"Plan-{project_id}", project_id=project_id),
-    )
-    plan = await plan_service.update_plan(
+    )).plan
+    plan = (await plan_service.update_plan(
         user_id=user_id, plan_id=plan.id,
         plan_data=PlanUpdate(status=PlanStatus.ACTIVE),
-    )
+    )).plan
     for i in range(n_tasks):
         await task_service.create_task(
             user_id=user_id,

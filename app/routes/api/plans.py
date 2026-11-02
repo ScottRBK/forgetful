@@ -7,9 +7,17 @@ from pydantic import ValidationError
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-from app.exceptions import ConflictError, InvalidStateTransitionError, NotFoundError
+from app.exceptions import (
+    ConflictError,
+    InvalidStateTransitionError,
+    NotFoundError,
+    PlanPluginRejectedError,
+    PlanPluginStateChangedError,
+    PlanPluginUnavailableError,
+)
 from app.middleware.auth import get_user_from_request
 from app.models.plan_models import PlanCreate, PlanStatus, PlanUpdate
+from app.routes.plan_plugin_responses import PlanningDeleteResponse, PlanWriteResponse
 
 logger = logging.getLogger(__name__)
 
@@ -82,12 +90,19 @@ def register(mcp: FastMCP):
             return JSONResponse({"error": e.errors()}, status_code=400)
 
         try:
-            plan = await mcp.plan_service.create_plan(user_id=user.id, plan_data=plan_data)
+            result = await mcp.plan_service.create_plan(user_id=user.id, plan_data=plan_data)
+        except PlanPluginRejectedError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
+        except PlanPluginUnavailableError as e:
+            return JSONResponse({"error": str(e)}, status_code=503)
+        except PlanPluginStateChangedError as e:
+            return JSONResponse({"error": str(e)}, status_code=409)
         except ConflictError as e:
             return JSONResponse({"error": str(e)}, status_code=409)
         except NotFoundError as e:
             return JSONResponse({"error": str(e)}, status_code=404)
-        return JSONResponse(plan.model_dump(mode="json"), status_code=201)
+        payload = PlanWriteResponse(**result.plan.model_dump(), plugin_warnings=result.plugin_warnings)
+        return JSONResponse(payload.model_dump(mode="json"), status_code=201)
 
     @mcp.custom_route("/api/v1/plans/{plan_id}", methods=["PUT"])
     async def update_plan(request: Request) -> JSONResponse:
@@ -106,9 +121,15 @@ def register(mcp: FastMCP):
             return JSONResponse({"error": e.errors()}, status_code=400)
 
         try:
-            plan = await mcp.plan_service.update_plan(
+            result = await mcp.plan_service.update_plan(
                 user_id=user.id, plan_id=plan_id, plan_data=update_data,
             )
+        except PlanPluginRejectedError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
+        except PlanPluginUnavailableError as e:
+            return JSONResponse({"error": str(e)}, status_code=503)
+        except PlanPluginStateChangedError as e:
+            return JSONResponse({"error": str(e)}, status_code=409)
         except InvalidStateTransitionError as e:
             return JSONResponse({"error": str(e)}, status_code=422)
         except ConflictError as e:
@@ -116,9 +137,10 @@ def register(mcp: FastMCP):
         except NotFoundError:
             return JSONResponse({"error": "Plan not found"}, status_code=404)
 
-        if not plan:
+        if result.plan is None:
             return JSONResponse({"error": "Plan not found"}, status_code=404)
-        return JSONResponse(plan.model_dump(mode="json"))
+        payload = PlanWriteResponse(**result.plan.model_dump(), plugin_warnings=result.plugin_warnings)
+        return JSONResponse(payload.model_dump(mode="json"))
 
     @mcp.custom_route("/api/v1/plans/{plan_id}", methods=["DELETE"])
     async def delete_plan(request: Request) -> JSONResponse:
@@ -129,7 +151,15 @@ def register(mcp: FastMCP):
             return JSONResponse({"error": str(e)}, status_code=401)
 
         plan_id = int(request.path_params["plan_id"])
-        success = await mcp.plan_service.delete_plan(user_id=user.id, plan_id=plan_id)
-        if not success:
+        try:
+            result = await mcp.plan_service.delete_plan(user_id=user.id, plan_id=plan_id)
+        except PlanPluginRejectedError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
+        except PlanPluginUnavailableError as e:
+            return JSONResponse({"error": str(e)}, status_code=503)
+        except PlanPluginStateChangedError as e:
+            return JSONResponse({"error": str(e)}, status_code=409)
+        if not result.success:
             return JSONResponse({"error": "Plan not found"}, status_code=404)
-        return JSONResponse({"success": True})
+        payload = PlanningDeleteResponse(success=True, plugin_warnings=result.plugin_warnings)
+        return JSONResponse(payload.model_dump(mode="json"))

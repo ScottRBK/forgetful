@@ -8,6 +8,9 @@ from app.exceptions import (
     DependencyNotMetError,
     InvalidStateTransitionError,
     NotFoundError,
+    PlanPluginRejectedError,
+    PlanPluginStateChangedError,
+    PlanPluginUnavailableError,
 )
 from app.models.activity_models import (
     ActionType,
@@ -29,6 +32,8 @@ from app.models.plan_models import (
     TaskSummary,
     TaskUpdate,
 )
+from app.models.plan_plugin_models import TaskDeleteResult, TaskTransitionResult
+from app.models.write_plugin_models import PluginWarning
 from app.protocols.task_protocol import TaskRepository
 from app.services.plan_service import PlanService
 from app.utils.provenance import (
@@ -198,15 +203,16 @@ class TaskService:
         )
         return updated
 
-    async def delete_task(self, user_id: UUID, task_id: int) -> bool:
+    async def delete_task(self, user_id: UUID, task_id: int) -> TaskDeleteResult:
         logger.info("deleting task", extra={"user_id": str(user_id), "task_id": task_id})
 
         existing = await self.task_repo.get_task_by_id(user_id=user_id, task_id=task_id)
         if not existing:
-            return False
+            return TaskDeleteResult(success=False)
 
         plan_id = existing.plan_id
         success = await self.task_repo.delete_task(user_id=user_id, task_id=task_id)
+        warnings: list[PluginWarning] = []
         if success:
             logger.info("task deleted", extra={"task_id": task_id})
             await self._emit_event(
@@ -217,8 +223,8 @@ class TaskService:
                 snapshot=existing.model_dump(mode="json"),
             )
             # Check plan auto-completion
-            await self._check_plan_auto_completion(user_id, plan_id)
-        return success
+            warnings = await self._check_plan_auto_completion(user_id, plan_id)
+        return TaskDeleteResult(success=success, plugin_warnings=warnings)
 
     async def transition_task(
         self,
@@ -226,7 +232,7 @@ class TaskService:
         task_id: int,
         new_state: TaskState,
         expected_version: int,
-    ) -> Task:
+    ) -> TaskTransitionResult:
         """THE core method for state transitions with optimistic locking."""
         logger.info(
             "transitioning task",
@@ -284,11 +290,12 @@ class TaskService:
             changes={"state": {"old": current_state.value, "new": new_state.value}},
         )
 
+        warnings: list[PluginWarning] = []
         # If task → done/cancelled: check plan auto-completion
         if new_state in (TaskState.DONE, TaskState.CANCELLED):
-            await self._check_plan_auto_completion(user_id, task.plan_id)
+            warnings = await self._check_plan_auto_completion(user_id, task.plan_id)
 
-        return updated
+        return TaskTransitionResult(task=updated, plugin_warnings=warnings)
 
     async def claim_task(
         self,
@@ -481,29 +488,45 @@ class TaskService:
                 f"not plan {expected_plan_id}. Dependencies must be within the same plan.",
             )
 
-    async def _check_plan_auto_completion(self, user_id: UUID, plan_id: int) -> None:
-        """If all tasks in the plan are done/cancelled (with at least one done),
-        auto-transition plan to COMPLETED.
+    async def _check_plan_auto_completion(
+        self, user_id: UUID, plan_id: int,
+    ) -> list[PluginWarning]:
+        """Complete an ACTIVE parent through plan policy after the task committed.
+
+        Policy failure is advisory for this secondary mutation. Other failures
+        retain existing propagation, even though the task has already committed.
+        The plan repository has no CAS: concurrent completions can both dispatch.
         """
         tasks = await self.task_repo.list_tasks(user_id=user_id, plan_id=plan_id)
         if not tasks:
-            return
-
+            return []
         all_terminal = all(
             TaskState(t.state) in (TaskState.DONE, TaskState.CANCELLED)
             for t in tasks
         )
         has_done = any(TaskState(t.state) == TaskState.DONE for t in tasks)
-
-        if all_terminal and has_done:
-            try:
-                plan = await self.plan_service.get_plan(user_id=user_id, plan_id=plan_id)
-            except NotFoundError:
-                return
-            if PlanStatus(plan.status) == PlanStatus.ACTIVE:
-                logger.info("auto-completing plan", extra={"plan_id": plan_id})
-                await self.plan_service.update_plan(
-                    user_id=user_id,
-                    plan_id=plan_id,
-                    plan_data=PlanUpdate(status=PlanStatus.COMPLETED),
-                )
+        if not (all_terminal and has_done):
+            return []
+        try:
+            plan = await self.plan_service.get_plan(user_id=user_id, plan_id=plan_id)
+        except NotFoundError:
+            return []
+        if PlanStatus(plan.status) != PlanStatus.ACTIVE:
+            return []
+        logger.info("auto-completing plan", extra={"plan_id": plan_id})
+        try:
+            result = await self.plan_service.update_plan(
+                user_id=user_id, plan_id=plan_id,
+                plan_data=PlanUpdate(status=PlanStatus.COMPLETED), automatic=True,
+            )
+        except PlanPluginRejectedError:
+            return [PluginWarning(
+                code="plan_auto_completion_rejected",
+                message="The task change succeeded, but automatic plan completion was rejected by plan policy.",
+            )]
+        except (PlanPluginUnavailableError, PlanPluginStateChangedError):
+            return [PluginWarning(
+                code="plan_auto_completion_unavailable",
+                message="The task change succeeded, but automatic plan completion was unavailable.",
+            )]
+        return result.plugin_warnings

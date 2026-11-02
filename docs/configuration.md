@@ -1513,3 +1513,80 @@ The setting applies to FastEmbed, OpenAI and Azure, not Google or Ollama.
 It does not parallelize bulk
 re-embedding, limit requests per minute or tokens, bound waiters, or change
 reranking workers.
+
+
+## Plan Plugin
+
+The optional Plan Plugin follows the Memory Plugin's trusted-administrator pattern,
+with a separate registration and settings. It covers plan `create`, `update` and
+`delete`, including parent completion triggered by task transition or deletion.
+It does not install Task Plugin hooks, add a workflow engine, or replace core rules.
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `PLAN_WRITE_PLUGIN` | empty | Importable `module:object` containing a `PlanPlugin` |
+| `PLAN_WRITE_PLUGIN_MODE` | `enforce` | `enforce` or `warn`, for before handlers only |
+| `PLAN_WRITE_PLUGIN_TIMEOUT_SECONDS` | `5.0` | Positive finite cooperative deadline per handler |
+
+Install the trusted administrator module in the deployment's Python environment,
+then set, for example, `PLAN_WRITE_PLUGIN=my_plugins.plan_policy:plugin`.
+The [example registration](../examples/plan_policy.py) can be copied into that
+administrator-owned package. Registration is loaded and validated once during
+startup, before provider/model initialization, even when `PLANNING_ENABLED=false`.
+Disabled planning dispatches nothing. This is executable trusted Python, not a
+sandbox or a user-upload mechanism. The loader validates copied, frozen mappings
+from explicit operation names to async functions accepting one context argument.
+Only operations registered in the relevant phase dispatch a handler.
+
+Before contexts provide `operation`, `user_id`, detached `submitted`, `previous`
+and `proposed` snapshots, and `automatic`. Create has no previous plan; update
+preserves the submitted PATCH fields separately from the effective proposed plan.
+Delete submits the plan ID, supplies the previous plan and has no proposed saved
+object. Plugins receive no repository, database or transport capability. Mutating
+any snapshot cannot rewrite persisted input. `automatic` is true only for the
+internal task-triggered plan update; it is not a REST/MCP/CLI parameter.
+
+Before handlers return the existing `WriteDecision` (`allow`, `warn`, or `reject`).
+In enforce mode, rejection prevents the mutation and unavailable, malformed or
+timed-out decisions fail closed. In warn mode those outcomes become advisory
+warnings and the mutation proceeds. Existing ownership, feature flags, status
+transitions, external-reference uniqueness and provenance remain core checks.
+A registered create operation prechecks project ownership; the repository checks
+again when saving. A before callback can therefore run before a later uniqueness
+failure, but no after callback follows failed persistence.
+
+After contexts contain the confirmed saved plan and previous snapshot, or, for
+delete, `deleted_plan_id` and the previous snapshot. They return `PluginWarning`
+or `None`. After failures, malformed results, timeouts and cancelled child awaits
+produce sanitized warnings without undoing the mutation. Genuine request
+cancellation propagates, including after persistence; delivery is not guaranteed.
+There is no durable queue, retry or rollback guarantee.
+
+No-op updates and missing updates/deletes dispatch nothing. A before-await update
+rereads the current plan, validates its status again and applies only submitted
+fields. Without a plan version/CAS predicate this is not atomic: concurrent final
+tasks can both dispatch a before callback, and callbacks can repeat across
+concurrent mutations. One successful serial mutation invokes each registered
+phase once. Do not use callbacks as an exactly-once transactional delivery system.
+
+Task transitions and task deletion commit before optional parent completion.
+If plan policy rejects that secondary update, the task still succeeds and returns
+`plan_auto_completion_rejected`. Policy unavailability or an incompatible state
+change detected after a handler await returns `plan_auto_completion_unavailable`.
+The parent remains uncompleted by that attempt. Warn mode permits completion and
+propagates the warning. Other failures retain existing propagation after the task
+has committed; request cancellation also propagates. Check persisted state before
+retrying, rather than assuming a failed response means no task mutation occurred.
+
+Direct Plan writes retain flat successful payloads. `plugin_warnings` is present
+only when nonempty; reads/lists and stored Plan/Task/event models have no transient
+warning field. REST rejection is 400, unavailability 503 and an incompatible
+post-handler-await state change 409. MCP errors use `PLAN_PLUGIN_REJECTED`,
+`PLAN_PLUGIN_UNAVAILABLE` and `PLAN_PLUGIN_STATE_CHANGED`; both CLI modes expose
+the same policy result. Existing validation, missing, conflict and transition
+statuses are retained. Deleting plans/tasks remains REST-only.
+
+Deleting a plan cascades its tasks, criteria and dependency edges in the database,
+without per-task callbacks. Project/user deletion can cascade plans without Plan
+callbacks. Those indirect removals do not invoke an administrator's delete policy;
+use existing core authorization rather than treating hooks as cascade protection.

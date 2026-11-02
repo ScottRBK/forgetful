@@ -1773,3 +1773,22 @@ For validation errors (400), the error may contain detailed field-level errors:
   ]
 }
 ```
+
+
+### Plan write policy and secondary task outcomes
+
+An administrator may configure the [Plan Plugin](configuration.md#plan-plugin).
+Plan create/update/delete and task transition/delete retain their existing flat
+successful payloads and add `plugin_warnings` only when nonempty. Plan create
+remains 201; updates and deletions remain 200. Direct policy rejection returns
+400, unavailable policy 503, and an incompatible plan-state change during a
+before-handler await 409. Existing input validation 400, missing 404, conflicts
+409 and invalid state transition 422 remain distinct.
+
+A task can already be committed when automatic parent completion is rejected or
+unavailable. Its successful response then includes `plan_auto_completion_rejected`
+or `plan_auto_completion_unavailable`; do not retry the task as if it failed.
+Warn mode can complete the parent with a warning. Other post-commit failures and
+genuine cancellation retain existing propagation; inspect persisted state before
+retrying. Read/list results and stored state contain no transient warnings.
+Plan/task deletion stays REST-only; database cascades do not dispatch per-row hooks.
