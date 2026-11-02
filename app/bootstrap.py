@@ -228,14 +228,23 @@ class Runtime:
 
 async def build_runtime() -> Runtime:
     """Build the full runtime stack: adapters -> repos -> services -> registry -> scopes."""
-    from app.config.write_plugin import load_write_plugin
+    from app.config.write_plugin import load_entity_plugin, load_write_plugin
+    from app.services.entity_write_plugin_service import EntityWritePluginService
     from app.services.write_plugin_service import WritePluginService
 
     plugin = load_write_plugin(settings)
+    entity_plugin = load_entity_plugin(settings)
     plugin_logger_states = {}
-    if plugin is not None:
-        configured_module = settings.MEMORY_WRITE_PLUGIN.strip().partition(":")[0]
-        handlers = (*plugin.before_save.values(), *plugin.after_save.values())
+    for registered_plugin, setting_name in (
+        (plugin, settings.MEMORY_WRITE_PLUGIN),
+        (entity_plugin, settings.ENTITY_WRITE_PLUGIN),
+    ):
+        if registered_plugin is None:
+            continue
+        configured_module = setting_name.strip().partition(":")[0]
+        handlers = (
+            *registered_plugin.before_save.values(), *registered_plugin.after_save.values(),
+        )
         module_names = {configured_module}
         for handler in handlers:
             while isinstance(handler, partial):
@@ -251,6 +260,10 @@ async def build_runtime() -> Runtime:
         plugin, mode=settings.MEMORY_WRITE_PLUGIN_MODE,
         timeout_seconds=settings.MEMORY_WRITE_PLUGIN_TIMEOUT_SECONDS,
     ) if plugin is not None else None)
+    entity_write_plugin = (EntityWritePluginService(
+        entity_plugin, mode=settings.ENTITY_WRITE_PLUGIN_MODE,
+        timeout_seconds=settings.ENTITY_WRITE_PLUGIN_TIMEOUT_SECONDS,
+    ) if entity_plugin is not None else None)
 
     check_first_run_models()
 
@@ -269,6 +282,7 @@ async def build_runtime() -> Runtime:
         await db_adapter.init_db()
         # Alembic fileConfig disables existing loggers; plugin failures must remain diagnosable.
         logging.getLogger("app.services.write_plugin_service").disabled = False
+        logging.getLogger("app.services.entity_write_plugin_service").disabled = False
         for plugin_logger, was_disabled in plugin_logger_states.items():
             plugin_logger.disabled = was_disabled
         logger.info("Database initialized")
@@ -306,7 +320,9 @@ async def build_runtime() -> Runtime:
         project_service = ProjectService(repos["project"], event_bus=event_bus)
         code_artifact_service = CodeArtifactService(repos["code_artifact"], event_bus=event_bus)
         document_service = DocumentService(repos["document"], event_bus=event_bus)
-        entity_service = EntityService(repos["entity"], event_bus=event_bus)
+        entity_service = EntityService(
+            repos["entity"], event_bus=event_bus, write_plugin=entity_write_plugin,
+        )
         # Conditionally create file service behind FILES_ENABLED
         file_service = None
 

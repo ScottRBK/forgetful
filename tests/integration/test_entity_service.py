@@ -25,7 +25,7 @@ async def test_create_entity(test_entity_service):
         tags=["tech", "b2b"],
     )
 
-    entity = await test_entity_service.create_entity(user_id, entity_data)
+    entity = (await test_entity_service.create_entity(user_id, entity_data)).entity
 
     assert entity.id is not None
     assert entity.name == "Acme Corp"
@@ -45,7 +45,7 @@ async def test_create_entity_with_custom_type(test_entity_service):
         tags=["hardware"],
     )
 
-    entity = await test_entity_service.create_entity(user_id, entity_data)
+    entity = (await test_entity_service.create_entity(user_id, entity_data)).entity
 
     assert entity.id is not None
     assert entity.entity_type == EntityType.OTHER
@@ -64,7 +64,7 @@ async def test_create_entity_with_system_type(test_entity_service):
         tags=["backend"],
     )
 
-    entity = await test_entity_service.create_entity(user_id, entity_data)
+    entity = (await test_entity_service.create_entity(user_id, entity_data)).entity
 
     assert entity.id is not None
     assert entity.entity_type == EntityType.SYSTEM
@@ -86,7 +86,7 @@ async def test_create_entity_with_lowercase_system_type_is_case_insensitive(test
         tags=[],
     )
 
-    entity = await test_entity_service.create_entity(user_id, entity_data)
+    entity = (await test_entity_service.create_entity(user_id, entity_data)).entity
 
     assert entity.entity_type == EntityType.SYSTEM
 
@@ -105,7 +105,7 @@ async def test_get_entity(test_entity_service):
         entity_type=EntityType.INDIVIDUAL,
         tags=[],
     )
-    created = await test_entity_service.create_entity(user_id, entity_data)
+    created = (await test_entity_service.create_entity(user_id, entity_data)).entity
 
     # Get
     retrieved = await test_entity_service.get_entity(user_id, created.id)
@@ -199,11 +199,11 @@ async def test_update_entity(test_entity_service):
         notes="Original notes",
         tags=["original"],
     )
-    created = await test_entity_service.create_entity(user_id, entity_data)
+    created = (await test_entity_service.create_entity(user_id, entity_data)).entity
 
     # Update
     update_data = EntityUpdate(name="Updated Name", notes="New notes")
-    updated = await test_entity_service.update_entity(user_id, created.id, update_data)
+    updated = (await test_entity_service.update_entity(user_id, created.id, update_data)).entity
 
     assert updated.name == "Updated Name"
     assert updated.notes == "New notes"
@@ -220,10 +220,10 @@ async def test_delete_entity(test_entity_service):
         entity_type=EntityType.ORGANIZATION,
         tags=[],
     )
-    created = await test_entity_service.create_entity(user_id, entity_data)
+    created = (await test_entity_service.create_entity(user_id, entity_data)).entity
 
     # Delete
-    success = await test_entity_service.delete_entity(user_id, created.id)
+    success = (await test_entity_service.delete_entity(user_id, created.id)).deleted
     assert success is True
 
     # Verify deleted
@@ -241,7 +241,7 @@ async def test_link_entity_to_memory(test_entity_service):
         entity_type=EntityType.ORGANIZATION,
         tags=[],
     )
-    entity = await test_entity_service.create_entity(user_id, entity_data)
+    entity = (await test_entity_service.create_entity(user_id, entity_data)).entity
 
     # Link to memory (memory_id = 1)
     success = await test_entity_service.link_entity_to_memory(user_id, entity.id, 1)
@@ -258,7 +258,7 @@ async def test_unlink_entity_from_memory(test_entity_service):
         entity_type=EntityType.ORGANIZATION,
         tags=[],
     )
-    entity = await test_entity_service.create_entity(user_id, entity_data)
+    entity = (await test_entity_service.create_entity(user_id, entity_data)).entity
 
     # Link
     await test_entity_service.link_entity_to_memory(user_id, entity.id, 1)
@@ -273,14 +273,14 @@ async def test_create_entity_relationship(test_entity_service):
     user_id = uuid4()
 
     # Create two entities
-    entity1 = await test_entity_service.create_entity(
+    entity1 = (await test_entity_service.create_entity(
         user_id,
         EntityCreate(name="Entity 1", entity_type=EntityType.ORGANIZATION, tags=[]),
-    )
-    entity2 = await test_entity_service.create_entity(
+    )).entity
+    entity2 = (await test_entity_service.create_entity(
         user_id,
         EntityCreate(name="Entity 2", entity_type=EntityType.INDIVIDUAL, tags=[]),
-    )
+    )).entity
 
     # Create relationship
     relationship_data = EntityRelationshipCreate(
@@ -308,14 +308,14 @@ async def test_get_entity_relationships(test_entity_service):
     user_id = uuid4()
 
     # Create entities
-    entity1 = await test_entity_service.create_entity(
+    entity1 = (await test_entity_service.create_entity(
         user_id,
         EntityCreate(name="Entity 1", entity_type=EntityType.ORGANIZATION, tags=[]),
-    )
-    entity2 = await test_entity_service.create_entity(
+    )).entity
+    entity2 = (await test_entity_service.create_entity(
         user_id,
         EntityCreate(name="Entity 2", entity_type=EntityType.INDIVIDUAL, tags=[]),
-    )
+    )).entity
 
     # Create relationship
     await test_entity_service.create_entity_relationship(
@@ -339,14 +339,14 @@ async def test_get_entity_relationships_filter_by_direction(test_entity_service)
     user_id = uuid4()
 
     # Create entities
-    entity1 = await test_entity_service.create_entity(
+    entity1 = (await test_entity_service.create_entity(
         user_id,
         EntityCreate(name="Entity 1", entity_type=EntityType.ORGANIZATION, tags=[]),
-    )
-    entity2 = await test_entity_service.create_entity(
+    )).entity
+    entity2 = (await test_entity_service.create_entity(
         user_id,
         EntityCreate(name="Entity 2", entity_type=EntityType.INDIVIDUAL, tags=[]),
-    )
+    )).entity
 
     # Create relationship
     await test_entity_service.create_entity_relationship(
@@ -376,14 +376,14 @@ async def test_update_entity_relationship(test_entity_service):
     user_id = uuid4()
 
     # Create entities and relationship
-    entity1 = await test_entity_service.create_entity(
+    entity1 = (await test_entity_service.create_entity(
         user_id,
         EntityCreate(name="Entity 1", entity_type=EntityType.ORGANIZATION, tags=[]),
-    )
-    entity2 = await test_entity_service.create_entity(
+    )).entity
+    entity2 = (await test_entity_service.create_entity(
         user_id,
         EntityCreate(name="Entity 2", entity_type=EntityType.INDIVIDUAL, tags=[]),
-    )
+    )).entity
 
     relationship = await test_entity_service.create_entity_relationship(
         user_id,
@@ -411,14 +411,14 @@ async def test_delete_entity_relationship(test_entity_service):
     user_id = uuid4()
 
     # Create entities and relationship
-    entity1 = await test_entity_service.create_entity(
+    entity1 = (await test_entity_service.create_entity(
         user_id,
         EntityCreate(name="Entity 1", entity_type=EntityType.ORGANIZATION, tags=[]),
-    )
-    entity2 = await test_entity_service.create_entity(
+    )).entity
+    entity2 = (await test_entity_service.create_entity(
         user_id,
         EntityCreate(name="Entity 2", entity_type=EntityType.INDIVIDUAL, tags=[]),
-    )
+    )).entity
 
     relationship = await test_entity_service.create_entity_relationship(
         user_id,
@@ -612,7 +612,7 @@ async def test_create_entity_with_multiple_projects(test_entity_service):
         project_ids=[1, 2, 3],
     )
 
-    entity = await test_entity_service.create_entity(user_id, entity_data)
+    entity = (await test_entity_service.create_entity(user_id, entity_data)).entity
 
     assert entity.id is not None
     assert len(entity.project_ids) == 3
@@ -635,7 +635,7 @@ async def test_create_entity_with_no_projects(test_entity_service):
         project_ids=None,
     )
 
-    entity = await test_entity_service.create_entity(user_id, entity_data)
+    entity = (await test_entity_service.create_entity(user_id, entity_data)).entity
 
     assert entity.id is not None
     assert len(entity.project_ids) == 0
@@ -653,7 +653,7 @@ async def test_get_entity_with_project_ids(test_entity_service):
         tags=["test"],
         project_ids=[10, 20],
     )
-    created = await test_entity_service.create_entity(user_id, entity_data)
+    created = (await test_entity_service.create_entity(user_id, entity_data)).entity
 
     # Get entity and verify project_ids
     retrieved = await test_entity_service.get_entity(user_id, created.id)
@@ -733,13 +733,13 @@ async def test_update_entity_change_projects(test_entity_service):
         tags=["update-test"],
         project_ids=[1, 2],
     )
-    created = await test_entity_service.create_entity(user_id, entity_data)
+    created = (await test_entity_service.create_entity(user_id, entity_data)).entity
 
     assert len(created.project_ids) == 2
 
     # Update to change projects (remove 1, keep 2, add 3)
     update_data = EntityUpdate(project_ids=[2, 3])
-    updated = await test_entity_service.update_entity(user_id, created.id, update_data)
+    updated = (await test_entity_service.update_entity(user_id, created.id, update_data)).entity
 
     assert len(updated.project_ids) == 2
     assert 2 in updated.project_ids
@@ -759,13 +759,13 @@ async def test_update_entity_clear_all_projects(test_entity_service):
         tags=["clear-test"],
         project_ids=[1, 2, 3],
     )
-    created = await test_entity_service.create_entity(user_id, entity_data)
+    created = (await test_entity_service.create_entity(user_id, entity_data)).entity
 
     assert len(created.project_ids) == 3
 
     # Update to clear all projects
     update_data = EntityUpdate(project_ids=[])
-    updated = await test_entity_service.update_entity(user_id, created.id, update_data)
+    updated = (await test_entity_service.update_entity(user_id, created.id, update_data)).entity
 
     assert len(updated.project_ids) == 0
 
@@ -786,7 +786,7 @@ async def test_create_entity_with_aka(test_entity_service):
         aka=["Johnny", "J.S.", "John S."],
     )
 
-    entity = await test_entity_service.create_entity(user_id, entity_data)
+    entity = (await test_entity_service.create_entity(user_id, entity_data)).entity
 
     assert entity.id is not None
     assert entity.name == "John Smith"
@@ -805,7 +805,7 @@ async def test_create_entity_without_aka(test_entity_service):
         tags=[],
     )
 
-    entity = await test_entity_service.create_entity(user_id, entity_data)
+    entity = (await test_entity_service.create_entity(user_id, entity_data)).entity
 
     assert entity.id is not None
     assert entity.aka == []
@@ -823,13 +823,13 @@ async def test_update_entity_aka(test_entity_service):
         tags=["tech"],
         aka=["MSFT"],
     )
-    created = await test_entity_service.create_entity(user_id, entity_data)
+    created = (await test_entity_service.create_entity(user_id, entity_data)).entity
 
     assert created.aka == ["MSFT"]
 
     # Update aka
     update_data = EntityUpdate(aka=["MSFT", "Microsoft", "MS"])
-    updated = await test_entity_service.update_entity(user_id, created.id, update_data)
+    updated = (await test_entity_service.update_entity(user_id, created.id, update_data)).entity
 
     assert updated.aka == ["MSFT", "Microsoft", "MS"]
     assert len(updated.aka) == 3
@@ -848,13 +848,13 @@ async def test_update_entity_clear_aka(test_entity_service):
         tags=[],
         aka=["Alias1", "Alias2"],
     )
-    created = await test_entity_service.create_entity(user_id, entity_data)
+    created = (await test_entity_service.create_entity(user_id, entity_data)).entity
 
     assert len(created.aka) == 2
 
     # Clear aka
     update_data = EntityUpdate(aka=[])
-    updated = await test_entity_service.update_entity(user_id, created.id, update_data)
+    updated = (await test_entity_service.update_entity(user_id, created.id, update_data)).entity
 
     assert updated.aka == []
 
@@ -959,7 +959,7 @@ async def test_get_entity_memories_basic(test_entity_service, mock_entity_reposi
         entity_type=EntityType.ORGANIZATION,
         tags=["memory-test"],
     )
-    entity = await test_entity_service.create_entity(user_id, entity_data)
+    entity = (await test_entity_service.create_entity(user_id, entity_data)).entity
 
     # Give the linked memories known titles
     mock_entity_repository.set_memory_title(1, "Q3 Roadmap")
@@ -999,7 +999,7 @@ async def test_get_entity_memories_empty(test_entity_service):
         entity_type=EntityType.INDIVIDUAL,
         tags=["empty-test"],
     )
-    entity = await test_entity_service.create_entity(user_id, entity_data)
+    entity = (await test_entity_service.create_entity(user_id, entity_data)).entity
 
     # Get entity memories (should be empty, not error)
     memory_ids, count, memories = await test_entity_service.get_entity_memories(user_id, entity.id)
@@ -1029,7 +1029,7 @@ async def test_get_entity_memories_after_unlink(test_entity_service):
         entity_type=EntityType.DEVICE,
         tags=["unlink-test"],
     )
-    entity = await test_entity_service.create_entity(user_id, entity_data)
+    entity = (await test_entity_service.create_entity(user_id, entity_data)).entity
 
     # Link some memories
     await test_entity_service.link_entity_to_memory(user_id, entity.id, 1)
@@ -1065,7 +1065,7 @@ async def test_get_entity_memories_user_isolation(test_entity_service):
         entity_type=EntityType.ORGANIZATION,
         tags=["isolation-test"],
     )
-    entity = await test_entity_service.create_entity(user_id_1, entity_data)
+    entity = (await test_entity_service.create_entity(user_id_1, entity_data)).entity
 
     # Link memories for user 1
     await test_entity_service.link_entity_to_memory(user_id_1, entity.id, 1)
@@ -1085,9 +1085,9 @@ async def test_get_entity_memories_user_isolation(test_entity_service):
 
 
 async def _create_entity(service, user_id, name, entity_type):
-    return await service.create_entity(
+    return (await service.create_entity(
         user_id, EntityCreate(name=name, entity_type=entity_type, tags=["reverse-lookup"]),
-    )
+    )).entity
 
 
 @pytest.mark.asyncio

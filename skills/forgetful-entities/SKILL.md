@@ -70,3 +70,9 @@ about A.
 
 Done when: the relationships that answer real questions (impact, structure, responsibility)
 are recorded, and none duplicate an existing edge.
+
+## Entity Plugin (administrator)
+
+When `ENTITY_WRITE_PLUGIN` is configured, create/update/delete may return `plugin_warnings` or
+fail with `WRITE_PLUGIN_REJECTED` / `WRITE_PLUGIN_UNAVAILABLE` before persistence. After-save
+warnings are advisory; the mutation already succeeded.

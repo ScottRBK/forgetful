@@ -280,12 +280,12 @@ async def test_entity_service_applies_provenance_defaults(test_entity_service):
             mock_settings.AGENT_MODEL = ""
             mock_settings.ENFORCE_ENV_OVERWRITE = False
 
-            entity = await test_entity_service.create_entity(
+            entity = (await test_entity_service.create_entity(
                 user_id=user_id,
                 entity_data=EntityCreate(
                     name="Test Org", entity_type=EntityType.ORGANIZATION,
                 ),
-            )
+            )).entity
 
         mock_apply.assert_called_once()
 

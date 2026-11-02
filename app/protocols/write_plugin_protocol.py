@@ -7,6 +7,10 @@ from types import MappingProxyType
 from typing import Protocol, get_args
 
 from app.models.write_plugin_models import (
+    EntityDeletedRequest,
+    EntityOperation,
+    EntitySavedRequest,
+    EntityWriteRequest,
     MemoryLifecycleRequest,
     MemoryOperation,
     MemorySavedRequest,
@@ -47,4 +51,39 @@ class MemoryPlugin:
                 except (TypeError, ValueError):
                     raise ValueError(f"{phase} handlers must accept one context argument") from None
             # Freeze a copy: changing the administrator's original dict cannot alter dispatch.
+            object.__setattr__(self, phase, MappingProxyType(handlers))
+
+
+class EntityBeforeSave(Protocol):
+    async def __call__(self, request: EntityWriteRequest) -> WriteDecision:
+        ...
+
+
+class EntityAfterSave(Protocol):
+    async def __call__(
+        self, request: EntitySavedRequest | EntityDeletedRequest,
+    ) -> PluginWarning | None:
+        ...
+
+
+@dataclass(frozen=True)
+class EntityPlugin:
+    before_save: Mapping[EntityOperation, EntityBeforeSave] = field(default_factory=dict)
+    after_save: Mapping[EntityOperation, EntityAfterSave] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        for phase in ("before_save", "after_save"):
+            handlers = getattr(self, phase)
+            if not isinstance(handlers, Mapping):
+                raise ValueError(f"{phase} must be an operation-to-handler mapping")
+            handlers = dict(handlers)
+            for operation, handler in handlers.items():
+                if operation not in get_args(EntityOperation):
+                    raise ValueError(f"{phase} contains an unsupported entity operation")
+                if not inspect.iscoroutinefunction(handler):
+                    raise ValueError(f"{phase} handlers must be async functions")
+                try:
+                    inspect.signature(handler).bind(object())
+                except (TypeError, ValueError):
+                    raise ValueError(f"{phase} handlers must accept one context argument") from None
             object.__setattr__(self, phase, MappingProxyType(handlers))

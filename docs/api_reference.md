@@ -528,7 +528,12 @@ Update an existing entity.
 
 ### DELETE /api/v1/entities/{id}
 
-Delete an entity.
+Delete an entity. Successful responses keep `{"success": true}` and add `plugin_warnings` only when
+nonempty when an Entity Plugin is registered. Before-save rejections return 400; unavailable
+before-save returns 503 with `Entity Write Plugin unavailable.`
+
+Entity create (201) and update responses stay flat entity objects with `plugin_warnings` only when
+nonempty, matching memory write responses.
 
 ### POST /api/v1/entities/search
 

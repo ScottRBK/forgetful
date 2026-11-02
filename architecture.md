@@ -25,8 +25,11 @@ flowchart TD
     Services --> Contracts["Repository protocols"]
     Services --> WritePlugin["WritePluginService: before_save and advisory after_save"]
     WritePlugin --> Callable["MemoryPlugin: explicit operation-to-handler mappings"]
-    Bootstrap --> Loader["config.write_plugin: trusted module:object loader"]
+    Services --> EntityWritePlugin["EntityWritePluginService: before_save and advisory after_save"]
+    EntityWritePlugin --> EntityCallable["EntityPlugin: create, update, delete mappings"]
+    Bootstrap --> Loader["config.write_plugin: trusted module:object loaders"]
     Loader -. supplies registration .-> WritePlugin
+    Loader -. supplies registration .-> EntityWritePlugin
     SQLite["SQLite repositories"] -. implements .-> Contracts
     Postgres["PostgreSQL repositories"] -. implements .-> Contracts
     SQLite --> SQLiteDB["SQLite adapter and sqlite-vec"]
@@ -144,6 +147,12 @@ methods maintain the bidirectional memory relation and only link memories owned 
 Obsolescence is a soft state with reason and
 optional replacement; create responses can additionally warn about similar obsolete memories
 ([memory_service.py:552](app/services/memory_service.py#L552)).
+
+**Entity Plugin:** mirrors the Memory Plugin for entity create, update, and delete via
+`load_entity_plugin`, `EntityPlugin`, and `EntityWritePluginService`. Handlers see detached entity
+snapshots only; deleting an entity row cascades at the database to `entity_project_association`,
+`memory_entity_association`, `entity_file_association`, and `entity_relationships` rows whose
+`source_entity_id` / `target_entity_id` reference the entity, without separate plugin hooks.
 
 **Memory Plugin:** `app/config/write_plugin.py` loads one trusted `module:object` registration before
 costly resources. `MemoryPlugin` in `app/protocols/write_plugin_protocol.py` owns copied, frozen
