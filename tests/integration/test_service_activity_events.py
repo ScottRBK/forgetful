@@ -276,7 +276,7 @@ async def test_entity_create_emits_event(test_entity_service_with_event_bus):
         notes="Test notes",
         tags=["test"],
     )
-    entity = await service.create_entity(user_id, entity_data)
+    entity = (await service.create_entity(user_id, entity_data)).entity
 
     assert len(event_bus.collected_events) == 1
     event = event_bus.collected_events[0]
@@ -297,7 +297,7 @@ async def test_entity_delete_emits_event(test_entity_service_with_event_bus):
         entity_type=EntityKind.INDIVIDUAL,
         tags=["test"],
     )
-    entity = await service.create_entity(user_id, entity_data)
+    entity = (await service.create_entity(user_id, entity_data)).entity
     event_bus.collected_events.clear()
 
     # Delete
@@ -321,7 +321,7 @@ async def test_entity_read_emits_event_when_tracking_enabled(test_entity_service
         entity_type=EntityKind.INDIVIDUAL,
         tags=["test"],
     )
-    entity = await service.create_entity(user_id, entity_data)
+    entity = (await service.create_entity(user_id, entity_data)).entity
     event_bus.collected_events.clear()
 
     # Read with tracking enabled
@@ -351,7 +351,7 @@ async def test_entity_memory_link_emits_event(test_entity_service_with_event_bus
         entity_type=EntityKind.INDIVIDUAL,
         tags=["test"],
     )
-    entity = await service.create_entity(user_id, entity_data)
+    entity = (await service.create_entity(user_id, entity_data)).entity
     event_bus.collected_events.clear()
 
     # Link entity to memory (mock repo doesn't verify memory exists, just stores link)
@@ -384,7 +384,7 @@ async def test_entity_project_link_created_emits_event(test_entity_service_with_
         entity_type=EntityKind.INDIVIDUAL,
         tags=["test"],
     )
-    entity = await service.create_entity(user_id, entity_data)
+    entity = (await service.create_entity(user_id, entity_data)).entity
     event_bus.collected_events.clear()
 
     # Link entity to project (mock repo doesn't verify project exists)
@@ -412,7 +412,7 @@ async def test_entity_project_link_deleted_emits_event(test_entity_service_with_
         entity_type=EntityKind.INDIVIDUAL,
         tags=["test"],
     )
-    entity = await service.create_entity(user_id, entity_data)
+    entity = (await service.create_entity(user_id, entity_data)).entity
 
     # Link entity to project first
     project_id = 1
@@ -448,14 +448,14 @@ async def test_entity_relationship_create_emits_event(test_entity_service_with_e
         entity_type=EntityKind.INDIVIDUAL,
         tags=["test"],
     )
-    entity1 = await service.create_entity(user_id, entity1_data)
+    entity1 = (await service.create_entity(user_id, entity1_data)).entity
 
     entity2_data = EntityCreate(
         name="Entity 2",
         entity_type=EntityKind.ORGANIZATION,
         tags=["test"],
     )
-    entity2 = await service.create_entity(user_id, entity2_data)
+    entity2 = (await service.create_entity(user_id, entity2_data)).entity
 
     event_bus.collected_events.clear()
 
@@ -486,14 +486,14 @@ async def test_entity_relationship_delete_emits_event(test_entity_service_with_e
         entity_type=EntityKind.INDIVIDUAL,
         tags=["test"],
     )
-    entity1 = await service.create_entity(user_id, entity1_data)
+    entity1 = (await service.create_entity(user_id, entity1_data)).entity
 
     entity2_data = EntityCreate(
         name="Entity 2",
         entity_type=EntityKind.ORGANIZATION,
         tags=["test"],
     )
-    entity2 = await service.create_entity(user_id, entity2_data)
+    entity2 = (await service.create_entity(user_id, entity2_data)).entity
 
     rel_data = EntityRelationshipCreate(
         source_entity_id=entity1.id,

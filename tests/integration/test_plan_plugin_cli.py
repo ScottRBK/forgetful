@@ -4,6 +4,7 @@ import json
 import os
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 from plan_plugin_helpers import loopback_plan_server, plan_app
@@ -57,10 +58,35 @@ def test_local_cli_plan_policy(plan_runtime, capsys, marker):
         assert read_code == 0 and "plugin_warnings" not in read
 
 
+def isolated_env(home):
+    """Real platform lookups, all redirected below one synthetic home."""
+    # Windows expands known folders from USERPROFILE and verifies they exist.
+    for parts in (("AppData", "Local"), ("AppData", "Roaming")):
+        home.joinpath(*parts).mkdir(parents=True, exist_ok=True)
+    return dict(os.environ, HOME=str(home), USERPROFILE=str(home),
+                XDG_CONFIG_HOME=str(home / "config"), XDG_DATA_HOME=str(home / "data"),
+                XDG_CACHE_HOME=str(home / "cache"), XDG_STATE_HOME=str(home / "state"))
+
+
+def assert_lookups_isolated(home):
+    """Fail loudly if real platform lookups would escape the synthetic home."""
+    probe = ("import json, platformdirs as p; print(json.dumps(["
+             "p.user_data_dir('fastmcp', appauthor=False), "
+             "p.user_data_dir('forgetful', ensure_exists=False), "
+             "p.user_config_dir('forgetful', ensure_exists=False)]))")
+    completed = subprocess.run(  # noqa: S603 - test-controlled arguments, no shell
+        [sys.executable, "-c", probe], capture_output=True, text=True, encoding="utf-8",
+        timeout=30, env=isolated_env(home), check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
+    root = home.resolve()
+    for found in json.loads(completed.stdout):
+        assert Path(found).resolve().is_relative_to(root), found
+
+
 def remote_cli_call(server, home, tool_name, arguments):
     """Run the real CLI in its own bounded process; never abandon a worker thread."""
-    env = dict(os.environ, HOME=str(home), USERPROFILE=str(home),
-               XDG_CONFIG_HOME=str(home / "config"))
+    env = isolated_env(home)
     completed = subprocess.run(  # noqa: S603 - test-controlled arguments, no shell
         [sys.executable, "-c", "import faulthandler; faulthandler.dump_traceback_later(20); from main import cli; raise SystemExit(cli())",
          "call", tool_name, "--args", json.dumps(arguments), "--json", "--server", server],
@@ -87,6 +113,7 @@ def test_remote_cli_plan_policy_over_actual_http(plan_runtime, monkeypatch, tmp_
     monkeypatch.setenv("FORGETFUL_TOKEN", "synthetic-test-only-not-a-credential")
     home = tmp_path / "remote-cli-home"
     home.mkdir()
+    assert_lookups_isolated(home)
     with loopback_plan_server(plan_app()) as server:
         code, project = remote_cli_call(server, home, "create_project", {
             "name": "Remote CLI plan", "description": "Actual loopback HTTP MCP", "project_type": "development",

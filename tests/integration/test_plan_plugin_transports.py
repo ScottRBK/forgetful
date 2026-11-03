@@ -112,6 +112,61 @@ async def test_scope_and_auth_prevent_dispatch(policy_app, plan_runtime, monkeyp
     assert importlib.import_module(plan_runtime).before_calls == []
 
 
+async def test_memory_entity_and_plan_plugins_coexist(plan_runtime, monkeypatch):
+    from app.models.entity_models import EntityCreate, EntityType
+    from app.models.memory_models import MemoryCreate
+    from app.models.plan_models import PlanCreate
+    from app.models.project_models import ProjectCreate
+    from app.models.user_models import UserCreate
+    from app.models.write_plugin_models import WriteDecision
+    from app.protocols.write_plugin_protocol import EntityPlugin, MemoryPlugin
+
+    calls = []
+
+    async def memory_before(request):
+        calls.append("memory")
+        return WriteDecision(outcome="allow")
+
+    async def entity_before(request):
+        calls.append("entity")
+        return WriteDecision(outcome="allow")
+
+    module = importlib.import_module(plan_runtime)
+    monkeypatch.setattr(module, "memory_registration", MemoryPlugin(
+        before_save={"create": memory_before},
+    ), raising=False)
+    monkeypatch.setattr(module, "entity_registration", EntityPlugin(
+        before_save={"create": entity_before},
+    ), raising=False)
+    monkeypatch.setattr(settings, "MEMORY_WRITE_PLUGIN", f"{plan_runtime}:memory_registration")
+    monkeypatch.setattr(settings, "ENTITY_WRITE_PLUGIN", f"{plan_runtime}:entity_registration")
+    runtime = await build_runtime()
+    try:
+        user = await runtime.services.user.get_or_create_user(UserCreate(
+            external_id=settings.DEFAULT_USER_ID, name=settings.DEFAULT_USER_NAME,
+            email=settings.DEFAULT_USER_EMAIL,
+        ))
+        project = await runtime.services.project.create_project(user.id, ProjectCreate(
+            name="Combined plugins", description="Plugin coexistence", project_type="development",
+        ))
+        await runtime.services.memory.create_memory(user.id, MemoryCreate(
+            title="A useful memory", content="A single useful fact", context="Testing writes",
+            keywords=["plugins"], tags=["coexistence"],
+        ))
+        await runtime.services.entity.create_entity(user.id, EntityCreate(
+            name="Combined entity", entity_type=EntityType.ORGANIZATION, tags=[],
+        ))
+        await runtime.services.plan.create_plan(user.id, PlanCreate(
+            title="plain", project_id=project.id,
+        ))
+        assert calls == ["memory", "entity"]
+        assert module.loads == 1
+        assert [request.operation for request in module.before_calls] == ["create"]
+        assert [request.operation for request in module.after_calls] == ["create"]
+    finally:
+        await dispose_runtime(runtime)
+
+
 async def test_registration_validated_when_planning_disabled(plan_runtime, monkeypatch):
     monkeypatch.setattr(settings, "PLANNING_ENABLED", False)
     runtime = await build_runtime()
