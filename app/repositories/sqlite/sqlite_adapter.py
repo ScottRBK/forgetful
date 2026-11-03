@@ -178,6 +178,81 @@ class SqliteDatabaseAdapter:
             )
             logger.info("sqlite-vec virtual tables created for vector storage")
 
+            await self.ensure_memory_fts(conn)
+
+    async def ensure_memory_fts(self, conn) -> bool:
+        """Create or repair FTS5 external-content index and triggers; rebuild if anything was missing."""
+        result = await conn.execute(
+            text(
+                "SELECT name FROM sqlite_master WHERE name IN "
+                "('memories_fts','memories_fts_ai','memories_fts_ad','memories_fts_au')",
+            ),
+        )
+        existing = {row[0] for row in result.fetchall()}
+        required = {"memories_fts", "memories_fts_ai", "memories_fts_ad", "memories_fts_au"}
+        missing_before = required - existing
+
+        await conn.execute(
+            text("""
+                CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(
+                    title, content, context, keywords, tags,
+                    content='memories', content_rowid='id', tokenize='unicode61'
+                )
+            """),
+        )
+
+        await conn.execute(
+            text("""
+                CREATE TRIGGER IF NOT EXISTS memories_fts_ai AFTER INSERT ON memories BEGIN
+                  INSERT INTO memories_fts(rowid, title, content, context, keywords, tags)
+                  VALUES (
+                    new.id, new.title, new.content, new.context,
+                    (SELECT group_concat(value, ' ') FROM json_each(COALESCE(new.keywords, '[]'))),
+                    (SELECT group_concat(value, ' ') FROM json_each(COALESCE(new.tags, '[]')))
+                  );
+                END
+            """),
+        )
+        await conn.execute(
+            text("""
+                CREATE TRIGGER IF NOT EXISTS memories_fts_ad AFTER DELETE ON memories BEGIN
+                  INSERT INTO memories_fts(memories_fts, rowid, title, content, context, keywords, tags)
+                  VALUES (
+                    'delete', old.id, old.title, old.content, old.context,
+                    (SELECT group_concat(value, ' ') FROM json_each(COALESCE(old.keywords, '[]'))),
+                    (SELECT group_concat(value, ' ') FROM json_each(COALESCE(old.tags, '[]')))
+                  );
+                END
+            """),
+        )
+        await conn.execute(
+            text("""
+                CREATE TRIGGER IF NOT EXISTS memories_fts_au AFTER UPDATE OF
+                  title, content, context, keywords, tags ON memories BEGIN
+                  INSERT INTO memories_fts(memories_fts, rowid, title, content, context, keywords, tags)
+                  VALUES (
+                    'delete', old.id, old.title, old.content, old.context,
+                    (SELECT group_concat(value, ' ') FROM json_each(COALESCE(old.keywords, '[]'))),
+                    (SELECT group_concat(value, ' ') FROM json_each(COALESCE(old.tags, '[]')))
+                  );
+                  INSERT INTO memories_fts(rowid, title, content, context, keywords, tags)
+                  VALUES (
+                    new.id, new.title, new.content, new.context,
+                    (SELECT group_concat(value, ' ') FROM json_each(COALESCE(new.keywords, '[]'))),
+                    (SELECT group_concat(value, ' ') FROM json_each(COALESCE(new.tags, '[]')))
+                  );
+                END
+            """),
+        )
+
+        if missing_before:
+            await conn.execute(text("INSERT INTO memories_fts(memories_fts) VALUES('rebuild')"))
+            count_result = await conn.execute(text("SELECT COUNT(*) FROM memories"))
+            row_count = count_result.scalar()
+            logger.info("Rebuilt memories_fts", extra={"row_count": row_count})
+            return True
+        return False
+
     def _run_migrations(self, connection) -> None:
         """Run pending Alembic migrations synchronously (called via run_sync)."""
         from pathlib import Path
