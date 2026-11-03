@@ -40,3 +40,6 @@ test_harness/docker/requirements.lock
 # Nix build output symlinks (never commit)
 result
 result-*
+
+# Retrieval benchmark generated artefacts
+benchmarks/retrieval/output/
