@@ -99,10 +99,29 @@
           forgetfulEnv = pythonSet.mkVirtualEnv "forgetful-env" workspace.deps.default;
 
           # 6. App package (house stdenv+makeWrapper for servers)
+          #
+          # src is allow-listed rather than `./.`, because anything copied into
+          # the store is an input to the derivation hash. With `./.` a docs- or
+          # CI-only commit changes that hash and forces a rebuild of the package
+          # and everything downstream of it. These four paths are exactly what
+          # installPhase consumes; if it ever copies more, widen this list.
+          # pyproject.toml and uv.lock are intentionally absent: uv2nix reads
+          # them at eval time via workspaceRoot above, so changes there still
+          # invalidate the build, which is the correct behaviour.
+          packageSrc = lib.fileset.toSource {
+            root = ./.;
+            fileset = lib.fileset.unions [
+              ./app
+              ./main.py
+              ./alembic.ini
+              ./alembic
+            ];
+          };
+
           appPkg = pkgs.stdenv.mkDerivation {
             pname = "forgetful-ai";
             inherit version;
-            src = ./.;
+            src = packageSrc;
             nativeBuildInputs = [ pkgs.makeWrapper ];
             buildInputs = [ forgetfulEnv ];
             installPhase = ''
