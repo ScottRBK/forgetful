@@ -31,6 +31,7 @@ files rather than maintaining their own copies.
 | `forgetful-files` | model | Binary content (screenshot, PDF, asset) worth keeping |
 | `forgetful-context-gather` | user | Deep pre-work sweep producing a cited context pack |
 | `forgetful-encode-repo` | user | Bootstrap or refresh a repository in the knowledge base |
+| `forgetful-update-encoding` | user | Sync an existing encoding to a git range after development work |
 | `forgetful-cli-setup` | user | Connect a terminal/headless agent; operate a local server |
 | `forgetful-mcp-setup` | user | Wire an MCP client and verify the connection |
 
