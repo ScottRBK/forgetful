@@ -1,3 +1,5 @@
+import asyncio
+from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING
 from uuid import UUID
 
@@ -9,6 +11,7 @@ from app.exceptions import (
     InvalidStateTransitionError,
     NotFoundError,
     PlanPluginStateChangedError,
+    PlanPluginUnavailableError,
 )
 from app.models.activity_models import (
     ActionType,
@@ -37,7 +40,10 @@ from app.models.plan_plugin_models import (
 from app.models.write_plugin_models import PluginWarning
 from app.protocols.plan_protocol import PlanRepository
 from app.protocols.project_protocol import ProjectRepository
-from app.services.plan_write_plugin_service import PlanWritePluginService
+from app.services.plan_write_plugin_service import (
+    UNAVAILABLE_MESSAGE,
+    PlanWritePluginService,
+)
 from app.utils.provenance import (
     apply_provenance_defaults,
     apply_provenance_defaults_for_update,
@@ -170,7 +176,10 @@ class PlanService:
     async def update_plan(
         self, user_id: UUID, plan_id: int, plan_data: PlanUpdate,
         *, automatic: bool = False,
+        completion_guard: Callable[[], Awaitable[bool]] | None = None,
     ) -> PlanUpdateResult:
+        if completion_guard is not None and not automatic:
+            raise ValueError("completion_guard is only valid for automatic completion")
         logger.info("updating plan", extra={"user_id": str(user_id), "plan_id": plan_id})
         submitted = plan_data.model_copy(deep=True)
         plan_data = apply_provenance_defaults_for_update(plan_data)
@@ -190,11 +199,21 @@ class PlanService:
             proposed = PlanCreate.model_validate({
                 **existing.model_dump(), **plan_data.model_dump(exclude_unset=True),
             })
-            warnings = await plugin.before_save(PlanWriteRequest(
-                operation="update", user_id=user_id, submitted=submitted,
-                previous=existing.model_copy(deep=True), proposed=proposed,
-                automatic=automatic,
-            ))
+            try:
+                warnings = await plugin.before_save(PlanWriteRequest(
+                    operation="update", user_id=user_id, submitted=submitted,
+                    previous=existing.model_copy(deep=True), proposed=proposed,
+                    automatic=automatic,
+                ))
+            except asyncio.CancelledError:
+                task = asyncio.current_task()
+                if not automatic or task is None or task.cancelling():
+                    raise
+                logger.warning(
+                    "Plan auto-completion policy unavailable "
+                    "(phase=before_save, operation=update, error_type=CancelledError)",
+                )
+                raise PlanPluginUnavailableError(UNAVAILABLE_MESSAGE) from None
             current = await self.plan_repo.get_plan_by_id(user_id=user_id, plan_id=plan_id)
             if current is None:
                 raise PlanPluginStateChangedError("Plan disappeared while plan policy was evaluated.")
@@ -208,6 +227,10 @@ class PlanService:
             changed_fields = get_changed_fields(input_model=plan_data, existing_model=existing)
             if not changed_fields:
                 return PlanUpdateResult(plan=existing, plugin_warnings=warnings)
+            if automatic and (completion_guard is None or not await completion_guard()):
+                raise PlanPluginStateChangedError(
+                    "Plan tasks changed while plan policy was evaluated.",
+                )
 
         previous = existing.model_copy(deep=True)
         updated = await self.plan_repo.update_plan(user_id=user_id, plan_id=plan_id, plan_data=plan_data)

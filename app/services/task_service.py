@@ -1,3 +1,4 @@
+from functools import partial
 from typing import TYPE_CHECKING
 from uuid import UUID
 
@@ -488,6 +489,17 @@ class TaskService:
                 f"not plan {expected_plan_id}. Dependencies must be within the same plan.",
             )
 
+    async def _plan_tasks_allow_completion(self, user_id: UUID, plan_id: int) -> bool:
+        tasks = await self.task_repo.list_tasks(user_id=user_id, plan_id=plan_id)
+        if not tasks:
+            return False
+        all_terminal = all(
+            TaskState(t.state) in (TaskState.DONE, TaskState.CANCELLED)
+            for t in tasks
+        )
+        has_done = any(TaskState(t.state) == TaskState.DONE for t in tasks)
+        return all_terminal and has_done
+
     async def _check_plan_auto_completion(
         self, user_id: UUID, plan_id: int,
     ) -> list[PluginWarning]:
@@ -496,16 +508,9 @@ class TaskService:
         Policy failure is advisory for this secondary mutation. Other failures
         retain existing propagation, even though the task has already committed.
         The plan repository has no CAS: concurrent completions can both dispatch.
+        Rechecking tasks after policy narrows the race window but is not atomic.
         """
-        tasks = await self.task_repo.list_tasks(user_id=user_id, plan_id=plan_id)
-        if not tasks:
-            return []
-        all_terminal = all(
-            TaskState(t.state) in (TaskState.DONE, TaskState.CANCELLED)
-            for t in tasks
-        )
-        has_done = any(TaskState(t.state) == TaskState.DONE for t in tasks)
-        if not (all_terminal and has_done):
+        if not await self._plan_tasks_allow_completion(user_id, plan_id):
             return []
         try:
             plan = await self.plan_service.get_plan(user_id=user_id, plan_id=plan_id)
@@ -518,6 +523,7 @@ class TaskService:
             result = await self.plan_service.update_plan(
                 user_id=user_id, plan_id=plan_id,
                 plan_data=PlanUpdate(status=PlanStatus.COMPLETED), automatic=True,
+                completion_guard=partial(self._plan_tasks_allow_completion, user_id, plan_id),
             )
         except PlanPluginRejectedError:
             return [PluginWarning(

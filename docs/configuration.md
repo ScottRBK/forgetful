@@ -1587,11 +1587,17 @@ phase once. Do not use callbacks as an exactly-once transactional delivery syste
 Task transitions and task deletion commit before optional parent completion.
 If plan policy rejects that secondary update, the task still succeeds and returns
 `plan_auto_completion_rejected`. Policy unavailability or an incompatible state
-change detected after a handler await returns `plan_auto_completion_unavailable`.
-The parent remains uncompleted by that attempt. Warn mode permits completion and
-propagates the warning. Other failures retain existing propagation after the task
-has committed; request cancellation also propagates. Check persisted state before
-retrying, rather than assuming a failed response means no task mutation occurred.
+change detected after a handler await returns `plan_auto_completion_unavailable`,
+and the parent remains uncompleted by that attempt. Incompatible changes include
+the plan's status changing and tasks being added or reopened while policy was
+evaluated; a task-eligibility recheck narrows this race but is not atomic with the
+plan write. A handler's internally cancelled child await is treated as
+unavailability in both modes. In warn mode, handler rejection, errors and timeouts
+otherwise permit completion and propagate the warning. Manual completion still
+permits unfinished tasks. Other failures retain existing propagation after the
+task has committed; request cancellation also propagates. Check persisted state
+before retrying, rather than assuming a failed response means no task mutation
+occurred.
 
 Direct Plan writes retain flat successful payloads. `plugin_warnings` is present
 only when nonempty; reads/lists and stored Plan/Task/event models have no transient

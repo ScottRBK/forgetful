@@ -271,6 +271,141 @@ class TestPlanPluginPersistence:
             assert await s.tasks._check_plan_auto_completion(s.user.id, plan.id) == []
             assert (len(s.state.before), len(s.state.after)) == counts
 
+    @pytest.mark.parametrize("path", ["transition", "delete"])
+    @pytest.mark.parametrize("change", ["added", "reopened", "none"])
+    async def test_automatic_completion_rechecks_tasks_after_policy(self, plan_store, path, change):
+        s = plan_store
+        plan = await active_plan(s)
+        target = await s.tasks.create_task(s.user.id, TaskCreate(plan_id=plan.id, title="Target"))
+        blocker = await s.tasks.create_task(s.user.id, TaskCreate(plan_id=plan.id, title="Blocker"))
+        doing = await s.tasks.transition_task(s.user.id, target.id, TaskState.DOING, target.version)
+        if path == "delete":
+            await s.tasks.transition_task(s.user.id, target.id, TaskState.DONE, doing.task.version)
+        else:
+            await s.tasks.delete_task(s.user.id, blocker.id)
+        reopen = None
+        if change == "reopened":
+            reopen = await s.tasks.create_task(s.user.id, TaskCreate(plan_id=plan.id, title="Reopen"))
+            cancelled = await s.tasks.transition_task(s.user.id, reopen.id, TaskState.CANCELLED, reopen.version)
+            reopen = cancelled.task
+        entered, release = asyncio.Event(), asyncio.Event()
+
+        async def pause(context):
+            if context.automatic:
+                entered.set()
+                await asyncio.wait_for(release.wait(), timeout=10)
+
+        s.state.pause = pause
+        mutation = (
+            s.tasks.delete_task(s.user.id, blocker.id) if path == "delete"
+            else s.tasks.transition_task(s.user.id, target.id, TaskState.DONE, doing.task.version)
+        )
+        work = s.spawn(mutation)
+        await asyncio.wait_for(entered.wait(), timeout=10)
+        if path == "delete":
+            assert await s.repos["task"].get_task_by_id(s.user.id, blocker.id) is None
+        if change == "added":
+            pending = await s.tasks.create_task(s.user.id, TaskCreate(plan_id=plan.id, title="Added"))
+        elif change == "reopened":
+            pending = (await s.tasks.transition_task(s.user.id, reopen.id, TaskState.TODO, reopen.version)).task
+        release.set()
+        result = await asyncio.wait_for(work, timeout=10)
+        saved = await s.repos["task"].get_task_by_id(s.user.id, target.id)
+        assert saved.state == TaskState.DONE
+        assert saved.version == doing.task.version + 1
+        if path == "delete":
+            assert result.success
+        else:
+            assert (result.task.id, result.task.state, result.task.version) == (saved.id, saved.state, saved.version)
+        assert len(result.plugin_warnings) == 1
+        assert len(s.state.before) == 1 and s.state.before[0].automatic
+        if change == "none":
+            assert result.plugin_warnings[0].code == "PLAN_AFTER"
+            assert (await s.plans.get_plan(s.user.id, plan.id)).status == PlanStatus.COMPLETED
+            assert len(s.state.after) == 1 and s.state.after[0].automatic
+        else:
+            code = result.plugin_warnings[0].code
+            assert code == "plan_auto_completion_unavailable", f"expected plan_auto_completion_unavailable, got {code}"
+            assert (await s.repos["task"].get_task_by_id(s.user.id, pending.id)).state == TaskState.TODO
+            assert (await s.plans.get_plan(s.user.id, plan.id)).status == PlanStatus.ACTIVE
+            assert s.state.after == []
+
+    @pytest.mark.parametrize("path", ["transition", "delete"])
+    @pytest.mark.parametrize("mode", ["warn", "enforce"])
+    async def test_plugin_child_cancellation_keeps_primary_task_success(self, plan_store, path, mode):
+        s = plan_store
+        plan = await active_plan(s)
+        target = await s.tasks.create_task(s.user.id, TaskCreate(plan_id=plan.id, title="Target"))
+        blocker = await s.tasks.create_task(s.user.id, TaskCreate(plan_id=plan.id, title="Blocker"))
+        doing = await s.tasks.transition_task(s.user.id, target.id, TaskState.DOING, target.version)
+        if path == "delete":
+            await s.tasks.transition_task(s.user.id, target.id, TaskState.DONE, doing.task.version)
+        else:
+            await s.tasks.delete_task(s.user.id, blocker.id)
+
+        async def cancel_child(context):
+            if context.automatic:
+                child = asyncio.create_task(asyncio.sleep(60))
+                child.cancel()
+                await child
+
+        s.plans._plan_plugin = PlanWritePluginService(s.plugin, mode=mode)
+        s.state.pause = cancel_child
+        if path == "delete":
+            result = await s.tasks.delete_task(s.user.id, blocker.id)
+            assert result.success
+            assert await s.repos["task"].get_task_by_id(s.user.id, blocker.id) is None
+        else:
+            result = await s.tasks.transition_task(s.user.id, target.id, TaskState.DONE, doing.task.version)
+            saved = await s.repos["task"].get_task_by_id(s.user.id, target.id)
+            assert (result.task.id, result.task.state, result.task.version) == (saved.id, saved.state, saved.version)
+            assert saved.state == TaskState.DONE and saved.version == doing.task.version + 1
+        assert [w.code for w in result.plugin_warnings] == ["plan_auto_completion_unavailable"]
+        assert (await s.plans.get_plan(s.user.id, plan.id)).status == PlanStatus.ACTIVE
+        assert len(s.state.before) == 1 and s.state.before[0].automatic
+        assert s.state.after == []
+        assert asyncio.current_task().cancelling() == 0
+
+    async def test_manual_completion_allows_unfinished_tasks(self, plan_store):
+        s = plan_store
+        plan = await active_plan(s)
+        await s.tasks.create_task(s.user.id, TaskCreate(plan_id=plan.id, title="Unfinished"))
+        result = await s.plans.update_plan(s.user.id, plan.id, PlanUpdate(status=PlanStatus.COMPLETED))
+        assert result.plan.status == PlanStatus.COMPLETED
+        assert [w.code for w in result.plugin_warnings] == ["PLAN_AFTER"]
+        assert len(s.state.before) == len(s.state.after) == 1
+        assert not s.state.before[0].automatic
+
+    async def test_manual_policy_child_cancellation_propagates(self, plan_store):
+        s = plan_store
+        plan = await active_plan(s)
+
+        async def cancel_child(context):
+            child = asyncio.create_task(asyncio.sleep(60))
+            child.cancel()
+            await child
+
+        s.state.pause = cancel_child
+        with pytest.raises(asyncio.CancelledError):
+            await s.plans.update_plan(s.user.id, plan.id, PlanUpdate(status=PlanStatus.COMPLETED))
+        assert (await s.plans.get_plan(s.user.id, plan.id)).status == PlanStatus.ACTIVE
+        assert s.state.after == []
+        assert asyncio.current_task().cancelling() == 0
+
+    async def test_manual_completion_rejects_core_guard(self, plan_store):
+        s = plan_store
+        plan = await active_plan(s)
+
+        async def guard():
+            pytest.fail("Manual completion must not consult task eligibility")
+
+        with pytest.raises(ValueError, match="only valid for automatic"):
+            await s.plans.update_plan(
+                s.user.id, plan.id, PlanUpdate(status=PlanStatus.COMPLETED), completion_guard=guard,
+            )
+        assert (await s.plans.get_plan(s.user.id, plan.id)).status == PlanStatus.ACTIVE
+        assert s.state.before == s.state.after == []
+
     async def test_concurrent_completions_do_not_promise_atomic_dispatch(self, plan_store):
         s = plan_store
         plan = await active_plan(s)
