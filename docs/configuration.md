@@ -919,6 +919,18 @@ These settings control the procedural memory (skills) feature.
 - **Description**: Maximum number of tags per skill
 - **Example**: `SKILL_TAGS_MAX_COUNT=10`
 
+### `SKILL_BUNDLE_MAX_RESOURCES`
+- **Default**: `100`
+- **Description**: Maximum resources in a portable skill package.
+- **Example**: `SKILL_BUNDLE_MAX_RESOURCES=100`
+
+### `SKILL_BUNDLE_MAX_BYTES`
+- **Default**: `20971520`
+- **Description**: Maximum UTF-8 string-value and decoded binary bytes in a package.
+  Schema key names do not count; existing per-resource limits also apply.
+  See [skill bundles](skill-bundles.md) for format and permissions.
+- **Example**: `SKILL_BUNDLE_MAX_BYTES=20971520`
+
 ---
 
 ## Entity Configuration

@@ -388,3 +388,8 @@ if needed. Mycelium is optional; a source-verified manual update is acceptable. 
 explanations that remain accurate. Keep this overview at most 500 lines, with no column-width limit.
 If the generated backup is refreshed, use fresh analysis, keep its JSON outside the repository,
 and record exporter version/scope and material warnings. Recheck links and Mermaid rendering.
+
+
+### Portable skill packages
+
+SkillService validates portable bundles and emits existing activity events after commit. SkillRepository atomically stores all package records and reads exports in one statement. Both native repositories share their ordinary row builders with bundle creation. The skill_bundle_resources table preserves paths and deleted-member tombstones separately from graph links; it does not store a copy of resource contents. REST retains identity/ownership authorization; MCP and local CLI also require the component resource tools. See [the bundle contract](docs/skill-bundles.md).

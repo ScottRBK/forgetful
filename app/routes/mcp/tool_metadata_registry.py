@@ -2561,6 +2561,32 @@ def register_skill_tools_metadata(
             "tags": ["skill", "document", "unlink"],
         },
         {
+            "name": "import_skill_bundle",
+            "mutates": True,
+            "description": "Import SKILL.md and its documents, scripts and binary assets atomically",
+            "parameters": [
+                {"name": "bundle", "type": "dict", "description": "Version 1 portable bundle: schema_version, skill_md, resources with path/kind and content fields", "required": True},
+                {"name": "ctx", "type": "Context", "description": "Automatically injected context", "required": True},
+                {"name": "project_id", "type": "Optional[int]", "description": "Destination project for all records", "required": False, "default": None},
+                {"name": "importance", "type": "int", "description": "Skill importance", "required": False, "default": 7},
+            ],
+            "returns": "Created skill and native path-to-resource-ID bindings",
+            "examples": [],
+            "tags": ["skill", "import", "bundle"],
+        },
+        {
+            "name": "export_skill_bundle",
+            "description": "Export SKILL.md and current package resource contents with portable paths",
+            "parameters": [
+                {"name": "skill_id", "type": "int", "description": "Owned skill ID", "required": True},
+                {"name": "ctx", "type": "Context", "description": "Automatically injected context", "required": True},
+                {"name": "members", "type": "Optional[List[dict]]", "description": "Optional complete path/kind/resource_id selection replacing stored membership for this read only", "required": False, "default": None},
+            ],
+            "returns": "Portable version 1 bundle with SKILL.md and all selected resource contents",
+            "examples": [],
+            "tags": ["skill", "export", "bundle"],
+        },
+        {
             "name": "get_skill_links",
             "description": "Get IDs of all content linked to a skill (memories, files, code artifacts, documents) - reverse lookup for skill associations",
             "parameters": [

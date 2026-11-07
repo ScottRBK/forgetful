@@ -16,6 +16,7 @@ from app.models.document_models import (
 from app.repositories.postgres.postgres_adapter import PostgresDatabaseAdapter
 from app.repositories.postgres.postgres_tables import DocumentsTable
 from app.repositories.postgres.project_reference import ensure_project_owned
+from app.repositories.postgres.resource_rows import build_document_row
 
 logger = logging.getLogger(__name__)
 
@@ -53,32 +54,8 @@ class PostgresDocumentRepository:
             async with self.db_adapter.session(user_id) as session:
                 await ensure_project_owned(session, user_id, document_data.project_id)
 
-                # Calculate size_bytes from content if not provided
-                size_bytes = document_data.size_bytes
-                if size_bytes is None:
-                    size_bytes = len(document_data.content.encode("utf-8"))
-
                 # Create ORM model from Pydantic
-                document_table = DocumentsTable(
-                    user_id=user_id,
-                    title=document_data.title,
-                    description=document_data.description,
-                    content=document_data.content,
-                    document_type=document_data.document_type,
-                    filename=document_data.filename,
-                    size_bytes=size_bytes,
-                    tags=document_data.tags,
-                    project_id=document_data.project_id,
-                    source_repo=document_data.source_repo,
-                    source_files=document_data.source_files,
-                    source_url=document_data.source_url,
-                    confidence=document_data.confidence,
-                    encoding_agent=document_data.encoding_agent,
-                    encoding_version=document_data.encoding_version,
-                    agent_id=document_data.agent_id,
-                    agent_version=document_data.agent_version,
-                    agent_model=document_data.agent_model,
-                )
+                document_table = build_document_row(user_id, document_data)
 
                 session.add(document_table)
                 await session.commit()

@@ -1147,6 +1147,31 @@ execute_forgetful_tool(
 
 ---
 
+### `import_skill_bundle`
+
+Create a skill and its package resources in one transaction.
+
+**Parameters:** `bundle` (required version 1 JSON package), `project_id` (optional,
+for every created record), `importance` (optional, default 7).
+**Returns:** `skill` and native `members` with path, kind and destination resource ID.
+Document, code-artifact and file entries require their ordinary create permissions
+through MCP/CLI; binary entries also require `FILES_ENABLED`.
+
+### `export_skill_bundle`
+
+Export current package content with portable paths. Requires `skill_id`; optional
+`members` is a complete explicit list of path/kind/resource_id bindings, replacing
+stored membership for this read only. Every resource must be owned and linked.
+MCP/CLI require each resource's ordinary read permission. Deleted/unlinked package
+members fail explicitly; unrelated graph neighbors are not exported.
+
+The portable response has `schema_version: 1`, `skill_md` and `resources`, with no
+instance IDs. See [the full bundle format](skill-bundles.md) for canonical text,
+size/path validation, REST examples and the CLI argument-size limitation. Existing
+`import_skill` and `export_skill` remain Markdown-only.
+
+---
+
 ## Entity Tools
 
 Track real-world entities (people, organizations, teams, devices) and build knowledge graphs through relationships.

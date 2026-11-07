@@ -6,6 +6,7 @@ This service implements functionality for managing skills:
     - Import/export in Agent Skills markdown format
     - Project association
 """
+import json
 import re
 from typing import TYPE_CHECKING
 from uuid import UUID
@@ -15,11 +16,13 @@ import yaml
 from app.config.logging_config import logging
 from app.config.settings import settings
 from app.exceptions import NotFoundError
-from app.models.activity_models import (
-    ActionType,
-    ActivityEvent,
-    ActorType,
-    EntityType,
+from app.models.activity_models import ActionType, ActivityEvent, ActorType, EntityType
+from app.models.skill_bundle_models import (
+    PreparedBundleResource,
+    SkillBundle,
+    SkillBundleImportResult,
+    SkillBundleMember,
+    bundle_text_bytes,
 )
 from app.models.skill_models import (
     Skill,
@@ -29,6 +32,7 @@ from app.models.skill_models import (
     SkillUpdate,
 )
 from app.protocols.skill_protocol import SkillRepository
+from app.utils.file_snapshot import file_snapshot
 from app.utils.provenance import (
     apply_provenance_defaults,
     apply_provenance_defaults_for_update,
@@ -81,6 +85,86 @@ def _quote_unquoted_frontmatter_scalars(raw: str) -> str:
             quoted_lines.append(line)
 
     return "\n".join(quoted_lines)
+
+
+
+def parse_skill_markdown(skill_md_content: str, project_id: int | None, importance: int) -> SkillCreate:
+    # Parse YAML frontmatter between --- delimiters
+    parts = skill_md_content.split("---", 2)
+    if len(parts) < 3:
+        raise ValueError(
+            "Invalid skill markdown: expected YAML frontmatter between --- delimiters",
+        )
+
+    frontmatter_raw = parts[1].strip()
+    body = parts[2].strip()
+
+    frontmatter = yaml.load(
+        _quote_unquoted_frontmatter_scalars(frontmatter_raw),
+        Loader=_SkillFrontmatterLoader,  # noqa: S506 - SafeLoader subclass rejects aliases.
+    )
+    if not isinstance(frontmatter, dict):
+        raise ValueError("Invalid YAML frontmatter: expected a mapping")
+
+    # Extract standard fields
+    name = frontmatter.get("name")
+    description = frontmatter.get("description")
+    skill_license = frontmatter.get("license")
+    compatibility = frontmatter.get("compatibility")
+    metadata = frontmatter.get("metadata")
+
+    # Map allowed-tools (hyphenated standard) to allowed_tools (underscored)
+    allowed_tools = frontmatter.get("allowed-tools")
+    tags = frontmatter.get("tags", [])
+
+    if not name:
+        raise ValueError("Skill frontmatter must include 'name'")
+    if not description:
+        raise ValueError("Skill frontmatter must include 'description'")
+
+    skill_data = SkillCreate(
+        name=name,
+        description=description,
+        content=body,
+        license=skill_license,
+        compatibility=compatibility,
+        allowed_tools=allowed_tools,
+        metadata=metadata,
+        tags=tags,
+        importance=importance,
+        project_id=project_id,
+    )
+
+    return skill_data
+
+
+def format_skill_markdown(skill: Skill) -> str:
+    # Build frontmatter dict with only non-None standard fields
+    frontmatter: dict = {}
+
+    frontmatter["name"] = skill.name
+    frontmatter["description"] = skill.description
+
+    if skill.license is not None:
+        frontmatter["license"] = skill.license
+    if skill.compatibility is not None:
+        frontmatter["compatibility"] = skill.compatibility
+    if skill.metadata is not None:
+        frontmatter["metadata"] = skill.metadata
+    if skill.tags:
+        frontmatter["tags"] = skill.tags
+    # Map allowed_tools (underscored) back to allowed-tools (hyphenated)
+    if skill.allowed_tools is not None:
+        frontmatter["allowed-tools"] = skill.allowed_tools
+
+    frontmatter_str = yaml.dump(
+        frontmatter,
+        default_flow_style=False,
+        sort_keys=False,
+        allow_unicode=True,
+    ).strip()
+
+    return f"---\n{frontmatter_str}\n---\n\n{skill.content}\n"
 
 
 class SkillService:
@@ -524,51 +608,7 @@ class SkillService:
             extra={"user_id": str(user_id)},
         )
 
-        # Parse YAML frontmatter between --- delimiters
-        parts = skill_md_content.split("---", 2)
-        if len(parts) < 3:
-            raise ValueError(
-                "Invalid skill markdown: expected YAML frontmatter between --- delimiters",
-            )
-
-        frontmatter_raw = parts[1].strip()
-        body = parts[2].strip()
-
-        frontmatter = yaml.load(
-            _quote_unquoted_frontmatter_scalars(frontmatter_raw),
-            Loader=_SkillFrontmatterLoader,  # noqa: S506 - SafeLoader subclass rejects aliases.
-        )
-        if not isinstance(frontmatter, dict):
-            raise ValueError("Invalid YAML frontmatter: expected a mapping")
-
-        # Extract standard fields
-        name = frontmatter.get("name")
-        description = frontmatter.get("description")
-        skill_license = frontmatter.get("license")
-        compatibility = frontmatter.get("compatibility")
-        metadata = frontmatter.get("metadata")
-
-        # Map allowed-tools (hyphenated standard) to allowed_tools (underscored)
-        allowed_tools = frontmatter.get("allowed-tools")
-        tags = frontmatter.get("tags", [])
-
-        if not name:
-            raise ValueError("Skill frontmatter must include 'name'")
-        if not description:
-            raise ValueError("Skill frontmatter must include 'description'")
-
-        skill_data = SkillCreate(
-            name=name,
-            description=description,
-            content=body,
-            license=skill_license,
-            compatibility=compatibility,
-            allowed_tools=allowed_tools,
-            metadata=metadata,
-            tags=tags,
-            importance=importance,
-            project_id=project_id,
-        )
+        skill_data = parse_skill_markdown(skill_md_content, project_id, importance)
 
         return await self.create_skill(user_id=user_id, skill_data=skill_data)
 
@@ -602,32 +642,7 @@ class SkillService:
 
         skill = await self.get_skill(user_id=user_id, skill_id=skill_id)
 
-        # Build frontmatter dict with only non-None standard fields
-        frontmatter: dict = {}
-
-        frontmatter["name"] = skill.name
-        frontmatter["description"] = skill.description
-
-        if skill.license is not None:
-            frontmatter["license"] = skill.license
-        if skill.compatibility is not None:
-            frontmatter["compatibility"] = skill.compatibility
-        if skill.metadata is not None:
-            frontmatter["metadata"] = skill.metadata
-        if skill.tags:
-            frontmatter["tags"] = skill.tags
-        # Map allowed_tools (underscored) back to allowed-tools (hyphenated)
-        if skill.allowed_tools is not None:
-            frontmatter["allowed-tools"] = skill.allowed_tools
-
-        frontmatter_str = yaml.dump(
-            frontmatter,
-            default_flow_style=False,
-            sort_keys=False,
-            allow_unicode=True,
-        ).strip()
-
-        return f"---\n{frontmatter_str}\n---\n\n{skill.content}\n"
+        return format_skill_markdown(skill)
 
     async def link_skill_to_memory(
         self,
@@ -873,3 +888,61 @@ class SkillService:
         """Get all skill-document links for graph visualization."""
         logger.info("getting all skill-document links for graph", extra={"user_id": str(user_id)})
         return await self.skill_repo.get_all_skill_document_links(user_id=user_id)
+
+    async def import_skill_bundle(
+        self, user_id: UUID, bundle: SkillBundle,
+        project_id: int | None = None, importance: int = 7,
+    ) -> SkillBundleImportResult:
+        """Validate everything, atomically store it, then emit existing activity events."""
+        if not settings.SKILLS_ENABLED:
+            raise ValueError("Skill storage is disabled")
+        # Revalidate trusted model instances too: settings may have changed since parsing.
+        bundle = SkillBundle.model_validate(bundle.model_dump())
+        if not settings.FILES_ENABLED and any(r.kind == "file" for r in bundle.resources):
+            raise ValueError("File storage is disabled")
+        skill_data = parse_skill_markdown(bundle.skill_md, project_id, importance)
+        # Escaped YAML scalars can introduce text not visible in the raw SKILL.md.
+        bundle_text_bytes(skill_data.model_dump())
+        try:
+            json.dumps(skill_data.metadata, allow_nan=False, ensure_ascii=False).encode("utf-8")
+        except (TypeError, ValueError, UnicodeEncodeError) as exc:
+            raise ValueError("Skill metadata must contain JSON-compatible values") from exc
+        skill_data = apply_provenance_defaults(skill_data)
+        resources = [PreparedBundleResource(
+            path=r.path, kind=r.kind,
+            data=apply_provenance_defaults(r.to_create(project_id)),
+        ) for r in bundle.resources]
+        created = await self.skill_repo.create_skill_bundle(user_id, skill_data, resources)
+        # The commit already succeeded. Event failures propagate as they do in the
+        # ordinary services; callers must not infer rollback or automatically retry.
+        for item in created.resources:
+            entity_type = {
+                "document": EntityType.DOCUMENT,
+                "code_artifact": EntityType.CODE_ARTIFACT,
+                "file": EntityType.FILE,
+            }[item.kind]
+            snapshot = (file_snapshot(item.resource) if item.kind == "file"
+                        else item.resource.model_dump(mode="json"))
+            await self._emit_event(
+                user_id=user_id, entity_type=entity_type, entity_id=item.resource.id,
+                action=ActionType.CREATED, snapshot=snapshot,
+            )
+        await self._emit_event(
+            user_id=user_id, entity_type=EntityType.SKILL, entity_id=created.skill.id,
+            action=ActionType.CREATED, snapshot=created.skill.model_dump(mode="json"),
+        )
+        return SkillBundleImportResult(skill=created.skill, members=created.members)
+
+    async def export_skill_bundle(
+        self, user_id: UUID, skill_id: int,
+        members: list[SkillBundleMember] | None = None,
+    ) -> SkillBundle:
+        """Export current owned package content; source IDs are never portable."""
+        if not settings.SKILLS_ENABLED:
+            raise ValueError("Skill storage is disabled")
+        snapshot = await self.skill_repo.read_skill_bundle(user_id, skill_id, members)
+        if not settings.FILES_ENABLED and any(r.kind == "file" for r in snapshot.resources):
+            raise ValueError("File storage is disabled")
+        return SkillBundle(
+            skill_md=format_skill_markdown(snapshot.skill), resources=snapshot.resources,
+        )

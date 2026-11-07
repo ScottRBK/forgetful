@@ -6,6 +6,12 @@ Concrete implementations must provide all methods defined here.
 from typing import Protocol
 from uuid import UUID
 
+from app.models.skill_bundle_models import (
+    CreatedSkillBundle,
+    PreparedBundleResource,
+    SkillBundleMember,
+    SkillBundleSnapshot,
+)
 from app.models.skill_models import (
     Skill,
     SkillCreate,
@@ -256,4 +262,18 @@ class SkillRepository(Protocol):
         user_id: UUID,
     ) -> list[tuple[int, int]]:
         """Get all skill-document associations for a user (for graph visualization)."""
+        ...
+
+    async def create_skill_bundle(
+        self, user_id: UUID, skill_data: SkillCreate,
+        resources: list[PreparedBundleResource],
+    ) -> CreatedSkillBundle:
+        """Atomically create all package records, vectors and links."""
+        ...
+
+    async def read_skill_bundle(
+        self, user_id: UUID, skill_id: int,
+        members: list[SkillBundleMember] | None = None,
+    ) -> SkillBundleSnapshot:
+        """Read an owned package and its current resources in one snapshot."""
         ...

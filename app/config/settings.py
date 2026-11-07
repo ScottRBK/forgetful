@@ -185,9 +185,11 @@ class Settings(BaseSettings):
     TASK_AGENT_MAX_LENGTH: int = 200
     CRITERION_DESCRIPTION_MAX_LENGTH: int = 1000
 
-
     # Skills Feature Flag
     SKILLS_ENABLED: bool = False
+    # Portable skill package bounds (decoded text and binary bytes).
+    SKILL_BUNDLE_MAX_RESOURCES: int = 100
+    SKILL_BUNDLE_MAX_BYTES: int = 20_971_520
 
     # Skills Configuration
     SKILL_NAME_MAX_LENGTH: int = 64

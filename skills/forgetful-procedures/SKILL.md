@@ -78,3 +78,8 @@ everything attached — it is the reverse lookup, returning linked memory, file,
 artifact, and document IDs.
 
 Done when: following the procedure never requires hunting for its supporting material.
+
+
+## Portable supporting files
+
+Use `import_skill_bundle` / `export_skill_bundle` when references, scripts or binary assets must travel with SKILL.md. Discover their schemas; provide each resource with its package-relative path and required fields. Existing Markdown-only operations remain unchanged. See `docs/skill-bundles.md` for canonical text, limits, permissions and the CLI argument-size restriction.

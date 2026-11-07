@@ -2684,6 +2684,46 @@ class SkillToolAdapters:
 
         return result
 
+    @staticmethod
+    def _require_bundle_resource_tools(ctx, kinds: set[str], *, write: bool) -> None:
+        from app.routes.mcp.scope_resolver import get_effective_scopes
+
+        permitted, _ = get_effective_scopes(ctx)
+        names = {"document": "document", "code_artifact": "code_artifact", "file": "file"}
+        prefix = "create_" if write else "get_"
+        required = {prefix + names[kind] for kind in kinds}
+        missing = required - permitted
+        if missing:
+            raise PermissionError("Bundle requires permission for: " + ", ".join(sorted(missing)))
+
+    async def import_skill_bundle(
+        self, bundle: dict, ctx: Context,
+        project_id: int | None = None, importance: int = 7,
+    ):
+        """Import portable resources using the same effective permissions as CRUD."""
+        from app.models.skill_bundle_models import SkillBundle
+
+        parsed = SkillBundle.model_validate(bundle)
+        self._require_bundle_resource_tools(ctx, {r.kind for r in parsed.resources}, write=True)
+        user = await get_user_from_auth(ctx)
+        return await self.skill_service.import_skill_bundle(
+            user.id, parsed, project_id=project_id, importance=importance,
+        )
+
+    async def export_skill_bundle(
+        self, skill_id: int, ctx: Context, members: list[dict] | None = None,
+    ):
+        """Export only permitted, owned resources with package-relative paths."""
+        from app.models.skill_bundle_models import SkillBundleMember
+
+        parsed = None if members is None else [SkillBundleMember.model_validate(m) for m in members]
+        if parsed is not None:
+            self._require_bundle_resource_tools(ctx, {m.kind for m in parsed}, write=False)
+        user = await get_user_from_auth(ctx)
+        bundle = await self.skill_service.export_skill_bundle(user.id, skill_id, parsed)
+        self._require_bundle_resource_tools(ctx, {r.kind for r in bundle.resources}, write=False)
+        return bundle
+
     async def get_skill_links(self, skill_id: int, ctx: Context) -> dict:
         """Adapter for get_skill_links tool"""
         user = await get_user_from_auth(ctx)
@@ -2715,6 +2755,8 @@ def create_skill_adapters(skill_service, user_service: UserService) -> dict[str,
         "delete_skill": adapters.delete_skill,
         "search_skills": adapters.search_skills,
         "import_skill": adapters.import_skill,
+        "import_skill_bundle": adapters.import_skill_bundle,
+        "export_skill_bundle": adapters.export_skill_bundle,
         "export_skill": adapters.export_skill,
         "link_skill_to_memory": adapters.link_skill_to_memory,
         "unlink_skill_from_memory": adapters.unlink_skill_from_memory,

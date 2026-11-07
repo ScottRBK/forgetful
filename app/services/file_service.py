@@ -12,19 +12,10 @@ from uuid import UUID
 from app.config.logging_config import logging
 from app.config.settings import settings
 from app.exceptions import NotFoundError
-from app.models.activity_models import (
-    ActionType,
-    ActivityEvent,
-    ActorType,
-    EntityType,
-)
-from app.models.file_models import (
-    File,
-    FileCreate,
-    FileSummary,
-    FileUpdate,
-)
+from app.models.activity_models import ActionType, ActivityEvent, ActorType, EntityType
+from app.models.file_models import File, FileCreate, FileSummary, FileUpdate
 from app.protocols.file_protocol import FileRepository
+from app.utils.file_snapshot import file_snapshot
 from app.utils.provenance import (
     apply_provenance_defaults,
     apply_provenance_defaults_for_update,
@@ -91,9 +82,7 @@ class FileService:
 
     def _snapshot_without_data(self, file: File) -> dict:
         """Create a snapshot dict excluding the base64 data field to avoid bloating events."""
-        snapshot = file.model_dump(mode="json")
-        snapshot.pop("data", None)
-        return snapshot
+        return file_snapshot(file)
 
     async def create_file(
         self,

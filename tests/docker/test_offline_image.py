@@ -13,6 +13,8 @@ from uuid import uuid4
 
 import pytest
 
+from tests.skill_bundle_cases import skill_bundle
+
 
 def docker(*args, check=True, timeout=60):
     executable = shutil.which("docker")
@@ -39,6 +41,8 @@ def offline_image():
     data = f"{container}-data"
     environment = [
         "-e", "DATABASE=SQLite",
+        "-e", "SKILLS_ENABLED=true",
+        "-e", "FILES_ENABLED=true",
         "-e", "SQLITE_PATH=/data/forgetful.db",
         "-e", "FASTEMBED_CACHE_DIR=/cache/fastembed",
         "-e", "TIKTOKEN_CACHE_DIR=/cache/tiktoken",
@@ -156,12 +160,23 @@ def test_image_starts_and_queries_offline_after_restart_and_recreation(offline_i
         })
         memory_ids.add(created["id"])
 
+    created_bundle = request(container, "/api/v1/skills/bundle/import", {"bundle": skill_bundle()})
+    bundle_id = created_bundle["skill"]["id"]
+    exported_bundle = request(container, f"/api/v1/skills/{bundle_id}/bundle/export", {})
+    assert len(exported_bundle["resources"]) == 3
+
+    def assert_bundle_persisted():
+        assert request(container, f"/api/v1/skills/{bundle_id}/bundle/export", {}) == exported_bundle
+
     # Assert: inference, reranking, token counting and persisted data survive both.
     assert_search_works(container, memory_ids)
+    assert_bundle_persisted()
     docker("restart", "--time", "10", container)
     wait_for_health(container, expected_version)
     assert_search_works(container, memory_ids)
+    assert_bundle_persisted()
     docker("rm", "-f", container)
     docker(*start)
     wait_for_health(container, expected_version)
     assert_search_works(container, memory_ids)
+    assert_bundle_persisted()
