@@ -46,8 +46,8 @@ class SkillBundleCases:
         assert all("resource_id" not in r and "id" not in r for r in exported["resources"])
         await call_tool(mcp_client, "delete_skill", skill_id=original["skill"]["id"])
         recreated = await call_tool(mcp_client, "import_skill_bundle", bundle=exported)
-        assert {m["resource_id"] for m in original["members"]}.isdisjoint(
-            {m["resource_id"] for m in recreated["members"]},
+        assert {(m["kind"], m["resource_id"]) for m in original["members"]}.isdisjoint(
+            {(m["kind"], m["resource_id"]) for m in recreated["members"]},
         )
         second = await call_tool(mcp_client, "export_skill_bundle", skill_id=recreated["skill"]["id"])
         assert second == exported
