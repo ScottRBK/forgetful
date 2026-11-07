@@ -1,0 +1,35 @@
+# Dependabot version updates for the flake inputs and pinned Actions.
+#
+# Python dependencies are deliberately NOT listed here. Every requirement in
+# pyproject.toml is exactly pinned, including audited transitive versions that
+# are held in place on purpose (see #165 and #186). Recurring automatic bumps
+# would undo that audit trail, so Python keeps moving through Dependabot
+# *security* updates, which only touch versions with a known advisory, rather
+# than through scheduled version updates.
+#
+# Docs: https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+version: 2
+updates:
+  # nix flake inputs: flake.nix and flake.lock
+  - package-ecosystem: "nix"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    # Group all input bumps into one PR per week so a routine refresh costs one
+    # review rather than one per input.
+    groups:
+      flake-inputs:
+        patterns:
+          - "*"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+
+  # GitHub Actions, including the SHA-pinned actions in the publishing jobs.
+  - package-ecosystem: "github-actions"
+    directory: "/.github/workflows"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
