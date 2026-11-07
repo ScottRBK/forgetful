@@ -13,7 +13,13 @@ from fastmcp.exceptions import ToolError
 
 from app.config.logging_config import logging
 from app.config.settings import settings
-from app.exceptions import WritePluginRejectedError, WritePluginUnavailableError
+from app.exceptions import (
+    PlanPluginRejectedError,
+    PlanPluginStateChangedError,
+    PlanPluginUnavailableError,
+    WritePluginRejectedError,
+    WritePluginUnavailableError,
+)
 from app.middleware.auth import get_user_from_auth
 from app.models.code_artifact_models import (
     CodeArtifact,
@@ -46,6 +52,7 @@ from app.models.project_models import (
 )
 from app.models.user_models import UserResponse, UserUpdate
 from app.routes.mcp.pagination import clamp_list_pagination
+from app.routes.plan_plugin_responses import PlanWriteResponse, TaskTransitionResponse
 from app.routes.write_plugin_responses import (
     EntityDeleteResponse,
     EntityWriteResponse,
@@ -1877,7 +1884,13 @@ class PlanToolAdapters:
             agent_version=agent_version,
             agent_model=agent_model,
         )
-        return await self.plan_service.create_plan(user_id=user.id, plan_data=plan_data)
+        try:
+            result = await self.plan_service.create_plan(user_id=user.id, plan_data=plan_data)
+        except PlanPluginRejectedError as exc:
+            raise ToolError(f"PLAN_PLUGIN_REJECTED: {exc}") from None
+        except PlanPluginUnavailableError as exc:
+            raise ToolError(f"PLAN_PLUGIN_UNAVAILABLE: {exc}") from None
+        return PlanWriteResponse(**result.plan.model_dump(), plugin_warnings=result.plugin_warnings)
 
     async def update_plan(
         self,
@@ -1916,10 +1929,19 @@ class PlanToolAdapters:
             agent_model=agent_model,
         )
         plan_data = PlanUpdate(**updated_dict)
-        plan = await self.plan_service.update_plan(
-            user_id=user.id, plan_id=plan_id, plan_data=plan_data,
-        )
-        return plan
+        try:
+            result = await self.plan_service.update_plan(
+                user_id=user.id, plan_id=plan_id, plan_data=plan_data,
+            )
+        except PlanPluginRejectedError as exc:
+            raise ToolError(f"PLAN_PLUGIN_REJECTED: {exc}") from None
+        except PlanPluginUnavailableError as exc:
+            raise ToolError(f"PLAN_PLUGIN_UNAVAILABLE: {exc}") from None
+        except PlanPluginStateChangedError as exc:
+            raise ToolError(f"PLAN_PLUGIN_STATE_CHANGED: {exc}") from None
+        if result.plan is None:
+            return None
+        return PlanWriteResponse(**result.plan.model_dump(), plugin_warnings=result.plugin_warnings)
 
     async def get_plan(self, plan_id: int, ctx: Context):
         user = await get_user_from_auth(ctx)
@@ -2094,10 +2116,11 @@ class TaskToolAdapters:
     ):
         from app.models.plan_models import TaskState
         user = await get_user_from_auth(ctx)
-        return await self.task_service.transition_task(
+        result = await self.task_service.transition_task(
             user_id=user.id, task_id=task_id,
             new_state=TaskState(state), expected_version=version,
         )
+        return TaskTransitionResponse(**result.task.model_dump(), plugin_warnings=result.plugin_warnings)
 
     async def add_criterion(
         self,

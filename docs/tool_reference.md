@@ -2450,3 +2450,20 @@ MEMORY_MAX_MEMORIES=20
 
 **Last Updated:** 2025-01-22
 **Forgetful Version:** 0.1.x
+
+
+### Plan policy warnings
+
+`create_plan`, `update_plan` and `transition_task` keep their existing flat success
+shape, adding `plugin_warnings` only when nonempty. `get_plan`, `list_plans` and
+Task reads remain unchanged. An administrator's Plan Plugin can return direct
+`PLAN_PLUGIN_REJECTED`, `PLAN_PLUGIN_UNAVAILABLE` or `PLAN_PLUGIN_STATE_CHANGED`
+errors. Both generic CLI `call` modes use the same contracts.
+
+A successful task transition may include `plan_auto_completion_rejected` or
+`plan_auto_completion_unavailable`: the task committed, but that attempt did not
+complete its parent plan. Do not repeat the task mutation merely to retry parent
+policy. Unrelated errors and request cancellation can still occur after commit;
+read current state first. `automatic` is administrator context only, never a tool
+argument. No `delete_plan` or `delete_task` MCP tool is introduced; those remain
+REST operations. See [Plan Plugin configuration](configuration.md#plan-plugin).

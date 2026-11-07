@@ -228,23 +228,25 @@ class Runtime:
 
 async def build_runtime() -> Runtime:
     """Build the full runtime stack: adapters -> repos -> services -> registry -> scopes."""
+    from app.config.plan_plugin import load_plan_plugin
     from app.config.write_plugin import load_entity_plugin, load_write_plugin
     from app.services.entity_write_plugin_service import EntityWritePluginService
+    from app.services.plan_write_plugin_service import PlanWritePluginService
     from app.services.write_plugin_service import WritePluginService
 
     plugin = load_write_plugin(settings)
     entity_plugin = load_entity_plugin(settings)
+    plan_registration = load_plan_plugin(settings)
     plugin_logger_states = {}
-    for registered_plugin, setting_name in (
+    for registration, reference in (
         (plugin, settings.MEMORY_WRITE_PLUGIN),
         (entity_plugin, settings.ENTITY_WRITE_PLUGIN),
+        (plan_registration, settings.PLAN_WRITE_PLUGIN),
     ):
-        if registered_plugin is None:
+        if registration is None:
             continue
-        configured_module = setting_name.strip().partition(":")[0]
-        handlers = (
-            *registered_plugin.before_save.values(), *registered_plugin.after_save.values(),
-        )
+        configured_module = reference.strip().partition(":")[0]
+        handlers = (*registration.before_save.values(), *registration.after_save.values())
         module_names = {configured_module}
         for handler in handlers:
             while isinstance(handler, partial):
@@ -265,6 +267,11 @@ async def build_runtime() -> Runtime:
         timeout_seconds=settings.ENTITY_WRITE_PLUGIN_TIMEOUT_SECONDS,
     ) if entity_plugin is not None else None)
 
+    plan_plugin = (PlanWritePluginService(
+        plan_registration, mode=settings.PLAN_WRITE_PLUGIN_MODE,
+        timeout_seconds=settings.PLAN_WRITE_PLUGIN_TIMEOUT_SECONDS,
+    ) if plan_registration is not None else None)
+
     check_first_run_models()
 
     embeddings_adapter = get_embedding_adapter()
@@ -283,6 +290,7 @@ async def build_runtime() -> Runtime:
         # Alembic fileConfig disables existing loggers; plugin failures must remain diagnosable.
         logging.getLogger("app.services.write_plugin_service").disabled = False
         logging.getLogger("app.services.entity_write_plugin_service").disabled = False
+        logging.getLogger("app.services.plan_write_plugin_service").disabled = False
         for plugin_logger, was_disabled in plugin_logger_states.items():
             plugin_logger.disabled = was_disabled
         logger.info("Database initialized")
@@ -352,7 +360,10 @@ async def build_runtime() -> Runtime:
             from app.services.plan_service import PlanService
             from app.services.task_service import TaskService
 
-            plan_service = PlanService(repos["plan"], event_bus=event_bus)
+            plan_service = PlanService(
+                repos["plan"], event_bus=event_bus, plan_plugin=plan_plugin,
+                project_repo=repos["project"],
+            )
             task_service = TaskService(repos["task"], plan_service=plan_service, event_bus=event_bus)
             logger.info("Planning feature enabled")
         else:

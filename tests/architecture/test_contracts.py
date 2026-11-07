@@ -25,6 +25,13 @@ CASES = [
     ("routes", "app.routes.mcp.handler", "app.repositories.provider"),
     ("cli", "app.routes.cli.handler", "app.repositories.provider"),
     ("cli", "app.routes.cli.handler", "app.bootstrap"),
+    ("foundation", "app.models.plan_plugin_models", "app.config.plan_plugin"),
+    ("foundation", "app.protocols.plan_plugin_protocol", "app.config.plan_plugin"),
+    ("services", "app.services.plan_write_plugin_service", "app.config.plan_plugin"),
+    ("repositories", "app.repositories.provider", "app.config.plan_plugin"),
+    ("routes", "app.routes.plan_plugin_responses", "app.config.plan_plugin"),
+    ("routes", "app.routes.mcp.handler", "app.config.plan_plugin"),
+    ("cli", "app.routes.cli.handler", "app.config.plan_plugin"),
 ]
 
 
@@ -55,7 +62,7 @@ def write_config(root, options, contracts):
 def write_startup(root):
     """Keep the permitted startup imports present, including both CLI exceptions."""
     write_module(root, "app.bootstrap", (
-        "import app.repositories\nimport app.services\nimport app.config.write_plugin\n"
+        "import app.repositories\nimport app.services\nimport app.config.write_plugin\nimport app.config.plan_plugin\n"
     ))
     write_module(root, "app.routes.cli.local_executor", "import app.bootstrap\n")
     write_module(root, "app.routes.cli.context", "import app.bootstrap\n")
@@ -73,7 +80,7 @@ def check(root):
     return result.returncode, result.stdout + result.stderr
 
 
-@pytest.mark.parametrize("contract_id,source,target", CASES, ids=[case[0] for case in CASES])
+@pytest.mark.parametrize("contract_id,source,target", CASES, ids=[case[0] for case in CASES[:13]] + [f"plan-loader-{i}" for i in range(len(CASES) - 13)])
 @pytest.mark.parametrize("style", ["direct", "indirect", "type_checking", "reexport", "local"])
 def test_contract_rejects_forbidden_dependency(tmp_path, contract_id, source, target, style):
     options = configuration()

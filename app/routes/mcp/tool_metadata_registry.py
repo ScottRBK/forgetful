@@ -1821,7 +1821,7 @@ def register_plan_tools_metadata(
                 {"name": "agent_version", "type": "Optional[str]", "description": "Agent version for provenance tracking", "required": False, "default": None, "example": "1.0"},
                 {"name": "agent_model", "type": "Optional[str]", "description": "LLM model used for provenance tracking", "required": False, "default": None, "example": "claude-sonnet-4-6"},
             ],
-            "returns": "Plan with id, title, project_id, status, external_ref, and timestamps",
+            "returns": "Flat Plan with id, title, project_id, status, external_ref, timestamps and nonempty-only plugin_warnings",
             "examples": [
                 'execute_forgetful_tool("create_plan", {"title": "Auth implementation", "project_id": 1, "goal": "Add JWT auth"})',
             ],
@@ -1862,7 +1862,7 @@ def register_plan_tools_metadata(
                 {"name": "agent_version", "type": "Optional[str]", "description": "Agent version for provenance tracking", "required": False, "default": None, "example": "1.0"},
                 {"name": "agent_model", "type": "Optional[str]", "description": "LLM model used for provenance tracking", "required": False, "default": None, "example": "claude-sonnet-4-6"},
             ],
-            "returns": "Updated Plan object",
+            "returns": "Flat updated Plan with nonempty-only plugin_warnings; direct policy errors use PLAN_PLUGIN_* codes",
             "examples": [
                 'execute_forgetful_tool("update_plan", {"plan_id": 1, "status": "active"})',
             ],
@@ -2049,7 +2049,7 @@ def register_task_tools_metadata(
                 {"name": "version", "type": "int", "description": "Expected task version for optimistic locking", "required": True, "example": 2},
                 {"name": "ctx", "type": "Context", "description": "FastMCP Context (automatically injected)", "required": True},
             ],
-            "returns": "Updated Task object with new state",
+            "returns": "Flat updated Task with new state and nonempty-only plugin_warnings; plan_auto_completion_* warns of secondary parent failure after task commit",
             "examples": [
                 'execute_forgetful_tool("transition_task", {"task_id": 1, "state": "done", "version": 2})',
             ],

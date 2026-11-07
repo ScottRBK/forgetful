@@ -81,3 +81,15 @@ same operations.
   then `forgetful re-embed` (batch size tunable via `--batch-size`).
 
 Done when: `/health` answers (HTTP) or an MCP client lists the three meta-tools (stdio).
+
+
+### Planning write warnings
+
+For generic `call create_plan`, `call update_plan` and `call transition_task`,
+inspect nonempty `plugin_warnings` while retaining the flat success payload.
+`plan_auto_completion_rejected` and `plan_auto_completion_unavailable` mean the
+task succeeded but automatic parent completion did not. Read current task and
+plan state before deciding on another action; do not blindly retry a committed
+task. Direct administrator policy errors use `PLAN_PLUGIN_*` codes. Local and
+remote modes expose the same contract. No new plan verbs or deletion MCP tools
+exist; plan/task deletion stays REST-only. Do not send `automatic` as an argument.

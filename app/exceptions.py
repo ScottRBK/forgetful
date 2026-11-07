@@ -26,3 +26,15 @@ class WritePluginRejectedError(Exception):
 
 class WritePluginUnavailableError(Exception):
     """A configured Write Plugin could not decide whether a write may proceed."""
+
+
+class PlanPluginRejectedError(Exception):
+    """A Plan Plugin rejected a pending plan mutation with a client-safe message."""
+
+
+class PlanPluginUnavailableError(Exception):
+    """A configured Plan Plugin could not decide whether a mutation may proceed."""
+
+
+class PlanPluginStateChangedError(Exception):
+    """Plan state changed while a registered before handler was awaited."""

@@ -266,9 +266,9 @@ class TestPlanExternalRefStorage:
 
         async def create(service):
             await ready.wait()
-            return await service.create_plan(user.id, PlanCreate(
+            return (await service.create_plan(user.id, PlanCreate(
                 title="Concurrent watcher", project_id=project.id, external_ref="race:42",
-            ))
+            ))).plan
 
         try:
             results = await asyncio.gather(*(create(s) for s in services), return_exceptions=True)
@@ -281,9 +281,9 @@ class TestPlanExternalRefStorage:
         found = await services[0].list_plans(user.id, external_ref="race:42")
         assert [p.id for p in found] == [winners[0].id]
         # A failed transaction must not poison the next request.
-        created = await services[0].create_plan(user.id, PlanCreate(
+        created = (await services[0].create_plan(user.id, PlanCreate(
             title="Next request", project_id=project.id, external_ref="race:43",
-        ))
+        ))).plan
         assert created.external_ref == "race:43"
 
     async def test_unrelated_integrity_error_is_not_a_reference_conflict(self, reference_store):
@@ -336,14 +336,14 @@ class TestPlanExternalRefStorage:
         assert (await service.get_plan(user.id, plan_ids[0])).task_count == 1
         assert (await repos["task"].get_task_by_id(user.id, task.id)).title == "Existing task"
         # Old callers still create/update without the new field after upgrading.
-        old_client = await service.create_plan(user.id, PlanCreate(
+        old_client = (await service.create_plan(user.id, PlanCreate(
             title="Old client", project_id=project.id,
-        ))
-        updated = await service.update_plan(user.id, old_client.id, PlanUpdate(title="Renamed"))
+        ))).plan
+        updated = (await service.update_plan(user.id, old_client.id, PlanUpdate(title="Renamed"))).plan
         assert updated.external_ref is None
-        assigned = await service.update_plan(
+        assigned = (await service.update_plan(
             user.id, plan_ids[0], PlanUpdate(external_ref="migrated:42"),
-        )
+        )).plan
         assert assigned.external_ref == "migrated:42"
         with pytest.raises(ConflictError):
             await service.update_plan(user.id, plan_ids[1], PlanUpdate(external_ref="migrated:42"))

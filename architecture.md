@@ -23,6 +23,9 @@ flowchart TD
     ToolAdapters --> Services["Domain services"]
     HTTP["HTTP custom routes"] --> Services
     Services --> Contracts["Repository protocols"]
+    Services --> PlanPlugin["PlanWritePluginService: create/update/delete, including automatic completion"]
+    Bootstrap --> PlanLoader["config.plan_plugin: trusted PlanPlugin loader"]
+    PlanLoader -. supplies registration .-> PlanPlugin
     Services --> WritePlugin["WritePluginService: before_save and advisory after_save"]
     WritePlugin --> Callable["MemoryPlugin: explicit operation-to-handler mappings"]
     Services --> EntityWritePlugin["EntityWritePluginService: before_save and advisory after_save"]
@@ -147,6 +150,17 @@ methods maintain the bidirectional memory relation and only link memories owned 
 Obsolescence is a soft state with reason and
 optional replacement; create responses can additionally warn about similar obsolete memories
 ([memory_service.py:552](app/services/memory_service.py#L552)).
+
+**Plan Plugin:** `config.plan_plugin` validates one trusted `PlanPlugin` registration at startup,
+including when planning is disabled. `PlanWritePluginService` dispatches explicit create/update/delete
+maps with detached contexts; it cannot rewrite core input. `PlanService` retains ownership, status,
+provenance and reference rules, rereading after a before-handler await. Serial successful mutations
+invoke each registered phase once; absent plan CAS, concurrent callbacks can repeat. Transient write
+results carry warnings to flat REST/MCP/CLI payloads without changing reads or stored models.
+`TaskService` routes completion after task transition and deletion through this same policy. Rejection
+or policy unavailability is advisory for the committed task; unrelated post-commit failures and genuine
+cancellation retain existing propagation. Plan deletion cascades tasks/criteria/dependencies without
+per-task hooks; project/user cascades do not dispatch Plan hooks. No durable delivery or rollback.
 
 **Entity Plugin:** mirrors the Memory Plugin for entity create, update, and delete via
 `load_entity_plugin`, `EntityPlugin`, and `EntityWritePluginService`. Handlers see detached entity
@@ -286,12 +300,12 @@ The six contracts in `pyproject.toml` enforce these rules, including indirect im
 
 | Source | Must not import |
 | --- | --- |
-| Models, protocols, events, utilities, settings, logging support, exceptions, version | Services, repositories, routes, bootstrap, authentication middleware/configuration, Memory Plugin loader |
-| Services | Repositories, routes, bootstrap, authentication middleware/configuration, Memory Plugin loader |
-| Repositories | Services, routes, bootstrap, authentication middleware/configuration, Memory Plugin loader |
+| Models, protocols, events, utilities, settings, logging support, exceptions, version | Services, repositories, routes, bootstrap, authentication middleware/configuration, Memory/Plan Plugin loaders |
+| Services | Repositories, routes, bootstrap, authentication middleware/configuration, Memory/Plan Plugin loaders |
+| Repositories | Services, routes, bootstrap, authentication middleware/configuration, Memory/Plan Plugin loaders |
 | Shared code above and services | `sqlalchemy`, `openai`, `google`, `fastembed`, `httpx`, `ollama`, `subprocess`, `shutil` |
-| API/MCP routes, write response models, and authentication middleware | Repositories, bootstrap, or Memory Plugin loader |
-| CLI | Repositories, bootstrap, or Memory Plugin loader, except the two startup imports below |
+| API/MCP routes, write response models, and authentication middleware | Repositories, bootstrap, or Memory/Plan Plugin loaders |
+| CLI | Repositories, bootstrap, or Memory/Plan Plugin loaders, except the two startup imports below |
 
 All Python files under `app` must be visible to the checker; a regression test verifies this.
 Package markers are required, including for SQLite repositories, middleware, and utilities.

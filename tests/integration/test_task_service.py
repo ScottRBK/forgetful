@@ -31,15 +31,15 @@ from app.models.plan_models import (
 
 async def _create_active_plan(plan_service, user_id, project_id=1, title="Test Plan"):
     """Helper: create a plan and transition it to ACTIVE so tasks can be added."""
-    plan = await plan_service.create_plan(
+    plan = (await plan_service.create_plan(
         user_id=user_id,
         plan_data=PlanCreate(title=title, project_id=project_id, goal="test"),
-    )
-    plan = await plan_service.update_plan(
+    )).plan
+    plan = (await plan_service.update_plan(
         user_id=user_id,
         plan_id=plan.id,
         plan_data=PlanUpdate(status=PlanStatus.ACTIVE),
-    )
+    )).plan
     return plan
 
 
@@ -177,12 +177,12 @@ async def test_transition_task_todo_to_doing(test_task_service):
         task_data=TaskCreate(title="Start work", plan_id=plan.id),
     )
 
-    transitioned = await task_service.transition_task(
+    transitioned = (await task_service.transition_task(
         user_id=user_id,
         task_id=task.id,
         new_state=TaskState.DOING,
         expected_version=1,
-    )
+    )).task
 
     assert transitioned.state == TaskState.DOING
     assert transitioned.version == 2
@@ -304,9 +304,9 @@ async def test_transition_to_done_with_all_criteria_met(test_task_service):
     await task_service.transition_task(
         user_id=user_id, task_id=task.id, new_state=TaskState.DOING, expected_version=1,
     )
-    done_task = await task_service.transition_task(
+    done_task = (await task_service.transition_task(
         user_id=user_id, task_id=task.id, new_state=TaskState.DONE, expected_version=2,
-    )
+    )).task
 
     assert done_task.state == TaskState.DONE
 

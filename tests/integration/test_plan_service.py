@@ -15,7 +15,7 @@ async def test_create_plan_basic(test_plan_service):
     user_id = uuid4()
 
     plan_data = PlanCreate(title="My Plan", project_id=1, goal="Build feature X")
-    plan = await test_plan_service.create_plan(user_id=user_id, plan_data=plan_data)
+    plan = (await test_plan_service.create_plan(user_id=user_id, plan_data=plan_data)).plan
 
     assert plan is not None
     assert plan.id is not None
@@ -35,7 +35,7 @@ async def test_get_plan(test_plan_service):
     user_id = uuid4()
 
     plan_data = PlanCreate(title="Retrievable Plan", project_id=2, goal="Test retrieval")
-    created = await test_plan_service.create_plan(user_id=user_id, plan_data=plan_data)
+    created = (await test_plan_service.create_plan(user_id=user_id, plan_data=plan_data)).plan
 
     retrieved = await test_plan_service.get_plan(user_id=user_id, plan_id=created.id)
 
@@ -120,16 +120,16 @@ async def test_update_plan_title(test_plan_service):
     """Test updating only the title of a plan."""
     user_id = uuid4()
 
-    plan = await test_plan_service.create_plan(
+    plan = (await test_plan_service.create_plan(
         user_id=user_id,
         plan_data=PlanCreate(title="Original Title", project_id=1, goal="G"),
-    )
+    )).plan
 
-    updated = await test_plan_service.update_plan(
+    updated = (await test_plan_service.update_plan(
         user_id=user_id,
         plan_id=plan.id,
         plan_data=PlanUpdate(title="Updated Title"),
-    )
+    )).plan
 
     assert updated is not None
     assert updated.title == "Updated Title"
@@ -143,17 +143,17 @@ async def test_update_plan_status_valid_transition(test_plan_service):
     """Test a valid plan status transition: draft -> active."""
     user_id = uuid4()
 
-    plan = await test_plan_service.create_plan(
+    plan = (await test_plan_service.create_plan(
         user_id=user_id,
         plan_data=PlanCreate(title="Transition Plan", project_id=1, goal="T"),
-    )
+    )).plan
     assert plan.status == PlanStatus.DRAFT
 
-    updated = await test_plan_service.update_plan(
+    updated = (await test_plan_service.update_plan(
         user_id=user_id,
         plan_id=plan.id,
         plan_data=PlanUpdate(status=PlanStatus.ACTIVE),
-    )
+    )).plan
 
     assert updated is not None
     assert updated.status == PlanStatus.ACTIVE
@@ -166,10 +166,10 @@ async def test_update_plan_status_invalid_transition(test_plan_service):
 
     user_id = uuid4()
 
-    plan = await test_plan_service.create_plan(
+    plan = (await test_plan_service.create_plan(
         user_id=user_id,
         plan_data=PlanCreate(title="Bad Transition", project_id=1, goal="X"),
-    )
+    )).plan
 
     with pytest.raises(InvalidStateTransitionError):
         await test_plan_service.update_plan(
@@ -193,12 +193,12 @@ async def test_delete_plan(test_plan_service):
     """Test creating, deleting, then verifying get raises NotFoundError."""
     user_id = uuid4()
 
-    plan = await test_plan_service.create_plan(
+    plan = (await test_plan_service.create_plan(
         user_id=user_id,
         plan_data=PlanCreate(title="To Delete", project_id=1, goal="Del"),
-    )
+    )).plan
 
-    success = await test_plan_service.delete_plan(user_id=user_id, plan_id=plan.id)
+    success = (await test_plan_service.delete_plan(user_id=user_id, plan_id=plan.id)).success
     assert success is True
 
     with pytest.raises(NotFoundError, match="not found"):
@@ -211,10 +211,10 @@ async def test_user_isolation(test_plan_service):
     user1 = uuid4()
     user2 = uuid4()
 
-    plan = await test_plan_service.create_plan(
+    plan = (await test_plan_service.create_plan(
         user_id=user1,
         plan_data=PlanCreate(title="User1 Plan", project_id=1, goal="Private"),
-    )
+    )).plan
 
     # user2 cannot get user1's plan
     with pytest.raises(NotFoundError, match="not found"):

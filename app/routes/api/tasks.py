@@ -26,6 +26,10 @@ from app.models.plan_models import (
     TaskTransitionRequest,
     TaskUpdate,
 )
+from app.routes.plan_plugin_responses import (
+    PlanningDeleteResponse,
+    TaskTransitionResponse,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -136,10 +140,11 @@ def register(mcp: FastMCP):
             return JSONResponse({"error": str(e)}, status_code=401)
 
         task_id = int(request.path_params["task_id"])
-        success = await mcp.task_service.delete_task(user_id=user.id, task_id=task_id)
-        if not success:
+        result = await mcp.task_service.delete_task(user_id=user.id, task_id=task_id)
+        if not result.success:
             return JSONResponse({"error": "Task not found"}, status_code=404)
-        return JSONResponse({"success": True})
+        payload = PlanningDeleteResponse(success=True, plugin_warnings=result.plugin_warnings)
+        return JSONResponse(payload.model_dump(mode="json"))
 
     @mcp.custom_route("/api/v1/tasks/{task_id}/transition", methods=["POST"])
     async def transition_task(request: Request) -> JSONResponse:
@@ -157,7 +162,7 @@ def register(mcp: FastMCP):
             return JSONResponse({"error": e.errors(include_context=False, include_input=False)}, status_code=400)
 
         try:
-            task = await mcp.task_service.transition_task(
+            result = await mcp.task_service.transition_task(
                 user_id=user.id, task_id=task_id,
                 new_state=transition.state, expected_version=transition.version,
             )
@@ -170,7 +175,8 @@ def register(mcp: FastMCP):
         except DependencyNotMetError as e:
             return JSONResponse({"error": str(e)}, status_code=422)
 
-        return JSONResponse(task.model_dump(mode="json"))
+        payload = TaskTransitionResponse(**result.task.model_dump(), plugin_warnings=result.plugin_warnings)
+        return JSONResponse(payload.model_dump(mode="json"))
 
     @mcp.custom_route("/api/v1/tasks/{task_id}/claim", methods=["POST"])
     async def claim_task(request: Request) -> JSONResponse:
