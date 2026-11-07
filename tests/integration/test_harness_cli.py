@@ -12,7 +12,7 @@ def test_no_flags_uses_config_defaults():
 
     # Assert
     assert config.agent_type == "opencode"
-    assert config.model == "opencode-go/deepseek-v4-flash"
+    assert config.model == "opencode-go/deepseek-v4.1-flash"
     assert len(config.skills) == 9
 
 

@@ -15,7 +15,7 @@ def test_defaults_match_locked_decisions():
 
     # Assert
     assert config.agent_type == "opencode"
-    assert config.model == "opencode-go/deepseek-v4-flash"
+    assert config.model == "opencode-go/deepseek-v4.1-flash"
     assert config.effort is None
     assert config.surface == "cli"
     assert config.skills == list(SKILL_ORDER)

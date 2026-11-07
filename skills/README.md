@@ -13,9 +13,14 @@ files rather than maintaining their own copies.
 - **Surface-neutral bodies.** Operations are referenced by registry name (`query_memory`,
   `create_entity`). Each skill opens with the same two-line invocation mapping for MCP and
   CLI. Only the two setup skills are surface-specific.
-- **Single-file skills.** Every skill is one SKILL.md with no sibling files, so the set
-  round-trips through Forgetful's own `import_skill` / `export_skill` and can be seeded into
-  the skill store.
+- **SKILL.md first; references only for branches.** Most skills are one SKILL.md, which
+  round-trips through Forgetful's own `import_skill` / `export_skill`. A skill whose runs take
+  distinct branches may move branch-only instructions to `references/<file>.md`, loaded only
+  when that branch is chosen; `forgetful-encode-repo` is the example. `import_skill` /
+  `export_skill` carry the SKILL.md text alone (bundles are tracked in issue #193), so in the
+  skill store each reference is a document titled `<skill-name>/references/<file>.md`, linked
+  with `link_skill_to_document`. The SKILL.md must say how to load a reference from both
+  places: its own folder, or `get_skill_links` → `get_document`.
 - **Descriptions do double duty.** They are the model-invocation trigger in Claude Code and
   the only embedded text for `search_skills` inside Forgetful — written for both.
 
@@ -30,7 +35,7 @@ files rather than maintaining their own copies.
 | `forgetful-procedures` | model | A how-to worth storing or finding |
 | `forgetful-files` | model | Binary content (screenshot, PDF, asset) worth keeping |
 | `forgetful-context-gather` | user | Deep pre-work sweep producing a cited context pack |
-| `forgetful-encode-repo` | user | Bootstrap or refresh a repository in the knowledge base |
+| `forgetful-encode-repo` | user | Encode a repository, or refresh it from its last encoded commit |
 | `forgetful-cli-setup` | user | Connect a terminal/headless agent; operate a local server |
 | `forgetful-mcp-setup` | user | Wire an MCP client and verify the connection |
 

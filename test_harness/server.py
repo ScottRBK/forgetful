@@ -135,14 +135,31 @@ class ThrowawayForgetful:
             await executor.close()
 
     async def seed_skills(self, skills_dir: Path, names: Iterable[str]) -> list[dict]:
-        """Import canonical SKILL.md files; the store then holds the docs under review."""
+        """Import skills and explicitly link their Markdown reference documents.
+
+        This prepares the catalogue for testing; import_skill itself still accepts
+        only SKILL.md text. Document titles preserve each skill-relative reference path.
+        """
         seeded = []
         for name in names:
-            skill_md = (skills_dir / name / "SKILL.md").read_text()
+            skill_dir = skills_dir / name
             try:
-                seeded.append(
-                    await self.execute("import_skill", {"skill_md_content": skill_md}),
-                )
+                skill = await self.execute("import_skill", {
+                    "skill_md_content": (skill_dir / "SKILL.md").read_text(encoding="utf-8"),
+                })
+                for reference in sorted((skill_dir / "references").rglob("*.md")):
+                    relative_path = reference.relative_to(skill_dir).as_posix()
+                    document = await self.execute("create_document", {
+                        "title": f"{name}/{relative_path}",
+                        "description": f"Reference instructions for the {name} skill.",
+                        "content": reference.read_text(encoding="utf-8"),
+                        "document_type": "markdown",
+                        "filename": relative_path,
+                    })
+                    await self.execute("link_skill_to_document", {
+                        "skill_id": skill["id"], "document_id": document["id"],
+                    })
+                seeded.append(skill)
             except Exception as exc:
                 raise HarnessInfraError(f"seeding skill {name!r} failed: {exc}") from exc
         return seeded

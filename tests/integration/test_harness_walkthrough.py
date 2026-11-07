@@ -97,7 +97,7 @@ async def test_run_skill_writes_artifacts_and_collects_report(tmp_path):
     assert meta["skill"] == "forgetful-recall"
     assert meta["status"] == "completed"
     assert meta["report_status"] == "ok"
-    assert meta["model"] == "opencode-go/deepseek-v4-flash"
+    assert meta["model"] == "opencode-go/deepseek-v4.1-flash"
 
 
 async def test_missing_report_is_finding_not_crash(tmp_path):
@@ -232,6 +232,28 @@ def test_workspace_prepared_with_skill_md(tmp_path):
     # Assert: the canonical SKILL.md is copied in as the document under review
     copied = (workspace / "SKILL.md").read_text()
     assert "name: forgetful-recall" in copied
+
+
+def test_workspace_preserves_skill_references(tmp_path):
+    # Arrange: a skill with two branch references, including non-ASCII text.
+    skills_dir = tmp_path / "catalogue"
+    skill_dir = skills_dir / "branching-skill"
+    references = skill_dir / "references"
+    references.mkdir(parents=True)
+    skill_md = "# Choose a branch\n\nRead references/first.md or references/refresh.md.\n"
+    first = "# First encode\n\nRecord the repository’s current commit.\n"
+    refresh = "# Refresh\n\nReview changes since the saved commit.\n"
+    (skill_dir / "SKILL.md").write_text(skill_md, encoding="utf-8")
+    (references / "first.md").write_text(first, encoding="utf-8")
+    (references / "refresh.md").write_text(refresh, encoding="utf-8")
+
+    # Act
+    workspace = prepare_workspace(tmp_path / "run", "branching-skill", skills_dir)
+
+    # Assert: the installed skill can follow either relative reference unchanged.
+    assert (workspace / "SKILL.md").read_text(encoding="utf-8") == skill_md
+    assert (workspace / "references" / "first.md").read_text(encoding="utf-8") == first
+    assert (workspace / "references" / "refresh.md").read_text(encoding="utf-8") == refresh
 
 
 def test_encode_repo_workspace_gets_fixture_repo(tmp_path):
