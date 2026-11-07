@@ -8,7 +8,7 @@ FROM node:24
 # resolve, mangling python/opencode invocations. Clear it so commands run directly.
 ENTRYPOINT []
 
-ARG OPENCODE_VERSION=latest
+ARG OPENCODE_VERSION=2.2.6
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         git \
@@ -48,4 +48,5 @@ USER node
 ENV NPM_CONFIG_PREFIX=/usr/local/share/npm-global
 ENV PATH=$PATH:/usr/local/share/npm-global/bin
 
-RUN npm install -g opencode-ai@${OPENCODE_VERSION}
+# OpenCode 2 is published under @opencode/cli, not the legacy opencode-ai package.
+RUN npm install -g @opencode/cli@${OPENCODE_VERSION}
