@@ -123,15 +123,19 @@ def test_provision_unknown_agent_is_infra_error():
 
 def test_harness_opencode_config_is_strict_json():
     # Arrange: agent-shell round-trips opencode.json through json.loads - JSONC
-    # trailing commas break it (mem 1643), and autoupdate must be pinned off so the
-    # container does not self-update mid-walkthrough
+    # trailing commas break it (mem 1643). Use OpenCode 2's native `update` setting
+    # so the container does not self-update mid-walkthrough.
     config_path = Path("test_harness/docker/opencode.json")
 
     # Act
     parsed = json.loads(config_path.read_text())
 
     # Assert
-    assert parsed["autoupdate"] is False
+    assert parsed["update"] == "disable"
+    assert "autoupdate" not in parsed
+    # OpenCode 2 ignores the wrapper's legacy OPENCODE_PERMISSION environment value.
+    for action in ("websearch", "webfetch"):
+        assert {"action": action, "resource": "*", "effect": "deny"} in parsed["permissions"]
 
 
 def test_requirements_hash_tracks_content():

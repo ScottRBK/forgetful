@@ -24,7 +24,7 @@ def config_from_argv(argv: list[str]) -> HarnessConfig:
         "throwaway local Forgetful, inside a sandbox container.",
     )
     parser.add_argument("--agent", help="agent-shell agent type (default: opencode)")
-    parser.add_argument("--model", help="model to pin (default: opencode-go/deepseek-v4-flash)")
+    parser.add_argument("--model", help="model to pin (default: opencode-go/deepseek-v4.1-flash)")
     parser.add_argument("--effort", help="reasoning effort passthrough")
     parser.add_argument("--surface", help="surface to walk (v1: cli)")
     parser.add_argument("--skills", help="comma-separated subset of the walkthrough skills")

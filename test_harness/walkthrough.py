@@ -68,11 +68,10 @@ class SkillRunResult:
 
 
 def prepare_workspace(skill_dir: Path, skill: str, skills_dir: Path) -> Path:
-    """Create the agent's working directory: the SKILL.md under review, plus the
-    fixture repo when the skill needs an encoding target."""
+    """Copy the complete skill folder, preserving relative reference paths, and
+    add the fixture repo when the skill needs an encoding target."""
     workspace = skill_dir / "workspace"
-    workspace.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(skills_dir / skill / "SKILL.md", workspace / "SKILL.md")
+    shutil.copytree(skills_dir / skill, workspace, dirs_exist_ok=True)
     if skill == "forgetful-encode-repo":
         _build_fixture_repo(workspace / "fixture-repo")
     return workspace

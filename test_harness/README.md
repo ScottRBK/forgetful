@@ -30,6 +30,7 @@ uv run python -m test_harness --timeout 600 --output /tmp/uat
 uv run python -m test_harness --rebuild-image                  # force image rebuild
 ```
 
+The default model is `opencode-go/deepseek-v4.1-flash`; use `--model` to override it.
 Flags > `TEST_HARNESS_*` env > defaults (`test_harness/config.py`). The walkthrough order
 is fixed by data dependencies — write-skills populate the store the read-skills then
 query: `cli-setup → remember → entities → procedures → files → recall → explore →
@@ -42,27 +43,31 @@ Exit codes: `0` every session completed (issues found are findings, not failures
 
 ## The image
 
-`forgetful-test-harness:latest`, built from `test_harness/docker/Dockerfile`: opencode,
-uv-managed Python 3.12, agent-shell, and Forgetful's **locked dependency tree** baked as
-cached layers. The working tree itself is built as a wheel on the host and installed
+`forgetful-test-harness:latest`, built from `test_harness/docker/Dockerfile`: OpenCode 2.2.6
+(`@opencode/cli`), uv-managed Python 3.12, agent-shell, and Forgetful's locked dependencies.
+Dependencies are cached in layers. The working tree is built as a wheel on the host and installed
 `--no-deps` at container start, so every run walks the current checkout without an
 image rebuild. `ensure_image()` hashes `uv export --frozen` into an image label and
 rebuilds automatically when the lock drifts (stale images have burned runs before);
-`--rebuild-image` forces it, e.g. after an opencode release.
+`--rebuild-image` forces it. Use this after changing the OpenCode pin: the cache check tracks
+application dependencies, not the Dockerfile. The harness config disables OpenCode updates with
+`update: "disable"`. Native permission rules also deny web search and web fetch; OpenCode 2
+ignores the wrapper's legacy `OPENCODE_PERMISSION` environment value.
 
 ## What a run does
 
 1. Build/verify the sandbox image, boot `forgetful serve` as a host subprocess:
    file-backed SQLite in the run dir, all feature flags on, no auth, FastEmbed
    embeddings (warm default cache), `/health` polled to 200.
-2. Seed every `skills/*/SKILL.md` into the instance via `import_skill` (the store under
-   review holds the docs under review).
+2. Seed every `skills/*/SKILL.md` into the instance via `import_skill`. Create a document
+   for each `references/**/*.md`, titled `<skill-name>/references/<path>.md`, and link it
+   to its skill. This is explicit test setup, not bundle support in `import_skill`.
 3. Start one container for the run — fenced env baked in (`FORGETFUL_SERVER` →
    `host.docker.internal:<port>`, decoy `SQLITE_PATH` for any `--local` detour), staged
    opencode credentials, `runs/<ts>/skills/` mounted rw, the wheel + runner mounted ro —
    then an in-container agent health check (broken agent = infra error, not findings).
 4. Per skill, in order: fresh agent session (one `docker exec` each) in a prepared
-   workspace (`SKILL.md` copy; `fixture-repo/` for encode-repo), wrapped in an
+   workspace (complete skill folder; `fixture-repo/` for encode-repo), wrapped in an
    OS-level `timeout --kill-after` — host-side cancellation cannot kill a process
    inside a container.
 5. Teardown container and server, then a summary table and `run.json`.

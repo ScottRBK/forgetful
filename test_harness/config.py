@@ -30,7 +30,7 @@ class HarnessConfig(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="TEST_HARNESS_", extra="ignore")
 
     agent_type: str = "opencode"
-    model: str = "opencode-go/deepseek-v4-flash"
+    model: str = "opencode-go/deepseek-v4.1-flash"
     effort: str | None = None
     surface: Literal["cli"] = "cli"
     skills: list[str] = list(SKILL_ORDER)
