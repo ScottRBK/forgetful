@@ -116,14 +116,14 @@
 
           # 6. App package (house stdenv+makeWrapper for servers)
           #
-          # src is allow-listed rather than `./.`, because anything copied into
-          # the store is an input to the derivation hash. With `./.` a docs- or
-          # CI-only commit changes that hash and forces a rebuild of the package
-          # and everything downstream of it. These four paths are exactly what
-          # installPhase consumes; if it ever copies more, widen this list.
-          # pyproject.toml and uv.lock are intentionally absent: uv2nix reads
-          # them at eval time via workspaceRoot above, so changes there still
-          # invalidate the build, which is the correct behaviour.
+          # Limit the wrapper's source to the files copied by installPhase.
+          # If installPhase copies more paths, extend this fileset.
+          # forgetfulEnv still builds the project from the unfiltered workspace,
+          # so docs- or CI-only changes can rebuild both the environment and
+          # this package. This fileset does not make the complete package hash
+          # independent of those files.
+          # pyproject.toml and uv.lock are read at eval time via workspaceRoot;
+          # dependency changes still invalidate the Python environment.
           packageSrc = lib.fileset.toSource {
             root = ./.;
             fileset = lib.fileset.unions [

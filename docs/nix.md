@@ -128,9 +128,10 @@ nix develop -c pytest tests/integration/ -q
 ## Non-flake entry points
 
 `default.nix` and `shell.nix` exist for tooling without native flake support.
-Both delegate to the flake — `nix-build .` produces the same output path as
-`nix build .#forgetful-ai`, so the compat path cannot drift from the flake.
-Don't add shell or package definitions there.
+Both delegate to the flake's package and shell definitions. They produce the
+same package output when evaluated from the same Nix store source. Raw archives
+and flake inputs can have different source names and produce different output
+paths. Don't add shell or package definitions to these entry points.
 
 ```bash
 nix-build .                                        # the wrapped app package
@@ -176,22 +177,19 @@ Recorded so nobody re-derives them.
 
 ### Rebuild scope
 
-The package `src` is an allow-list, so only these paths legitimately change the
-package derivation hash:
+The wrapper's `src` includes only `app/`, `main.py`, `alembic.ini` and
+`alembic/`, which are the paths copied by `installPhase`. uv2nix reads
+`pyproject.toml` and `uv.lock` at evaluation time through `workspaceRoot`, so
+dependency changes still invalidate the Python environment.
 
-- `app/`, `main.py`, `alembic.ini`, `alembic` — what `installPhase` consumes
-- `pyproject.toml`, `uv.lock` — read at eval time by uv2nix through
-  `workspaceRoot`, which is why they stay outside the fileset: dependency
-  changes must still invalidate the build
+The package also depends on `forgetful-env`, which builds the project from the
+unfiltered `workspaceRoot`. Docs, CI and test-only changes can therefore change
+both the environment and the final package derivation. A README-only change
+still changes the package hash.
 
-Docs, CI and test-only commits leave the package hash alone. Before the
-allow-list, appending a comment to `README.md` invalidated the package and
-everything downstream of it.
-
-**Known limitation:** `forgetful-env` embeds the project built from the raw
-`workspaceRoot`, so unrelated commits can still rebuild the Python
-environment. The allow-list reduces package churn, it does not eliminate it.
-Splitting the venv from the project tree is the separate fix and is not done.
+The fileset narrows the wrapper's source. Filtering the Python project source
+is separate work; the current implementation does not provide stable package
+hashes for unrelated file changes.
 
 ### Architecture caveat
 
