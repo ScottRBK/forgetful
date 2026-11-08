@@ -46,7 +46,7 @@ jobs:
           psql --version
 
       - name: Cache FastEmbed models
-        uses: actions/cache@v3
+        uses: actions/cache@v6
         with:
           path: ~/.cache/fastembed
           key: fastembed-${{ hashFiles('**/pyproject.toml') }}
