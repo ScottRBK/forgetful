@@ -67,8 +67,8 @@ jobs:
         id: cachix
         run: |
           set -euo pipefail
-          rev=$(nix eval --raw --impure \
-            --expr 'builtins.fromJSON (builtins.readFile ./flake.lock).nodes.nixpkgs.locked.rev')
+          rev=$(nix eval --raw --impure --expr \
+            '(builtins.fromJSON (builtins.readFile ./flake.lock)).nodes.nixpkgs.locked.rev')
           out=$(nix build --no-link --print-out-paths "github:NixOS/nixpkgs/${rev}#cachix")
           echo "cachix from nixpkgs ${rev}: ${out}"
           echo "bin=${out}/bin/cachix" >> "$GITHUB_OUTPUT"
