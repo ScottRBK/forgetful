@@ -50,6 +50,23 @@
     };
   };
 
+  # Nix reads flake settings from this top-level key, alongside `inputs` and
+  # `outputs` - NOT from an output attribute. See the flake format section of
+  # the nix manual (src/nix/flake.md).
+  #
+  # The `extra-` forms are deliberate: they add to whatever the user already
+  # has configured instead of replacing it, so a consumer's own cache and
+  # signing keys keep working.
+  #
+  # The public signing key is not a secret. A wrong value degrades rather than
+  # breaks: Nix rejects an unverifiable substitution and builds locally.
+  nixConfig = {
+    extra-substituters = [ "https://forgetful.cachix.org" ];
+    extra-trusted-public-keys = [
+      "forgetful.cachix.org-1:KsfBQxnVjRUebMzIQG623sJjscZ63annyOZYj/f8vP4="
+    ];
+  };
+
   outputs =
     inputs@{ flake-parts, ... }:
     flake-parts.lib.mkFlake { inherit inputs; } {
@@ -60,18 +77,6 @@
         "aarch64-darwin"
       ];
       imports = [ inputs.git-hooks-nix.flakeModule ];
-
-      # Consume the project's own binary cache. Anyone who evaluates this flake
-      # substitutes the uv2nix Python environment instead of rebuilding it, with
-      # no nix.conf edits and no credentials (the cache is public).
-      #
-      # The key is the cache's public signing key; it is not a secret. A wrong
-      # value here does not break the build - Nix rejects the substituted output
-      # and falls back to building locally.
-      flake.nixConfig = {
-        substituters = [ "https://forgetful.cachix.org" ];
-        trustedPublicKeys = [ "forgetful.cachix.org-1:KsfBQxnVjRUebMzIQG623sJjscZ63annyOZYj/f8vP4=" ];
-      };
 
       perSystem =
         { config, pkgs, ... }:

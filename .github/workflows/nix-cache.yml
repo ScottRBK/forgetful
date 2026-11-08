@@ -37,8 +37,10 @@ jobs:
         with:
           persist-credentials: false
 
+      # v31.11.3: the bundled installer certificate bundle was updated to drop
+      # compromised certificates. Pinned by SHA for the same reason as above.
       - name: Install Nix
-        uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702 # v31
+        uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # v31.11.3
         with:
           extra_nix_config: |
             experimental-features = nix-command flakes
@@ -55,6 +57,22 @@ jobs:
             exit 1
           fi
 
+      # cachix-action otherwise uses a cachix already on PATH or installs one
+      # from the mutable https://cachix.org/api/v1/install endpoint. Pinning the
+      # action alone leaves that executable unpinned while it holds the write
+      # token, so resolve one from the nixpkgs revision this flake locks: it is
+      # content-addressed, reviewable in flake.lock, and substituted rather than
+      # downloaded from an endpoint that can change under us.
+      - name: Resolve pinned cachix
+        id: cachix
+        run: |
+          set -euo pipefail
+          rev=$(nix eval --raw --impure \
+            --expr 'builtins.fromJSON (builtins.readFile ./flake.lock).nodes.nixpkgs.locked.rev')
+          out=$(nix build --no-link --print-out-paths "github:NixOS/nixpkgs/${rev}#cachix")
+          echo "cachix from nixpkgs ${rev}: ${out}"
+          echo "bin=${out}/bin/cachix" >> "$GITHUB_OUTPUT"
+
       # Installs a post-build hook, so every store path built below is pushed
       # as it is produced.
       - name: Publish to Cachix
@@ -62,6 +80,7 @@ jobs:
         with:
           name: forgetful
           authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+          cachixBin: ${{ steps.cachix.outputs.bin }}
 
       - name: Build and publish the package
         run: nix build .#forgetful-ai
