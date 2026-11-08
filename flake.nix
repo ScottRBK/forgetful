@@ -11,6 +11,13 @@
       inputs.nixpkgs-lib.follows = "nixpkgs";
     };
 
+    # Non-flake entry points (default.nix / shell.nix). flake = false: to Nix it
+    # is a function, not a flake, and it contributes no outputs of its own.
+    flake-compat = {
+      url = "github:NixOS/flake-compat";
+      flake = false;
+    };
+
     pyproject-nix = {
       url = "github:pyproject-nix/pyproject.nix";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -35,7 +42,11 @@
 
     git-hooks-nix = {
       url = "github:cachix/git-hooks.nix";
-      inputs.nixpkgs.follows = "nixpkgs";
+      inputs = {
+        nixpkgs.follows = "nixpkgs";
+        # Follow our edge so the lock holds one flake-compat node, not one per consumer.
+        flake-compat.follows = "flake-compat";
+      };
     };
   };
 
