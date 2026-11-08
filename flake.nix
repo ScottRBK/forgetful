@@ -4,7 +4,19 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
-    flake-parts.url = "github:hercules-ci/flake-parts";
+    # nixpkgs-lib is flake-parts' own nixpkgs-lite; following it keeps a single
+    # nix source in the closure instead of a second, independently pinned one.
+    flake-parts = {
+      url = "github:hercules-ci/flake-parts";
+      inputs.nixpkgs-lib.follows = "nixpkgs";
+    };
+
+    # Non-flake entry points (default.nix / shell.nix). flake = false: to Nix it
+    # is a function, not a flake, and it contributes no outputs of its own.
+    flake-compat = {
+      url = "github:NixOS/flake-compat";
+      flake = false;
+    };
 
     pyproject-nix = {
       url = "github:pyproject-nix/pyproject.nix";
@@ -30,7 +42,11 @@
 
     git-hooks-nix = {
       url = "github:cachix/git-hooks.nix";
-      inputs.nixpkgs.follows = "nixpkgs";
+      inputs = {
+        nixpkgs.follows = "nixpkgs";
+        # Follow our edge so the lock holds one flake-compat node, not one per consumer.
+        flake-compat.follows = "flake-compat";
+      };
     };
   };
 
@@ -99,10 +115,29 @@
           forgetfulEnv = pythonSet.mkVirtualEnv "forgetful-env" workspace.deps.default;
 
           # 6. App package (house stdenv+makeWrapper for servers)
+          #
+          # src is allow-listed rather than `./.`, because anything copied into
+          # the store is an input to the derivation hash. With `./.` a docs- or
+          # CI-only commit changes that hash and forces a rebuild of the package
+          # and everything downstream of it. These four paths are exactly what
+          # installPhase consumes; if it ever copies more, widen this list.
+          # pyproject.toml and uv.lock are intentionally absent: uv2nix reads
+          # them at eval time via workspaceRoot above, so changes there still
+          # invalidate the build, which is the correct behaviour.
+          packageSrc = lib.fileset.toSource {
+            root = ./.;
+            fileset = lib.fileset.unions [
+              ./app
+              ./main.py
+              ./alembic.ini
+              ./alembic
+            ];
+          };
+
           appPkg = pkgs.stdenv.mkDerivation {
             pname = "forgetful-ai";
             inherit version;
-            src = ./.;
+            src = packageSrc;
             nativeBuildInputs = [ pkgs.makeWrapper ];
             buildInputs = [ forgetfulEnv ];
             installPhase = ''
@@ -115,6 +150,74 @@
             meta = {
               description = "MCP Server for AI Agent Memory";
               mainProgram = "forgetful-ai";
+            };
+          };
+
+          # 7. Sandboxed test run (matrix A7/A15). Allow-listed like packageSrc:
+          # the suite reads pytest.ini, its own tree, the package sources and the
+          # test_harness config that test_harness_* tests load by relative path.
+          testSrc = lib.fileset.toSource {
+            root = ./.;
+            fileset = lib.fileset.unions [
+              ./pytest.ini
+              ./pyproject.toml
+              ./app
+              ./main.py
+              ./alembic.ini
+              ./alembic
+              ./tests
+              ./test_harness
+              ./skills
+            ];
+          };
+
+          # Sandbox-runnable tiers only: tests/integration (stubbed I/O) and
+          # tests/e2e_sqlite (in-memory SQLite). tests/e2e needs a real
+          # PostgreSQL and is excluded by both the directory scoping below and
+          # pytest.ini's `-m "not e2e"`; either alone would leak.
+          #
+          # The suite is not network-free by default: fastembed pulls its
+          # embedding and reranker models from Hugging Face, and the token
+          # counter pulls a BPE blob from OpenAI's blob store. `testFixtures`
+          # supplies both, revision-pinned, so the tests run against the real
+          # providers rather than a reduced tier.
+          testFixtures = pkgs.callPackage ./nix/test-fixtures.nix {
+            caCertificates = pkgs.cacert;
+          };
+
+          testsPkg = pkgs.stdenv.mkDerivation {
+            pname = "forgetful-ai-tests";
+            inherit version;
+            src = testSrc;
+            # test_harness walkthrough tests drive `git` against a fixture repo,
+            # and the sandbox PATH carries only what is listed here.
+            nativeBuildInputs = [
+              forgetfulEnv
+              pkgs.git
+            ];
+            doCheck = true;
+            checkPhase = ''
+              runHook preCheck
+              # The Nix sandbox leaves HOME unset; app config resolves paths from it.
+              export HOME="$TMPDIR"
+              # Serve the pinned models/tokenizer from the store and forbid egress,
+              # so a missing fixture fails loudly instead of reaching for the network.
+              export FASTEMBED_CACHE_DIR=${testFixtures.fastembedCache}
+              export FASTEMBED_LOCAL_FILES_ONLY=1
+              export HF_HUB_OFFLINE=1
+              export TIKTOKEN_CACHE_DIR=${testFixtures.tiktokenCache}
+              export SSL_CERT_FILE=${testFixtures.caBundle}
+              pytest tests/integration tests/e2e_sqlite -m "not e2e" -q
+              runHook postCheck
+            '';
+            installPhase = ''
+              runHook preInstall
+              mkdir -p $out
+              runHook postInstall
+            '';
+            meta = {
+              description = "forgetful-ai sandboxed test suite";
+              broken = false;
             };
           };
         in
@@ -183,6 +286,12 @@
                 };
               };
             };
+          };
+
+          # Authored check: `nix flake check` must prove the suite runs, not just
+          # that the pre-commit config is well-formed.
+          checks = {
+            inherit testsPkg;
           };
 
           apps = {
