@@ -358,3 +358,154 @@ async def test_migration_round_trip_preserves_hybrid_search(hybrid_repo):
     )
     assert scored[0][0].id == target.id
     assert scored[0][1].keyword_rank == 1
+
+
+def _hit_ids(hits):
+    return [memory.id for memory, _rank in hits]
+
+
+async def test_keyword_dotted_name_with_prefix_distractors(hybrid_repo):
+    repo, db_adapter = hybrid_repo
+    user_id = uuid4()
+    await _create_user(db_adapter, user_id)
+    for i in range(21):
+        await _seed_memory(
+            repo,
+            user_id,
+            content=f"Config key ledger.db.worker{i:02d} tuning notes.",
+        )
+    target = await _seed_memory(
+        repo,
+        user_id,
+        content="The module ledger.db.session owns the connection pool.",
+    )
+    hits = await repo.keyword_search_scored(
+        user_id=user_id,
+        query="ledger.db.session",
+        k=20,
+        importance_threshold=None,
+        project_ids=None,
+        exclude_ids=None,
+    )
+    assert target.id in _hit_ids(hits)
+    assert hits[0][0].id == target.id
+
+
+async def test_keyword_path_with_prefix_distractors(hybrid_repo):
+    repo, db_adapter = hybrid_repo
+    user_id = uuid4()
+    await _create_user(db_adapter, user_id)
+    for i in range(21):
+        await _seed_memory(
+            repo,
+            user_id,
+            content=f"Helper module src/app/util{i:02d}.py is unrelated.",
+        )
+    target = await _seed_memory(
+        repo,
+        user_id,
+        content="Entry point lives in src/app/main.py today.",
+    )
+    hits = await repo.keyword_search_scored(
+        user_id=user_id,
+        query="src/app/main.py",
+        k=20,
+        importance_threshold=None,
+        project_ids=None,
+        exclude_ids=None,
+    )
+    assert target.id in _hit_ids(hits)
+    assert hits[0][0].id == target.id
+
+
+async def test_keyword_ticket_with_same_prefix_distractors(hybrid_repo):
+    repo, db_adapter = hybrid_repo
+    user_id = uuid4()
+    await _create_user(db_adapter, user_id)
+    for i in range(21):
+        await _seed_memory(
+            repo,
+            user_id,
+            content=f"Payment ticket PAY-{i:04d} processing notes.",
+        )
+    target = await _seed_memory(
+        repo,
+        user_id,
+        content="Delivery note: PAY-6538 is the ticket key.",
+    )
+    hits = await repo.keyword_search_scored(
+        user_id=user_id,
+        query="PAY-6538",
+        k=20,
+        importance_threshold=None,
+        project_ids=None,
+        exclude_ids=None,
+    )
+    assert target.id in _hit_ids(hits)
+    assert hits[0][0].id == target.id
+
+
+async def test_keyword_unicode_letter_matches(hybrid_repo):
+    repo, db_adapter = hybrid_repo
+    user_id = uuid4()
+    await _create_user(db_adapter, user_id)
+    target = await _seed_memory(
+        repo,
+        user_id,
+        title="Plain title",
+        content="Plain body without the unicode token.",
+        context="plain context",
+        keywords=["résumé"],
+        tags=["résumé"],
+    )
+    hits = await repo.keyword_search_scored(
+        user_id=user_id,
+        query="résumé",
+        k=5,
+        importance_threshold=None,
+        project_ids=None,
+        exclude_ids=None,
+    )
+    assert _hit_ids(hits) == [target.id]
+
+
+async def test_hybrid_recovers_target_outside_dense_pool(hybrid_repo, monkeypatch):
+    repo, db_adapter = hybrid_repo
+    user_id = uuid4()
+    await _create_user(db_adapter, user_id)
+    await _seed_memory(
+        repo,
+        user_id,
+        content="Dense neighbor about garden watering schedules.",
+    )
+    target = await _seed_memory(
+        repo,
+        user_id,
+        title="Hidden identifier memory",
+        content="Tomato watering notes with no overlapping dense language.",
+        keywords=["ledger.db.session"],
+        tags=["garden"],
+    )
+
+    original_dense = repo._dense_scored
+
+    async def dense_without_target(*args, **kwargs):
+        rows = await original_dense(*args, **kwargs)
+        return [(memory, score) for memory, score in rows if memory.id != target.id]
+
+    monkeypatch.setattr(repo, "_dense_scored", dense_without_target)
+
+    scored = await repo.search_scored(
+        user_id=user_id,
+        query="ledger.db.session",
+        query_context="",
+        k=5,
+        importance_threshold=None,
+        project_ids=None,
+        exclude_ids=None,
+    )
+    by_id = {memory.id: score for memory, score in scored}
+    assert target.id in by_id
+    assert by_id[target.id].keyword_rank is not None
+    assert scored[0][0].id == target.id
+

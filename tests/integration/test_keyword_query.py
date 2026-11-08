@@ -53,3 +53,19 @@ def test_max_terms_cap():
 def test_short_runs_dropped():
     kq = build_keyword_query("a b")
     assert kq.is_empty
+
+
+def test_unicode_letter_is_one_term():
+    kq = build_keyword_query("résumé")
+    assert list(kq.terms) == ["résumé"]
+    assert kq.phrases == ()
+
+
+def test_dotted_name_and_path_split_on_punctuation():
+    dotted = build_keyword_query("ledger.db.session")
+    assert list(dotted.terms) == ["ledger", "db", "session"]
+    assert list(dotted.phrases) == [("ledger", "db", "session")]
+
+    path = build_keyword_query("src/app/main.py")
+    assert list(path.terms) == ["src", "app", "main", "py"]
+    assert ("src", "app", "main", "py") in path.phrases

@@ -63,15 +63,26 @@ dense ranking only.
 ### Keyword backends
 
 - **SQLite:** FTS5 external-content table `memories_fts` over title, content,
-  context, keywords, and tags (`unicode61` tokenizer), ranked by BM25. Created
-  during `init_db` with insert/update/delete triggers. If the table or a trigger
-  was missing, the index is rebuilt from `memories`.
+  context, keywords, and tags (`unicode61` tokenizer), ranked by BM25. The
+  content source is view `memories_fts_src`, which decodes JSON `keywords` and
+  `tags` via `json_each` so Unicode values such as `résumé` are indexed as
+  text rather than `\u00e9` escape fragments. Created during `init_db` with
+  insert/update/delete triggers that read that view. If the table, view, or a
+  trigger was missing, or an older `content='memories'` table is found, the
+  objects are recreated and backfilled with `delete-all` plus `INSERT...SELECT`
+  from the view (`FTS5` `rebuild` cannot resolve `json_each` in a content
+  view on current SQLite).
 - **PostgreSQL:** `search_tsv tsvector` on `memories`, maintained by trigger
-  `memories_search_tsv_trg` with `to_tsvector('simple', ...)` over the same
-  fields, GIN index `ix_memories_search_tsv`, ranked by `ts_rank_cd`. Added by
-  Alembic revision `20261103_memory_search_tsv`
+  `memories_search_tsv_trg`. Each field is indexed as
+  `to_tsvector('simple', x) || to_tsvector('simple', regexp_replace(x, '[^[:alnum:]]+', ' ', 'g'))`
+  so punctuation and underscores split the same way as the Python query
+  builder (`ledger.db.session`, `src/app/main.py`, `PAY-6538`). Unicode
+  letters such as `é` stay in the token on both backends. Ranked by
+  `ts_rank_cd`, GIN index `ix_memories_search_tsv`. Added by Alembic revision
+  `20261103_memory_search_tsv`
   (`alembic/versions/20261103_add_memory_search_tsv.py`). The migration is a
-  no-op when `DATABASE` is not `Postgres`.
+  no-op when `DATABASE` is not `Postgres`. The split form roughly doubles
+  distinct lexemes on identifier-heavy text; ordinary prose mostly merges.
 
 With the flag on, retained scores may include `keyword_rank` (1-based rank in
 the keyword leg; omitted when that memory was not a keyword hit) and
