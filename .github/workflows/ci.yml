@@ -30,9 +30,10 @@ jobs:
           persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           enable-cache: true
+          prune-cache: true
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -74,7 +75,9 @@ jobs:
           persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          prune-cache: true
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -125,10 +128,11 @@ jobs:
           driver: docker
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           python-version: '3.12'
           enable-cache: true
+          prune-cache: true
 
       - name: Build candidate image
         uses: docker/build-push-action@v5
