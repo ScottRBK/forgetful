@@ -61,6 +61,18 @@
       ];
       imports = [ inputs.git-hooks-nix.flakeModule ];
 
+      # Consume the project's own binary cache. Anyone who evaluates this flake
+      # substitutes the uv2nix Python environment instead of rebuilding it, with
+      # no nix.conf edits and no credentials (the cache is public).
+      #
+      # The key is the cache's public signing key; it is not a secret. A wrong
+      # value here does not break the build - Nix rejects the substituted output
+      # and falls back to building locally.
+      flake.nixConfig = {
+        substituters = [ "https://forgetful.cachix.org" ];
+        trustedPublicKeys = [ "forgetful.cachix.org-1:KsfBQxnVjRUebMzIQG623sJjscZ63annyOZYj/f8vP4=" ];
+      };
+
       perSystem =
         { config, pkgs, ... }:
         let
