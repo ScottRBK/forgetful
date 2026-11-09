@@ -82,11 +82,6 @@ SELECT id, title, content, context, keywords, tags FROM memories_fts_src
 """
 
 
-def _fts_uses_src_view(fts_sql: str) -> bool:
-    compact = fts_sql.replace('"', "'").replace(" ", "").lower()
-    return "content='memories_fts_src'" in compact
-
-
 def _sqlite_connection_creator():
     """Create a SQLite connection with sqlite-vec extension loaded.
     This is used as a creator function for SQLAlchemy's engine.
@@ -251,22 +246,20 @@ class SqliteDatabaseAdapter:
             await self.ensure_memory_fts(conn)
 
     async def ensure_memory_fts(self, conn) -> bool:
-        """Create or repair FTS5 index/triggers; reindex when anything was missing or stale."""
+        """Create or repair FTS5 index/triggers; reindex when anything was missing.
+
+        Must run inside an open transaction (callers use ``engine.begin()``).
+        """
         result = await conn.execute(
             text(
-                "SELECT name, sql FROM sqlite_master WHERE name IN "
+                "SELECT name FROM sqlite_master WHERE name IN "
                 "('memories_fts','memories_fts_src','memories_fts_ai',"
                 "'memories_fts_ad','memories_fts_bu','memories_fts_au')",
             ),
         )
-        rows = result.fetchall()
-        existing = {row[0] for row in rows}
-        sql_by_name = {row[0]: row[1] or "" for row in rows}
+        existing = {row[0] for row in result.fetchall()}
         missing_before = set(_FTS_OBJECT_NAMES) - existing
-        stale_content = bool(sql_by_name.get("memories_fts")) and not _fts_uses_src_view(
-            sql_by_name.get("memories_fts", ""),
-        )
-        if not missing_before and not stale_content:
+        if not missing_before:
             return False
 
         await conn.execute(text("DROP TRIGGER IF EXISTS memories_fts_ai"))

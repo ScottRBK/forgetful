@@ -77,6 +77,69 @@ async def _drop_fts(conn):
     await conn.execute(text("DROP VIEW IF EXISTS memories_fts_src"))
 
 
+async def _create_pre_view_fts_legacy(conn) -> None:
+    """FTS layout from before memories_fts_src (content='memories', ai/ad/au only)."""
+    await conn.execute(
+        text(
+            """
+            CREATE VIRTUAL TABLE memories_fts USING fts5(
+                title, content, context, keywords, tags,
+                content='memories', content_rowid='id', tokenize='unicode61'
+            )
+            """,
+        ),
+    )
+    await conn.execute(
+        text(
+            """
+            CREATE TRIGGER memories_fts_ai AFTER INSERT ON memories BEGIN
+              INSERT INTO memories_fts(rowid, title, content, context, keywords, tags)
+              VALUES (
+                new.id, new.title, new.content, new.context,
+                (SELECT group_concat(value, ' ') FROM json_each(COALESCE(new.keywords, '[]'))),
+                (SELECT group_concat(value, ' ') FROM json_each(COALESCE(new.tags, '[]')))
+              );
+            END
+            """,
+        ),
+    )
+    await conn.execute(
+        text(
+            """
+            CREATE TRIGGER memories_fts_ad AFTER DELETE ON memories BEGIN
+              INSERT INTO memories_fts(memories_fts, rowid, title, content, context, keywords, tags)
+              VALUES (
+                'delete', old.id, old.title, old.content, old.context,
+                (SELECT group_concat(value, ' ') FROM json_each(COALESCE(old.keywords, '[]'))),
+                (SELECT group_concat(value, ' ') FROM json_each(COALESCE(old.tags, '[]')))
+              );
+            END
+            """,
+        ),
+    )
+    await conn.execute(
+        text(
+            """
+            CREATE TRIGGER memories_fts_au AFTER UPDATE OF
+              title, content, context, keywords, tags ON memories BEGIN
+              INSERT INTO memories_fts(memories_fts, rowid, title, content, context, keywords, tags)
+              VALUES (
+                'delete', old.id, old.title, old.content, old.context,
+                (SELECT group_concat(value, ' ') FROM json_each(COALESCE(old.keywords, '[]'))),
+                (SELECT group_concat(value, ' ') FROM json_each(COALESCE(old.tags, '[]')))
+              );
+              INSERT INTO memories_fts(rowid, title, content, context, keywords, tags)
+              VALUES (
+                new.id, new.title, new.content, new.context,
+                (SELECT group_concat(value, ' ') FROM json_each(COALESCE(new.keywords, '[]'))),
+                (SELECT group_concat(value, ' ') FROM json_each(COALESCE(new.tags, '[]')))
+              );
+            END
+            """,
+        ),
+    )
+
+
 async def _insert_unicode_memory(db_adapter, user_id) -> int:
     now = datetime.now(UTC).isoformat()
     async with db_adapter.system_session() as session:
@@ -213,16 +276,7 @@ async def test_ensure_memory_fts_migrates_content_memories_table(fts_repo):
 
     async with db_adapter._engine.begin() as conn:
         await _drop_fts(conn)
-        await conn.execute(
-            text(
-                """
-                CREATE VIRTUAL TABLE memories_fts USING fts5(
-                    title, content, context, keywords, tags,
-                    content='memories', content_rowid='id', tokenize='unicode61'
-                )
-                """,
-            ),
-        )
+        await _create_pre_view_fts_legacy(conn)
 
     memory_id = await _insert_unicode_memory(db_adapter, user_id)
 

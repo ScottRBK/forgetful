@@ -67,9 +67,10 @@ dense ranking only.
   content source is view `memories_fts_src`, which decodes JSON `keywords` and
   `tags` via `json_each` so Unicode values such as `résumé` are indexed as
   text rather than `\u00e9` escape fragments. Created during `init_db` with
-  insert/update/delete triggers that read that view. If the table, view, or a
-  trigger was missing, or an older `content='memories'` table is found, the
-  objects are recreated and backfilled with `delete-all` plus `INSERT...SELECT`
+  insert/update/delete triggers that read that view. If any required table,
+  view, or trigger is missing (including pre-view databases with
+  `content='memories'` and no `memories_fts_bu`), the objects are recreated
+  and backfilled with `delete-all` plus `INSERT...SELECT`
   from the view (`FTS5` `rebuild` cannot resolve `json_each` in a content
   view on current SQLite).
 - **PostgreSQL:** `search_tsv tsvector` on `memories`, maintained by trigger
