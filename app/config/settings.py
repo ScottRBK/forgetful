@@ -257,6 +257,9 @@ class Settings(BaseSettings):
     RERANKING_WORKERS: int = Field(default=1, ge=1)  # Concurrent reranking jobs per adapter
     RERANKING_ONNX_PROVIDERS: str = ""  # Comma-separated ONNX Runtime providers, empty = FastEmbed default
     DENSE_SEARCH_CANDIDATES: int = 20 # number of candidates to retrieve from the dense search
+    HYBRID_SEARCH_ENABLED: bool = False # when True, fuse dense and keyword legs with RRF
+    SPARSE_SEARCH_CANDIDATES: int = 20 # number of candidates to retrieve from the keyword leg
+    RRF_K: int = 60 # reciprocal rank fusion constant k
 
     # FASTEMBED CACHE CONFIGURATION
     FASTEMBED_CACHE_DIR: str = str(_default_data_dir / "models" / "fastembed")

@@ -1,0 +1,30 @@
+{"qid": "cur-01", "query": "What did the first idempotency review find missing on the key table and error responses?", "relevant_keys": ["mem-022"], "lang": "en"}
+{"qid": "cur-02", "query": "Why did the morning analytics load miss the object even though publish had already named it?", "relevant_keys": ["mem-051"], "lang": "en"}
+{"qid": "cur-03", "query": "How often do helix jobs poll ledger readiness, and what is their maximum wait?", "relevant_keys": ["mem-069"], "lang": "en"}
+{"qid": "cur-04", "query": "Pourquoi les postes de développement envoyaient-ils les erreurs console en production ?", "relevant_keys": ["mem-100"], "lang": "fr"}
+{"qid": "cur-05", "query": "How many simultaneous sockets does a haulier start with, and who can lift that cap in busy months?", "relevant_keys": ["mem-102"], "lang": "en"}
+{"qid": "cur-06", "query": "How come the size gate stayed green while operators waited longer, if we summed artefacts before gzip?", "relevant_keys": ["mem-172"], "lang": "en"}
+{"qid": "cur-07", "query": "Why did Northbay Haulage process some webhooks twice when a late answer was read as a rejection?", "relevant_keys": ["mem-224"], "lang": "en"}
+{"qid": "cur-08", "query": "Why is partner API data freshness a response header rather than a field in the versioned body?", "relevant_keys": ["mem-280"], "lang": "en"}
+{"qid": "cur-09", "query": "How do we fix the one-cent drift on eleven old accounts without editing stored balances by hand?", "relevant_keys": ["mem-090", "mem-156"], "lang": "en"}
+{"qid": "cur-10", "query": "Why do accented merchant names look garbled in the spreadsheet without a UTF signature up front?", "relevant_keys": ["mem-033"], "lang": "en"}
+{"qid": "cur-11", "query": "Après le seuil relatif, what absolute ceiling still pages if a replica is stuck at zero traffic?", "relevant_keys": ["mem-007"], "lang": "mixed"}
+{"qid": "cur-12", "query": "Pourquoi 38 210 euros d'écart sont apparus le dernier jour, alors que le grand livre était juste ?", "relevant_keys": ["mem-015"], "lang": "fr"}
+{"qid": "cur-13", "query": "Pourquoi le bureau de Lyon voyait-il l'ancienne console après l'en-tête de version ?", "relevant_keys": ["mem-070"], "lang": "fr"}
+{"qid": "cur-14", "query": "Why was the refund list empty for forty minutes after deploy if the API still returned data?", "relevant_keys": ["mem-002"], "lang": "en"}
+{"qid": "cur-15", "query": "Since which date does a large freeze on an outgoing transfer require four-eyes sign-off from treasury?", "relevant_keys": ["mem-011"], "lang": "en"}
+{"qid": "cur-16", "query": "Why did helix make Parquet the default for new jobs, and which exports stay as CSV for carriers?", "relevant_keys": ["mem-018"], "lang": "en"}
+{"qid": "cur-17", "query": "Why did helix replace one big nightly job with a dependency graph, not a workflow engine?", "relevant_keys": ["mem-039"], "lang": "en"}
+{"qid": "cur-18", "query": "Why did a name that paid last week fail the bank file, if the first write-up told only half?", "relevant_keys": ["mem-055"], "lang": "en"}
+{"qid": "cur-19", "query": "Why did the ledger statement timeout do nothing on staging when set as a startup parameter?", "relevant_keys": ["mem-064"], "lang": "en"}
+{"qid": "cur-20", "query": "Why did a third of pages reach a team that could not act, when helix jobs share the ledger namespace?", "relevant_keys": ["mem-077"], "lang": "en"}
+{"qid": "cur-21", "query": "Where should batch workers pick up credentials at start, so a rotation does not need a redeploy?", "relevant_keys": ["mem-083"], "lang": "en"}
+{"qid": "cur-22", "query": "On which field should partners drop duplicate webhooks, and why is event order not guaranteed?", "relevant_keys": ["mem-123"], "lang": "en"}
+{"qid": "cur-23", "query": "Which partner data survives the Sunday night sandbox reset, and which shipments and invoices do not?", "relevant_keys": ["mem-173"], "lang": "en"}
+{"qid": "cur-24", "query": "How are checksum failures on helix exports alerted, and where do they go during the day?", "relevant_keys": ["mem-206"], "lang": "en"}
+{"qid": "cur-25", "query": "Why did live settlement alerts go out with the playground signer for a couple of hours?", "relevant_keys": ["mem-217"], "lang": "en"}
+{"qid": "cur-26", "query": "How come the whole floor got kicked off mid-shift right after we rotated the signer?", "relevant_keys": ["mem-232"], "lang": "en"}
+{"qid": "cur-27", "query": "When must monitoring owners review request path, parameter, or header changes before merge?", "relevant_keys": ["mem-241"], "lang": "en"}
+{"qid": "cur-28", "query": "May the partner API read invoice amounts, payout status or balances from a replica?", "relevant_keys": ["mem-267"], "lang": "en"}
+{"qid": "cur-29", "query": "Why did the sandbox reset wipe Kestrel Freight keys if keys were supposed to be kept?", "relevant_keys": ["mem-281"], "lang": "en"}
+{"qid": "cur-30", "query": "What does a green ledger pull request mean after test selection, and how fast is the median run?", "relevant_keys": ["mem-297"], "lang": "en"}

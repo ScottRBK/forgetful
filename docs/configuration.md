@@ -1163,6 +1163,23 @@ ACTIVITY_TRACK_READS=false
 - **Performance**: Higher values = better recall, slower queries
 - **Example**: `DENSE_SEARCH_CANDIDATES=100`
 
+### `HYBRID_SEARCH_ENABLED`
+- **Default**: `false`
+- **Description**: When true, fuse dense (embedding) search with a keyword leg using Reciprocal Rank Fusion. When false, search is dense-only and each `MemoryScore` omits `keyword_rank` and `fusion_score`
+- **Values**: `true`, `false`
+- **Note**: SQLite uses FTS5 (`memories_fts`); PostgreSQL uses a `search_tsv` tsvector column, trigger, and GIN index from Alembic revision `20261103_memory_search_tsv`. See [Hybrid search (opt-in)](search.md#hybrid-search-opt-in)
+- **Example**: `HYBRID_SEARCH_ENABLED=true`
+
+### `SPARSE_SEARCH_CANDIDATES`
+- **Default**: `20`
+- **Description**: Number of candidates to retrieve from the keyword leg when `HYBRID_SEARCH_ENABLED` is true
+- **Example**: `SPARSE_SEARCH_CANDIDATES=20`
+
+### `RRF_K`
+- **Default**: `60`
+- **Description**: Reciprocal Rank Fusion constant `k` (`1/(k + rank)` per ranked list)
+- **Example**: `RRF_K=60`
+
 ### Azure Embedding Provider Configuration
 
 **Note**: These settings only apply when `EMBEDDING_PROVIDER=Azure`

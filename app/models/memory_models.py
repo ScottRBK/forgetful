@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_serializer
 
 from app.config.settings import settings
 
@@ -331,6 +331,23 @@ class MemoryScore(BaseModel):
         default=None,
         description="Cross-encoder score when RERANKING_ENABLED, else null",
     )
+    keyword_rank: int | None = Field(
+        default=None,
+        description="1-based rank in the keyword leg when HYBRID_SEARCH_ENABLED, omitted otherwise",
+    )
+    fusion_score: float | None = Field(
+        default=None,
+        description="Reciprocal Rank Fusion score when HYBRID_SEARCH_ENABLED, omitted otherwise",
+    )
+
+    @model_serializer(mode="wrap")
+    def _serialize_memory_score(self, serializer, _info):
+        data = serializer(self)
+        if self.keyword_rank is None:
+            data.pop("keyword_rank", None)
+        if self.fusion_score is None:
+            data.pop("fusion_score", None)
+        return data
 
 
 class ObsoleteMatch(BaseModel):
