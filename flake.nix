@@ -185,6 +185,10 @@
               ./tests
               ./test_harness
               ./skills
+              # Imported by name: the benchmark test puts this directory on
+              # sys.path. Listed as a file, not a directory, so the 428K
+              # synthetic corpus stays out of the test source.
+              ./benchmarks/retrieval/eval_lib.py
             ];
           };
 
