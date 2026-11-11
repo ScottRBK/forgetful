@@ -5,6 +5,7 @@ from app.config.settings import settings
 from tests.e2e_sqlite.test_cli_passthrough import cli_sqlite_env as cli_sqlite_env
 from tests.e2e_sqlite.test_cli_passthrough import invoke_cli
 from tests.skill_bundle_cases import skill_bundle
+from tests.skill_bundle_feedback_cases import check_help
 
 
 def test_cli_roundtrip_into_fresh_database(cli_sqlite_env, tmp_path, monkeypatch, capsys):
@@ -21,7 +22,10 @@ def test_cli_roundtrip_into_fresh_database(cli_sqlite_env, tmp_path, monkeypatch
         "tools", "info", "import_skill_bundle", "--local", "--json",
     ])
     assert info_code == 0, err
-    assert json.loads(out)["name"] == "import_skill_bundle"
+    check_help(json.loads(out))
+    info_code, out, err = invoke_cli(monkeypatch, capsys, ["tools", "info", "export_skill_bundle", "--local", "--json"])
+    assert info_code == 0, err
+    check_help(json.loads(out))
     original = call("import_skill_bundle", bundle=skill_bundle())
     exported = call("export_skill_bundle", skill_id=original["skill"]["id"])
     source_database = settings.SQLITE_PATH

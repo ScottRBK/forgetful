@@ -14,6 +14,7 @@ from tests.e2e_sqlite.test_cli_remote import (
     http_server_url as http_server_url,
 )
 from tests.skill_bundle_cases import skill_bundle
+from tests.skill_bundle_feedback_cases import check_help
 
 
 @pytest.fixture
@@ -42,6 +43,14 @@ def test_remote_cli_bundle_roundtrip(bundle_server_url, tmp_path):
         assert completed.returncode == 0, completed.stderr
         return json.loads(completed.stdout)
 
+    for tool in ("import_skill_bundle", "export_skill_bundle"):
+        info = subprocess.run(  # noqa: S603 - synthetic argv and owned loopback server
+            [sys.executable, "-c", "from main import cli; raise SystemExit(cli())",
+             "tools", "info", tool, "--json", "--server", bundle_server_url],
+            capture_output=True, text=True, timeout=30, env=env, check=False,
+        )
+        assert info.returncode == 0, info.stderr
+        check_help(json.loads(info.stdout))
     created = call("import_skill_bundle", {"bundle": skill_bundle()})
     exported = call("export_skill_bundle", {"skill_id": created["skill"]["id"]})
     assert len(exported["resources"]) == 3

@@ -3,11 +3,12 @@ import pytest
 
 from app.config.settings import settings
 from tests.skill_bundle_cases import SkillBundleCases
+from tests.skill_bundle_feedback_cases import SkillBundleFeedbackCases
 
 pytestmark = [pytest.mark.e2e, pytest.mark.asyncio(loop_scope="session")]
 
 
-class TestSkillBundles(SkillBundleCases):
+class TestSkillBundles(SkillBundleFeedbackCases, SkillBundleCases):
     pass
 
 

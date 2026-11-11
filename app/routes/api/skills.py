@@ -13,6 +13,7 @@ from starlette.responses import JSONResponse
 from app.exceptions import NotFoundError
 from app.middleware.auth import get_user_from_request
 from app.models.skill_models import SkillCreate, SkillUpdate
+from app.utils.bundle_validation import bundle_validation_message
 
 logger = logging.getLogger(__name__)
 
@@ -312,7 +313,7 @@ def register(mcp: FastMCP):
                 user.id, bundle, project_id=body.get("project_id"), importance=body.get("importance", 7),
             )
         except (ValueError, ValidationError) as exc:
-            return JSONResponse({"error": str(exc)}, status_code=400)
+            return JSONResponse({"error": bundle_validation_message(exc) if isinstance(exc, ValidationError) else str(exc)}, status_code=400)
         except NotFoundError as exc:
             return JSONResponse({"error": str(exc)}, status_code=404)
         return JSONResponse(result.model_dump(mode="json"), status_code=201)
@@ -337,9 +338,10 @@ def register(mcp: FastMCP):
                 members = [SkillBundleMember.model_validate(member) for member in members]
             bundle = await mcp.skill_service.export_skill_bundle(
                 user.id, int(request.path_params["skill_id"]), members,
+                allowed_kinds=frozenset({"document", "code_artifact", "file"}),
             )
         except (ValueError, ValidationError) as exc:
-            return JSONResponse({"error": str(exc)}, status_code=400)
+            return JSONResponse({"error": bundle_validation_message(exc) if isinstance(exc, ValidationError) else str(exc)}, status_code=400)
         except NotFoundError as exc:
             return JSONResponse({"error": str(exc)}, status_code=404)
         return JSONResponse(bundle.model_dump(mode="json"))

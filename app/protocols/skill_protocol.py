@@ -274,6 +274,7 @@ class SkillRepository(Protocol):
     async def read_skill_bundle(
         self, user_id: UUID, skill_id: int,
         members: list[SkillBundleMember] | None = None,
+        *, allowed_kinds: frozenset[str],
     ) -> SkillBundleSnapshot:
         """Read an owned package and its current resources in one snapshot."""
         ...

@@ -4,6 +4,14 @@
 class NotFoundError(Exception):
     """Raised when a requested resource is not found"""
 
+class BundleReadDeniedError(Exception):
+    """Resource kinds excluded from an export; contains no stored values."""
+
+    def __init__(self, kinds: set[str]):
+        self.kinds = frozenset(kinds)
+        super().__init__("Bundle resource read is not permitted")
+
+
 class ConflictError(Exception):
     """Raised when there's a resource conflict (e.g., duplicate key)"""
 

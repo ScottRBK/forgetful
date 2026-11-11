@@ -3,9 +3,13 @@
 This module provides helper functions for registering tools with the registry,
 including detailed parameter metadata for discovery and documentation.
 """
+import json
 from typing import Any
 
+from pydantic import TypeAdapter
+
 from app.config.logging_config import logging
+from app.models.skill_bundle_models import SkillBundle, SkillBundleMember
 from app.models.tool_registry_models import ToolCategory, ToolParameter
 from app.routes.mcp.tool_adapters import (
     create_file_adapters,
@@ -56,9 +60,15 @@ def register_simplified_tool(
             required=p.get("required", False),
             default=p.get("default"),
             example=p.get("example"),
+            json_schema=p.get("json_schema"),
         )
         for p in parameters
     ]
+
+    # Validate composed definitions before exposing this tool.
+    from app.models.tool_registry_models import ToolMetadata
+
+    ToolMetadata(name=name, category=category, description=description, parameters=tool_params, returns=returns)._generate_json_schema()
 
     registry.register(
         name=name,
@@ -2563,27 +2573,67 @@ def register_skill_tools_metadata(
         {
             "name": "import_skill_bundle",
             "mutates": True,
-            "description": "Import SKILL.md and its documents, scripts and binary assets atomically",
+            "description": (
+                "Import SKILL.md and its supporting resources as a new skill package. "
+                "Use this when transferring a skill with documents, code or binary files. "
+                "The records and links are created in one transaction. "
+                "Use import_skill for SKILL.md text alone. "
+                "Activity errors can occur after commit: an error alone does not prove "
+                "nothing was saved. Check before retrying."
+            ),
             "parameters": [
-                {"name": "bundle", "type": "dict", "description": "Version 1 portable bundle: schema_version, skill_md, resources with path/kind and content fields", "required": True},
+                {"name": "bundle", "type": "dict", "description": (
+                    "Version 1: schema_version=1, full skill_md with name and description "
+                    "frontmatter, and resources. Each resource has a unique portable path "
+                    "and kind. Documents require title, description, content; code artifacts "
+                    "require title, description, code, language; files require description, "
+                    "strict-base64 data, mime_type. No native IDs; SKILL.md is reserved."
+                ), "required": True, "json_schema": SkillBundle.model_json_schema()},
                 {"name": "ctx", "type": "Context", "description": "Automatically injected context", "required": True},
                 {"name": "project_id", "type": "Optional[int]", "description": "Destination project for all records", "required": False, "default": None},
                 {"name": "importance", "type": "int", "description": "Skill importance", "required": False, "default": 7},
             ],
-            "returns": "Created skill and native path-to-resource-ID bindings",
-            "examples": [],
+            "returns": "Created skill plus members mapping paths and kinds to new native resource IDs",
+            "examples": [
+                'execute_forgetful_tool("import_skill_bundle", ' + json.dumps({"bundle": {
+                    "schema_version": 1,
+                    "skill_md": "---\nname: example\ndescription: Example\n---\n\nRead references/guide.md.\n",
+                    "resources": [{"path": "references/guide.md", "kind": "document",
+                                   "title": "Guide", "description": "Supporting instructions",
+                                   "content": "Run the checks before deploying."}],
+                }}) + ")",
+            ],
             "tags": ["skill", "import", "bundle"],
         },
         {
             "name": "export_skill_bundle",
-            "description": "Export SKILL.md and current package resource contents with portable paths",
+            "description": (
+                "Export a skill package as portable JSON containing SKILL.md and current "
+                "resource contents. Omit members to use stored package membership. For "
+                "separately linked resources, supply members with paths, kinds and resource "
+                "IDs. This list replaces the selection for this export only; it does not "
+                "change stored membership. Use export_skill for SKILL.md text alone."
+            ),
             "parameters": [
                 {"name": "skill_id", "type": "int", "description": "Owned skill ID", "required": True},
                 {"name": "ctx", "type": "Context", "description": "Automatically injected context", "required": True},
-                {"name": "members", "type": "Optional[List[dict]]", "description": "Optional complete path/kind/resource_id selection replacing stored membership for this read only", "required": False, "default": None},
+                {"name": "members", "type": "Optional[List[dict]]", "description": (
+                    "Complete path/kind/resource_id selection, replacing rather than adding "
+                    "to stored membership for this read only. Every ID must be owned and "
+                    "linked to the skill. [] selects no resources. Omitted/null uses stored "
+                    "membership and fails for deleted or unlinked members; it does not "
+                    "export every graph link. Replace example IDs with owned linked IDs."
+                ), "required": False, "default": None,
+                 "json_schema": TypeAdapter(list[SkillBundleMember] | None).json_schema()},
             ],
-            "returns": "Portable version 1 bundle with SKILL.md and all selected resource contents",
-            "examples": [],
+            "returns": "Portable version 1 bundle with SKILL.md and all selected resource contents; no native IDs",
+            "examples": [
+                'execute_forgetful_tool("export_skill_bundle", {"skill_id": 1})',
+                (
+                    'execute_forgetful_tool("export_skill_bundle", {"skill_id": 1, "members": '
+                    '[{"path": "references/guide.md", "kind": "document", "resource_id": 2}]})'
+                ),
+            ],
             "tags": ["skill", "export", "bundle"],
         },
         {

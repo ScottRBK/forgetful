@@ -67,7 +67,7 @@ def bundle_text_bytes(value) -> int:
     return 0
 
 
-def _bundle_bytes(resource: dict, *, decode_binary: bool = True) -> int:
+def bundle_resource_bytes(resource: dict, *, decode_binary: bool = True) -> int:
     """Count UTF-8 string values plus decoded binary, never schema key names."""
     fields = dict(resource)
     data = fields.pop("data", None)
@@ -83,7 +83,7 @@ def _bundle_bytes(resource: dict, *, decode_binary: bool = True) -> int:
 
 
 class _Resource(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
     path: str
     title: str
     description: str
@@ -119,7 +119,7 @@ class BundleCodeArtifact(_Resource):
 
 
 class BundleFile(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
     path: str
     kind: Literal["file"] = "file"
     description: str
@@ -152,7 +152,7 @@ BundleResource = Annotated[
 
 class SkillBundle(BaseModel):
     """A SKILL.md entry point and only the resources forming its package."""
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
     schema_version: Literal[1] = 1
     skill_md: str = Field(min_length=1)
     resources: list[BundleResource] = Field(default_factory=list)
@@ -181,7 +181,7 @@ class SkillBundle(BaseModel):
                     raise ValueError("Bundle binary data must be base64 text")
                 encoded_bytes += len(data)
                 data_fields += 1
-            text_bytes += _bundle_bytes(item, decode_binary=False)
+            text_bytes += bundle_resource_bytes(item, decode_binary=False)
         remaining = settings.SKILL_BUNDLE_MAX_BYTES - text_bytes
         if remaining < 0 or encoded_bytes > 4 * ((remaining + 2) // 3) + 4 * data_fields:
             raise ValueError("Bundle exceeds SKILL_BUNDLE_MAX_BYTES")
@@ -193,7 +193,7 @@ class SkillBundle(BaseModel):
         total = bundle_text_bytes(self.skill_md)
         for resource in self.resources:
             resource.to_create(None)  # Apply the unchanged domain model constraints.
-            total += _bundle_bytes(resource.model_dump())
+            total += bundle_resource_bytes(resource.model_dump())
         if total > settings.SKILL_BUNDLE_MAX_BYTES:
             raise ValueError("Bundle exceeds SKILL_BUNDLE_MAX_BYTES")
         return self
@@ -201,7 +201,7 @@ class SkillBundle(BaseModel):
 
 class SkillBundleMember(BaseModel):
     """Native owned-resource binding; never included in the portable package."""
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
     path: str
     kind: BundleKind
     resource_id: int = Field(gt=0)
@@ -238,3 +238,19 @@ class CreatedSkillBundle(BaseModel):
 class SkillBundleSnapshot(BaseModel):
     skill: Skill
     resources: list[BundleResource]
+
+
+def project_bundle_resource(path: str, kind: BundleKind, row) -> BundleResource:
+    """Project native rows with exactly the same fields on import and export."""
+    if kind == "file":
+        return BundleFile(path=path, description=row.description,
+                          data=base64.b64encode(row.data).decode("ascii"),
+                          mime_type=row.mime_type, tags=row.tags)
+    common = {"path": path, "title": row.title, "description": row.description, "tags": row.tags}
+    if kind == "document":
+        return BundleDocument(**common, content=row.content, document_type=row.document_type)
+    return BundleCodeArtifact(**common, code=row.code, language=row.language)
+
+
+# Existing model tests and callers retain the original helper spelling.
+_bundle_bytes = bundle_resource_bytes

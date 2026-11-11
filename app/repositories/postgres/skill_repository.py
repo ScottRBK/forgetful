@@ -1,25 +1,23 @@
 """PostgreSQL repository for Skill data access operations
 """
+import json
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import Integer, String, false, literal, select, union_all
+from sqlalchemy import select
 
 from app.config.logging_config import logging
-from app.config.settings import settings
 from app.exceptions import NotFoundError
 from app.models.code_artifact_models import CodeArtifact
 from app.models.document_models import Document
 from app.models.skill_bundle_models import (
-    BundleCodeArtifact,
-    BundleDocument,
-    BundleFile,
     CreatedBundleResource,
     CreatedSkillBundle,
     PreparedBundleResource,
+    SkillBundle,
     SkillBundleMember,
     SkillBundleSnapshot,
-    validate_bundle_paths,
+    project_bundle_resource,
 )
 from app.models.skill_models import (
     Skill,
@@ -51,7 +49,10 @@ from app.repositories.postgres.resource_rows import (
     build_skill_row,
     file_model,
 )
+from app.repositories.skill_bundle_export import read_bodies, read_bundle
+from app.utils.bundle_validation import safe_bundle_validation
 from app.utils.embedding_helpers import build_skill_embedding_text
+from app.utils.skill_markdown import format_bundle_skill_markdown
 
 logger = logging.getLogger(__name__)
 
@@ -1146,11 +1147,28 @@ class PostgresSkillRepository:
             agent_model=row.agent_model,
         )
 
+    @safe_bundle_validation
     async def create_skill_bundle(
         self, user_id: UUID, skill_data: SkillCreate,
         resources: list[PreparedBundleResource],
     ) -> CreatedSkillBundle:
         """Commit the skill, vector, resources, links and membership together."""
+        # Build exactly the rows that will be persisted before any embedding or I/O.
+        skill_data = skill_data.model_copy(update={
+            "metadata": json.loads(json.dumps(skill_data.metadata)),
+            "allowed_tools": skill_data.allowed_tools or [],
+        })
+        native_rows = [{"document": build_document_row, "code_artifact": build_code_artifact_row,
+                        "file": build_file_row}[item.kind](user_id, item.data) for item in resources]
+        # Both native tables apply this scalar default at flush. Include it
+        # before budgeting so accepted imports remain exportable at the cap.
+        for item, row in zip(resources, native_rows, strict=True):
+            if item.kind == "document" and row.document_type is None:
+                row.document_type = "text"
+        SkillBundle(skill_md=format_bundle_skill_markdown(skill_data), resources=[
+            project_bundle_resource(item.path, item.kind, row)
+            for item, row in zip(resources, native_rows, strict=True)
+        ])
         embedding = await self.embedding_adapter.generate_embedding(
             text=build_skill_embedding_text(skill_data),
         )
@@ -1167,7 +1185,7 @@ class PostgresSkillRepository:
             await session.flush()
             members = []
             created = []
-            for item in resources:
+            for item, resource_row in zip(resources, native_rows, strict=True):
                 builder, converter, link, key = {
                     "document": (build_document_row, Document.model_validate,
                                  skill_document_association, "document_id"),
@@ -1176,7 +1194,6 @@ class PostgresSkillRepository:
                     "file": (build_file_row, file_model,
                              skill_file_association, "file_id"),
                 }[item.kind]
-                resource_row = builder(user_id, item.data)
                 session.add(resource_row)
                 await session.flush()
                 await session.execute(link.insert().values(
@@ -1199,108 +1216,21 @@ class PostgresSkillRepository:
             await session.commit()
             return result
 
+    @safe_bundle_validation
     async def read_skill_bundle(
         self, user_id: UUID, skill_id: int,
         members: list[SkillBundleMember] | None = None,
+        *, allowed_kinds: frozenset[str],
     ) -> SkillBundleSnapshot:
-        """One SELECT reads the owned skill, paths, contents and link membership."""
-        if members is None:
-            selected = skill_bundle_resources
-        else:
-            if len(members) > settings.SKILL_BUNDLE_MAX_RESOURCES:
-                raise ValueError("Bundle resource count exceeds SKILL_BUNDLE_MAX_RESOURCES")
-            validate_bundle_paths([member.path for member in members])
-            projections = []
-            for member in members:
-                projections.append(select(
-                    literal(skill_id, Integer).label("skill_id"),
-                    literal(member.path, String).label("path"),
-                    literal(member.kind, String).label("kind"),
-                    *[literal(member.resource_id if member.kind == kind else None, Integer).label(key)
-                      for kind, key in (("document", "document_id"),
-                                        ("code_artifact", "code_artifact_id"),
-                                        ("file", "file_id"))],
-                ))
-            if not projections:
-                projections = [select(
-                    literal(skill_id, Integer).label("skill_id"),
-                    literal(None, String).label("path"),
-                    literal(None, String).label("kind"),
-                    literal(None, Integer).label("document_id"),
-                    literal(None, Integer).label("code_artifact_id"),
-                    literal(None, Integer).label("file_id"),
-                ).where(false())]
-            selected = union_all(*projections).subquery("selected_bundle_members")
-        statement = select(
-            SkillsTable, selected.c.path, selected.c.kind,
-            selected.c.document_id, selected.c.code_artifact_id, selected.c.file_id,
-            DocumentsTable, CodeArtifactsTable, FilesTable,
-            skill_document_association.c.document_id,
-            skill_code_artifact_association.c.code_artifact_id,
-            skill_file_association.c.file_id,
-        ).select_from(SkillsTable).outerjoin(
-            selected, selected.c.skill_id == SkillsTable.id,
-        ).outerjoin(
-            DocumentsTable, (DocumentsTable.id == selected.c.document_id)
-            & (DocumentsTable.user_id == user_id),
-        ).outerjoin(
-            CodeArtifactsTable, (CodeArtifactsTable.id == selected.c.code_artifact_id)
-            & (CodeArtifactsTable.user_id == user_id),
-        ).outerjoin(
-            FilesTable, (FilesTable.id == selected.c.file_id)
-            & (FilesTable.user_id == user_id),
-        ).outerjoin(
-            skill_document_association,
-            (skill_document_association.c.skill_id == SkillsTable.id)
-            & (skill_document_association.c.document_id == selected.c.document_id),
-        ).outerjoin(
-            skill_code_artifact_association,
-            (skill_code_artifact_association.c.skill_id == SkillsTable.id)
-            & (skill_code_artifact_association.c.code_artifact_id == selected.c.code_artifact_id),
-        ).outerjoin(
-            skill_file_association,
-            (skill_file_association.c.skill_id == SkillsTable.id)
-            & (skill_file_association.c.file_id == selected.c.file_id),
-        ).where(
-            SkillsTable.id == skill_id, SkillsTable.user_id == user_id,
-        ).order_by(selected.c.path)
-        async with self.db_adapter.session(user_id) as session:
-            rows = (await session.execute(statement)).all()
-            if not rows:
-                raise NotFoundError(f"Skill {skill_id} not found")
-            resources = []
-            for row in rows:
-                _skill_row, path, kind, did, aid, fid, doc, artifact, file_row, dl, al, fl = row
-                if path is None:
-                    continue
-                native_id, resource, linked = {
-                    "document": (did, doc, dl),
-                    "code_artifact": (aid, artifact, al),
-                    "file": (fid, file_row, fl),
-                }[kind]
-                if resource is None and (members is not None or native_id is not None):
-                    raise NotFoundError(f"Bundle member '{path}' not found")
-                if native_id is None or resource is None:
-                    raise ValueError(f"Bundle member '{path}' was deleted")
-                if linked is None:
-                    raise ValueError(f"Bundle member '{path}' was unlinked")
-                if str(resource.user_id) != str(user_id):
-                    raise NotFoundError(f"Bundle member '{path}' not found")
-                if kind == "document":
-                    resources.append(BundleDocument(
-                        path=path, title=doc.title, description=doc.description,
-                        content=doc.content, document_type=doc.document_type, tags=doc.tags,
-                    ))
-                elif kind == "code_artifact":
-                    resources.append(BundleCodeArtifact(
-                        path=path, title=artifact.title, description=artifact.description,
-                        code=artifact.code, language=artifact.language, tags=artifact.tags,
-                    ))
-                else:
-                    native = file_model(file_row)
-                    resources.append(BundleFile(
-                        path=path, description=native.description, data=native.data,
-                        mime_type=native.mime_type, tags=native.tags,
-                    ))
-            resources.sort(key=lambda resource: resource.path)
-            return SkillBundleSnapshot(skill=self._to_skill(rows[0][0]), resources=resources)
+        """Authorize and bound metadata before bodies, in one snapshot transaction."""
+        tables = (SkillsTable, skill_bundle_resources,
+                  {"document": DocumentsTable, "code_artifact": CodeArtifactsTable, "file": FilesTable},
+                  {"document": skill_document_association, "code_artifact": skill_code_artifact_association,
+                   "file": skill_file_association})
+        return await read_bundle(self, tables, user_id, skill_id, members, allowed_kinds, sqlite=False)
+
+    async def _read_bundle_metadata(self, session, statement):
+        return (await session.execute(statement)).all()
+
+    async def _read_bundle_bodies(self, session, resources, selected):
+        return await read_bodies(session, resources, selected)

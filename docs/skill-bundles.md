@@ -53,7 +53,12 @@ whitespace-only documents/scripts and zero-byte binary files are unsupported by
 the existing resource models and rejected before mutation. Text uses their
 existing surrounding-whitespace stripping; script language is lower-cased.
 Binary content is preserved byte for byte. Export/import/export is stable after
-that canonicalisation. Required titles, descriptions, language and MIME types
+that canonicalisation. Bundle Markdown omits absent or empty `allowed-tools`
+(an explicit empty list normalizes to omission), sorts metadata keys recursively
+by Unicode code point after JSON key conversion, and preserves list order.
+Legacy single-skill Markdown export is unchanged. A null document type uses
+its existing database default `text`, included in the import budget.
+Required titles, descriptions, language and MIME types
 must be supplied; import never invents them silently.
 
 The repository stores the skill, embedding, resources, ordinary graph links and
@@ -64,7 +69,9 @@ the package. Do not automatically retry a failed response assuming no records
 were committed. Skill-name checking preserves the existing behavior and does
 not introduce a database uniqueness guarantee.
 
-Export reads the skill, bindings, links and current contents in one SQL statement.
+Export reads the skill, bindings, links and current contents as permission and size metadata, then bodies, in one snapshot transaction (two reads).
 It does not traverse memories or unrelated graph neighbors, and does not claim to
 prove every Markdown link resolves. Callers choose the resources forming the
 package; external URLs are left unchanged.
+
+Export checks component permissions and the exact canonical UTF-8/decoded-binary budget before loading resource bodies. File-backed SQLite uses a scoped explicit read transaction; PostgreSQL uses scoped repeatable read. SQLite memory mode shares one connection and requires serialized callers. Import checks the persisted-equivalent canonical package before embedding or storing any records.

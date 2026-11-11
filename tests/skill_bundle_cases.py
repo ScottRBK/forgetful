@@ -212,7 +212,7 @@ class SkillBundleCases:
         engine = bundle_app.skill_service.skill_repo.db_adapter._engine.sync_engine
 
         def count(connection, cursor, statement, parameters, context, executemany):
-            if statement.lstrip().upper().startswith("SELECT") and "skills" in statement:
+            if statement.lstrip().upper().startswith("SELECT") and ("skill_bundle_resources" in statement or "text_body" in statement):
                 statements.append(statement)
 
         event.listen(engine, "before_cursor_execute", count)
@@ -220,8 +220,10 @@ class SkillBundleCases:
             await call_tool(mcp_client, "export_skill_bundle", skill_id=created["skill"]["id"])
         finally:
             event.remove(engine, "before_cursor_execute", count)
-        assert len(statements) == 1
+        assert len(statements) == 2
         assert "skill_bundle_resources" in statements[0]
+        assert "file_body_bytes" in statements[0]
+        assert "text_body" in statements[1] and "skill_bundle_resources" not in statements[1]
 
     async def test_existing_create_conversion_matches_bundle(self, mcp_client):
         value = skill_bundle()
