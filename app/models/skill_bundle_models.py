@@ -96,7 +96,7 @@ class _Resource(BaseModel):
 
 
 class BundleDocument(_Resource):
-    kind: Literal["document"] = "document"
+    kind: Literal["document"]
     content: str
     document_type: str | None = "text"
 
@@ -108,7 +108,7 @@ class BundleDocument(_Resource):
 
 
 class BundleCodeArtifact(_Resource):
-    kind: Literal["code_artifact"] = "code_artifact"
+    kind: Literal["code_artifact"]
     code: str
     language: str
 
@@ -121,7 +121,7 @@ class BundleCodeArtifact(_Resource):
 class BundleFile(BaseModel):
     model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
     path: str
-    kind: Literal["file"] = "file"
+    kind: Literal["file"]
     description: str
     data: str
     mime_type: str
@@ -243,13 +243,13 @@ class SkillBundleSnapshot(BaseModel):
 def project_bundle_resource(path: str, kind: BundleKind, row) -> BundleResource:
     """Project native rows with exactly the same fields on import and export."""
     if kind == "file":
-        return BundleFile(path=path, description=row.description,
+        return BundleFile(kind="file", path=path, description=row.description,
                           data=base64.b64encode(row.data).decode("ascii"),
                           mime_type=row.mime_type, tags=row.tags)
     common = {"path": path, "title": row.title, "description": row.description, "tags": row.tags}
     if kind == "document":
-        return BundleDocument(**common, content=row.content, document_type=row.document_type)
-    return BundleCodeArtifact(**common, code=row.code, language=row.language)
+        return BundleDocument(kind="document", **common, content=row.content, document_type=row.document_type)
+    return BundleCodeArtifact(kind="code_artifact", **common, code=row.code, language=row.language)
 
 
 # Existing model tests and callers retain the original helper spelling.

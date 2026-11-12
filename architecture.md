@@ -248,6 +248,10 @@ When reranking is enabled, they retrieve a larger candidate set and rerank when 
 `query_context` enriches the rerank query, not the initial embedding query
 ([PostgreSQL:70](app/repositories/postgres/memory_repository.py#L70),
 [SQLite:78](app/repositories/sqlite/memory_repository.py#L78)).
+When `HYBRID_SEARCH_ENABLED` is true, both backends also run a keyword leg (SQLite FTS5;
+PostgreSQL `tsvector` + GIN via Alembic `20261103_memory_search_tsv`), fuse the ranked id lists
+with reciprocal rank fusion, then apply that same rerank pool. With the flag off, search stays
+dense-only and `MemoryScore` omits `keyword_rank` / `fusion_score`.
 
 ## Contracts, storage, and implementation variants
 
@@ -255,7 +259,7 @@ When reranking is enabled, they retrieve a larger candidate set and rerank when 
 | --- | --- |
 | Domain persistence | [MemoryRepository:21](app/protocols/memory_protocol.py#L21) and sibling files in [app/protocols](app/protocols) define service-facing contracts. Pydantic domain/request/result models live in [app/models](app/models), separate from backend ORM tables. |
 | PostgreSQL | [PostgresDatabaseAdapter:18](app/repositories/postgres/postgres_adapter.py#L18) owns async sessions, commit/rollback, initialization, and disposal. User sessions set `app.current_user_id`; repositories also apply user filters. Backend table definitions start at [postgres_tables.py:26](app/repositories/postgres/postgres_tables.py#L26). |
-| SQLite | [SqliteDatabaseAdapter:46](app/repositories/sqlite/sqlite_adapter.py#L46) owns file/in-memory connections and sessions, loads sqlite-vec, and creates vector virtual tables. Repository queries enforce user ownership. Relational tables start at [sqlite_tables.py:31](app/repositories/sqlite/sqlite_tables.py#L31). |
+| SQLite | [SqliteDatabaseAdapter:46](app/repositories/sqlite/sqlite_adapter.py#L46) owns file/in-memory connections and sessions, loads sqlite-vec, and creates vector virtual tables plus an FTS5 external-content index for hybrid keyword search. Repository queries enforce user ownership. Relational tables start at [sqlite_tables.py:31](app/repositories/sqlite/sqlite_tables.py#L31). |
 | Schema lifecycle | Both database adapters run Alembic during `init_db`; backend selection and migration execution live in [alembic/env.py:1](alembic/env.py#L1), with revisions in [alembic/versions](alembic/versions). Vector-storage initialization also has adapter-specific work. |
 | Embeddings | [EmbeddingsAdapter:6](app/protocols/embedding_protocol.py#L6) defines `generate_embedding`. Implementations: local FastEmbed, Azure OpenAI, Google, OpenAI, and Ollama. Selection is explicit in [bootstrap.py:27](app/bootstrap.py#L27). |
 | Reranking | [RerankAdapter:13](app/repositories/embeddings/reranker_adapter.py#L13) has local FastEmbed cross-encoder and HTTP implementations. [bootstrap.py:48](app/bootstrap.py#L48) selects one or disables reranking. |
@@ -394,4 +398,4 @@ and record exporter version/scope and material warnings. Recheck links and Merma
 
 SkillService validates portable bundles and emits existing activity events after commit. SkillRepository atomically stores all package records and reads exports in one snapshot transaction (metadata then bodies). Both native repositories share their ordinary row builders with bundle creation. The skill_bundle_resources table preserves paths and deleted-member tombstones separately from graph links; it does not store a copy of resource contents. REST retains identity/ownership authorization; MCP and local CLI also require the component resource tools. See [the bundle contract](docs/skill-bundles.md).
 
-Export checks component permissions and the exact canonical UTF-8/decoded-binary budget before loading resource bodies. File-backed SQLite uses a scoped explicit read transaction; PostgreSQL uses scoped repeatable read. SQLite memory mode shares one connection and requires serialized callers. Import checks the persisted-equivalent canonical package before embedding or storing any records.
+Export checks component permissions and the exact canonical UTF-8/decoded-binary budget before loading resource bodies. File-backed SQLite uses a scoped explicit read transaction; PostgreSQL uses scoped repeatable read. SQLite memory mode serializes ordinary, system and snapshot sessions on its shared connection; nested sessions fail explicitly. Import checks the persisted-equivalent canonical package before embedding or storing any records.

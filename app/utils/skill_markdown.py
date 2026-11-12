@@ -1,6 +1,8 @@
 """Shared canonical Agent Skills Markdown parsing and formatting."""
 import json
+import math
 import re
+from decimal import Decimal
 
 import yaml
 
@@ -131,11 +133,19 @@ def format_skill_markdown(skill: Skill | SkillCreate) -> str:
 
 
 def _sorted_metadata(value):
-    """Sort JSON-compatible mappings without changing list order."""
+    """Canonicalize mapping order and JSONB numeric output without reordering lists."""
     if isinstance(value, dict):
         return {key: _sorted_metadata(value[key]) for key in sorted(value)}
     if isinstance(value, list):
         return [_sorted_metadata(item) for item in value]
+    if isinstance(value, float) and math.isfinite(value):
+        # JSONB expands nonnegative decimal exponents before JSON readback.
+        # Use the JSON float spelling rather than its binary integer value.
+        decimal = Decimal(repr(value))
+        if decimal.as_tuple().exponent >= 0:
+            return int(decimal)
+        if value == 0:
+            return 0.0
     return value
 
 

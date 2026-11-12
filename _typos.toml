@@ -1,5 +1,13 @@
 [files]
-extend-exclude = ["org_knowledge_proposal.md"]
+extend-exclude = [
+    "org_knowledge_proposal.md",
+    # Synthetic, fictional benchmark fixtures, intentionally multilingual so the
+    # hybrid-search numbers exercise non-English tokens. Spell-checking invented
+    # fixture data produces false positives (French `sur`, `somme`, `commun`,
+    # `Remplace`) and blocking CI on them teaches people to disable the hook.
+    # Code and prose in this repo stay checked; only the fixtures are skipped.
+    "benchmarks/retrieval/*.jsonl",
+]
 
 [default]
 extend-ignore-re = ["FoRgEtFuL"]

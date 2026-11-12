@@ -1,5 +1,6 @@
 """Owner feedback regressions exercised on both native database backends."""
 import ast
+import asyncio
 import base64
 import copy
 import difflib
@@ -70,9 +71,9 @@ def check_help(info):
     walk(schema)
     assert info["examples"]
     if info["name"] == "import_skill_bundle":
-        for name, fields in {"BundleDocument": {"path", "title", "description", "content"},
-                             "BundleCodeArtifact": {"path", "title", "description", "code", "language"},
-                             "BundleFile": {"path", "description", "data", "mime_type"}}.items():
+        for name, fields in {"BundleDocument": {"path", "kind", "title", "description", "content"},
+                             "BundleCodeArtifact": {"path", "kind", "title", "description", "code", "language"},
+                             "BundleFile": {"path", "kind", "description", "data", "mime_type"}}.items():
             assert fields <= set(definitions[name]["required"])
         assert "after commit" in info["description"]
     else:
@@ -385,3 +386,102 @@ class SkillBundleFeedbackCases:
         monkeypatch.setattr(settings, "SKILL_BUNDLE_MAX_BYTES", cap)
         second = await call_tool(mcp_client, "import_skill_bundle", bundle=value)
         assert await call_tool(mcp_client, "export_skill_bundle", skill_id=second["skill"]["id"]) == canonical
+
+
+    async def test_overlapping_bundle_exports(self, mcp_client, bundle_app, monkeypatch):
+        created = await call_tool(mcp_client, "import_skill_bundle", bundle=skill_bundle("overlap"))
+        original = bundle_app.skill_service.export_skill_bundle
+        ready = asyncio.Event()
+        entered = 0
+
+        async def together(*args, **kwargs):
+            nonlocal entered
+            entered += 1
+            if entered == 2:
+                ready.set()
+            await ready.wait()
+            return await original(*args, **kwargs)
+
+        monkeypatch.setattr(bundle_app.skill_service, "export_skill_bundle", together)
+        results = await asyncio.wait_for(asyncio.gather(*[
+            call_tool(mcp_client, "export_skill_bundle", skill_id=created["skill"]["id"])
+            for _ in range(2)
+        ], return_exceptions=True), timeout=10)
+        assert all(isinstance(result, dict) for result in results), results
+        assert results[0] == results[1]
+
+    @pytest.mark.parametrize("resource_index", [0, 1, 2])
+    async def test_kind_schema_and_runtime_agree(self, mcp_client, bundle_app, monkeypatch, resource_index):
+        from jsonschema import Draft202012Validator
+        from jsonschema.exceptions import ValidationError
+
+        help_result = await mcp_client.call_tool(
+            "how_to_use_forgetful_tool", {"tool_name": "import_skill_bundle"},
+        )
+        value = copy.deepcopy(skill_bundle("required-kind"))
+        value["resources"] = [value["resources"][resource_index]]
+        arguments = {"bundle": value}
+        validator = Draft202012Validator(help_result.data["json_schema"])
+        validator.validate(arguments)
+        del value["resources"][0]["kind"]
+        with pytest.raises(ValidationError):
+            validator.validate(arguments)
+        before = await call_tool(mcp_client, "list_skills")
+        embedding = AsyncMock(side_effect=AssertionError("invalid schema reached embedding"))
+        monkeypatch.setattr(bundle_app.skill_service.skill_repo.embedding_adapter, "generate_embedding", embedding)
+        with pytest.raises(ToolError, match="kind"):
+            await call_tool(mcp_client, "import_skill_bundle", **arguments)
+        assert embedding.await_count == 0
+        assert await call_tool(mcp_client, "list_skills") == before
+
+    @pytest.mark.parametrize("metadata", [
+        "  n: 1.0e+20\n",
+        "  values: [1.0, 100.0, -0.0, 1.0e+16, 1.5e+20, 1.0e+23, 1.0e-5, 1.5e-7, 7, true]\n  nested: {n: 1.0e+23}\n",
+    ])
+    async def test_numeric_metadata_native_storage_exact_cap(self, mcp_client, bundle_app, monkeypatch, metadata):
+        from app.utils.skill_markdown import (
+            format_bundle_skill_markdown,
+            parse_skill_markdown,
+        )
+
+        markdown = "---\nname: x\ndescription: x\nmetadata:\n" + metadata + "---\nx"
+        value = {"schema_version": 1, "skill_md": markdown, "resources": []}
+        expected = format_bundle_skill_markdown(parse_skill_markdown(markdown, None, 7))
+        if metadata != "  n: 1.0e+20\n":
+            import math
+
+            import yaml
+
+            parsed = yaml.safe_load(expected.split("---", 2)[1])["metadata"]
+            values = parsed["values"]
+            assert [type(item) for item in values] == [
+                float, float, float, int, int, int, float, float, int, bool,
+            ]
+            assert values == [1.0, 100.0, 0.0, 10**16, 15 * 10**19, 10**23, 1e-5, 1.5e-7, 7, True]
+            assert math.copysign(1, values[2]) == 1
+            assert parsed["nested"]["n"] == 10**23
+        if metadata == "  n: 1.0e+20\n":
+            assert len(markdown.encode()) == 55
+            assert len(expected.encode()) == 71
+            monkeypatch.setattr(settings, "SKILL_BUNDLE_MAX_BYTES", 57)
+            await reject_without_mutation(mcp_client, bundle_app, monkeypatch, value)
+        cap = len(expected.encode())
+        monkeypatch.setattr(settings, "SKILL_BUNDLE_MAX_BYTES", cap - 1)
+        await reject_without_mutation(mcp_client, bundle_app, monkeypatch, value)
+        monkeypatch.setattr(settings, "SKILL_BUNDLE_MAX_BYTES", cap)
+        created = await call_tool(mcp_client, "import_skill_bundle", bundle=value)
+        exported = await call_tool(mcp_client, "export_skill_bundle", skill_id=created["skill"]["id"])
+        # This reads the native JSON/JSONB value, rather than a mocked round trip.
+        assert exported["skill_md"] == expected
+        assert payload_size(exported) == cap
+
+    @pytest.mark.parametrize("number", [".inf", ".nan", "-.inf"])
+    async def test_nonfinite_bundle_import_leaves_no_records(self, mcp_client, bundle_app, monkeypatch, number):
+        value = {"schema_version": 1, "skill_md": "---\nname: x\ndescription: x\nmetadata:\n  n: " + number + "\n---\nx", "resources": []}
+        before = await call_tool(mcp_client, "list_skills")
+        embedding = AsyncMock(side_effect=AssertionError("nonfinite metadata reached embedding"))
+        monkeypatch.setattr(bundle_app.skill_service.skill_repo.embedding_adapter, "generate_embedding", embedding)
+        with pytest.raises(ToolError, match="JSON-compatible"):
+            await call_tool(mcp_client, "import_skill_bundle", bundle=value)
+        assert embedding.await_count == 0
+        assert await call_tool(mcp_client, "list_skills") == before

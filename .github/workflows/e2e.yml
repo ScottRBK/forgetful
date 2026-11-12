@@ -20,17 +20,18 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           enable-cache: true
+          prune-cache: true
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.13"
 
@@ -45,7 +46,7 @@ jobs:
           psql --version
 
       - name: Cache FastEmbed models
-        uses: actions/cache@v3
+        uses: actions/cache@v6
         with:
           path: ~/.cache/fastembed
           key: fastembed-${{ hashFiles('**/pyproject.toml') }}

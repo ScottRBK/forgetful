@@ -5,8 +5,8 @@ from typing import Any
 from uuid import UUID
 
 import sqlite_vec
-from sqlalchemy import or_, select, text, update
-from sqlalchemy.exc import IntegrityError, NoResultFound
+from sqlalchemy import bindparam, or_, select, text, update
+from sqlalchemy.exc import IntegrityError, NoResultFound, SQLAlchemyError
 from sqlalchemy.orm import selectinload
 
 from app.config.logging_config import logging
@@ -30,6 +30,12 @@ from app.utils.embedding_helpers import (
     build_embedding_text,
     build_memory_text,
 )
+from app.utils.keyword_query import (
+    build_keyword_query,
+    is_identifier_query,
+    to_fts5_match,
+)
+from app.utils.rank_fusion import TieBreak, reciprocal_rank_fusion
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +59,17 @@ class SqliteMemoryRepository:
         self.db_adapter = db_adapter
         self.embedding_adapter = embedding_adapter
         self.rerank_adapter = rerank_adapter
+
+    @staticmethod
+    def _memory_search_selectinloads():
+        return (
+            selectinload(MemoryTable.linked_memories),
+            selectinload(MemoryTable.linking_memories),
+            selectinload(MemoryTable.projects),
+            selectinload(MemoryTable.code_artifacts),
+            selectinload(MemoryTable.documents),
+            selectinload(MemoryTable.files),
+        )
 
     async def search(
         self,
@@ -86,6 +103,17 @@ class SqliteMemoryRepository:
         exclude_ids: list[int] | None,
     ) -> list[tuple[Memory, MemoryScore]]:
         """Search by vector similarity, then optionally rerank candidates (with scores)."""
+        if settings.HYBRID_SEARCH_ENABLED:
+            return await self._hybrid_search_scored(
+                user_id=user_id,
+                query=query,
+                query_context=query_context,
+                k=k,
+                importance_threshold=importance_threshold,
+                project_ids=project_ids,
+                exclude_ids=exclude_ids,
+            )
+
         if settings.RERANKING_ENABLED:
             candidates_to_return = settings.DENSE_SEARCH_CANDIDATES
         else:
@@ -129,6 +157,290 @@ class SqliteMemoryRepository:
             )
             for idx, score in ranked[:k]
         ]
+
+    async def _hybrid_search_scored(
+        self,
+        user_id: UUID,
+        query: str,
+        query_context: str,
+        k: int,
+        importance_threshold: int | None,
+        project_ids: list[int] | None,
+        exclude_ids: list[int] | None,
+    ) -> list[tuple[Memory, MemoryScore]]:
+        query_text = query.strip()
+        embeddings = await self._generate_embeddings(query_text)
+        embedding_bytes = sqlite_vec.serialize_float32(embeddings)
+
+        dense_k = max(k, settings.DENSE_SEARCH_CANDIDATES)
+        sparse_k = max(k, settings.SPARSE_SEARCH_CANDIDATES)
+
+        dense_candidates = await self._dense_scored(
+            user_id=user_id,
+            embedding_bytes=embedding_bytes,
+            k=dense_k,
+            importance_threshold=importance_threshold,
+            project_ids=project_ids,
+            exclude_ids=exclude_ids,
+        )
+
+        keyword_candidates: list[tuple[Memory, int]] = []
+        try:
+            keyword_candidates = await self.keyword_search_scored(
+                user_id=user_id,
+                query=query,
+                k=sparse_k,
+                importance_threshold=importance_threshold,
+                project_ids=project_ids,
+                exclude_ids=exclude_ids,
+            )
+        except SQLAlchemyError as exc:
+            logger.warning("keyword leg failed, falling back to dense only", exc_info=exc)
+
+        dense_ids = [memory.id for memory, _ in dense_candidates]
+        keyword_ids = [memory.id for memory, _ in keyword_candidates]
+        tie_break: TieBreak = "keyword" if is_identifier_query(query_text) else "dense"
+        fused = reciprocal_rank_fusion(
+            [dense_ids, keyword_ids],
+            settings.RRF_K,
+            tie_break=tie_break,
+        )
+        fusion_by_id = dict(fused)
+        keyword_rank_by_id = {memory.id: rank for memory, rank in keyword_candidates}
+
+        pool_limit = settings.DENSE_SEARCH_CANDIDATES if settings.RERANKING_ENABLED else k
+        pool_ids = [memory_id for memory_id, _ in fused[:pool_limit]]
+
+        memory_by_id: dict[int, Memory] = {
+            memory.id: memory for memory, _ in dense_candidates
+        }
+        for memory, _rank in keyword_candidates:
+            memory_by_id.setdefault(memory.id, memory)
+
+        distance_by_id = await self._distances_for_ids(
+            user_id=user_id,
+            embedding_bytes=embedding_bytes,
+            ids=pool_ids,
+        )
+
+        pool_memories = [memory_by_id[mid] for mid in pool_ids if mid in memory_by_id]
+
+        if not settings.RERANKING_ENABLED or len(pool_memories) <= k:
+            return [
+                (
+                    memory,
+                    MemoryScore(
+                        memory_id=memory.id,
+                        similarity=1.0 - distance_by_id.get(memory.id, 1.0),
+                        keyword_rank=keyword_rank_by_id.get(memory.id),
+                        fusion_score=fusion_by_id.get(memory.id),
+                    ),
+                )
+                for memory in pool_memories[:k]
+            ]
+
+        documents = [build_memory_text(memory) for memory in pool_memories]
+        if query_context:
+            rerank_query = build_contextual_query(query=query, context=query_context)
+        else:
+            rerank_query = query
+
+        ranked = await self.rerank_adapter.rerank(query=rerank_query, documents=documents)
+
+        return [
+            (
+                pool_memories[idx],
+                MemoryScore(
+                    memory_id=pool_memories[idx].id,
+                    similarity=1.0 - distance_by_id.get(pool_memories[idx].id, 1.0),
+                    rerank_score=float(score),
+                    keyword_rank=keyword_rank_by_id.get(pool_memories[idx].id),
+                    fusion_score=fusion_by_id.get(pool_memories[idx].id),
+                ),
+            )
+            for idx, score in ranked[:k]
+        ]
+
+    @staticmethod
+    def _memory_filter_sql(
+        params: dict[str, Any],
+        importance_threshold: int | None,
+        project_ids: list[int] | None,
+        exclude_ids: list[int] | None,
+    ) -> str:
+        sql_parts: list[str] = []
+        if importance_threshold:
+            sql_parts.append(" AND m.importance >= :importance_threshold")
+            params["importance_threshold"] = importance_threshold
+
+        if project_ids:
+            sql_parts.append(
+                """
+                    AND EXISTS (
+                        SELECT 1 FROM memory_project_association mpa
+                        WHERE mpa.memory_id = m.id
+                        AND mpa.project_id IN ({}))
+                    """.format(",".join(f":project_{i}" for i in range(len(project_ids)))),  # noqa: S608
+            )
+            for i, proj_id in enumerate(project_ids):
+                params[f"project_{i}"] = proj_id
+
+        if exclude_ids:
+            sql_parts.append(
+                " AND m.id NOT IN ({})".format(",".join(f":exclude_{i}" for i in range(len(exclude_ids)))),
+            )
+            for i, excl_id in enumerate(exclude_ids):
+                params[f"exclude_{i}"] = excl_id
+
+        return "".join(sql_parts)
+
+    async def keyword_search_scored(
+        self,
+        user_id: UUID,
+        query: str,
+        k: int,
+        importance_threshold: int | None,
+        project_ids: list[int] | None,
+        exclude_ids: list[int] | None,
+    ) -> list[tuple[Memory, int]]:
+        kq = build_keyword_query(query)
+        if kq.is_empty:
+            return []
+
+        match_expr = to_fts5_match(kq)
+        async with self.db_adapter.session(user_id) as session:
+            params: dict[str, Any] = {
+                "user_id": str(user_id),
+                "match": match_expr,
+                "k": k,
+            }
+            filter_sql = self._memory_filter_sql(
+                params,
+                importance_threshold,
+                project_ids,
+                exclude_ids,
+            )
+            sql_parts = [
+                """
+                SELECT m.id
+                FROM memories_fts f
+                JOIN memories m ON m.id = f.rowid
+                WHERE memories_fts MATCH :match
+                  AND m.user_id = :user_id
+                  AND m.is_obsolete = 0
+                """,
+                filter_sql,
+                """
+                ORDER BY bm25(memories_fts)
+                LIMIT :k
+                """,
+            ]
+            sql_query = "".join(sql_parts)
+            result = await session.execute(text(sql_query), params)
+            rows = result.fetchall()
+            if not rows:
+                return []
+
+            memory_ids = [row[0] for row in rows]
+            stmt = (
+                select(MemoryTable)
+                .where(MemoryTable.id.in_(memory_ids))
+                .options(*self._memory_search_selectinloads())
+            )
+            result = await session.execute(stmt)
+            memories_orm = result.scalars().all()
+            memory_dict = {m.id: m for m in memories_orm}
+            ordered = [memory_dict[mid] for mid in memory_ids if mid in memory_dict]
+            return [
+                (Memory.model_validate(memory), rank)
+                for rank, memory in enumerate(ordered, start=1)
+            ]
+
+    async def _distances_for_ids(
+        self,
+        user_id: UUID,
+        embedding_bytes: bytes,
+        ids: list[int],
+    ) -> dict[int, float]:
+        if not ids:
+            return {}
+
+        async with self.db_adapter.session(user_id) as session:
+            params: dict[str, Any] = {
+                "user_id": str(user_id),
+                "query_embedding": embedding_bytes,
+                "memory_ids": ids,
+            }
+            stmt = text(
+                """
+                SELECT m.id, vec_distance_cosine(vm.embedding, :query_embedding) AS distance
+                FROM memories m
+                INNER JOIN vec_memories vm ON m.id = vm.memory_id
+                WHERE m.user_id = :user_id
+                  AND m.is_obsolete = 0
+                  AND m.id IN :memory_ids
+                """,
+            ).bindparams(bindparam("memory_ids", expanding=True))
+            result = await session.execute(stmt, params)
+            return {row[0]: float(row[1]) for row in result.fetchall()}
+
+    async def _dense_scored(
+        self,
+        user_id: UUID,
+        embedding_bytes: bytes,
+        k: int,
+        importance_threshold: int | None,
+        project_ids: list[int] | None,
+        exclude_ids: list[int] | None,
+    ) -> list[tuple[Memory, float]]:
+        async with self.db_adapter.session(user_id) as session:
+            params: dict[str, Any] = {
+                "user_id": str(user_id),
+                "query_embedding": embedding_bytes,
+                "k": k,
+            }
+            filter_sql = self._memory_filter_sql(
+                params,
+                importance_threshold,
+                project_ids,
+                exclude_ids,
+            )
+            sql_parts = [
+                """
+                SELECT m.id, vec_distance_cosine(vm.embedding, :query_embedding) AS distance
+                FROM memories m
+                INNER JOIN vec_memories vm ON m.id = vm.memory_id
+                WHERE m.user_id = :user_id AND m.is_obsolete = 0
+                """,
+                filter_sql,
+                """
+                ORDER BY distance
+                LIMIT :k
+                """,
+            ]
+            sql_query = "".join(sql_parts)
+            result = await session.execute(text(sql_query), params)
+            rows = result.fetchall()
+            if not rows:
+                return []
+
+            memory_ids = [row[0] for row in rows]
+            distance_by_id = {row[0]: float(row[1]) for row in rows}
+
+            stmt = (
+                select(MemoryTable)
+                .where(MemoryTable.id.in_(memory_ids))
+                .options(*self._memory_search_selectinloads())
+            )
+            result = await session.execute(stmt)
+            memories_orm = result.scalars().all()
+            memory_dict = {m.id: m for m in memories_orm}
+            ordered_memories = [memory_dict[mid] for mid in memory_ids if mid in memory_dict]
+
+            return [
+                (Memory.model_validate(memory), distance_by_id[memory.id])
+                for memory in ordered_memories
+            ]
 
     async def semantic_search(
         self,
