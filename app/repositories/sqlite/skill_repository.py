@@ -1,13 +1,30 @@
 """SQLite repository for Skill data access operations with sqlite-vec."""
+import json
 from datetime import UTC, datetime
 from uuid import UUID
 
 import sqlite_vec
-from sqlalchemy import func, or_, select, text
+from sqlalchemy import (
+    func,
+    or_,
+    select,
+    text,
+)
 
 from app.config.logging_config import logging
 from app.config.settings import settings
 from app.exceptions import NotFoundError
+from app.models.code_artifact_models import CodeArtifact
+from app.models.document_models import Document
+from app.models.skill_bundle_models import (
+    CreatedBundleResource,
+    CreatedSkillBundle,
+    PreparedBundleResource,
+    SkillBundle,
+    SkillBundleMember,
+    SkillBundleSnapshot,
+    project_bundle_resource,
+)
 from app.models.skill_models import (
     Skill,
     SkillCreate,
@@ -17,7 +34,15 @@ from app.models.skill_models import (
 )
 from app.protocols.embedding_protocol import EmbeddingsAdapter
 from app.repositories.embeddings.reranker_adapter import RerankAdapter
+from app.repositories.skill_bundle_export import read_bodies, read_bundle
 from app.repositories.sqlite.project_reference import ensure_project_owned
+from app.repositories.sqlite.resource_rows import (
+    build_code_artifact_row,
+    build_document_row,
+    build_file_row,
+    build_skill_row,
+    file_model,
+)
 from app.repositories.sqlite.sqlite_adapter import SqliteDatabaseAdapter
 from app.repositories.sqlite.sqlite_tables import (
     CodeArtifactsTable,
@@ -26,11 +51,14 @@ from app.repositories.sqlite.sqlite_tables import (
     MemoryTable,
     SkillsTable,
     memory_skill_association,
+    skill_bundle_resources,
     skill_code_artifact_association,
     skill_document_association,
     skill_file_association,
 )
+from app.utils.bundle_validation import safe_bundle_validation
 from app.utils.embedding_helpers import build_skill_embedding_text
+from app.utils.skill_markdown import format_bundle_skill_markdown
 
 logger = logging.getLogger(__name__)
 
@@ -86,28 +114,7 @@ class SqliteSkillRepository:
             async with self.db_adapter.session(user_id) as session:
                 await ensure_project_owned(session, user_id, skill_data.project_id)
 
-                skill_table = SkillsTable(
-                    user_id=str(user_id),
-                    name=skill_data.name,
-                    description=skill_data.description,
-                    content=skill_data.content,
-                    license=skill_data.license,
-                    compatibility=skill_data.compatibility,
-                    allowed_tools=skill_data.allowed_tools,
-                    skill_metadata=skill_data.metadata,
-                    tags=skill_data.tags,
-                    importance=skill_data.importance,
-                    project_id=skill_data.project_id,
-                    source_repo=skill_data.source_repo,
-                    source_files=skill_data.source_files,
-                    source_url=skill_data.source_url,
-                    confidence=skill_data.confidence,
-                    encoding_agent=skill_data.encoding_agent,
-                    encoding_version=skill_data.encoding_version,
-                    agent_id=skill_data.agent_id,
-                    agent_version=skill_data.agent_version,
-                    agent_model=skill_data.agent_model,
-                )
+                skill_table = build_skill_row(user_id, skill_data)
 
                 session.add(skill_table)
                 await session.flush()
@@ -1301,3 +1308,92 @@ class SqliteSkillRepository:
             created_at=skill_table.created_at,
             updated_at=skill_table.updated_at,
         )
+
+    @safe_bundle_validation
+    async def create_skill_bundle(
+        self, user_id: UUID, skill_data: SkillCreate,
+        resources: list[PreparedBundleResource],
+    ) -> CreatedSkillBundle:
+        """Commit the skill, vector, resources, links and membership together."""
+        # Build exactly the rows that will be persisted before any embedding or I/O.
+        skill_data = skill_data.model_copy(update={"metadata": json.loads(json.dumps(skill_data.metadata))})
+        native_rows = [{"document": build_document_row, "code_artifact": build_code_artifact_row,
+                        "file": build_file_row}[item.kind](user_id, item.data) for item in resources]
+        # Both native tables apply this scalar default at flush. Include it
+        # before budgeting so accepted imports remain exportable at the cap.
+        for item, row in zip(resources, native_rows, strict=True):
+            if item.kind == "document" and row.document_type is None:
+                row.document_type = "text"
+        SkillBundle(skill_md=format_bundle_skill_markdown(skill_data), resources=[
+            project_bundle_resource(item.path, item.kind, row)
+            for item, row in zip(resources, native_rows, strict=True)
+        ])
+        embeddings = await self.embedding_adapter.generate_embedding(
+            text=build_skill_embedding_text(skill_data),
+        )
+        async with self.db_adapter.session(user_id) as session:
+            await ensure_project_owned(session, user_id, skill_data.project_id)
+            existing = await session.execute(select(SkillsTable.id).where(
+                SkillsTable.user_id == str(user_id), SkillsTable.name == skill_data.name,
+            ).limit(1))
+            if existing.first() is not None:
+                raise ValueError(f"A skill named '{skill_data.name}' already exists")
+            # This preserves the existing name check, not a new uniqueness guarantee.
+            skill_row = build_skill_row(user_id, skill_data)
+            session.add(skill_row)
+            await session.flush()
+            await session.execute(
+                text("INSERT INTO vec_skills (skill_id, embedding) VALUES (:skill_id, :embedding)"),
+                {"skill_id": str(skill_row.id), "embedding": sqlite_vec.serialize_float32(embeddings)},
+            )
+            members = []
+            created = []
+            for item, resource_row in zip(resources, native_rows, strict=True):
+                builder, converter, link, key = {
+                    "document": (build_document_row, Document.model_validate,
+                                 skill_document_association, "document_id"),
+                    "code_artifact": (build_code_artifact_row, CodeArtifact.model_validate,
+                                      skill_code_artifact_association, "code_artifact_id"),
+                    "file": (build_file_row, file_model,
+                             skill_file_association, "file_id"),
+                }[item.kind]
+                session.add(resource_row)
+                await session.flush()
+                await session.execute(link.insert().values(
+                    skill_id=skill_row.id, **{key: resource_row.id},
+                ))
+                await session.execute(skill_bundle_resources.insert().values(
+                    skill_id=skill_row.id, path=item.path, kind=item.kind,
+                    **{key: resource_row.id},
+                ))
+                created.append(CreatedBundleResource(
+                    kind=item.kind, resource=converter(resource_row),
+                ))
+                members.append(SkillBundleMember(
+                    path=item.path, kind=item.kind, resource_id=resource_row.id,
+                ))
+            # Construct detached results before committing, so conversion errors roll back.
+            result = CreatedSkillBundle(
+                skill=self._to_skill(skill_row), members=members, resources=created,
+            )
+            await session.commit()
+            return result
+
+    @safe_bundle_validation
+    async def read_skill_bundle(
+        self, user_id: UUID, skill_id: int,
+        members: list[SkillBundleMember] | None = None,
+        *, allowed_kinds: frozenset[str],
+    ) -> SkillBundleSnapshot:
+        """Authorize and bound metadata before bodies, in one snapshot transaction."""
+        tables = (SkillsTable, skill_bundle_resources,
+                  {"document": DocumentsTable, "code_artifact": CodeArtifactsTable, "file": FilesTable},
+                  {"document": skill_document_association, "code_artifact": skill_code_artifact_association,
+                   "file": skill_file_association})
+        return await read_bundle(self, tables, str(user_id), skill_id, members, allowed_kinds, sqlite=True)
+
+    async def _read_bundle_metadata(self, session, statement):
+        return (await session.execute(statement)).all()
+
+    async def _read_bundle_bodies(self, session, resources, selected):
+        return await read_bodies(session, resources, selected)

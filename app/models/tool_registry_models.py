@@ -1,6 +1,7 @@
 """Models used for tool registry
 """
 from collections.abc import Awaitable, Callable
+from copy import deepcopy
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
@@ -30,6 +31,8 @@ class ToolParameter(BaseModel):
     required: bool = Field(default=False, description="Whether this parameter is required")
     default: Any | None = Field(default=None, description="Default value if parameter is not provided")
     example: Any | None = Field(default=None, description="Example value for this parameter")
+
+    json_schema: dict[str, Any] | None = None
 
 class ToolMetadata(BaseModel):
     """Complete metadata for a tool"""
@@ -90,16 +93,26 @@ class ToolMetadata(BaseModel):
         """Generate JSON schema for tool parameters"""
         properties = {}
         required = []
+        definitions = {}
 
         for param in self.parameters:
             # Skip ctx parameter in schema (internal use)
             if param.name == "ctx":
                 continue
 
-            properties[param.name] = {
-                "description": param.description,
-                "type": self._map_python_type_to_json_type(param.type),
-            }
+            if param.json_schema is not None:
+                nested = deepcopy(param.json_schema)
+                for name, definition in nested.pop("$defs", {}).items():
+                    if name in definitions and definitions[name] != definition:
+                        raise ValueError(f"Conflicting JSON schema definition: {name}")
+                    definitions[name] = definition
+                properties[param.name] = nested
+                properties[param.name]["description"] = param.description
+            else:
+                properties[param.name] = {
+                    "description": param.description,
+                    "type": self._map_python_type_to_json_type(param.type),
+                }
 
             if param.example is not None:
                 properties[param.name]["example"] = param.example
@@ -111,6 +124,9 @@ class ToolMetadata(BaseModel):
             "type": "object",
             "properties": properties,
         }
+
+        if definitions:
+            schema["$defs"] = definitions
 
         if required:
             schema["required"] = required

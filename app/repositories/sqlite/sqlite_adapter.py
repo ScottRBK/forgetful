@@ -1,6 +1,8 @@
+import asyncio
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from contextvars import ContextVar
 from uuid import UUID
 
 import sqlite_vec
@@ -119,6 +121,9 @@ class SqliteDatabaseAdapter:
     """
 
     def __init__(self):
+        self._memory_lock = asyncio.Lock() if settings.SQLITE_MEMORY else None
+        self._memory_session_owner = None
+        self._memory_session_context = ContextVar("sqlite_memory_session", default=None)
 
         if not settings.SQLITE_MEMORY:
             from pathlib import Path
@@ -169,43 +174,78 @@ class SqliteDatabaseAdapter:
         )
 
     @asynccontextmanager
-    async def session(self, user_id: UUID) -> AsyncIterator[AsyncSession]:
-        """Create a user-scoped session.
+    async def _connection_guard(self):
+        """Serialize use of the one in-memory connection, including cleanup."""
+        if self._memory_lock is None:
+            yield
+            return
+        inherited_owner = self._memory_session_context.get()
+        if inherited_owner is not None and inherited_owner is self._memory_session_owner:
+            raise RuntimeError("Nested SQLite in-memory sessions are not supported")
+        async with self._memory_lock:
+            self._memory_session_owner = asyncio.current_task()
+            token = self._memory_session_context.set(self._memory_session_owner)
+            try:
+                yield
+            finally:
+                self._memory_session_owner = None
+                self._memory_session_context.reset(token)
 
-        Note: Unlike Postgres, SQLite doesn't have RLS.
-        User isolation MUST be enforced at the application level
-        by including user_id in all WHERE clauses.
+    @asynccontextmanager
+    async def session(self, user_id: UUID) -> AsyncIterator[AsyncSession]:
+        """Create a user-scoped session; queries must enforce user filtering."""
+        async with self._connection_guard():
+            session = self._session_factory()
+            try:
+                yield session
+                await session.commit()
+            except BaseException as error:
+                if isinstance(error, Exception):
+                    logger.exception(
+                        msg="Database session initialization failed", extra={"error": str(error)},
+                    )
+                await session.rollback()
+                raise
+            finally:
+                await session.close()
+
+    @asynccontextmanager
+    async def snapshot_session(self, user_id: UUID) -> AsyncIterator[AsyncSession]:
+        """Keep permission, size and body reads on one database snapshot.
+
+        Memory-mode sessions share the adapter guard; file-backed sessions use
+        independent connections and retain their explicit read transaction.
         """
-        session = self._session_factory()
-        try:
-            # No RLS setup needed - user filtering happens in queries
-            yield session
-            await session.commit()
-        except Exception as e:
-            logger.exception(
-                msg="Database session initialization failed", extra={"error": str(e)},
-            )
-            await session.rollback()
-            raise
-        finally:
-            await session.close()
+        async with self._connection_guard():
+            session = self._session_factory()
+            try:
+                await session.execute(text("BEGIN"))
+                yield session
+                await session.commit()
+            except BaseException:
+                await session.rollback()
+                raise
+            finally:
+                await session.close()
 
     @asynccontextmanager
     async def system_session(self) -> AsyncIterator[AsyncSession]:
-        """Create a system session for admin operations"""
-        session = self._session_factory()
-        try:
-            yield session
-            await session.commit()
-        except Exception as e:
-            logger.exception(
-                msg="Database system session initialization failed",
-                extra={"error": str(e)},
-            )
-            await session.rollback()
-            raise
-        finally:
-            await session.close()
+        """Create a system session for admin operations."""
+        async with self._connection_guard():
+            session = self._session_factory()
+            try:
+                yield session
+                await session.commit()
+            except BaseException as error:
+                if isinstance(error, Exception):
+                    logger.exception(
+                        msg="Database system session initialization failed",
+                        extra={"error": str(error)},
+                    )
+                await session.rollback()
+                raise
+            finally:
+                await session.close()
 
     async def init_db(self) -> None:
         """Initialize database via Alembic migrations.
@@ -216,34 +256,35 @@ class SqliteDatabaseAdapter:
 
         Note: sqlite-vec extension is loaded automatically via event listener on first connection
         """
-        async with self._engine.begin() as conn:
-            logger.info("Initializing SQLite database")
+        async with self._connection_guard():
+            async with self._engine.begin() as conn:
+                logger.info("Initializing SQLite database")
 
-            # Run migrations (Alembic handles fresh vs existing database)
-            await conn.run_sync(self._run_migrations)
-            logger.info("Database schema initialized via Alembic")
+                # Run migrations (Alembic handles fresh vs existing database)
+                await conn.run_sync(self._run_migrations)
+                logger.info("Database schema initialized via Alembic")
 
-            # Create virtual tables for vector storage (not managed by Alembic)
-            await conn.execute(
-                text(f"""
-                CREATE VIRTUAL TABLE IF NOT EXISTS vec_memories USING vec0(
-                    memory_id TEXT PRIMARY KEY,
-                    embedding FLOAT[{settings.EMBEDDING_DIMENSIONS}]
+                # Create virtual tables for vector storage (not managed by Alembic)
+                await conn.execute(
+                    text(f"""
+                    CREATE VIRTUAL TABLE IF NOT EXISTS vec_memories USING vec0(
+                        memory_id TEXT PRIMARY KEY,
+                        embedding FLOAT[{settings.EMBEDDING_DIMENSIONS}]
+                    )
+                """),
                 )
-            """),
-            )
 
-            await conn.execute(
-                text(f"""
-                CREATE VIRTUAL TABLE IF NOT EXISTS vec_skills USING vec0(
-                    skill_id TEXT PRIMARY KEY,
-                    embedding FLOAT[{settings.EMBEDDING_DIMENSIONS}]
+                await conn.execute(
+                    text(f"""
+                    CREATE VIRTUAL TABLE IF NOT EXISTS vec_skills USING vec0(
+                        skill_id TEXT PRIMARY KEY,
+                        embedding FLOAT[{settings.EMBEDDING_DIMENSIONS}]
+                    )
+                """),
                 )
-            """),
-            )
-            logger.info("sqlite-vec virtual tables created for vector storage")
+                logger.info("sqlite-vec virtual tables created for vector storage")
 
-            await self.ensure_memory_fts(conn)
+                await self.ensure_memory_fts(conn)
 
     async def ensure_memory_fts(self, conn) -> bool:
         """Create or repair FTS5 index/triggers; reindex when anything was missing.

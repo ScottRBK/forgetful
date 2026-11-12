@@ -12,10 +12,8 @@ from starlette.responses import JSONResponse
 
 from app.exceptions import NotFoundError
 from app.middleware.auth import get_user_from_request
-from app.models.skill_models import (
-    SkillCreate,
-    SkillUpdate,
-)
+from app.models.skill_models import SkillCreate, SkillUpdate
+from app.utils.bundle_validation import bundle_validation_message
 
 logger = logging.getLogger(__name__)
 
@@ -296,6 +294,57 @@ def register(mcp: FastMCP):
             return JSONResponse({"error": "Skill not found"}, status_code=404)
 
         return JSONResponse({"skill_md": skill_md})
+
+    @mcp.custom_route("/api/v1/skills/bundle/import", methods=["POST"])
+    async def import_skill_bundle(request: Request) -> JSONResponse:
+        """Import a versioned bundle; REST retains identity/ownership authorization."""
+        from app.models.skill_bundle_models import SkillBundle
+
+        try:
+            user = await get_user_from_request(request, mcp)
+        except ValueError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=401)
+        try:
+            body = await request.json()
+            if not isinstance(body, dict) or set(body) - {"bundle", "project_id", "importance"}:
+                raise ValueError("Expected bundle, optional project_id and importance")
+            bundle = SkillBundle.model_validate(body.get("bundle"))
+            result = await mcp.skill_service.import_skill_bundle(
+                user.id, bundle, project_id=body.get("project_id"), importance=body.get("importance", 7),
+            )
+        except (ValueError, ValidationError) as exc:
+            return JSONResponse({"error": bundle_validation_message(exc) if isinstance(exc, ValidationError) else str(exc)}, status_code=400)
+        except NotFoundError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=404)
+        return JSONResponse(result.model_dump(mode="json"), status_code=201)
+
+    @mcp.custom_route("/api/v1/skills/{skill_id}/bundle/export", methods=["POST"])
+    async def export_skill_bundle(request: Request) -> JSONResponse:
+        """Read-only export; optional explicit member selection does not persist."""
+        from app.models.skill_bundle_models import SkillBundleMember
+
+        try:
+            user = await get_user_from_request(request, mcp)
+        except ValueError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=401)
+        try:
+            body = await request.json()
+            if not isinstance(body, dict) or set(body) - {"members"}:
+                raise ValueError("Expected an object with optional members")
+            members = body.get("members")
+            if members is not None:
+                if not isinstance(members, list):
+                    raise ValueError("members must be a list")
+                members = [SkillBundleMember.model_validate(member) for member in members]
+            bundle = await mcp.skill_service.export_skill_bundle(
+                user.id, int(request.path_params["skill_id"]), members,
+                allowed_kinds=frozenset({"document", "code_artifact", "file"}),
+            )
+        except (ValueError, ValidationError) as exc:
+            return JSONResponse({"error": bundle_validation_message(exc) if isinstance(exc, ValidationError) else str(exc)}, status_code=400)
+        except NotFoundError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=404)
+        return JSONResponse(bundle.model_dump(mode="json"))
 
     # ---- Resource linking endpoints ----
 

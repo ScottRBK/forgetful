@@ -14,6 +14,7 @@ from fastmcp.exceptions import ToolError
 from app.config.logging_config import logging
 from app.config.settings import settings
 from app.exceptions import (
+    BundleReadDeniedError,
     PlanPluginRejectedError,
     PlanPluginStateChangedError,
     PlanPluginUnavailableError,
@@ -67,6 +68,7 @@ from app.services.memory_service import MemoryService
 from app.services.project_service import ProjectService
 from app.services.re_embedding_service import ReEmbeddingService
 from app.services.user_service import UserService
+from app.utils.bundle_validation import safe_bundle_validation
 from app.utils.pydantic_helper import filter_none_values
 
 logger = logging.getLogger(__name__)
@@ -2684,6 +2686,65 @@ class SkillToolAdapters:
 
         return result
 
+    @staticmethod
+    def _require_bundle_resource_tools(ctx, kinds: set[str], *, write: bool) -> None:
+        from app.routes.mcp.scope_resolver import get_effective_scopes
+
+        permitted, _ = get_effective_scopes(ctx)
+        names = {"document": "document", "code_artifact": "code_artifact", "file": "file"}
+        prefix = "create_" if write else "get_"
+        required = {prefix + names[kind] for kind in kinds}
+        missing = required - permitted
+        if missing:
+            raise PermissionError("Bundle requires permission for: " + ", ".join(sorted(missing)))
+
+    @safe_bundle_validation
+    async def import_skill_bundle(
+        self, bundle: dict, ctx: Context,
+        project_id: int | None = None, importance: int = 7,
+    ):
+        """Import a new skill package and supporting resources atomically.
+
+        Use import_skill for SKILL.md alone. Activity errors can occur after
+        commit; an error response alone does not prove nothing was saved.
+        """
+        from app.models.skill_bundle_models import SkillBundle
+
+        parsed = SkillBundle.model_validate(bundle)
+        self._require_bundle_resource_tools(ctx, {r.kind for r in parsed.resources}, write=True)
+        user = await get_user_from_auth(ctx)
+        return await self.skill_service.import_skill_bundle(
+            user.id, parsed, project_id=project_id, importance=importance,
+        )
+
+    @safe_bundle_validation
+    async def export_skill_bundle(
+        self, skill_id: int, ctx: Context, members: list[dict] | None = None,
+    ):
+        """Export portable JSON with current resource contents.
+
+        Omit members for stored membership; an explicit list replaces selection
+        for this read only. IDs must be owned and linked; [] selects none.
+        Deleted/unlinked stored members fail. Use export_skill for text alone.
+        """
+        from app.models.skill_bundle_models import SkillBundleMember
+
+        parsed = None if members is None else [SkillBundleMember.model_validate(m) for m in members]
+        if parsed is not None:
+            self._require_bundle_resource_tools(ctx, {m.kind for m in parsed}, write=False)
+        user = await get_user_from_auth(ctx)
+        from app.routes.mcp.scope_resolver import get_effective_scopes
+
+        permitted, _ = get_effective_scopes(ctx)
+        allowed_kinds = frozenset(k for k in ("document", "code_artifact", "file") if "get_" + k in permitted)
+        try:
+            bundle = await self.skill_service.export_skill_bundle(user.id, skill_id, parsed, allowed_kinds=allowed_kinds)
+        except BundleReadDeniedError as error:
+            self._require_bundle_resource_tools(ctx, set(error.kinds), write=False)
+            raise
+        self._require_bundle_resource_tools(ctx, {r.kind for r in bundle.resources}, write=False)
+        return bundle
+
     async def get_skill_links(self, skill_id: int, ctx: Context) -> dict:
         """Adapter for get_skill_links tool"""
         user = await get_user_from_auth(ctx)
@@ -2715,6 +2776,8 @@ def create_skill_adapters(skill_service, user_service: UserService) -> dict[str,
         "delete_skill": adapters.delete_skill,
         "search_skills": adapters.search_skills,
         "import_skill": adapters.import_skill,
+        "import_skill_bundle": adapters.import_skill_bundle,
+        "export_skill_bundle": adapters.export_skill_bundle,
         "export_skill": adapters.export_skill,
         "link_skill_to_memory": adapters.link_skill_to_memory,
         "unlink_skill_from_memory": adapters.unlink_skill_from_memory,

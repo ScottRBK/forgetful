@@ -10,6 +10,7 @@ from app.config.logging_config import logging
 from app.exceptions import NotFoundError
 from app.models.file_models import File, FileCreate, FileSummary, FileUpdate
 from app.repositories.sqlite.project_reference import ensure_project_owned
+from app.repositories.sqlite.resource_rows import build_file_row, file_model
 from app.repositories.sqlite.sqlite_adapter import SqliteDatabaseAdapter
 from app.repositories.sqlite.sqlite_tables import FilesTable
 
@@ -49,29 +50,7 @@ class SqliteFileRepository:
             async with self.db_adapter.session(user_id) as session:
                 await ensure_project_owned(session, user_id, file_data.project_id)
 
-                # Decode base64 to bytes for storage
-                decoded_data = base64.b64decode(file_data.data)
-                size_bytes = len(decoded_data)
-
-                file_table = FilesTable(
-                    user_id=str(user_id),
-                    filename=file_data.filename,
-                    description=file_data.description,
-                    data=decoded_data,
-                    mime_type=file_data.mime_type,
-                    size_bytes=size_bytes,
-                    tags=file_data.tags,
-                    project_id=file_data.project_id,
-                    source_repo=file_data.source_repo,
-                    source_files=file_data.source_files,
-                    source_url=file_data.source_url,
-                    confidence=file_data.confidence,
-                    encoding_agent=file_data.encoding_agent,
-                    encoding_version=file_data.encoding_version,
-                    agent_id=file_data.agent_id,
-                    agent_version=file_data.agent_version,
-                    agent_model=file_data.agent_model,
-                )
+                file_table = build_file_row(user_id, file_data)
 
                 session.add(file_table)
                 await session.commit()
@@ -303,24 +282,4 @@ class SqliteFileRepository:
     @staticmethod
     def _to_file_model(file_table: FilesTable) -> File:
         """Convert ORM model to Pydantic model, encoding data as base64"""
-        return File(
-            id=file_table.id,
-            filename=file_table.filename,
-            description=file_table.description,
-            data=base64.b64encode(file_table.data).decode("utf-8"),
-            mime_type=file_table.mime_type,
-            size_bytes=file_table.size_bytes,
-            tags=file_table.tags,
-            project_id=file_table.project_id,
-            source_repo=file_table.source_repo,
-            source_files=file_table.source_files,
-            source_url=file_table.source_url,
-            confidence=file_table.confidence,
-            encoding_agent=file_table.encoding_agent,
-            encoding_version=file_table.encoding_version,
-            agent_id=file_table.agent_id,
-            agent_version=file_table.agent_version,
-            agent_model=file_table.agent_model,
-            created_at=file_table.created_at,
-            updated_at=file_table.updated_at,
-        )
+        return file_model(file_table)

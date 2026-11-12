@@ -189,11 +189,11 @@ class SqliteTaskRepository:
     async def update_task(
         self, user_id: UUID, task_id: int, task_data: TaskUpdate,
     ) -> Task:
-        async with self.db_adapter.session(user_id) as session:
-            update_data = task_data.model_dump(exclude_unset=True)
-            if not update_data:
-                return await self.get_task_by_id(user_id, task_id)
+        update_data = task_data.model_dump(exclude_unset=True)
+        if not update_data:
+            return await self.get_task_by_id(user_id, task_id)
 
+        async with self.db_adapter.session(user_id) as session:
             update_data["updated_at"] = datetime.now(UTC)
             stmt = (
                 update(TasksTable)

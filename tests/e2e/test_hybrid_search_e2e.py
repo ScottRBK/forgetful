@@ -7,6 +7,7 @@ from uuid import uuid4
 import pytest
 import pytest_asyncio
 from alembic.config import Config
+from alembic.script import ScriptDirectory
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -332,6 +333,19 @@ async def test_migration_round_trip_preserves_hybrid_search(hybrid_repo):
     await _seed_memory(repo, user_id, content="Third filler memory for migration test.")
 
     config = Config(str(Path(__file__).parents[2] / "alembic.ini"))
+    search_tsv_exists = text(
+        "SELECT EXISTS (SELECT 1 FROM information_schema.columns "
+        "WHERE table_schema = current_schema() AND table_name = 'memories' "
+        "AND column_name = 'search_tsv')",
+    )
+
+    bundle_table_exists = text(
+        "SELECT EXISTS (SELECT 1 FROM information_schema.tables "
+        "WHERE table_schema = current_schema() AND table_name = 'skill_bundle_resources')",
+    )
+    migration_heads = text("SELECT version_num FROM alembic_version")
+    expected_heads = ScriptDirectory.from_config(config).get_heads()
+    assert len(expected_heads) == 1
 
     def migrate(connection, direction, revision):
         config.attributes["connection"] = connection
@@ -339,9 +353,21 @@ async def test_migration_round_trip_preserves_hybrid_search(hybrid_repo):
 
     try:
         async with db_adapter._engine.begin() as connection:
-            await connection.run_sync(migrate, "downgrade", "-1")
+            # Scope the rollback to search; keep the bundle branch applied.
+            await connection.run_sync(
+                migrate, "downgrade",
+                "20261103_memory_search_tsv@20261008_plan_external_ref",
+            )
+            assert await connection.scalar(search_tsv_exists) is False
+            assert await connection.scalar(bundle_table_exists) is True
+            assert set((await connection.scalars(migration_heads)).all()) == {
+                "20261107_skill_bundle_resources",
+            }
         async with db_adapter._engine.begin() as connection:
             await connection.run_sync(migrate, "upgrade", "head")
+            assert await connection.scalar(search_tsv_exists) is True
+            assert await connection.scalar(bundle_table_exists) is True
+            assert set((await connection.scalars(migration_heads)).all()) == set(expected_heads)
     except Exception:
         async with db_adapter._engine.begin() as connection:
             await connection.run_sync(migrate, "upgrade", "head")

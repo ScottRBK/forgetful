@@ -6,6 +6,7 @@ from uuid import UUID, uuid4
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     Column,
     DateTime,
     ForeignKey,
@@ -15,6 +16,7 @@ from sqlalchemy import (
     String,
     Table,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.ext.hybrid import hybrid_property
@@ -1228,3 +1230,22 @@ class ActivityLogTable(Base):
         Index("ix_activity_log_user_created", "user_id", "created_at"),
     )
 
+
+
+# Package membership is separate from ordinary graph links. Deleted members remain
+# as tombstones so export reports an incomplete package rather than omitting files.
+skill_bundle_resources = Table(
+    "skill_bundle_resources", Base.metadata,
+    Column("id", Integer, primary_key=True),
+    Column("skill_id", Integer, ForeignKey("skills.id", ondelete="CASCADE"), nullable=False),
+    Column("path", String(500), nullable=False),
+    Column("kind", String(20), nullable=False),
+    Column("document_id", Integer, ForeignKey("documents.id", ondelete="SET NULL")),
+    Column("code_artifact_id", Integer, ForeignKey("code_artifacts.id", ondelete="SET NULL")),
+    Column("file_id", Integer, ForeignKey("files.id", ondelete="SET NULL")),
+    UniqueConstraint("skill_id", "path", name="uq_skill_bundle_path"),
+    CheckConstraint(
+        "(kind = 'document' AND code_artifact_id IS NULL AND file_id IS NULL) OR (kind = 'code_artifact' AND document_id IS NULL AND file_id IS NULL) OR (kind = 'file' AND document_id IS NULL AND code_artifact_id IS NULL)",
+        name="ck_skill_bundle_resource_kind",
+    ),
+)

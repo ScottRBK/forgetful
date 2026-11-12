@@ -1,9 +1,9 @@
 """Context shim for in-process CLI tool execution.
 
-Tool adapters receive a FastMCP Context but read exactly two attributes from it:
-ctx.fastmcp.user_service and ctx.fastmcp.auth (app/middleware/auth.py). auth=None
-routes get_user_from_auth down its default-user branch - identical to today's
-no-auth stdio server.
+Adapters receive the default-user identity plus the actual registry, instance
+scope tokens and permitted-tool ceiling. Nested bundle resource checks use the
+same scope resolver as MCP without inventing a FastMCP request or access token.
+
 """
 from app.bootstrap import Runtime
 
@@ -14,6 +14,9 @@ class _CliRuntime:
     def __init__(self, runtime: Runtime):
         self.user_service = runtime.services.user
         self.auth = None
+        self.registry = runtime.registry
+        self._instance_permitted_tools = runtime.permitted_tools
+        self._instance_scopes = runtime.instance_scopes
 
 
 class CliContext:

@@ -14,6 +14,7 @@ from app.models.code_artifact_models import (
     CodeArtifactUpdate,
 )
 from app.repositories.sqlite.project_reference import ensure_project_owned
+from app.repositories.sqlite.resource_rows import build_code_artifact_row
 from app.repositories.sqlite.sqlite_adapter import SqliteDatabaseAdapter
 from app.repositories.sqlite.sqlite_tables import CodeArtifactsTable
 
@@ -54,24 +55,7 @@ class SqliteCodeArtifactRepository:
                 await ensure_project_owned(session, user_id, artifact_data.project_id)
 
                 # Create ORM model from Pydantic
-                artifact_table = CodeArtifactsTable(
-                    user_id=str(user_id),
-                    title=artifact_data.title,
-                    description=artifact_data.description,
-                    code=artifact_data.code,
-                    language=artifact_data.language.lower(),  # Ensure lowercase
-                    tags=artifact_data.tags,
-                    project_id=artifact_data.project_id,
-                    source_repo=artifact_data.source_repo,
-                    source_files=artifact_data.source_files,
-                    source_url=artifact_data.source_url,
-                    confidence=artifact_data.confidence,
-                    encoding_agent=artifact_data.encoding_agent,
-                    encoding_version=artifact_data.encoding_version,
-                    agent_id=artifact_data.agent_id,
-                    agent_version=artifact_data.agent_version,
-                    agent_model=artifact_data.agent_model,
-                )
+                artifact_table = build_code_artifact_row(user_id, artifact_data)
 
                 session.add(artifact_table)
                 await session.commit()
