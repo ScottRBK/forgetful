@@ -40,9 +40,11 @@ from app.models.entity_models import (
 from app.models.memory_models import (
     Memory,
     MemoryCreate,
+    MemoryQueryCompactResult,
     MemoryQueryRequest,
     MemoryQueryResult,
     MemoryUpdate,
+    QueryMemoryResponseFormat,
 )
 from app.models.project_models import (
     Project,
@@ -53,6 +55,10 @@ from app.models.project_models import (
 )
 from app.models.user_models import UserResponse, UserUpdate
 from app.routes.mcp.pagination import clamp_list_pagination
+from app.routes.mcp.query_memory_format import (
+    project_query_memory_result,
+    require_query_memory_response_format,
+)
 from app.routes.plan_plugin_responses import PlanWriteResponse, TaskTransitionResponse
 from app.routes.write_plugin_responses import (
     EntityDeleteResponse,
@@ -279,8 +285,11 @@ class MemoryToolAdapters:
         importance_threshold: int | None = None,
         project_ids: list[int] | None = None,
         strict_project_filter: bool = False,
-    ) -> MemoryQueryResult:
+        response_format: QueryMemoryResponseFormat = "full",
+    ) -> MemoryQueryResult | MemoryQueryCompactResult:
         """Adapter for query_memory tool"""
+        response_format = require_query_memory_response_format(response_format)
+
         logger.info(
             "MCP Tool -> query_memory",
             extra={"query": query[:50], "k": k, "include_links": include_links},
@@ -316,10 +325,11 @@ class MemoryToolAdapters:
             extra={
                 "total_memories_returned": result.total_count,
                 "token_count": result.token_count,
+                "response_format": response_format,
             },
         )
 
-        return result
+        return project_query_memory_result(result, response_format)
 
     async def update_memory(
         self,

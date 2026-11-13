@@ -13,11 +13,17 @@ from app.models.memory_models import (
     Memory,
     MemoryCreate,
     MemoryCreateResponse,
+    MemoryQueryCompactResult,
     MemoryQueryRequest,
     MemoryQueryResult,
     MemoryUpdate,
+    QueryMemoryResponseFormat,
 )
 from app.routes.mcp.pagination import clamp_list_pagination
+from app.routes.mcp.query_memory_format import (
+    project_query_memory_result,
+    require_query_memory_response_format,
+)
 from app.routes.mcp.tool_adapters import _coerce_int_id
 from app.utils.pydantic_helper import filter_none_values
 
@@ -194,7 +200,8 @@ def register(mcp: FastMCP):
         importance_threshold: int = None,
         project_ids: list[int] = None,
         strict_project_filter: bool = False,
-    ) -> MemoryQueryResult:
+        response_format: QueryMemoryResponseFormat = "full",
+    ) -> MemoryQueryResult | MemoryQueryCompactResult:
         """Search across memories
 
         WHEN: User asks about past information, wants to recall discussions, needs context from memory system, you are performing a task that you may
@@ -221,17 +228,23 @@ def register(mcp: FastMCP):
             project_ids: Filter results to one or more projects (optional). Accepts array of integers or None.
             strict_project_filter: Set to true when querying for a specific project and you want linked memories restricted to that project only.
             False (default) allows cross-project discovery pattern
-            
+            response_format: "full" (default) returns complete Memory objects and scores
+            with similarity/rerank_score; "compact" returns a smaller token-economy shape
+            (primary: id, title, content, context, importance, tags, project_ids;
+            linked: those keys plus link_source_id, no nested memory;
+            scores: memory_id, similarity, fusion_score when hybrid search is enabled).
+            query, total_count, token_count, truncated
+            are present in both shapes.
+
         Returns:
-            query: original query text
-            primary_memories: List of primary related memories
-            linked_memories: List of linked memories to each of the primary memories
-            scores: one {memory_id, similarity, rerank_score} per primary memory, same order
-            total_count: int total count of memories
-            token_count: token count of retrieved memories
-            truncated: boolean to indicate if the memories have been truncated as a result of the token budget
+            MemoryQueryResult when response_format is full (default): primary_memories,
+            linked_memories, scores {memory_id, similarity, rerank_score, optional fusion_score},
+            total_count, token_count, truncated.
+            MemoryQueryCompactResult when response_format is compact: reduced key sets above.
         """
         try:
+            response_format = require_query_memory_response_format(response_format)
+
             logger.info("MCP Tool -> query_memory", extra={
                 "query": query[:50],
                 "k": k,
@@ -265,9 +278,12 @@ def register(mcp: FastMCP):
             logger.info("MCP Tool -> query memory completed", extra={
                 "total_memories_returned": result.total_count,
                 "token_count": result.token_count,
+                "response_format": response_format,
             })
 
-            return result
+            return project_query_memory_result(result, response_format)
+        except ToolError:
+            raise
         except NotFoundError as e:
             logger.debug("MCP Tool - query_memory validation error", extra={
                 "query": query[:50],
