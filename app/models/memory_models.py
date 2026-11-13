@@ -514,14 +514,8 @@ class MemoryQueryCompactResult(BaseModel):
 
 
 def _memory_to_compact_query_memory(memory: Memory) -> CompactQueryMemory:
-    return CompactQueryMemory(
-        id=memory.id,
-        title=memory.title,
-        content=memory.content,
-        context=memory.context,
-        importance=memory.importance,
-        tags=memory.tags,
-        project_ids=memory.project_ids,
+    return CompactQueryMemory.model_validate(
+        memory.model_dump(include=set(CompactQueryMemory.model_fields)),
     )
 
 

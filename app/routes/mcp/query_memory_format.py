@@ -16,7 +16,11 @@ from app.models.memory_models import (
 
 
 def require_query_memory_response_format(value: str) -> QueryMemoryResponseFormat:
-    """Validate response_format, raising ToolError VALIDATION_ERROR on unknown values."""
+    """Validate response_format, raising ToolError VALIDATION_ERROR on unknown values.
+
+    execute_forgetful_tool passes adapters **arguments without annotation checks, so this
+    must run before retrieval on that path.
+    """
     try:
         return parse_query_memory_response_format(value)
     except ValueError as exc:

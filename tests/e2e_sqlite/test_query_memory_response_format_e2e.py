@@ -49,8 +49,9 @@ async def _seed_query_memory_fixture(mcp_client):
     })
 
 
-async def _query_memory_for_format_tests(mcp_client, response_format=None):
-    await _seed_query_memory_fixture(mcp_client)
+async def _query_memory_for_format_tests(mcp_client, response_format=None, *, seed=True):
+    if seed:
+        await _seed_query_memory_fixture(mcp_client)
     arguments = {
         "query": "python testing practices",
         "query_context": "looking for testing information",
@@ -78,9 +79,10 @@ async def test_query_memory_default_response_format_is_full_e2e(mcp_client):
 @pytest.mark.asyncio
 async def test_query_memory_explicit_full_matches_default_e2e(mcp_client):
     """response_format=full matches the default key sets."""
-    default_result = await _query_memory_for_format_tests(mcp_client)
+    await _seed_query_memory_fixture(mcp_client)
+    default_result = await _query_memory_for_format_tests(mcp_client, seed=False)
     full_result = await _query_memory_for_format_tests(
-        mcp_client, response_format="full",
+        mcp_client, response_format="full", seed=False,
     )
     assert default_result.data is not None
     assert full_result.data is not None

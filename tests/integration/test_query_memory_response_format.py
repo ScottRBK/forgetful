@@ -1,4 +1,4 @@
-"""Unit tests for query_memory response_format validation and projection (no DB)."""
+"""Integration tests for query_memory response_format parsing, projection, and pre-retrieval validation (in-memory stubs, no database)."""
 
 import inspect
 from types import SimpleNamespace
