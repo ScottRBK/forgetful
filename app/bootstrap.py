@@ -229,17 +229,24 @@ class Runtime:
 async def build_runtime() -> Runtime:
     """Build the full runtime stack: adapters -> repos -> services -> registry -> scopes."""
     from app.config.plan_plugin import load_plan_plugin
-    from app.config.write_plugin import load_entity_plugin, load_write_plugin
+    from app.config.write_plugin import (
+        load_entity_plugin,
+        load_memory_link_plugin,
+        load_write_plugin,
+    )
     from app.services.entity_write_plugin_service import EntityWritePluginService
+    from app.services.memory_link_service import MemoryLinkService
     from app.services.plan_write_plugin_service import PlanWritePluginService
     from app.services.write_plugin_service import WritePluginService
 
+    link_registration = load_memory_link_plugin(settings)
     plugin = load_write_plugin(settings)
     entity_plugin = load_entity_plugin(settings)
     plan_registration = load_plan_plugin(settings)
     plugin_logger_states = {}
     for registration, reference in (
         (plugin, settings.MEMORY_WRITE_PLUGIN),
+        (link_registration, settings.MEMORY_LINK_PLUGIN),
         (entity_plugin, settings.ENTITY_WRITE_PLUGIN),
         (plan_registration, settings.PLAN_WRITE_PLUGIN),
     ):
@@ -291,6 +298,7 @@ async def build_runtime() -> Runtime:
         logging.getLogger("app.services.write_plugin_service").disabled = False
         logging.getLogger("app.services.entity_write_plugin_service").disabled = False
         logging.getLogger("app.services.plan_write_plugin_service").disabled = False
+        logging.getLogger("app.services.memory_link_service").disabled = False
         for plugin_logger, was_disabled in plugin_logger_states.items():
             plugin_logger.disabled = was_disabled
         logger.info("Database initialized")
@@ -321,8 +329,16 @@ async def build_runtime() -> Runtime:
             logger.info("Activity tracking disabled (ACTIVITY_ENABLED=false) - API available but no events emitted")
 
         user_service = UserService(repos["user"])
-        memory_service = MemoryService(repos["memory"], event_bus=event_bus, write_plugin=write_plugin)
-        re_embedding_service = ReEmbeddingService(repos["memory"], embeddings_adapter)
+        link_plugin = (MemoryLinkService(
+            repos["memory"], link_registration, mode=settings.MEMORY_LINK_PLUGIN_MODE,
+            timeout_seconds=settings.MEMORY_LINK_PLUGIN_TIMEOUT_SECONDS,
+        ) if link_registration is not None else None)
+        memory_service = MemoryService(
+            repos["memory"], event_bus=event_bus, write_plugin=write_plugin, link_plugin=link_plugin,
+        )
+        re_embedding_service = ReEmbeddingService(
+            repos["memory"], embeddings_adapter, link_plugin=link_plugin,
+        )
         if event_bus is not None:
             memory_service.register_access_tracking_handlers(event_bus)
         project_service = ProjectService(repos["project"], event_bus=event_bus)

@@ -91,6 +91,7 @@ class MemoryCreateResult(BaseModel):
     memory: Memory
     similar_memories: list[MemorySummary] = Field(default_factory=list)
     plugin_warnings: list[PluginWarning] = Field(default_factory=list)
+    link_outcomes: list["MemoryLinkOutcome"] | None = None
 
 
 class MemoryUpdateResult(BaseModel):
@@ -142,3 +143,51 @@ class EntityWriteResult(BaseModel):
 class EntityDeleteResult(BaseModel):
     deleted: bool
     plugin_warnings: list[PluginWarning] = Field(default_factory=list)
+
+
+MemoryLinkOperation = Literal["link", "unlink"]
+
+
+class MemoryLinkOutcome(BaseModel):
+    target_id: int
+    status: Literal["created", "rejected", "skipped", "removed", "noop"]
+
+
+class MemoryLinkRequest(BaseModel):
+    operation: MemoryLinkOperation
+    user_id: UUID
+    origin: Literal["manual", "automatic"]
+    source: Memory
+    target: Memory
+
+
+class MemoryLinkSavedRequest(BaseModel):
+    """Detached preflight snapshots and confirmed outcomes, not an atomic DB view."""
+    operation: MemoryLinkOperation
+    user_id: UUID
+    origin: Literal["manual", "automatic"]
+    pairs: list[MemoryLinkRequest]
+    outcomes: list[MemoryLinkOutcome]
+
+
+class MemoryLinkResult(BaseModel):
+    operation: MemoryLinkOperation
+    outcomes: list[MemoryLinkOutcome] = Field(default_factory=list)
+    plugin_warnings: list[PluginWarning] = Field(default_factory=list)
+
+    @property
+    def created_ids(self) -> list[int]:
+        return [item.target_id for item in self.outcomes if item.status == "created"]
+
+    @property
+    def all_removed(self) -> bool:
+        return bool(self.outcomes) and all(item.status == "removed" for item in self.outcomes)
+
+    def response_fields(self) -> dict:
+        fields = {"link_outcomes": [item.model_dump(mode="json") for item in self.outcomes]}
+        if self.plugin_warnings:
+            fields["plugin_warnings"] = [item.model_dump(mode="json") for item in self.plugin_warnings]
+        return fields
+
+
+MemoryCreateResult.model_rebuild()

@@ -11,6 +11,7 @@ from uuid import UUID
 from app.config.settings import settings
 from app.protocols.embedding_protocol import EmbeddingsAdapter
 from app.protocols.memory_protocol import MemoryRepository, ValidationResult
+from app.services.memory_link_service import MemoryLinkService
 from app.utils.embedding_helpers import build_embedding_text
 
 logger = logging.getLogger(__name__)
@@ -35,6 +36,8 @@ class TargetedRebuildResult:
     rebuilt_ids: list[int] = field(default_factory=list)
     skipped_ids: list[int] = field(default_factory=list)
     failed: list[dict] = field(default_factory=list)
+    link_outcomes: list[dict] | None = None
+    plugin_warnings: list[dict] = field(default_factory=list)
 
 
 class ReEmbeddingService:
@@ -45,10 +48,12 @@ class ReEmbeddingService:
         memory_repository: MemoryRepository,
         embedding_adapter: EmbeddingsAdapter,
         batch_size: int = 20,
+        link_plugin: MemoryLinkService | None = None,
     ):
         self.memory_repository = memory_repository
         self.embedding_adapter = embedding_adapter
         self.batch_size = batch_size
+        self._link_plugin = link_plugin
 
     async def re_embed_all(
         self,
@@ -297,6 +302,10 @@ class ReEmbeddingService:
         if settings.MEMORY_NUM_AUTO_LINK <= 0:
             return
 
+        active = self._link_plugin is not None and self._link_plugin.active("link")
+        if active:
+            result.link_outcomes = []
+
         for memory_id in memory_ids:
             try:
                 similar_memories = await self.memory_repository.find_similar_memories(
@@ -304,13 +313,26 @@ class ReEmbeddingService:
                     memory_id=memory_id,
                     max_links=settings.MEMORY_NUM_AUTO_LINK,
                 )
-                if not similar_memories:
-                    continue
-                await self.memory_repository.create_links_batch(
-                    user_id=user_id,
-                    source_id=memory_id,
-                    target_ids=[memory.id for memory in similar_memories],
-                )
+                if active:
+                    linked = await self._link_plugin.link(
+                        user_id, memory_id, [memory.id for memory in similar_memories],
+                        origin="automatic",
+                    )
+                    if result.link_outcomes is None:
+                        result.link_outcomes = []
+                    result.link_outcomes.extend(
+                        {"source_id": memory_id, **item.model_dump(mode="json")}
+                        for item in linked.outcomes
+                    )
+                    result.plugin_warnings.extend(
+                        item.model_dump(mode="json") for item in linked.plugin_warnings
+                    )
+                elif similar_memories:
+                    await self.memory_repository.create_links_batch(
+                        user_id=user_id,
+                        source_id=memory_id,
+                        target_ids=[memory.id for memory in similar_memories],
+                    )
             except Exception as exc:  # noqa: BLE001 - link failures are per-memory partial failures
                 logger.exception("rebuild_embeddings: auto-link failed", extra={
                     "memory_id": memory_id,
