@@ -249,12 +249,14 @@ Semantic search across all memories with context-aware ranking.
 - `importance_threshold` (optional): Minimum importance score
 - `project_ids` (optional): Project IDs to search
 - `strict_project_filter` (optional): Apply the project filter to linked memories
+- `response_format` (optional): `"full"` (default) or `"compact"`. Any other value raises `VALIDATION_ERROR` before the search runs
 
 **Returns:**
 - List of memories ranked by semantic relevance
 - Each memory includes linked artifacts and 1-hop graph connections
 - `scores`: One `MemoryScore` per primary memory (`memory_id`, `similarity`, `rerank_score`), aligned by index with `primary_memories`. Primaries are importance-sorted after retrieval, so list position is not similarity rank.
 - `access_count` / `last_accessed_at` on each returned **full** `Memory` (not on `MemorySummary`). On upstream they increment when `memory.queried` fires, which requires `ACTIVITY_TRACK_READS=true` and an EventBus. Not request parameters.
+- With `response_format="compact"`: each primary memory keeps only `id`, `title`, `content`, `context`, `importance`, `tags`, `project_ids`; each linked memory keeps the same keys plus `link_source_id`, with no nested `memory`; each score keeps `memory_id` and `similarity`, plus `fusion_score` when `HYBRID_SEARCH_ENABLED=true`. `query`, `total_count`, `token_count` and `truncated` are unchanged. Use it when the caller only needs the memory text, not timestamps, access counters or per-stage scores.
 
 **Example:**
 ```python

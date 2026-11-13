@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_serializer
 
@@ -462,6 +463,103 @@ class MemoryQueryResult(BaseModel):
     total_count: int
     token_count: int
     truncated: bool = Field(False, description="Whether the results were truncated due to token budget")
+
+
+QueryMemoryResponseFormat = Literal["full", "compact"]
+
+
+class CompactQueryMemory(BaseModel):
+    """Token-economy projection of a primary memory in query_memory compact mode."""
+
+    id: int
+    title: str
+    content: str
+    context: str
+    importance: int
+    tags: list[str]
+    project_ids: list[int]
+
+
+class CompactLinkedQueryMemory(CompactQueryMemory):
+    """Flattened linked memory row for query_memory compact mode."""
+
+    link_source_id: int
+
+
+class CompactMemoryScore(BaseModel):
+    """Token-economy score row for query_memory compact mode."""
+
+    memory_id: int
+    similarity: float
+    fusion_score: float | None = None
+
+    @model_serializer(mode="wrap")
+    def _serialize_compact_memory_score(self, serializer, _info):
+        data = serializer(self)
+        if self.fusion_score is None:
+            data.pop("fusion_score", None)
+        return data
+
+
+class MemoryQueryCompactResult(BaseModel):
+    """Compact response model for memory query."""
+
+    query: str
+    primary_memories: list[CompactQueryMemory]
+    linked_memories: list[CompactLinkedQueryMemory] = Field(default_factory=list)
+    scores: list[CompactMemoryScore] = Field(default_factory=list)
+    total_count: int
+    token_count: int
+    truncated: bool = Field(False, description="Whether the results were truncated due to token budget")
+
+
+def _memory_to_compact_query_memory(memory: Memory) -> CompactQueryMemory:
+    return CompactQueryMemory(
+        id=memory.id,
+        title=memory.title,
+        content=memory.content,
+        context=memory.context,
+        importance=memory.importance,
+        tags=memory.tags,
+        project_ids=memory.project_ids,
+    )
+
+
+def compact_memory_query_result(result: MemoryQueryResult) -> MemoryQueryCompactResult:
+    """Project a full query result into compact MCP response shape."""
+
+    return MemoryQueryCompactResult(
+        query=result.query,
+        primary_memories=[
+            _memory_to_compact_query_memory(memory) for memory in result.primary_memories
+        ],
+        linked_memories=[
+            CompactLinkedQueryMemory(
+                **_memory_to_compact_query_memory(linked.memory).model_dump(),
+                link_source_id=linked.link_source_id,
+            )
+            for linked in result.linked_memories
+        ],
+        scores=[
+            CompactMemoryScore(
+                memory_id=score.memory_id,
+                similarity=score.similarity,
+                fusion_score=score.fusion_score,
+            )
+            for score in result.scores
+        ],
+        total_count=result.total_count,
+        token_count=result.token_count,
+        truncated=result.truncated,
+    )
+
+
+def parse_query_memory_response_format(value: str) -> QueryMemoryResponseFormat:
+    """Return value as a QueryMemoryResponseFormat; raise ValueError otherwise."""
+    if value not in ("full", "compact"):
+        raise ValueError(f"response_format must be 'full' or 'compact', got {value!r}")
+    return value
+
 
 class MemoryLinkRequest(BaseModel):
     """Request model for linking memories"""
