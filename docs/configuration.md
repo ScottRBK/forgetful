@@ -1640,3 +1640,90 @@ Deleting a plan cascades its tasks, criteria and dependency edges in the databas
 without per-task callbacks. Project/user deletion can cascade plans without Plan
 callbacks. Those indirect removals do not invoke an administrator's delete policy;
 use existing core authorization rather than treating hooks as cascade protection.
+
+
+## Memory Link Plugin
+
+A trusted, optional Python registration can check explicit and automatic memory links,
+and observe links actually created or removed. This is separate from `MEMORY_WRITE_PLUGIN`
+(memory fields), Entity/Plan plugins, and skill hooks. It has no installation or network
+lookup: put the module in the server's Python environment before startup.
+
+| Setting | Default | Purpose |
+| --- | --- | --- |
+| `MEMORY_LINK_PLUGIN` | empty | Importable `module:object` containing a `MemoryLinkPlugin` |
+| `MEMORY_LINK_PLUGIN_MODE` | `enforce` | `warn` or `enforce`, for before-save decisions |
+| `MEMORY_LINK_PLUGIN_TIMEOUT_SECONDS` | `5.0` | Positive finite cooperative deadline per handler |
+
+```python
+from app.models.write_plugin_models import PluginWarning, WriteDecision
+from app.protocols.write_plugin_protocol import MemoryLinkPlugin
+
+async def before_link(request):
+    # Detached, owned source/target Memory snapshots; no persistence capability.
+    if "do-not-link" in request.target.tags:
+        return WriteDecision(outcome="reject", message="This target must remain separate.")
+    return WriteDecision(outcome="allow")
+
+async def after_change(request):
+    # Once per changed operation: actual outcomes plus detached preflight snapshots
+    # for changed pairs. These are not a transactionally current database snapshot.
+    return PluginWarning(message="Review the new relationship.", code="CHECK_LINK")
+
+plugin = MemoryLinkPlugin(
+    before_save={"link": before_link},
+    after_save={"link": after_change, "unlink": after_change},
+)
+```
+
+Set `MEMORY_LINK_PLUGIN=my_plugins.memory_links:plugin`. Both fixed maps support only
+`link` and `unlink`, are copied/frozen at startup, and accept async one-argument handlers.
+An invalid reference, registration, mode or timeout fails startup before costly resources.
+Missing operation mappings skip that phase; registering neither phase for an operation
+preserves that operation's exact legacy response.
+
+Before-save receives `operation`, `user_id`, `origin` (`manual` or `automatic`) and
+separate source/target snapshots. It returns `WriteDecision(allow|warn|reject)`; warnings
+and rejections require a nonblank, client-safe message. Handlers cannot rewrite the input.
+No database session is held across a handler await. They are trusted code: the timeout is
+cooperative and is not a sandbox or a guarantee against blocking synchronous work.
+
+For a **manual batch**, every eligible target is checked before the first mutation.
+Handler errors, timeouts, malformed decisions and a cancelled child task (without cancellation
+of the request itself) count as unavailability.
+Enforce-mode rejection or unavailability returns a typed error with zero batch writes;
+warn mode proceeds and returns warnings. Targets are deduplicated. Self, already-linked,
+foreign and missing targets are skipped without policy calls; foreign and missing IDs
+have identical outcomes and never expose content. With N eligible targets, sequential
+before-save work may take up to **N × timeout** plus persistence and one after-save timeout.
+An unlink checks only currently linked, owned pairs, preflighting the whole MCP multi-target
+request before deleting any link. The actual repository result determines each outcome;
+persistence is still per pair, not a new cross-pair database transaction.
+
+**Automatic linking** runs after memory creation commits and after targeted embedding
+rebuilds. Rejection/unavailability (including a cancelled child with no cancellation of
+the request itself) skips that target with a warning; it cannot turn a saved memory into
+a rejected create. Genuine request cancellation propagates. The create result, created
+event and Memory after-save hook carry only IDs actually linked. Link after-save runs
+before Memory after-save. Existing neighbor search runs once; there is no second search.
+
+An operation with either phase registered returns transient `link_outcomes`: link statuses
+are `created`, `rejected` (automatic only) or `skipped`; unlink statuses are `removed` or
+`noop`. `plugin_warnings` appears only when nonempty. After-save runs **once per operation**
+only if at least one pair changed, with `pairs` snapshots for those pairs and the full actual
+outcome list (IDs only for skipped/rejected targets). It returns an optional `PluginWarning`.
+After-save exceptions, malformed responses, timeouts or child cancellation become sanitized
+warnings without undoing changes; genuine request cancellation propagates. These outcomes
+and warnings are never stored on Memory rows or returned by memory reads.
+
+REST keeps `linked_ids`, MCP/CLI keep `linked_memory_ids`, and unlink keeps `success`.
+The extra fields are present only for a registered operation. REST unlink still returns
+404 for a no-op, with its structured `noop` outcome. Manual rejection/unavailability maps
+to REST 400/503 or MCP/CLI `WRITE_PLUGIN_REJECTED`/`WRITE_PLUGIN_UNAVAILABLE`.
+
+Coverage includes MemoryService create/manual link/unlink and targeted ReEmbeddingService
+additive auto-link recomputation. Physical database backup/restore, direct administrative
+SQL and database FK cascades on memory/user deletion bypass these per-link hooks. Full
+re-embedding resets vector storage only; it does not mutate links. There is no durable
+callback delivery, exactly-once guarantee, rollback of committed memory, or generalized
+relationship/import plugin API. Keep client-safe messages free of secrets and memory content.

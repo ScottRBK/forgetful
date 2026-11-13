@@ -622,7 +622,7 @@ def register_memory_tools_metadata(
                     "required": True,
                 },
             ],
-            "returns": "List of memory IDs that were successfully linked",
+            "returns": "Dict with linked_memory_ids newly created. With a registered link policy: link_outcomes and nonempty plugin_warnings. Manual policy errors preflight the whole batch.",
             "examples": [
                 'execute_forgetful_tool("link_memories", {"memory_id": 42, "related_ids": [10, 15, 20]})',
                 'execute_forgetful_tool("link_memories", {"source_id": 42, "target_id": 57})',
@@ -656,7 +656,7 @@ def register_memory_tools_metadata(
                     "required": True,
                 },
             ],
-            "returns": "Dict with 'success' boolean (True if all requested links were removed, False if any link didn't exist)",
+            "returns": "Dict with 'success' boolean (True if all requested links were removed). With a registered unlink policy: removed/noop link_outcomes and nonempty plugin_warnings; all targets are preflighted before writes.",
             "examples": [
                 'execute_forgetful_tool("unlink_memories", {"source_id": 42, "target_id": 57})',
                 'execute_forgetful_tool("unlink_memories", {"memory_id": 42, "related_id": 57})',

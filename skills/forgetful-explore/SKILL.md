@@ -84,3 +84,9 @@ line (e.g. "query → 3 memories → AuthService entity → 2 dependent componen
 memories").
 
 Done when: the user gets a connected answer with cited IDs and visible gaps.
+
+
+When manually linking or unlinking, inspect a configured Memory Link Plugin's transient
+`link_outcomes` and nonempty `plugin_warnings`. A rejected manual batch changes no links;
+missing/foreign targets remain indistinguishable skips. `removed` and `noop` unlink outcomes
+are authoritative, while memory reads do not retain these response-only fields.

@@ -24,6 +24,7 @@ from app.models.memory_models import (
     MemoryQueryRequest,
     MemoryUpdate,
 )
+from app.models.write_plugin_models import MemoryLinkResult
 from app.routes.write_plugin_responses import (
     MemoryCreateWriteResponse,
     MemoryLifecycleResponse,
@@ -228,6 +229,7 @@ def register(mcp: FastMCP):
             similar_memories=similar_memories,
             obsolete_matches=obsolete_matches,
             plugin_warnings=write_result.plugin_warnings,
+            link_outcomes=write_result.link_outcomes,
         )
 
         return JSONResponse(response.model_dump(mode="json"), status_code=201)
@@ -362,7 +364,13 @@ def register(mcp: FastMCP):
             )
         except NotFoundError:
             return JSONResponse({"error": "Memory not found"}, status_code=404)
+        except WritePluginRejectedError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        except WritePluginUnavailableError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=503)
 
+        if isinstance(linked_ids, MemoryLinkResult):
+            return JSONResponse({"linked_ids": linked_ids.created_ids, **linked_ids.response_fields()})
         return JSONResponse({"linked_ids": linked_ids})
 
     @mcp.custom_route("/api/v1/memories/{memory_id}/links", methods=["GET"])
@@ -428,7 +436,17 @@ def register(mcp: FastMCP):
             )
         except NotFoundError:
             return JSONResponse({"error": "Memory not found"}, status_code=404)
+        except WritePluginRejectedError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        except WritePluginUnavailableError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=503)
 
+        if isinstance(success, MemoryLinkResult):
+            if not success.all_removed:
+                return JSONResponse(
+                    {"error": "Link not found", **success.response_fields()}, status_code=404,
+                )
+            return JSONResponse({"success": True, **success.response_fields()})
         if not success:
             return JSONResponse({"error": "Link not found"}, status_code=404)
 
