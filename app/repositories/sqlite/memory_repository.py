@@ -5,7 +5,7 @@ from typing import Any
 from uuid import UUID
 
 import sqlite_vec
-from sqlalchemy import bindparam, or_, select, text, update
+from sqlalchemy import bindparam, func, or_, select, text, update
 from sqlalchemy.exc import IntegrityError, NoResultFound, SQLAlchemyError
 from sqlalchemy.orm import selectinload
 
@@ -1234,7 +1234,36 @@ class SqliteMemoryRepository:
         """
         from app.repositories.sqlite.sqlite_tables import memory_project_association
 
-        # Build base query with eager loading
+        # Build base conditions
+        conditions = [MemoryTable.user_id == str(user_id)]
+
+        # Conditional obsolete filter
+        if not include_obsolete:
+            conditions.append(MemoryTable.is_obsolete.is_(False))
+
+        if importance_min is not None:
+            conditions.append(MemoryTable.importance >= importance_min)
+
+        if created_since is not None:
+            conditions.append(MemoryTable.created_at >= created_since.astimezone(UTC))
+
+        # Tag filter: OR over the JSON array via json_each. json_each only fails
+        # inside FTS content views (see sqlite_adapter.py).
+        if tags:
+            tag_values = func.json_each(MemoryTable.tags).table_valued("value")
+            conditions.append(
+                select(1).select_from(tag_values).where(tag_values.c.value.in_(tags)).exists(),
+            )
+
+        # Apply project filter if provided
+        if project_ids:
+            project_filter = select(memory_project_association.c.memory_id).where(
+                memory_project_association.c.memory_id == MemoryTable.id,
+                memory_project_association.c.project_id.in_(project_ids),
+            ).exists()
+            conditions.append(project_filter)
+
+        # Build main query with eager loading
         stmt = (
             select(MemoryTable)
             .options(
@@ -1246,26 +1275,8 @@ class SqliteMemoryRepository:
                 selectinload(MemoryTable.files),
                 selectinload(MemoryTable.skills),
             )
-            .where(MemoryTable.user_id == str(user_id))
+            .where(*conditions)
         )
-
-        # Conditional obsolete filter
-        if not include_obsolete:
-            stmt = stmt.where(MemoryTable.is_obsolete.is_(False))
-
-        if importance_min is not None:
-            stmt = stmt.where(MemoryTable.importance >= importance_min)
-
-        if created_since is not None:
-            stmt = stmt.where(MemoryTable.created_at >= created_since.astimezone(UTC))
-
-        # Apply project filter if provided
-        if project_ids:
-            project_filter = select(memory_project_association.c.memory_id).where(
-                memory_project_association.c.memory_id == MemoryTable.id,
-                memory_project_association.c.project_id.in_(project_ids),
-            ).exists()
-            stmt = stmt.where(project_filter)
 
         # Dynamic sorting
         sort_column_map = {
@@ -1282,28 +1293,21 @@ class SqliteMemoryRepository:
         else:
             stmt = stmt.order_by(order, id_tiebreak)
 
+        # Apply pagination in SQL so one page costs one page
+        stmt = stmt.offset(offset).limit(limit)
+
+        # Build count query (same conditions, no limit/offset)
+        count_stmt = select(func.count()).select_from(MemoryTable).where(*conditions)
+
         async with self.db_adapter.session(user_id) as session:
-            # Execute main query
+            total = await session.scalar(count_stmt)
+
             result = await session.execute(stmt)
-            all_memories = result.scalars().all()
-
-            # Tag filtering in Python (SQLite JSON doesn't support efficient array overlap)
-            if tags:
-                tag_set = set(tags)
-                all_memories = [
-                    m for m in all_memories
-                    if m.tags and tag_set.intersection(m.tags)
-                ]
-
-            # Get total count before pagination
-            total = len(all_memories)
-
-            # Apply pagination
-            paginated_memories = all_memories[offset:offset + limit]
+            memories = result.scalars().all()
 
             logger.info("Retrieved recent memories", extra={
                 "user_id": str(user_id),
-                "count": len(paginated_memories),
+                "count": len(memories),
                 "total": total,
                 "limit": limit,
                 "offset": offset,
@@ -1314,7 +1318,7 @@ class SqliteMemoryRepository:
                 "tags_filter": tags,
             })
 
-            return [Memory.model_validate(m) for m in paginated_memories], total
+            return [Memory.model_validate(m) for m in memories], total
 
     async def _link_projects(self, session, memory: MemoryTable, project_ids: list[int], user_id: UUID) -> None:
         """Link memory to projects"""
