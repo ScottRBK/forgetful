@@ -54,3 +54,15 @@ class TestGraphMaxGraphLimitSetting:
         assert meta["limit"] == 10, (
             f"Expected meta.limit=10 (user value, below cap), got {meta['limit']}"
         )
+
+    @pytest.mark.asyncio
+    async def test_non_positive_limit_is_rejected(self, http_client):
+        """A non-positive limit is a 400, never an unbounded query.
+
+        SQLite reads ``LIMIT -1`` as "no limit", so accepting a negative value
+        would bypass MAX_GRAPH_LIMIT and return every memory.
+        """
+        for value in ("-1", "0"):
+            response = await http_client.get(f"/api/v1/graph?limit={value}")
+            assert response.status_code == 400, f"limit={value} was accepted"
+            assert "limit" in response.json()["error"]

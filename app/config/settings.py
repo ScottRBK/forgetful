@@ -220,7 +220,7 @@ class Settings(BaseSettings):
     # Safety cap for the /api/v1/graph and /api/v1/graph/subgraph endpoints.
     # Prevents clients from requesting an unbounded number of nodes in a single
     # response while staying configurable for larger graphs (see issue #23).
-    MAX_GRAPH_LIMIT: int = 2000                  # Upper bound for ?limit and ?max_nodes query params
+    MAX_GRAPH_LIMIT: int = Field(default=2000, ge=1)  # Upper bound for ?limit and ?max_nodes query params
 
     # Search Configuration
     EMBEDDING_PROVIDER: str = "FastEmbed" # FastEmbed | Azure | Google | OpenAI | Ollama
