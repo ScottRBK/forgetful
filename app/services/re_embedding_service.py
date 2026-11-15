@@ -303,7 +303,7 @@ class ReEmbeddingService:
             return
 
         active = self._link_plugin is not None and self._link_plugin.active("link")
-        if active:
+        if active and result.link_outcomes is None:
             result.link_outcomes = []
 
         for memory_id in memory_ids:

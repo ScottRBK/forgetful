@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+from collections.abc import Awaitable, Callable
 from typing import Literal
 from uuid import UUID
 
@@ -24,6 +25,7 @@ from app.protocols.write_plugin_protocol import MemoryLinkPlugin
 
 logger = logging.getLogger(__name__)
 UNAVAILABLE = "Memory Link Plugin unavailable."
+PersistedCallback = Callable[[MemoryLinkResult], Awaitable[None]]
 
 
 class MemoryLinkService:
@@ -111,17 +113,24 @@ class MemoryLinkService:
     async def link(
         self, user_id: UUID, source_id: int, target_ids: list[int],
         origin: Literal["manual", "automatic"] = "manual",
+        *, on_persisted: PersistedCallback | None = None,
     ) -> MemoryLinkResult:
-        return await self._mutate("link", user_id, source_id, target_ids, origin)
+        return await self._mutate(
+            "link", user_id, source_id, target_ids, origin, on_persisted=on_persisted,
+        )
 
     async def unlink(
         self, user_id: UUID, source_id: int, target_ids: list[int],
+        *, on_persisted: PersistedCallback | None = None,
     ) -> MemoryLinkResult:
-        return await self._mutate("unlink", user_id, source_id, target_ids, "manual")
+        return await self._mutate(
+            "unlink", user_id, source_id, target_ids, "manual", on_persisted=on_persisted,
+        )
 
     async def _mutate(
         self, operation: MemoryLinkOperation, user_id: UUID, source_id: int,
         target_ids: list[int], origin: Literal["manual", "automatic"],
+        *, on_persisted: PersistedCallback | None = None,
     ) -> MemoryLinkResult:
         repo = self._repository
         source = await repo.get_memory_by_id(user_id=user_id, memory_id=source_id)
@@ -186,5 +195,7 @@ class MemoryLinkService:
             if changed:
                 written_pairs.append(request)
         result.outcomes = [pre_outcomes[target_id] for target_id in dict.fromkeys(target_ids)]
+        if on_persisted is not None:
+            await on_persisted(result)
         await self._after(operation, user_id, origin, written_pairs, result)
         return result

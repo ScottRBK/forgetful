@@ -1690,7 +1690,9 @@ cooperative and is not a sandbox or a guarantee against blocking synchronous wor
 
 For a **manual batch**, every eligible target is checked before the first mutation.
 Handler errors, timeouts, malformed decisions and a cancelled child task (without cancellation
-of the request itself) count as unavailability.
+of the request itself) count as unavailability. This differs from the Memory, Entity and
+Plan before-handlers, which propagate child cancellation. In Link warn mode, the manual
+write can therefore proceed with a warning; genuine request cancellation always propagates.
 Enforce-mode rejection or unavailability returns a typed error with zero batch writes;
 warn mode proceeds and returns warnings. Targets are deduplicated. Self, already-linked,
 foreign and missing targets are skipped without policy calls; foreign and missing IDs
@@ -1705,9 +1707,18 @@ rebuilds. Rejection/unavailability (including a cancelled child with no cancella
 the request itself) skips that target with a warning; it cannot turn a saved memory into
 a rejected create. Genuine request cancellation propagates. The create result, created
 event and Memory after-save hook carry only IDs actually linked. Link after-save runs
-before Memory after-save. Existing neighbor search runs once; there is no second search.
+before Memory after-save. The existing memory-created event is emitted before the advisory
+Link after-handler, with the IDs actually linked, even when no targets changed. Manual link
+and unlink events likewise precede the Link after-handler. Rebuilds emit no new activity
+events. Existing neighbor search runs once; there is no second search.
 
-An operation with either phase registered returns transient `link_outcomes`: link statuses
+This ordering covers cancellation while an after-handler waits. It does not make per-pair
+commits and event emission atomic, guarantee delivery, or order concurrent commits globally.
+Cancellation during persistence or event emission can still leave a committed change without
+an event, and asynchronous subscribers may finish in a different order.
+
+An operation with either phase registered returns transient `link_outcomes`, including on
+warning-free success, so its response shape is consistent for that registration. Link statuses
 are `created`, `rejected` (automatic only) or `skipped`; unlink statuses are `removed` or
 `noop`. `plugin_warnings` appears only when nonempty. After-save runs **once per operation**
 only if at least one pair changed, with `pairs` snapshots for those pairs and the full actual
