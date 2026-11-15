@@ -2181,6 +2181,9 @@ class PostgresMemoryRepository:
                 .values(
                     access_count=MemoryTable.access_count + 1,
                     last_accessed_at=ts,
+                    # Keep the stored timestamp: the column's onupdate would
+                    # otherwise move it on every read.
+                    updated_at=MemoryTable.updated_at,
                 )
             )
             result = await session.execute(stmt)
