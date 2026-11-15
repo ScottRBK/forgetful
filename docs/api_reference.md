@@ -144,12 +144,39 @@ List memories with pagination, sorting, and filtering.
 |-----------|------|---------|-------------|
 | `limit` | int | 20 | Results per page (1-100) |
 | `offset` | int | 0 | Skip N results |
-| `sort_by` | string | created_at | Sort field: `created_at`, `updated_at`, `importance` |
+| `sort_by` | string | created_at | Sort field; see Sorting below |
 | `sort_order` | string | desc | Sort direction: `asc`, `desc` |
 | `project_id` | int | - | Filter by project |
 | `importance_min` | int | - | Minimum importance (1-10) |
+| `importance_max` | int | - | Maximum importance (1-10); must be >= `importance_min` |
+| `q` | string | - | Literal substring filter over title, content and context |
+| `updated_from` | string | - | Inclusive updated-at floor, ISO 8601 with timezone |
+| `updated_to` | string | - | Inclusive updated-at ceiling, ISO 8601 with timezone |
 | `tags` | string | - | Comma-separated tags |
 | `include_obsolete` | bool | false | Include obsolete memories |
+
+Sorting is deterministic. Supported `sort_by` values are `created_at`, `updated_at`,
+`importance`, `title` and `project_name`. `title` and `project_name` order by raw UTF-8
+bytes (codepoint order), not by locale. Equal keys break by memory ID in the requested
+direction. A memory sorts under the lowest name among its owned associated projects;
+this key does not depend on `project_id`. Memories with no project come last in both
+directions. Existing sorts are unchanged; `importance` still breaks ties by
+`created_at` descending, then ID descending.
+
+All filters combine with AND before counting and pagination. `importance_min` and
+`importance_max` are inclusive; `importance_min` greater than `importance_max` returns
+HTTP 400.
+
+`q` matches a literal substring in title, content or context. Only ASCII letters are
+case-insensitive: `A-Z` match `a-z`, and every other character must match exactly.
+`q` is not trimmed, and `%`, `_` and `\` are literal characters. An absent or empty
+`q` means no filter. A NUL character returns HTTP 400. This is a list filter, not
+semantic search.
+
+`updated_from` and `updated_to` accept ISO 8601 datetimes with `Z` or an offset,
+compare in UTC, and include both endpoints. Naive, date-only, malformed, reversed or
+invalid-offset values return HTTP 400. A raw `+` in a query string decodes as a space;
+encode it as `%2B`, or send `Z`.
 
 **Response:**
 ```json

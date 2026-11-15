@@ -2,7 +2,9 @@
 
 import pytest
 
-pytestmark = pytest.mark.asyncio(loop_scope="session")
+from tests.memory_list_cases import TestMemoryListContract as TestMemoryListContract
+
+pytestmark = [pytest.mark.e2e, pytest.mark.asyncio(loop_scope="session")]
 
 
 @pytest.mark.e2e

@@ -628,6 +628,10 @@ class MemoryService:
             tags: list[str] | None = None,
             importance_min: int | None = None,
             created_since: datetime | None = None,
+            q: str | None = None,
+            importance_max: int | None = None,
+            updated_from: datetime | None = None,
+            updated_to: datetime | None = None,
     ) -> tuple[list[Memory], int]:
         """Retrieve memories with pagination, sorting, and filtering.
 
@@ -637,11 +641,15 @@ class MemoryService:
             offset: Skip N results for pagination
             project_ids: Optional filter to only retrieve memories from specific projects
             include_obsolete: Include soft-deleted memories (default False)
-            sort_by: Sort field - created_at, updated_at, importance
+            sort_by: Sort field - created_at, updated_at, importance, title, project_name
             sort_order: Sort direction - asc, desc
             tags: Filter by ANY of these tags (OR logic)
             importance_min: Minimum importance score (optional)
             created_since: Inclusive creation timestamp floor (UTC-aware)
+            q: Literal substring filter over title, content and context (optional)
+            importance_max: Maximum importance score (optional)
+            updated_from: Inclusive updated-at floor, normalized to UTC (optional)
+            updated_to: Inclusive updated-at ceiling, normalized to UTC (optional)
 
         Returns:
             Tuple of (memories, total_count) where total_count is count before pagination
@@ -657,6 +665,10 @@ class MemoryService:
             tags=tags,
             importance_min=importance_min,
             created_since=created_since,
+            q=q,
+            importance_max=importance_max,
+            updated_from=updated_from,
+            updated_to=updated_to,
         )
 
     async def link_memories(

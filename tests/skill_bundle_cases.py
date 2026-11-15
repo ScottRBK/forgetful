@@ -34,6 +34,27 @@ async def call_tool(client, tool, **arguments):
 
 
 class SkillBundleCases:
+    @pytest.fixture(params=[False, True], ids=["tracking-off", "tracking-on"])
+    async def access_tracking(self, request, bundle_app, monkeypatch):
+        from app.config.settings import settings
+        from app.events import EventBus
+
+        bus = EventBus() if request.param else None
+        events = []
+
+        async def capture(event):
+            events.append(event)
+
+        if bus is not None:
+            bus.subscribe("*.*", bundle_app.activity_service.handle_event)
+            bus.subscribe("*.*", capture)
+        monkeypatch.setattr(settings, "ACTIVITY_TRACK_READS", request.param)
+        monkeypatch.setattr(bundle_app.skill_service, "_event_bus", bus)
+        yield
+        if bus is not None:
+            await bus.wait_for_pending(timeout=5)
+            assert events, "tracking-on setup emitted no events"
+
     async def test_bundle_roundtrip_new_resource_ids(self, mcp_client):
         original = await call_tool(mcp_client, "import_skill_bundle", bundle=skill_bundle())
         exported = await call_tool(mcp_client, "export_skill_bundle", skill_id=original["skill"]["id"])
@@ -192,13 +213,16 @@ class SkillBundleCases:
         assert binary["snapshot"]["size_bytes"] == len(b"\x00\xffasset")
         assert events[-1]["entity_id"] == created["skill"]["id"]
 
-    async def test_postcommit_event_failure_preserves_whole_package(self, mcp_client, bundle_app, monkeypatch):
+    async def test_postcommit_event_failure_preserves_whole_package(
+        self, mcp_client, bundle_app, monkeypatch, access_tracking,
+    ):
         async def fail(**event):
             raise RuntimeError("synthetic event delivery failure")
 
-        monkeypatch.setattr(bundle_app.skill_service, "_emit_event", fail)
-        with pytest.raises(ToolError):
-            await call_tool(mcp_client, "import_skill_bundle", bundle=skill_bundle())
+        with monkeypatch.context() as patched:
+            patched.setattr(bundle_app.skill_service, "_emit_event", fail)
+            with pytest.raises(ToolError):
+                await call_tool(mcp_client, "import_skill_bundle", bundle=skill_bundle())
         skills = (await call_tool(mcp_client, "list_skills"))["skills"]
         assert len(skills) == 1
         bundle = await call_tool(mcp_client, "export_skill_bundle", skill_id=skills[0]["id"])
@@ -266,7 +290,9 @@ class SkillBundleCases:
             await call_tool(mcp_client, "export_skill_bundle", skill_id=created["skill"]["id"])
 
     @pytest.mark.parametrize("when", ["before_commit", "after_commit"])
-    async def test_cancellation_preserves_transaction_boundary(self, mcp_client, bundle_app, monkeypatch, when):
+    async def test_cancellation_preserves_transaction_boundary(
+        self, mcp_client, bundle_app, monkeypatch, when, access_tracking,
+    ):
         import asyncio
 
         from sqlalchemy import event
@@ -291,14 +317,20 @@ class SkillBundleCases:
 
         if when == "before_commit":
             event.listen(engine, "before_cursor_execute", cancel_insert)
-        else:
-            monkeypatch.setattr(service, "_emit_event", cancel_event)
-        try:
-            with pytest.raises(asyncio.CancelledError):
-                await service.import_skill_bundle(user.id, SkillBundle.model_validate(skill_bundle()))
-        finally:
-            if when == "before_commit":
+            try:
+                with pytest.raises(asyncio.CancelledError):
+                    await service.import_skill_bundle(
+                        user.id, SkillBundle.model_validate(skill_bundle()),
+                    )
+            finally:
                 event.remove(engine, "before_cursor_execute", cancel_insert)
+        else:
+            with monkeypatch.context() as patched:
+                patched.setattr(service, "_emit_event", cancel_event)
+                with pytest.raises(asyncio.CancelledError):
+                    await service.import_skill_bundle(
+                        user.id, SkillBundle.model_validate(skill_bundle()),
+                    )
         skills = (await call_tool(mcp_client, "list_skills"))["skills"]
         if when == "before_commit":
             assert skills == []

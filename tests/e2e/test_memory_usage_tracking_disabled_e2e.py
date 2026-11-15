@@ -1,6 +1,8 @@
 """E2E test: access_count stays at zero when ACTIVITY_TRACK_READS is disabled."""
 import pytest
 
+from tests.memory_list_cases import list_memory
+
 pytestmark = pytest.mark.asyncio(loop_scope="session")
 
 SETTINGS_OVERRIDE = {
@@ -24,14 +26,14 @@ async def test_get_memory_does_not_increment_access_count_when_tracking_disabled
     })
     assert create_response.status_code == 201
     memory_id = create_response.json()["id"]
+    baseline = await list_memory(http_client, memory_id)
 
     read_response = await http_client.get(f"/api/v1/memories/{memory_id}")
     assert read_response.status_code == 200
 
     await wait_for_events()
 
-    refreshed_response = await http_client.get(f"/api/v1/memories/{memory_id}")
-    assert refreshed_response.status_code == 200
-    refreshed = refreshed_response.json()
+    refreshed = await list_memory(http_client, memory_id)
     assert refreshed["access_count"] == 0
     assert refreshed["last_accessed_at"] is None
+    assert refreshed["updated_at"] == baseline["updated_at"]

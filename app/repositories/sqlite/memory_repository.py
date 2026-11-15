@@ -36,6 +36,7 @@ from app.utils.keyword_query import (
     to_fts5_match,
 )
 from app.utils.rank_fusion import TieBreak, reciprocal_rank_fusion
+from app.utils.text_folding import fold_ascii
 
 logger = logging.getLogger(__name__)
 
@@ -1214,6 +1215,10 @@ class SqliteMemoryRepository:
             tags: list[str] | None = None,
             importance_min: int | None = None,
             created_since: datetime | None = None,
+            q: str | None = None,
+            importance_max: int | None = None,
+            updated_from: datetime | None = None,
+            updated_to: datetime | None = None,
     ) -> tuple[list[Memory], int]:
         """Get memories with pagination, sorting, and filtering.
 
@@ -1223,11 +1228,15 @@ class SqliteMemoryRepository:
             offset: Skip N results for pagination
             project_ids: Optional filter to only retrieve memories from specific projects
             include_obsolete: Include soft-deleted memories (default False)
-            sort_by: Sort field - created_at, updated_at, importance
+            sort_by: Sort field - created_at, updated_at, importance, title, project_name
             sort_order: Sort direction - asc, desc
             tags: Filter by ANY of these tags (OR logic)
             importance_min: Minimum importance score (optional)
             created_since: Inclusive creation timestamp floor (UTC-aware)
+            q: Literal substring filter over title, content and context (optional)
+            importance_max: Maximum importance score (optional)
+            updated_from: Inclusive updated-at floor, normalized to UTC (optional)
+            updated_to: Inclusive updated-at ceiling, normalized to UTC (optional)
 
         Returns:
             Tuple of (memories, total_count) where total_count is count before pagination
@@ -1244,8 +1253,27 @@ class SqliteMemoryRepository:
         if importance_min is not None:
             conditions.append(MemoryTable.importance >= importance_min)
 
+        if importance_max is not None:
+            conditions.append(MemoryTable.importance <= importance_max)
+
         if created_since is not None:
             conditions.append(MemoryTable.created_at >= created_since.astimezone(UTC))
+
+        if updated_from is not None:
+            conditions.append(MemoryTable.updated_at >= updated_from.astimezone(UTC))
+
+        if updated_to is not None:
+            conditions.append(MemoryTable.updated_at <= updated_to.astimezone(UTC))
+
+        if q is not None:
+            folded_q = fold_ascii(q)
+            conditions.append(
+                or_(
+                    func.instr(func.lower(MemoryTable.title), folded_q) > 0,
+                    func.instr(func.lower(MemoryTable.content), folded_q) > 0,
+                    func.instr(func.lower(MemoryTable.context), folded_q) > 0,
+                ),
+            )
 
         # Tag filter: OR over the JSON array via json_each. json_each only fails
         # inside FTS content views (see sqlite_adapter.py).
@@ -1283,6 +1311,7 @@ class SqliteMemoryRepository:
             "created_at": MemoryTable.created_at,
             "updated_at": MemoryTable.updated_at,
             "importance": MemoryTable.importance,
+            "title": MemoryTable.title,
         }
         sort_column = sort_column_map.get(sort_by, MemoryTable.created_at)
         order = sort_column.desc() if sort_order == "desc" else sort_column.asc()
@@ -1290,6 +1319,25 @@ class SqliteMemoryRepository:
         id_tiebreak = MemoryTable.id.desc() if sort_order == "desc" else MemoryTable.id.asc()
         if sort_by == "importance":
             stmt = stmt.order_by(order, MemoryTable.created_at.desc(), MemoryTable.id.desc())
+        elif sort_by == "project_name":
+            project_name_key = (
+                select(func.min(ProjectsTable.name))
+                .select_from(ProjectsTable)
+                .join(
+                    memory_project_association,
+                    memory_project_association.c.project_id == ProjectsTable.id,
+                )
+                .where(
+                    memory_project_association.c.memory_id == MemoryTable.id,
+                    ProjectsTable.user_id == MemoryTable.user_id,
+                )
+                .correlate(MemoryTable)
+                .scalar_subquery()
+            )
+            project_order = (
+                project_name_key.desc() if sort_order == "desc" else project_name_key.asc()
+            )
+            stmt = stmt.order_by(project_order.nulls_last(), id_tiebreak)
         else:
             stmt = stmt.order_by(order, id_tiebreak)
 
@@ -2485,6 +2533,8 @@ class SqliteMemoryRepository:
                 .values(
                     access_count=MemoryTable.access_count + 1,
                     last_accessed_at=ts,
+                    # Explicit value suppresses the table's onupdate hook.
+                    updated_at=MemoryTable.updated_at,
                 )
             )
             result = await session.execute(stmt)

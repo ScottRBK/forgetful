@@ -4,7 +4,9 @@ Uses PostgreSQL + REST API with ACTIVITY_ENABLED and ACTIVITY_TRACK_READS enable
 """
 import pytest
 
-pytestmark = pytest.mark.asyncio(loop_scope="session")
+from tests.memory_usage_cases import TestMemoryUsageTracking as TestMemoryUsageTracking
+
+pytestmark = [pytest.mark.e2e, pytest.mark.asyncio(loop_scope="session")]
 
 SETTINGS_OVERRIDE = {
     "ACTIVITY_ENABLED": True,

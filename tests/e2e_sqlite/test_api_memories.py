@@ -5,6 +5,8 @@ Tests the /api/v1/memories endpoints.
 """
 import pytest
 
+from tests.memory_list_cases import TestMemoryListContract as TestMemoryListContract
+
 
 class TestMemoryAPIList:
     """Test GET /api/v1/memories endpoint."""

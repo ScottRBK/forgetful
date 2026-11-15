@@ -36,6 +36,7 @@ from app.utils.keyword_query import (
     to_pg_tsquery,
 )
 from app.utils.rank_fusion import TieBreak, reciprocal_rank_fusion
+from app.utils.text_folding import fold_ascii
 
 logger = logging.getLogger(__name__)
 
@@ -1077,6 +1078,10 @@ class PostgresMemoryRepository:
             tags: list[str] | None = None,
             importance_min: int | None = None,
             created_since: datetime | None = None,
+            q: str | None = None,
+            importance_max: int | None = None,
+            updated_from: datetime | None = None,
+            updated_to: datetime | None = None,
     ) -> tuple[list[Memory], int]:
         """Get memories with pagination, sorting, and filtering.
 
@@ -1086,11 +1091,15 @@ class PostgresMemoryRepository:
             offset: Skip N results for pagination
             project_ids: Optional filter to only retrieve memories from specific projects
             include_obsolete: Include soft-deleted memories (default False)
-            sort_by: Sort field - created_at, updated_at, importance
+            sort_by: Sort field - created_at, updated_at, importance, title, project_name
             sort_order: Sort direction - asc, desc
             tags: Filter by ANY of these tags (OR logic)
             importance_min: Minimum importance score (optional)
             created_since: Inclusive creation timestamp floor (UTC-aware)
+            q: Literal substring filter over title, content and context (optional)
+            importance_max: Maximum importance score (optional)
+            updated_from: Inclusive updated-at floor, normalized to UTC (optional)
+            updated_to: Inclusive updated-at ceiling, normalized to UTC (optional)
 
         Returns:
             Tuple of (memories, total_count) where total_count is count before pagination
@@ -1107,8 +1116,27 @@ class PostgresMemoryRepository:
         if importance_min is not None:
             conditions.append(MemoryTable.importance >= importance_min)
 
+        if importance_max is not None:
+            conditions.append(MemoryTable.importance <= importance_max)
+
         if created_since is not None:
             conditions.append(MemoryTable.created_at >= created_since)
+
+        if updated_from is not None:
+            conditions.append(MemoryTable.updated_at >= updated_from.astimezone(UTC))
+
+        if updated_to is not None:
+            conditions.append(MemoryTable.updated_at <= updated_to.astimezone(UTC))
+
+        if q is not None:
+            folded_q = fold_ascii(q)
+            conditions.append(
+                or_(
+                    func.strpos(func.lower(MemoryTable.title.collate("C")), folded_q) > 0,
+                    func.strpos(func.lower(MemoryTable.content.collate("C")), folded_q) > 0,
+                    func.strpos(func.lower(MemoryTable.context.collate("C")), folded_q) > 0,
+                ),
+            )
 
         # Tag filter using Postgres ARRAY overlap
         if tags:
@@ -1142,6 +1170,7 @@ class PostgresMemoryRepository:
             "created_at": MemoryTable.created_at,
             "updated_at": MemoryTable.updated_at,
             "importance": MemoryTable.importance,
+            "title": MemoryTable.title.collate("C"),
         }
         sort_column = sort_column_map.get(sort_by, MemoryTable.created_at)
         order = sort_column.desc() if sort_order == "desc" else sort_column.asc()
@@ -1149,6 +1178,24 @@ class PostgresMemoryRepository:
         id_tiebreak = MemoryTable.id.desc() if sort_order == "desc" else MemoryTable.id.asc()
         if sort_by == "importance":
             stmt = stmt.order_by(order, MemoryTable.created_at.desc(), MemoryTable.id.desc())
+        elif sort_by == "project_name":
+            project_name_key = (
+                select(func.min(ProjectsTable.name.collate("C")))
+                .select_from(ProjectsTable)
+                .join(
+                    memory_project_association,
+                    memory_project_association.c.project_id == ProjectsTable.id,
+                )
+                .where(
+                    memory_project_association.c.memory_id == MemoryTable.id,
+                    ProjectsTable.user_id == MemoryTable.user_id,
+                )
+                .correlate(MemoryTable)
+                .scalar_subquery()
+            )
+            project_key = project_name_key.collate("C")
+            project_order = project_key.desc() if sort_order == "desc" else project_key.asc()
+            stmt = stmt.order_by(project_order.nulls_last(), id_tiebreak)
         else:
             stmt = stmt.order_by(order, id_tiebreak)
 
@@ -2181,6 +2228,8 @@ class PostgresMemoryRepository:
                 .values(
                     access_count=MemoryTable.access_count + 1,
                     last_accessed_at=ts,
+                    # Explicit value suppresses the table's onupdate hook.
+                    updated_at=MemoryTable.updated_at,
                 )
             )
             result = await session.execute(stmt)

@@ -541,8 +541,23 @@ class InMemoryMemoryRepository(MemoryRepository):
         tags: list[str] | None = None,
         importance_min: int | None = None,
         created_since: datetime | None = None,
+        q: str | None = None,
+        importance_max: int | None = None,
+        updated_from: datetime | None = None,
+        updated_to: datetime | None = None,
     ) -> tuple[list[Memory], int]:
         """Get memories with pagination, sorting, and filtering"""
+        if sort_by in {"title", "project_name"}:
+            raise NotImplementedError(
+                f"{sort_by} sorting is not implemented by InMemoryMemoryRepository",
+            )
+        if any(
+            value is not None
+            for value in (q, importance_max, updated_from, updated_to)
+        ):
+            raise NotImplementedError(
+                "New memory list filters are not implemented by InMemoryMemoryRepository",
+            )
         user_memories = self._memories.get(user_id, {})
         memories = list(user_memories.values())
 

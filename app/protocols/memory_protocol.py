@@ -132,6 +132,10 @@ class MemoryRepository(Protocol):
             tags: list[str] | None = None,
             importance_min: int | None = None,
             created_since: datetime | None = None,
+            q: str | None = None,
+            importance_max: int | None = None,
+            updated_from: datetime | None = None,
+            updated_to: datetime | None = None,
     ) -> tuple[list[Memory], int]:
         """Get memories with pagination, sorting, and filtering.
 
@@ -141,11 +145,15 @@ class MemoryRepository(Protocol):
             offset: Skip N results for pagination
             project_ids: Filter by project (optional)
             include_obsolete: Include soft-deleted memories
-            sort_by: Sort field - created_at, updated_at, importance
+            sort_by: Sort field - created_at, updated_at, importance, title, project_name
             sort_order: Sort direction - asc, desc
             tags: Filter by ANY of these tags (OR logic)
             importance_min: Minimum importance score (optional)
             created_since: Inclusive creation timestamp floor (UTC-aware)
+            q: Literal substring filter over title, content and context (optional)
+            importance_max: Maximum importance score (optional)
+            updated_from: Inclusive updated-at floor, normalized to UTC (optional)
+            updated_to: Inclusive updated-at ceiling, normalized to UTC (optional)
 
         Returns:
             Tuple of (memories, total_count) where total_count is

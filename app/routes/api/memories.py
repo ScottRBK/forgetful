@@ -4,6 +4,7 @@ Phase 1 of the Web UI foundation (Issue #3).
 Provides CRUD operations for memories with pagination, filtering, and semantic search.
 """
 import logging
+from datetime import UTC, datetime
 from typing import Any
 
 from fastmcp import FastMCP
@@ -34,7 +35,7 @@ from app.routes.write_plugin_responses import (
 logger = logging.getLogger(__name__)
 
 # Valid values for query parameters
-VALID_SORT_BY = {"created_at", "updated_at", "importance"}
+VALID_SORT_BY = {"created_at", "updated_at", "importance", "title", "project_name"}
 VALID_SORT_ORDER = {"asc", "desc"}
 
 
@@ -61,6 +62,28 @@ def parse_int_param(params: Any, name: str, default: int | None = None) -> int |
         raise ValueError(f"Invalid value for '{name}': must be an integer")
 
 
+def parse_datetime_param(params: Any, name: str) -> datetime | None:
+    """Parse a timezone-aware ISO 8601 query parameter."""
+    raw = params.get(name)
+    if raw is None:
+        return None
+    try:
+        parsed = datetime.fromisoformat(raw)
+    except (TypeError, ValueError):
+        raise ValueError(
+            f"Invalid value for '{name}': must be an ISO 8601 datetime with a timezone",
+        )
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ValueError(
+            f"Invalid value for '{name}': must be an ISO 8601 datetime with a timezone",
+        )
+    try:
+        parsed.astimezone(UTC)
+    except (OSError, OverflowError):
+        raise ValueError(f"Invalid value for '{name}': UTC conversion overflow")
+    return parsed
+
+
 def register(mcp: FastMCP):
     """Register memory REST routes with FastMCP"""
 
@@ -71,10 +94,14 @@ def register(mcp: FastMCP):
         Query params:
             limit: Max results per page (1-100, default 20)
             offset: Skip N results (default 0)
-            sort_by: Sort field - created_at, updated_at, importance (default created_at)
+            sort_by: Sort field - created_at, updated_at, importance, title, project_name
             sort_order: Sort direction - asc, desc (default desc)
             project_id: Filter by project (optional)
             importance_min: Minimum importance 1-10 (optional)
+            importance_max: Maximum importance 1-10 (optional)
+            q: Literal substring over title, content and context (optional)
+            updated_from: Inclusive updated-at floor, ISO 8601 with timezone (optional)
+            updated_to: Inclusive updated-at ceiling, ISO 8601 with timezone (optional)
             tags: Comma-separated tags (optional)
             include_obsolete: Include obsolete memories (default false)
         """
@@ -90,6 +117,7 @@ def register(mcp: FastMCP):
             limit = parse_int_param(params, "limit", 20)
             offset = parse_int_param(params, "offset", 0)
             importance_min = parse_int_param(params, "importance_min")
+            importance_max = parse_int_param(params, "importance_max")
             project_id = parse_int_param(params, "project_id")
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=400)
@@ -111,6 +139,22 @@ def register(mcp: FastMCP):
         if importance_min is not None and not 1 <= importance_min <= 10:
             return JSONResponse(
                 {"error": "importance_min must be between 1 and 10"},
+                status_code=400,
+            )
+
+        if importance_max is not None and not 1 <= importance_max <= 10:
+            return JSONResponse(
+                {"error": "importance_max must be between 1 and 10"},
+                status_code=400,
+            )
+
+        if (
+            importance_min is not None
+            and importance_max is not None
+            and importance_min > importance_max
+        ):
+            return JSONResponse(
+                {"error": "importance_min must not exceed importance_max"},
                 status_code=400,
             )
 
@@ -137,6 +181,27 @@ def register(mcp: FastMCP):
         # Parse include_obsolete
         include_obsolete = params.get("include_obsolete", "false").lower() == "true"
 
+        q = params.get("q")
+        if q == "":
+            q = None
+        if q is not None and "\x00" in q:
+            return JSONResponse(
+                {"error": "q must not contain NUL"},
+                status_code=400,
+            )
+
+        try:
+            updated_from = parse_datetime_param(params, "updated_from")
+            updated_to = parse_datetime_param(params, "updated_to")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
+
+        if updated_from is not None and updated_to is not None and updated_from > updated_to:
+            return JSONResponse(
+                {"error": "updated_from must not be after updated_to"},
+                status_code=400,
+            )
+
         # Convert project_id to list if provided
         project_ids = [project_id] if project_id else None
 
@@ -150,6 +215,10 @@ def register(mcp: FastMCP):
             sort_order=sort_order,
             tags=tags,
             importance_min=importance_min,
+            importance_max=importance_max,
+            q=q,
+            updated_from=updated_from,
+            updated_to=updated_to,
         )
 
         response = MemoryListResponse(
