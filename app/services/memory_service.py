@@ -32,11 +32,13 @@ from app.models.write_plugin_models import (
     MemoryLifecycleResult,
     MemoryLifecycleState,
     MemoryLifecycleSubmission,
+    MemoryLinkResult,
     MemorySavedRequest,
     MemoryUpdateResult,
     MemoryWriteRequest,
 )
 from app.protocols.memory_protocol import MemoryRepository
+from app.services.memory_link_service import MemoryLinkService
 from app.services.write_plugin_service import WritePluginService
 from app.utils.provenance import (
     apply_provenance_defaults,
@@ -63,10 +65,12 @@ class MemoryService:
     def __init__(
         self, memory_repo: MemoryRepository, event_bus: "EventBus | None" = None,
         write_plugin: WritePluginService | None = None,
+        link_plugin: MemoryLinkService | None = None,
     ):
         self.memory_repo = memory_repo
         self._event_bus = event_bus
         self._write_plugin = write_plugin
+        self._link_plugin = link_plugin
         logger.info("Memory service initialised")
 
     def register_access_tracking_handlers(self, event_bus: "EventBus") -> None:
@@ -211,6 +215,21 @@ class MemoryService:
         similar_memories = []
         similar_scored = None
         linked_ids = []
+        link_outcomes = None
+        created_emitted = False
+
+        async def emit_created(result: MemoryLinkResult) -> None:
+            nonlocal created_emitted
+            memory.linked_memory_ids = result.created_ids
+            await self._emit_event(
+                user_id=user_id,
+                entity_type=EntityType.MEMORY,
+                entity_id=memory.id,
+                action=ActionType.CREATED,
+                snapshot=memory.model_dump(mode="json"),
+            )
+            created_emitted = True
+
         if settings.MEMORY_NUM_AUTO_LINK > 0:
             similar_scored = await self.memory_repo.find_similar_memories_scored(
                 memory_id=memory.id,
@@ -218,13 +237,23 @@ class MemoryService:
                 max_links=settings.MEMORY_NUM_AUTO_LINK,
             )
 
+            if self.has_link_plugin("link"):
+                link_result = await self._link_plugin.link(
+                    user_id=user_id, source_id=memory.id,
+                    target_ids=[m.id for m, _ in similar_scored], origin="automatic",
+                    on_persisted=emit_created,
+                )
+                linked_ids = link_result.created_ids
+                link_outcomes = link_result.outcomes
+                plugin_warnings.extend(link_result.plugin_warnings)
             if similar_scored:
                 target_ids = [m.id for m, _ in similar_scored]
-                linked_ids = await self.memory_repo.create_links_batch(
-                    user_id=user_id,
-                    source_id=memory.id,
-                    target_ids=target_ids,
-                )
+                if not self.has_link_plugin("link"):
+                    linked_ids = await self.memory_repo.create_links_batch(
+                        user_id=user_id,
+                        source_id=memory.id,
+                        target_ids=target_ids,
+                    )
                 memory.linked_memory_ids = linked_ids
 
                 # Convert to MemorySummary for response
@@ -248,14 +277,15 @@ class MemoryService:
                     "number linked": len(target_ids),
                 })
 
-        # Emit created event
-        await self._emit_event(
-            user_id=user_id,
-            entity_type=EntityType.MEMORY,
-            entity_id=memory.id,
-            action=ActionType.CREATED,
-            snapshot=memory.model_dump(mode="json"),
-        )
+        # The registered link path emits before its advisory after-handler.
+        if not created_emitted:
+            await self._emit_event(
+                user_id=user_id,
+                entity_type=EntityType.MEMORY,
+                entity_id=memory.id,
+                action=ActionType.CREATED,
+                snapshot=memory.model_dump(mode="json"),
+            )
 
         if self._write_plugin:
             plugin_warnings += await self._write_plugin.after_save(MemorySavedRequest(
@@ -265,6 +295,7 @@ class MemoryService:
 
         return MemoryCreateResult(
             memory=memory, similar_memories=similar_memories, plugin_warnings=plugin_warnings,
+            link_outcomes=link_outcomes,
         )
 
     async def update_memory(
@@ -633,7 +664,7 @@ class MemoryService:
             user_id: UUID,
             memory_id: int,
             related_ids: list[int],
-    ) -> list[int]:
+    ) -> list[int] | MemoryLinkResult:
         """Creates a bidirectional links between memories
 
         Duplicate links and self-links are automatically removed
@@ -646,6 +677,20 @@ class MemoryService:
         Returns:
             List of target memory IDs that were successfully linked
         """
+        if self.has_link_plugin("link"):
+            async def emit_created(result: MemoryLinkResult) -> None:
+                for target_id in result.created_ids:
+                    await self._emit_event(
+                        user_id=user_id, entity_type=EntityType.LINK, entity_id=0,
+                        action=ActionType.CREATED,
+                        snapshot={"source_id": memory_id, "target_id": target_id},
+                        metadata={"source_id": memory_id, "target_id": target_id},
+                    )
+
+            return await self._link_plugin.link(
+                user_id, memory_id, related_ids, on_persisted=emit_created,
+            )
+
         source_memory = await self.memory_repo.get_memory_by_id(
             memory_id=memory_id,
             user_id=user_id,
@@ -675,7 +720,7 @@ class MemoryService:
             user_id: UUID,
             memory_id: int,
             target_id: int,
-    ) -> bool:
+    ) -> bool | MemoryLinkResult:
         """Remove link between two memories.
 
         Args:
@@ -689,6 +734,8 @@ class MemoryService:
         Raises:
             NotFoundError: If source memory doesn't exist
         """
+        if self.has_link_plugin("unlink"):
+            return await self.unlink_memories_batch(user_id, memory_id, [target_id])
         # Verify source memory exists (raises NotFoundError if not)
         await self.get_memory(user_id=user_id, memory_id=memory_id)
 
@@ -710,6 +757,29 @@ class MemoryService:
             )
 
         return success
+
+    def has_link_plugin(self, operation: str) -> bool:
+        return self._link_plugin is not None and self._link_plugin.active(operation)
+
+    async def unlink_memories_batch(
+        self, user_id: UUID, memory_id: int, target_ids: list[int],
+    ) -> MemoryLinkResult:
+        """Preflight every MCP unlink target before the first deletion."""
+        if not self.has_link_plugin("unlink"):
+            raise ValueError("No unlink plugin registered")
+        async def emit_deleted(result: MemoryLinkResult) -> None:
+            for outcome in result.outcomes:
+                if outcome.status == "removed":
+                    await self._emit_event(
+                        user_id=user_id, entity_type=EntityType.LINK, entity_id=0,
+                        action=ActionType.DELETED,
+                        snapshot={"source_id": memory_id, "target_id": outcome.target_id},
+                        metadata={"source_id": memory_id, "target_id": outcome.target_id},
+                    )
+
+        return await self._link_plugin.unlink(
+            user_id, memory_id, target_ids, on_persisted=emit_deleted,
+        )
 
     async def _fetch_linked_memories(
             self,

@@ -379,6 +379,13 @@ execute_forgetful_tool(
 )
 ```
 
+When a [Memory Link Plugin](configuration.md#memory-link-plugin) is registered for `link`,
+this response also includes `link_outcomes` (`target_id`, `status`: `created`/`skipped`)
+and nonempty `plugin_warnings`. All eligible manual targets are preflighted before writes;
+enforce rejection or unavailability returns `WRITE_PLUGIN_REJECTED`/`WRITE_PLUGIN_UNAVAILABLE`.
+Automatic linking on create/rebuild may additionally return `rejected` outcomes and warnings
+without failing a committed memory. These fields never appear on memory reads.
+
 ### `unlink_memories`
 
 Remove bidirectional link(s) between memories.
@@ -390,6 +397,11 @@ Remove bidirectional link(s) between memories.
 
 **Returns:**
 - Dict with `success` boolean (True if all requested links were removed)
+- When `unlink` has a registered Memory Link Plugin phase: also `link_outcomes` with
+  `removed`/`noop`, plus nonempty `plugin_warnings`. The complete multi-target request is
+  preflighted before the first deletion; a later target rejection cannot follow an earlier
+  committed removal in that batch. No-op pairs skip both phases.
+
 
 **Examples:**
 ```python

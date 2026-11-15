@@ -52,6 +52,7 @@ from app.models.project_models import (
     ProjectUpdate,
 )
 from app.models.user_models import UserResponse, UserUpdate
+from app.models.write_plugin_models import MemoryLinkResult
 from app.routes.mcp.pagination import clamp_list_pagination
 from app.routes.plan_plugin_responses import PlanWriteResponse, TaskTransitionResponse
 from app.routes.write_plugin_responses import (
@@ -266,6 +267,7 @@ class MemoryToolAdapters:
             similar_memories=similar_memories,
             obsolete_matches=obsolete_matches,
             plugin_warnings=write_result.plugin_warnings,
+            link_outcomes=write_result.link_outcomes,
         )
 
     async def query_memory(
@@ -514,17 +516,27 @@ class MemoryToolAdapters:
 
         user = await get_user_from_auth(ctx)
 
-        links_created = await self.memory_service.link_memories(
-            user_id=user.id,
-            memory_id=src,
-            related_ids=cleaned_related_ids,
-        )
+        try:
+            links_created = await self.memory_service.link_memories(
+                user_id=user.id,
+                memory_id=src,
+                related_ids=cleaned_related_ids,
+            )
+        except WritePluginRejectedError as exc:
+            raise ToolError(f"WRITE_PLUGIN_REJECTED: {exc}") from None
+        except WritePluginUnavailableError as exc:
+            raise ToolError(f"WRITE_PLUGIN_UNAVAILABLE: {exc}") from None
 
         logger.info(
             "MCP Tool - memories linked",
             extra={"memory_id": src, "memories_linked": links_created},
         )
 
+        if isinstance(links_created, MemoryLinkResult):
+            return {
+                "linked_memory_ids": links_created.created_ids,
+                **links_created.response_fields(),
+            }
         return {"linked_memory_ids": links_created}
 
     async def unlink_memories(
@@ -628,22 +640,35 @@ class MemoryToolAdapters:
 
         user = await get_user_from_auth(ctx)
 
-        all_success = True
-        for tgt in cleaned_targets:
-            success = await self.memory_service.unlink_memories(
-                user_id=user.id,
-                memory_id=src,
-                target_id=tgt,
-            )
-            if not success:
-                all_success = False
+        fields = {}
+        if getattr(self.memory_service, "has_link_plugin", lambda _: False)("unlink"):
+            try:
+                result = await self.memory_service.unlink_memories_batch(
+                    user_id=user.id, memory_id=src, target_ids=cleaned_targets,
+                )
+            except WritePluginRejectedError as exc:
+                raise ToolError(f"WRITE_PLUGIN_REJECTED: {exc}") from None
+            except WritePluginUnavailableError as exc:
+                raise ToolError(f"WRITE_PLUGIN_UNAVAILABLE: {exc}") from None
+            all_success = result.all_removed
+            fields = result.response_fields()
+        else:
+            all_success = True
+            for tgt in cleaned_targets:
+                success = await self.memory_service.unlink_memories(
+                    user_id=user.id,
+                    memory_id=src,
+                    target_id=tgt,
+                )
+                if not success:
+                    all_success = False
 
         logger.info(
             "MCP Tool - memories unlinked",
             extra={"source_id": src, "target_ids": cleaned_targets, "success": all_success},
         )
 
-        return {"success": all_success}
+        return {"success": all_success, **fields}
 
     async def get_memory(
         self,
@@ -852,11 +877,16 @@ class MemoryToolAdapters:
             memory_ids=memory_ids,
             project_id=project_id,
         )
-        return {
+        response = {
             "rebuilt_ids": result.rebuilt_ids,
             "skipped_ids": result.skipped_ids,
             "failed": result.failed,
         }
+        if getattr(result, "link_outcomes", None) is not None:
+            response["link_outcomes"] = result.link_outcomes
+        if getattr(result, "plugin_warnings", []):
+            response["plugin_warnings"] = result.plugin_warnings
+        return response
 
 
 def create_memory_adapters(
