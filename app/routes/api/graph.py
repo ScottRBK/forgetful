@@ -50,8 +50,8 @@ def register(mcp: FastMCP):
             node_types: Comma-separated list of node types to include
                        (default: memory,entity,project,document,code_artifact)
             include_entities: Legacy param, deprecated in favor of node_types
-            limit: Max memories to include (default 100, max configurable via
-                   MAX_GRAPH_LIMIT setting / env var, defaults to 2000)
+            limit: Max memories to include (default 100, minimum 1, max configurable
+                   via MAX_GRAPH_LIMIT setting / env var, defaults to 2000)
             offset: Number of memories to skip for pagination (default 0)
             sort_by: Sort field - created_at, updated_at, importance (default created_at)
             sort_order: Sort direction - asc, desc (default desc)
@@ -117,6 +117,14 @@ def register(mcp: FastMCP):
         except ValueError:
             return JSONResponse(
                 {"error": f"Invalid limit: {limit_str}. Must be an integer."},
+                status_code=400,
+            )
+
+        # Reject non-positive limits: SQLite reads LIMIT -1 as "no limit", so a
+        # negative value would bypass MAX_GRAPH_LIMIT entirely.
+        if limit < 1:
+            return JSONResponse(
+                {"error": "limit must be at least 1"},
                 status_code=400,
             )
 
