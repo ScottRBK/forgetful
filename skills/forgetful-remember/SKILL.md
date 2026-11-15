@@ -132,3 +132,13 @@ importance ≥ 7:
 ```
 
 Done when: the user can see what was saved and how it connected.
+
+
+### Link policy feedback
+
+A server may register a Memory Link Plugin independently of memory-field policies.
+Review `link_outcomes` and `plugin_warnings` on create, link/unlink and targeted rebuild
+responses. Only IDs actually created appear in `linked_memory_ids`; automatic `rejected`
+links do not mean the memory failed to save. Do not retry a committed write because an
+advisory hook failed. Manual policy errors occur before any eligible batch links change.
+Unlink outcomes distinguish `removed` from `noop`. Reads contain neither transient field.

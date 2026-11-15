@@ -151,6 +151,20 @@ Obsolescence is a soft state with reason and
 optional replacement; create responses can additionally warn about similar obsolete memories
 ([memory_service.py:552](app/services/memory_service.py#L552)).
 
+**Memory Link Plugin:** `MemoryLinkService` owns the domain policy for link/unlink, injected
+by bootstrap into MemoryService and ReEmbeddingService. Before-handlers receive detached owned
+pairs with no session held across awaits; manual batches preflight all pairs before any writes.
+Automatic create/rebuild policy failures are advisory for already committed work. Actual per-pair
+repository results determine transient outcomes; once-per-operation after-handlers see changed-pair
+preflight snapshots plus all outcome IDs, without a transactional-current-state guarantee.
+Manual link-created/deleted events and the memory-created event for automatic linking are
+emitted before the advisory Link after-handler. Memory after-save still runs last. Rebuilds
+emit no new activity events. Persistence and event emission are separate awaits: this does not
+provide atomicity across per-pair commits, durable delivery, or a global event-order guarantee.
+REST/MCP/CLI unwrap the same result while keeping legacy shapes when an operation is unregistered.
+Registered operations include transient link outcomes even on warning-free success. FK cascades and physical database restore bypass hooks;
+full vector reset does not write memory links. See [configuration](docs/configuration.md#memory-link-plugin).
+
 **Plan Plugin:** `config.plan_plugin` validates one trusted `PlanPlugin` registration at startup,
 including when planning is disabled. `PlanWritePluginService` dispatches explicit create/update/delete
 maps with detached contexts; it cannot rewrite core input. `PlanService` retains ownership, status,
@@ -209,7 +223,10 @@ timeout produces a sanitized diagnostic and a generic advisory warning in either
 veto or roll back the saved write. External cancellation propagates even after persistence, so a
 cancelled request or lost response may leave a completed write. Cancellation raised inside an
 after handler or its awaited child becomes advisory when the request task has no cancellation
-pending. Before-save cancellation still propagates. There are no durable queues,
+pending. Request cancellation in Memory, Entity and Plan before-handlers still propagates.
+Link before-handlers differ: a cancelled child task without request cancellation is classified
+as plugin unavailability, so manual warn mode can proceed; genuine request cancellation still
+propagates. There are no durable queues,
 retries, delivery guarantees, duplicate prevention, merging, or link/entity hooks.
 
 `app/routes/write_plugin_responses.py` combines nonempty-only before/after warnings. Create/update
