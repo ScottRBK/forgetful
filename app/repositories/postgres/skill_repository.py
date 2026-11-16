@@ -4,7 +4,7 @@ import json
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.config.logging_config import logging
 from app.exceptions import NotFoundError
@@ -238,6 +238,51 @@ class PostgresSkillRepository:
                 },
             )
             raise
+
+    async def list_skills_page(
+        self,
+        user_id: UUID,
+        project_id: int | None = None,
+        tags: list[str] | None = None,
+        importance_threshold: int | None = None,
+        *,
+        limit: int,
+        offset: int,
+    ) -> tuple[list[SkillSummary], int]:
+        """Return a counted SQL page using only summary columns."""
+        async with self.db_adapter.session(user_id) as session:
+            conditions = [SkillsTable.user_id == user_id]
+            if project_id is not None:
+                conditions.append(SkillsTable.project_id == project_id)
+            if tags:
+                conditions.append(SkillsTable.tags.overlap(tags))
+            if importance_threshold is not None:
+                conditions.append(SkillsTable.importance >= importance_threshold)
+
+            count_stmt = select(func.count(SkillsTable.id)).where(*conditions)
+            total = await session.scalar(count_stmt)
+            stmt = (
+                select(
+                    SkillsTable.id,
+                    SkillsTable.name,
+                    SkillsTable.description,
+                    SkillsTable.license,
+                    SkillsTable.tags,
+                    SkillsTable.importance,
+                    SkillsTable.project_id,
+                    SkillsTable.created_at,
+                    SkillsTable.updated_at,
+                )
+                .where(*conditions)
+                .order_by(
+                    SkillsTable.created_at.desc(),
+                    SkillsTable.id.desc(),
+                )
+                .offset(offset)
+                .limit(limit)
+            )
+            result = await session.execute(stmt)
+            return [SkillSummary.model_validate(row) for row in result.mappings().all()], total or 0
 
     async def update_skill(
         self,

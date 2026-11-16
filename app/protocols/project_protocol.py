@@ -38,6 +38,19 @@ class ProjectRepository(Protocol):
         """
         ...
 
+    async def list_projects_page(
+        self,
+        user_id: UUID,
+        status: ProjectStatus | None = None,
+        repo_name: str | None = None,
+        name: str | None = None,
+        *,
+        limit: int,
+        offset: int,
+    ) -> tuple[list[ProjectSummary], int]:
+        """Return a bounded summary page and the full matching count."""
+        ...
+
     async def get_project_by_id(self, user_id: UUID, project_id: int) -> Project | None:
         """Get single project by ID
 

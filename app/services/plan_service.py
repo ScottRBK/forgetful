@@ -162,6 +162,29 @@ class PlanService:
         logger.info("plans retrieved", extra={"count": len(plans)})
         return plans
 
+    async def list_plans_page(
+        self,
+        user_id: UUID,
+        project_id: int | None = None,
+        status: PlanStatus | None = None,
+        external_ref: str | None = None,
+        *,
+        limit: int,
+        offset: int,
+    ) -> tuple[list[PlanSummary], int]:
+        """Return one bounded page and its full filtered total for REST callers."""
+        if external_ref is not None:
+            external_ref = TypeAdapter(ExternalRef).validate_python(external_ref)
+        items, total = await self.plan_repo.list_plans_page(
+            user_id=user_id,
+            project_id=project_id,
+            status=status,
+            external_ref=external_ref,
+            limit=limit,
+            offset=offset,
+        )
+        return items, total
+
     @staticmethod
     def _validate_transition(existing: Plan, plan_data: PlanUpdate) -> None:
         if plan_data.status is not None and plan_data.status != existing.status:
