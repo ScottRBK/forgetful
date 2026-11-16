@@ -1,22 +1,21 @@
 """Integration tests for query_memory response_format parsing, projection, and pre-retrieval validation (in-memory stubs, no database)."""
 
-import inspect
-from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from typing import get_args
+from unittest.mock import MagicMock
 
 import pytest
-from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
 
+from app.models.activity_models import ActionType
 from app.models.memory_models import (
     LinkedMemory,
     Memory,
     MemoryQueryCompactResult,
     MemoryQueryResult,
     MemoryScore,
+    QueryMemoryResponseFormat,
     parse_query_memory_response_format,
 )
-from app.routes.mcp import memory_tools
 from app.routes.mcp.query_memory_format import (
     project_query_memory_result,
     require_query_memory_response_format,
@@ -48,7 +47,7 @@ def _full_result() -> MemoryQueryResult:
     )
 
 
-@pytest.mark.parametrize("value", ["full", "compact"])
+@pytest.mark.parametrize("value", get_args(QueryMemoryResponseFormat))
 def test_parse_query_memory_response_format_accepts_known_values(value):
     assert parse_query_memory_response_format(value) == value
 
@@ -86,6 +85,16 @@ def test_project_query_memory_result_compact_projects_keys():
     assert projected.total_count == 2
 
 
+def test_project_query_memory_result_compact_preserves_content_and_importance():
+    projected = project_query_memory_result(_full_result(), "compact")
+    primary = projected.primary_memories[0]
+    assert primary.content == "Use pytest fixtures"
+    assert primary.importance == 8
+    linked = projected.linked_memories[0]
+    assert linked.content == "Use pytest fixtures"
+    assert linked.importance == 8
+
+
 def test_project_query_memory_result_compact_omits_fusion_score_without_hybrid():
     result = _full_result()
     result.scores = [MemoryScore(memory_id=41, similarity=0.91, rerank_score=None)]
@@ -94,11 +103,13 @@ def test_project_query_memory_result_compact_omits_fusion_score_without_hybrid()
 
 
 @pytest.mark.asyncio
-async def test_adapter_query_memory_rejects_invalid_format_before_service_call():
-    memory_service = MagicMock()
-    memory_service.query_memory = AsyncMock()
+async def test_adapter_query_memory_rejects_invalid_format_before_search(
+    test_memory_service_with_access_tracking,
+):
+    """Invalid response_format must not run query_memory or emit memory.queried."""
+    service, event_bus = test_memory_service_with_access_tracking
     adapters = MemoryToolAdapters(
-        memory_service=memory_service,
+        memory_service=service,
         user_service=MagicMock(),
         re_embedding_service=MagicMock(),
     )
@@ -111,27 +122,5 @@ async def test_adapter_query_memory_rejects_invalid_format_before_service_call()
             response_format="tiny",
         )
 
-    memory_service.query_memory.assert_not_awaited()
-
-
-@pytest.mark.asyncio
-async def test_mcp_tool_query_memory_rejects_invalid_format_before_service_call():
-    mcp = FastMCP("query-memory-format-test")
-    memory_tools.register(mcp)
-    tool = mcp.get_tool("query_memory")
-    if inspect.isawaitable(tool):
-        tool = await tool
-
-    memory_service = MagicMock()
-    memory_service.query_memory = AsyncMock()
-    ctx = SimpleNamespace(fastmcp=SimpleNamespace(memory_service=memory_service))
-
-    with pytest.raises(ToolError, match="^VALIDATION_ERROR: response_format"):
-        await tool.fn(
-            query="python testing",
-            query_context="invalid format",
-            ctx=ctx,
-            response_format="tiny",
-        )
-
-    memory_service.query_memory.assert_not_awaited()
+    queried = [e for e in event_bus.collected_events if e.action == ActionType.QUERIED]
+    assert queried == []

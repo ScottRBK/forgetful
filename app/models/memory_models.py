@@ -1,5 +1,5 @@
 from datetime import UTC, datetime
-from typing import Literal
+from typing import Literal, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_serializer
 
@@ -550,8 +550,11 @@ def compact_memory_query_result(result: MemoryQueryResult) -> MemoryQueryCompact
 
 def parse_query_memory_response_format(value: str) -> QueryMemoryResponseFormat:
     """Return value as a QueryMemoryResponseFormat; raise ValueError otherwise."""
-    if value not in ("full", "compact"):
-        raise ValueError(f"response_format must be 'full' or 'compact', got {value!r}")
+    allowed = get_args(QueryMemoryResponseFormat)
+    if value not in allowed:
+        raise ValueError(
+            f"response_format must be one of {allowed!r}, got {value!r}",
+        )
     return value
 
 

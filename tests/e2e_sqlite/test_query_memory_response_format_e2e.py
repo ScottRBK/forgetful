@@ -49,14 +49,16 @@ async def _seed_query_memory_fixture(mcp_client):
     })
 
 
-async def _query_memory_for_format_tests(mcp_client, response_format=None, *, seed=True):
+async def _query_memory_for_format_tests(
+    mcp_client, response_format=None, *, seed=True, include_links=False,
+):
     if seed:
         await _seed_query_memory_fixture(mcp_client)
     arguments = {
         "query": "python testing practices",
         "query_context": "looking for testing information",
         "k": 5,
-        "include_links": False,
+        "include_links": include_links,
     }
     if response_format is not None:
         arguments["response_format"] = response_format
@@ -79,10 +81,39 @@ async def test_query_memory_default_response_format_is_full_e2e(mcp_client):
 @pytest.mark.asyncio
 async def test_query_memory_explicit_full_matches_default_e2e(mcp_client):
     """response_format=full matches the default key sets."""
-    await _seed_query_memory_fixture(mcp_client)
-    default_result = await _query_memory_for_format_tests(mcp_client, seed=False)
+    create_a = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "create_memory",
+        "arguments": {
+            "title": "Python Testing Best Practices",
+            "content": "Pytest fixtures for integration tests",
+            "context": "Testing semantic search in E2E environment",
+            "keywords": ["python", "pytest", "testing"],
+            "tags": ["testing", "best-practices"],
+            "importance": 8,
+        },
+    })
+    memory_a_id = create_a.data["id"]
+    create_b = await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "create_memory",
+        "arguments": {
+            "title": "Pytest Parametrize",
+            "content": "Parametrize tests for multiple inputs",
+            "context": "Linked memory for full format comparison",
+            "keywords": ["pytest", "parametrize"],
+            "tags": ["testing"],
+            "importance": 6,
+        },
+    })
+    memory_b_id = create_b.data["id"]
+    await mcp_client.call_tool("execute_forgetful_tool", {
+        "tool_name": "link_memories",
+        "arguments": {"memory_id": memory_a_id, "related_ids": [memory_b_id]},
+    })
+    default_result = await _query_memory_for_format_tests(
+        mcp_client, seed=False, include_links=True,
+    )
     full_result = await _query_memory_for_format_tests(
-        mcp_client, response_format="full", seed=False,
+        mcp_client, response_format="full", seed=False, include_links=True,
     )
     assert default_result.data is not None
     assert full_result.data is not None
@@ -168,7 +199,14 @@ async def test_query_memory_compact_response_format_e2e(
     for linked in query_result.data["linked_memories"]:
         assert set(linked.keys()) == _QUERY_MEMORY_COMPACT_LINKED_KEYS
         assert "memory" not in linked
-        assert isinstance(linked["link_source_id"], int)
+        assert linked["link_source_id"] == memory1_id
+
+    primary = query_result.data["primary_memories"][0]
+    assert primary["content"].startswith("PostgreSQL is a powerful")
+    assert primary["importance"] == 8
+    linked_row = query_result.data["linked_memories"][0]
+    assert "index types" in linked_row["content"]
+    assert linked_row["importance"] == 7
 
     scores = query_result.data["scores"]
     primaries = query_result.data["primary_memories"]
