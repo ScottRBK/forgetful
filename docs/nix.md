@@ -155,9 +155,11 @@ would overwrite that audit trail.
 
 ## Build cache
 
-A public cache exists at <https://forgetful.cachix.org>. The flake does not
-consume or push to it yet; wiring `nixConfig` and the CI push is separate
-work.
+The cache is public at <https://forgetful.cachix.org> and is wired in both
+directions. The flake advertises it through `nixConfig`, so anyone evaluating
+this flake substitutes from it without extra flags; CI pushes to it, so a
+merged change is served to those readers rather than rebuilt. The public key is
+committed alongside the substituter URL in `flake.nix`.
 
 ## Nix design decisions
 
