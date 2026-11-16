@@ -1537,6 +1537,12 @@ class InMemoryEntityRepository(EntityRepository):
         relationships.sort(key=lambda r: r.created_at, reverse=True)
         return relationships
 
+    async def get_entity_relationship_by_id(
+        self, user_id: UUID, relationship_id: int,
+    ) -> EntityRelationship | None:
+        relationship = self._relationships.get(user_id, {}).get(relationship_id)
+        return relationship.model_copy(deep=True) if relationship else None
+
     async def update_entity_relationship(
         self,
         user_id: UUID,
@@ -2493,3 +2499,45 @@ async def entity_store(sqlite_runtime_settings, monkeypatch):
     finally:
         await bus.wait_for_pending()
         await db.dispose()
+
+
+@pytest.fixture
+def entity_relationship_plugin_runtime(sqlite_runtime_settings, monkeypatch, tmp_path):
+    monkeypatch.setattr("app.bootstrap.check_first_run_models", lambda: None)
+    monkeypatch.syspath_prepend(str(tmp_path))
+    module_name = "runtime_relationship_checks"
+    (tmp_path / f"{module_name}.py").write_text("""
+from app.models.write_plugin_models import PluginWarning, WriteDecision
+from app.protocols.write_plugin_protocol import EntityRelationshipPlugin
+
+async def decide(request):
+    if request.operation == "delete":
+        kind, prefix = request.previous.relationship_type, "delete_"
+    else:
+        kind, prefix = request.proposed.relationship_type, ""
+        if kind == "works_for" and request.target.entity_type.value != "Organization":
+            return WriteDecision(outcome="reject", message="works_for must target an Organization.")
+    if kind == prefix + "blocked":
+        return WriteDecision(outcome="reject", message="Relationship type not allowed.")
+    if kind == prefix + "warn":
+        return WriteDecision(outcome="warn", message="Check the relationship.", code="rel")
+    if kind == prefix + "error":
+        raise RuntimeError("SECRET")
+    return WriteDecision(outcome="allow")
+
+async def notify(request):
+    return PluginWarning(message="Graph consumers notified.", code="notify")
+
+plugin = EntityRelationshipPlugin(
+    before_save={"create": decide, "update": decide, "delete": decide},
+    after_save={"delete": notify},
+)
+""")
+    from app.config.settings import settings
+
+    monkeypatch.setattr(settings, "ENTITY_RELATIONSHIP_PLUGIN", f"{module_name}:plugin")
+    monkeypatch.setattr(settings, "ENTITY_RELATIONSHIP_PLUGIN_MODE", "enforce")
+    yield module_name
+    import sys
+
+    sys.modules.pop(module_name, None)

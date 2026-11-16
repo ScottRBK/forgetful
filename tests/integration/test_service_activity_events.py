@@ -465,7 +465,7 @@ async def test_entity_relationship_create_emits_event(test_entity_service_with_e
         target_entity_id=entity2.id,
         relationship_type="works_for",
     )
-    relationship = await service.create_entity_relationship(user_id, rel_data)
+    relationship = (await service.create_entity_relationship(user_id, rel_data)).relationship
 
     assert len(event_bus.collected_events) == 1
     event = event_bus.collected_events[0]
@@ -500,7 +500,7 @@ async def test_entity_relationship_delete_emits_event(test_entity_service_with_e
         target_entity_id=entity2.id,
         relationship_type="works_for",
     )
-    relationship = await service.create_entity_relationship(user_id, rel_data)
+    relationship = (await service.create_entity_relationship(user_id, rel_data)).relationship
 
     event_bus.collected_events.clear()
 

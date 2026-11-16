@@ -5,7 +5,14 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.models.entity_models import Entity, EntityCreate, EntityUpdate
+from app.models.entity_models import (
+    Entity,
+    EntityCreate,
+    EntityRelationship,
+    EntityRelationshipCreate,
+    EntityRelationshipUpdate,
+    EntityUpdate,
+)
 from app.models.memory_models import Memory, MemoryCreate, MemorySummary, MemoryUpdate
 
 MemoryOperation = Literal["create", "update", "obsolete", "restore"]
@@ -141,6 +148,57 @@ class EntityWriteResult(BaseModel):
 
 
 class EntityDeleteResult(BaseModel):
+    deleted: bool
+    plugin_warnings: list[PluginWarning] = Field(default_factory=list)
+
+
+EntityRelationshipOperation = Literal["create", "update", "delete"]
+
+
+class EntityRelationshipDeleteSubmission(BaseModel):
+    relationship_id: int
+
+
+class EntityRelationshipWriteRequest(BaseModel):
+    """Detached snapshots of the relationship and its owned source/target entities."""
+
+    operation: EntityRelationshipOperation
+    user_id: UUID
+    submitted: (
+        EntityRelationshipCreate | EntityRelationshipUpdate | EntityRelationshipDeleteSubmission
+    )
+    previous: EntityRelationship | None
+    proposed: EntityRelationshipCreate | None
+    source: Entity
+    target: Entity
+
+
+class EntityRelationshipSavedRequest(BaseModel):
+    """Confirmed relationship; endpoint snapshots are read before persistence."""
+
+    operation: Literal["create", "update"]
+    user_id: UUID
+    saved: EntityRelationship
+    previous: EntityRelationship | None
+    source: Entity
+    target: Entity
+
+
+class EntityRelationshipDeletedRequest(BaseModel):
+    operation: Literal["delete"] = "delete"
+    user_id: UUID
+    deleted_relationship_id: int
+    previous: EntityRelationship
+    source: Entity
+    target: Entity
+
+
+class EntityRelationshipWriteResult(BaseModel):
+    relationship: EntityRelationship
+    plugin_warnings: list[PluginWarning] = Field(default_factory=list)
+
+
+class EntityRelationshipDeleteResult(BaseModel):
     deleted: bool
     plugin_warnings: list[PluginWarning] = Field(default_factory=list)
 

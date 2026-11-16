@@ -25,7 +25,11 @@ from app.models.entity_models import (
     EntityType,
     EntityUpdate,
 )
-from app.routes.write_plugin_responses import EntityDeleteResponse, EntityWriteResponse
+from app.routes.write_plugin_responses import (
+    EntityDeleteResponse,
+    EntityRelationshipWriteResponse,
+    EntityWriteResponse,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -398,14 +402,22 @@ def register(mcp: FastMCP):
             return JSONResponse({"error": e.errors()}, status_code=400)
 
         try:
-            relationship = await mcp.entity_service.create_entity_relationship(
+            write_result = await mcp.entity_service.create_entity_relationship(
                 user_id=user.id,
                 relationship_data=relationship_data,
             )
+        except WritePluginRejectedError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        except WritePluginUnavailableError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=503)
         except NotFoundError as e:
             return JSONResponse({"error": str(e)}, status_code=404)
 
-        return JSONResponse(relationship.model_dump(mode="json"), status_code=201)
+        response = EntityRelationshipWriteResponse(
+            **write_result.relationship.model_dump(),
+            plugin_warnings=write_result.plugin_warnings,
+        )
+        return JSONResponse(response.model_dump(mode="json"), status_code=201)
 
     @mcp.custom_route("/api/v1/entities/relationships/{relationship_id}", methods=["PUT"])
     async def update_entity_relationship(request: Request) -> JSONResponse:
@@ -424,15 +436,23 @@ def register(mcp: FastMCP):
             return JSONResponse({"error": e.errors()}, status_code=400)
 
         try:
-            relationship = await mcp.entity_service.update_entity_relationship(
+            write_result = await mcp.entity_service.update_entity_relationship(
                 user_id=user.id,
                 relationship_id=relationship_id,
                 relationship_data=update_data,
             )
+        except WritePluginRejectedError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        except WritePluginUnavailableError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=503)
         except NotFoundError:
             return JSONResponse({"error": "Relationship not found"}, status_code=404)
 
-        return JSONResponse(relationship.model_dump(mode="json"))
+        response = EntityRelationshipWriteResponse(
+            **write_result.relationship.model_dump(),
+            plugin_warnings=write_result.plugin_warnings,
+        )
+        return JSONResponse(response.model_dump(mode="json"))
 
     @mcp.custom_route("/api/v1/entities/relationships/{relationship_id}", methods=["DELETE"])
     async def delete_entity_relationship(request: Request) -> JSONResponse:
@@ -444,12 +464,22 @@ def register(mcp: FastMCP):
 
         relationship_id = int(request.path_params["relationship_id"])
 
-        success = await mcp.entity_service.delete_entity_relationship(
-            user_id=user.id,
-            relationship_id=relationship_id,
-        )
-
-        if not success:
+        try:
+            delete_result = await mcp.entity_service.delete_entity_relationship(
+                user_id=user.id,
+                relationship_id=relationship_id,
+            )
+        except WritePluginRejectedError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        except WritePluginUnavailableError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=503)
+        except NotFoundError:
             return JSONResponse({"error": "Relationship not found"}, status_code=404)
 
-        return JSONResponse({"success": True})
+        if not delete_result.deleted:
+            return JSONResponse({"error": "Relationship not found"}, status_code=404)
+
+        response = EntityDeleteResponse(
+            success=True, plugin_warnings=delete_result.plugin_warnings,
+        )
+        return JSONResponse(response.model_dump(mode="json"))

@@ -231,8 +231,12 @@ async def build_runtime() -> Runtime:
     from app.config.plan_plugin import load_plan_plugin
     from app.config.write_plugin import (
         load_entity_plugin,
+        load_entity_relationship_plugin,
         load_memory_link_plugin,
         load_write_plugin,
+    )
+    from app.services.entity_relationship_plugin_service import (
+        EntityRelationshipPluginService,
     )
     from app.services.entity_write_plugin_service import EntityWritePluginService
     from app.services.memory_link_service import MemoryLinkService
@@ -242,12 +246,14 @@ async def build_runtime() -> Runtime:
     link_registration = load_memory_link_plugin(settings)
     plugin = load_write_plugin(settings)
     entity_plugin = load_entity_plugin(settings)
+    relationship_registration = load_entity_relationship_plugin(settings)
     plan_registration = load_plan_plugin(settings)
     plugin_logger_states = {}
     for registration, reference in (
         (plugin, settings.MEMORY_WRITE_PLUGIN),
         (link_registration, settings.MEMORY_LINK_PLUGIN),
         (entity_plugin, settings.ENTITY_WRITE_PLUGIN),
+        (relationship_registration, settings.ENTITY_RELATIONSHIP_PLUGIN),
         (plan_registration, settings.PLAN_WRITE_PLUGIN),
     ):
         if registration is None:
@@ -273,6 +279,10 @@ async def build_runtime() -> Runtime:
         entity_plugin, mode=settings.ENTITY_WRITE_PLUGIN_MODE,
         timeout_seconds=settings.ENTITY_WRITE_PLUGIN_TIMEOUT_SECONDS,
     ) if entity_plugin is not None else None)
+    relationship_plugin = (EntityRelationshipPluginService(
+        relationship_registration, mode=settings.ENTITY_RELATIONSHIP_PLUGIN_MODE,
+        timeout_seconds=settings.ENTITY_RELATIONSHIP_PLUGIN_TIMEOUT_SECONDS,
+    ) if relationship_registration is not None else None)
 
     plan_plugin = (PlanWritePluginService(
         plan_registration, mode=settings.PLAN_WRITE_PLUGIN_MODE,
@@ -297,6 +307,7 @@ async def build_runtime() -> Runtime:
         # Alembic fileConfig disables existing loggers; plugin failures must remain diagnosable.
         logging.getLogger("app.services.write_plugin_service").disabled = False
         logging.getLogger("app.services.entity_write_plugin_service").disabled = False
+        logging.getLogger("app.services.entity_relationship_plugin_service").disabled = False
         logging.getLogger("app.services.plan_write_plugin_service").disabled = False
         logging.getLogger("app.services.memory_link_service").disabled = False
         for plugin_logger, was_disabled in plugin_logger_states.items():
@@ -346,6 +357,7 @@ async def build_runtime() -> Runtime:
         document_service = DocumentService(repos["document"], event_bus=event_bus)
         entity_service = EntityService(
             repos["entity"], event_bus=event_bus, write_plugin=entity_write_plugin,
+            relationship_plugin=relationship_plugin,
         )
         # Conditionally create file service behind FILES_ENABLED
         file_service = None

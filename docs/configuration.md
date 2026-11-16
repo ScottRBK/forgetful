@@ -723,6 +723,65 @@ before-save uses `EntityDeleteSubmission`; `proposed` is `None` for delete. Miss
 delete skip both phases. No-op updates skip the plugin but still run the repository update.
 Association rows removed by database `ON DELETE CASCADE` are not visible to the plugin.
 
+### Entity Relationship Plugin
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `ENTITY_RELATIONSHIP_PLUGIN` | empty | Importable `module:object` containing an `EntityRelationshipPlugin` |
+| `ENTITY_RELATIONSHIP_PLUGIN_MODE` | `enforce` | `warn` or `enforce`, for **before_save only** |
+| `ENTITY_RELATIONSHIP_PLUGIN_TIMEOUT_SECONDS` | `5.0` | Positive, finite deadline for each handler |
+
+A separate registration from the Entity Plugin, scoped to typed entity relationship `create`,
+`update`, and `delete` through `EntityService`. Rules about relationship types, direction, or
+source/target entity types belong here; entity fields stay with the Entity Plugin.
+
+```python
+# my_plugins/relationship_checks.py (example rules, not built into Forgetful)
+from app.models.entity_models import EntityType
+from app.models.write_plugin_models import PluginWarning, WriteDecision
+from app.protocols.write_plugin_protocol import EntityRelationshipPlugin
+
+
+async def check_endpoints(request):
+    rel = request.proposed
+    if rel.relationship_type == "works_for" and request.target.entity_type != EntityType.ORGANIZATION:
+        return WriteDecision(outcome="reject", message="works_for must target an Organization.")
+    return WriteDecision(outcome="allow")
+
+
+async def notify_graph(request):
+    return PluginWarning(message="Graph consumers notified.", code="GRAPH_NOTIFIED")
+
+
+plugin = EntityRelationshipPlugin(
+    before_save={"create": check_endpoints, "update": check_endpoints},
+    after_save={"delete": notify_graph},
+)
+```
+
+Set `ENTITY_RELATIONSHIP_PLUGIN=my_plugins.relationship_checks:plugin`. Registration, startup
+validation, modes, timeouts, warnings, and error codes mirror the Memory Plugin above.
+
+- Before handlers receive `EntityRelationshipWriteRequest` with `operation`, `user_id`, `submitted`
+  (`EntityRelationshipCreate`, `EntityRelationshipUpdate`, or `EntityRelationshipDeleteSubmission`),
+  `previous` (`None` on create), `proposed` (the merged relationship; `None` on delete), and detached
+  `source` and `target` `Entity` snapshots.
+- After handlers receive `EntityRelationshipSavedRequest` (`saved`, `previous`, `source`, `target`) for
+  create/update, or `EntityRelationshipDeletedRequest` (`deleted_relationship_id`, `previous`, `source`,
+  `target`) for delete. They return `PluginWarning` or `None`; failures add
+  `ENTITY_RELATIONSHIP_PLUGIN_AFTER_SAVE_UNAVAILABLE` without undoing the write.
+- Both endpoints must exist and belong to the caller before any handler runs; the repository
+  re-checks them at persistence. Update and delete reread the relationship after a before handler
+  returns. Endpoint snapshots are read before persistence and are not an atomic database view.
+- Missing or foreign relationships skip both phases. No-op updates skip the plugin but still run
+  the repository update.
+- Relationships removed when an entity is deleted (database `ON DELETE CASCADE`) do not dispatch
+  relationship hooks. Entity-memory/project links and memory-to-memory links are not covered.
+
+REST relationship writes add `plugin_warnings` only when nonempty; rejections return 400 and
+unavailable before-save returns 503. MCP and local CLI use `WRITE_PLUGIN_REJECTED: <message>` or
+`WRITE_PLUGIN_UNAVAILABLE: Entity Relationship Plugin unavailable.`
+
 ## Memory Configuration
 
 These settings control the atomic memory system's behavior and constraints.
