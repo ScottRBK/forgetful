@@ -240,6 +240,7 @@ class EntityService:
         project_ids: list[int] | None = None,
         entity_type: EntityType | None = None,
         tags: list[str] | None = None,
+        q: str | None = None,
         limit: int = 20,
         offset: int = 0,
     ) -> tuple[list[EntitySummary], int]:
@@ -250,6 +251,7 @@ class EntityService:
             project_ids: Optional filter by projects (returns entities associated with ANY of these projects)
             entity_type: Optional filter by entity type
             tags: Optional filter by tags (returns entities with ANY of these tags)
+            q: Literal substring filter on name or one AKA value (optional)
             limit: Maximum number of entities to return (default 20)
             offset: Number of entities to skip (default 0)
 
@@ -265,6 +267,7 @@ class EntityService:
                 "project_ids": project_ids,
                 "entity_type": entity_type.value if entity_type else None,
                 "tags": tags,
+                "q": q,
                 "limit": limit,
                 "offset": offset,
             },
@@ -275,6 +278,7 @@ class EntityService:
             project_ids=project_ids,
             entity_type=entity_type,
             tags=tags,
+            q=q,
             limit=limit,
             offset=offset,
         )
@@ -303,6 +307,7 @@ class EntityService:
                     "project_ids": project_ids,
                     "entity_type": entity_type.value if entity_type else None,
                     "tags": tags,
+                    "q": q,
                     "limit": limit,
                     "offset": offset,
                 },

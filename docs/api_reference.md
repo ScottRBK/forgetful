@@ -510,9 +510,19 @@ List all entities.
 
 **Query Parameters:**
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `entity_type` | string | Filter by type: `Individual`, `Organization`, `Team`, `Device`, `System`, `Other` |
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `entity_type` | string | - | Filter by type: `Individual`, `Organization`, `Team`, `Device`, `System`, `Other` |
+| `limit` | int | 20 | Results per page (1-100) |
+| `offset` | int | 0 | Skip N results |
+| `q` | string | - | Literal substring filter on name or one AKA value |
+
+`q` matches a literal substring in the entity `name` or in any single AKA value. Only
+ASCII letters are case-insensitive: `A-Z` match `a-z`, and every other character must
+match exactly. `q` is not trimmed, and `%`, `_` and `\` are literal characters. An absent
+or empty `q` means no filter. A NUL character returns HTTP 400 with
+`{"error": "q must not contain NUL"}`. Filters combine with AND before counting and
+pagination.
 
 **Response:**
 ```json
@@ -527,7 +537,9 @@ List all entities.
       "created_at": "2024-12-05T10:00:00Z"
     }
   ],
-  "total": 10
+  "total": 10,
+  "limit": 20,
+  "offset": 0
 }
 ```
 
