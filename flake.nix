@@ -89,7 +89,7 @@
             workspaceRoot = ./.;
           };
 
-          # 2. Overlay: uv.lock -> derivations (wheels preferred, house default)
+          # 2. Overlay: uv.lock -> derivations (wheels preferred; they need no build step)
           uvLockedOverlay = workspace.mkPyprojectOverlay {
             sourcePreference = "wheel";
           };
@@ -131,7 +131,7 @@
           # 5. Runtime env from the lock (default groups)
           forgetfulEnv = pythonSet.mkVirtualEnv "forgetful-env" workspace.deps.default;
 
-          # 6. App package (house stdenv+makeWrapper for servers)
+          # 6. App package: stdenv + makeWrapper around the runtime env
           #
           # Limit the wrapper's source to the files copied by installPhase.
           # If installPhase copies more paths, extend this fileset.
@@ -170,7 +170,7 @@
             };
           };
 
-          # 7. Sandboxed test run (matrix A7/A15). Allow-listed like packageSrc:
+          # 7. Sandboxed test run. Allow-listed like packageSrc:
           # the suite reads pytest.ini, its own tree, the package sources and the
           # test_harness config that test_harness_* tests load by relative path.
           testSrc = lib.fileset.toSource {
@@ -271,7 +271,7 @@
             ${lib.getExe config.pre-commit.settings.package} run --all-files --config ${config.pre-commit.settings.configFile}
           '';
 
-          # App + Docker (house patterns): stdenv+makeWrapper server + layered OCI image on 8020
+          # App + Docker: stdenv+makeWrapper server + layered OCI image on 8020
           # Image repo `forgetful` matches CI (ghcr.io/<owner>/forgetful) and
           # docker-compose default (`forgetful:latest`); pname stays forgetful-ai.
           packages = {
