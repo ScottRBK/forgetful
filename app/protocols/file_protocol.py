@@ -77,6 +77,19 @@ class FileRepository(Protocol):
         """
         ...
 
+    async def list_files_page(
+        self,
+        user_id: UUID,
+        project_id: int | None = None,
+        mime_type: str | None = None,
+        tags: list[str] | None = None,
+        *,
+        limit: int,
+        offset: int,
+    ) -> tuple[list[FileSummary], int]:
+        """Return a bounded summary page and the full matching count."""
+        ...
+
     async def update_file(
         self,
         user_id: UUID,

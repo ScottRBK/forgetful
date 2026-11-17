@@ -178,6 +178,55 @@ class SqliteCodeArtifactRepository:
             )
             raise
 
+    async def list_code_artifacts_page(
+        self,
+        user_id: UUID,
+        project_id: int | None = None,
+        language: str | None = None,
+        tags: list[str] | None = None,
+        *,
+        limit: int,
+        offset: int,
+    ) -> tuple[list[CodeArtifactSummary], int]:
+        """Return a counted SQL page using only summary columns."""
+        async with self.db_adapter.session(user_id) as session:
+            conditions = [CodeArtifactsTable.user_id == str(user_id)]
+            if project_id is not None:
+                conditions.append(CodeArtifactsTable.project_id == project_id)
+            if language:
+                conditions.append(CodeArtifactsTable.language == language.lower())
+            if tags:
+                # Preserve the existing SQLite LIKE semantics, including wildcards.
+                tag_conditions = [
+                    func.json_extract(CodeArtifactsTable.tags, "$").like(f'%"{tag}"%')
+                    for tag in tags
+                ]
+                conditions.append(or_(*tag_conditions))
+
+            count_stmt = select(func.count(CodeArtifactsTable.id)).where(*conditions)
+            total = await session.scalar(count_stmt)
+            stmt = (
+                select(
+                    CodeArtifactsTable.id,
+                    CodeArtifactsTable.title,
+                    CodeArtifactsTable.description,
+                    CodeArtifactsTable.language,
+                    CodeArtifactsTable.tags,
+                    CodeArtifactsTable.project_id,
+                    CodeArtifactsTable.created_at,
+                    CodeArtifactsTable.updated_at,
+                )
+                .where(*conditions)
+                .order_by(
+                    CodeArtifactsTable.created_at.desc(),
+                    CodeArtifactsTable.id.desc(),
+                )
+                .offset(offset)
+                .limit(limit)
+            )
+            result = await session.execute(stmt)
+            return [CodeArtifactSummary.model_validate(row) for row in result.mappings().all()], total or 0
+
     async def update_code_artifact(
         self,
         user_id: UUID,

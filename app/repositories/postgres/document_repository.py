@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.config.logging_config import logging
 from app.exceptions import NotFoundError
@@ -172,6 +172,52 @@ class PostgresDocumentRepository:
                 },
             )
             raise
+
+    async def list_documents_page(
+        self,
+        user_id: UUID,
+        project_id: int | None = None,
+        document_type: str | None = None,
+        tags: list[str] | None = None,
+        *,
+        limit: int,
+        offset: int,
+    ) -> tuple[list[DocumentSummary], int]:
+        """Return a counted SQL page using only summary columns."""
+        async with self.db_adapter.session(user_id) as session:
+            conditions = [DocumentsTable.user_id == user_id]
+            if project_id is not None:
+                conditions.append(DocumentsTable.project_id == project_id)
+            if document_type:
+                conditions.append(DocumentsTable.document_type == document_type)
+            if tags:
+                conditions.append(DocumentsTable.tags.overlap(tags))
+
+            count_stmt = select(func.count(DocumentsTable.id)).where(*conditions)
+            total = await session.scalar(count_stmt)
+            stmt = (
+                select(
+                    DocumentsTable.id,
+                    DocumentsTable.title,
+                    DocumentsTable.description,
+                    DocumentsTable.document_type,
+                    DocumentsTable.filename,
+                    DocumentsTable.size_bytes,
+                    DocumentsTable.tags,
+                    DocumentsTable.project_id,
+                    DocumentsTable.created_at,
+                    DocumentsTable.updated_at,
+                )
+                .where(*conditions)
+                .order_by(
+                    DocumentsTable.created_at.desc(),
+                    DocumentsTable.id.desc(),
+                )
+                .offset(offset)
+                .limit(limit)
+            )
+            result = await session.execute(stmt)
+            return [DocumentSummary.model_validate(row) for row in result.mappings().all()], total or 0
 
     async def update_document(
         self,

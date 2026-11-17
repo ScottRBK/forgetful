@@ -77,6 +77,19 @@ class DocumentRepository(Protocol):
         """
         ...
 
+    async def list_documents_page(
+        self,
+        user_id: UUID,
+        project_id: int | None = None,
+        document_type: str | None = None,
+        tags: list[str] | None = None,
+        *,
+        limit: int,
+        offset: int,
+    ) -> tuple[list[DocumentSummary], int]:
+        """Return a bounded summary page and the full matching count."""
+        ...
+
     async def update_document(
         self,
         user_id: UUID,
