@@ -260,6 +260,45 @@ class PaginationCases:
             assert oversized.json()[resource] == [] and oversized.json()["total"] == 105
 
     @pytest.mark.parametrize("resource", RESOURCES)
+    async def test_page_ownership_not_hidden_by_parent_filter(
+        self, pagination_environment, monkeypatch, resource,
+    ):
+        environment = pagination_environment
+        owned, params = await seed(environment, resource, 3)
+        owner_id = (await environment.user()).id
+        with acting_as_other(monkeypatch):
+            foreign, _ = await seed(environment, resource, 3)
+            other_id = (await environment.user()).id
+        assert owner_id != other_id
+        table = environment.table(resource)
+        # Deliberately construct cross-owner parent links through a system session.
+        # Public creation correctly rejects these links; this fixture prevents the
+        # project/plan predicate from masking a missing user_id predicate.
+        if params:
+            async with environment.adapter.system_session() as session:
+                await session.execute(
+                    update(table).where(table.c.id.in_([row["id"] for row in foreign])).values(**params),
+                )
+        async with environment.adapter.system_session() as session:
+            rows = (await session.execute(
+                select(table).where(table.c.id.in_([row["id"] for row in foreign])),
+            )).mappings().all()
+            assert len(rows) == 3
+            assert all(str(row["user_id"]) == str(other_id) for row in rows)
+            assert all(row[key] == value for row in rows for key, value in params.items())
+        expected = {row["id"] for row in owned}
+        actual = []
+        for offset in range(3):
+            page = await get_page(environment, resource, dict(params, limit=1, offset=offset))
+            assert page["total"] == 3
+            assert len(page[resource]) == 1
+            actual.extend(row["id"] for row in page[resource])
+        assert len(actual) == len(set(actual)) == 3
+        assert set(actual) == expected
+        empty = await get_page(environment, resource, dict(params, limit=1, offset=3))
+        assert empty["total"] == 3 and empty[resource] == []
+
+    @pytest.mark.parametrize("resource", RESOURCES)
     @pytest.mark.parametrize("key,value", [
         ("limit", ""), ("limit", "abc"), ("limit", "1.5"), ("limit", "0"),
         ("limit", "-1"), ("limit", "101"), ("offset", ""), ("offset", "abc"),

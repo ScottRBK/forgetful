@@ -419,6 +419,9 @@ Memories endpoint. Invalid values return HTTP 400:
 - A limit outside 1–100: `limit must be between 1 and 100`.
 - A negative offset: `offset must be non-negative`.
 
+An offset of `2^63` or greater returns HTTP 500 on both SQLite and PostgreSQL,
+matching the existing Memories endpoint; it is not a valid empty page.
+
 Each response retains its resource array and summary fields, and includes `total`,
 `limit`, and `offset`. `total` is the full count after ownership and all supplied
 filters, even if the page is empty or the offset is beyond the end. It is not the
