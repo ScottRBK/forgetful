@@ -92,6 +92,7 @@ from app.services.project_service import ProjectService
 from app.services.skill_service import SkillService
 from app.services.task_service import TaskService
 from app.services.user_service import UserService
+from app.utils.text_folding import fold_ascii
 
 
 class InMemoryUserRepository(UserRepository):
@@ -1308,6 +1309,7 @@ class InMemoryEntityRepository(EntityRepository):
         project_ids: list[int] | None = None,
         entity_type: EntityType | None = None,
         tags: list[str] | None = None,
+        q: str | None = None,
         limit: int = 20,
         offset: int = 0,
     ) -> tuple[list[EntitySummary], int]:
@@ -1322,6 +1324,15 @@ class InMemoryEntityRepository(EntityRepository):
             entities = [e for e in entities if e.entity_type == entity_type]
         if tags:
             entities = [e for e in entities if any(t in e.tags for t in tags)]
+        if q is not None:
+            folded_q = fold_ascii(q)
+
+            def matches_q(entity: Entity) -> bool:
+                if folded_q in fold_ascii(entity.name):
+                    return True
+                return any(folded_q in fold_ascii(alias) for alias in entity.aka)
+
+            entities = [e for e in entities if matches_q(e)]
 
         # Sort by created_at (newest first), then by id for deterministic ordering
         entities.sort(key=lambda e: (e.created_at, e.id), reverse=True)

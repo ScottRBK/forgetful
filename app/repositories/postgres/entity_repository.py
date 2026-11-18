@@ -27,6 +27,7 @@ from app.repositories.postgres.postgres_tables import (
     entity_project_association,
     memory_entity_association,
 )
+from app.utils.text_folding import fold_ascii
 
 logger = logging.getLogger(__name__)
 
@@ -162,6 +163,7 @@ class PostgresEntityRepository:
         project_ids: list[int] | None = None,
         entity_type: EntityType | None = None,
         tags: list[str] | None = None,
+        q: str | None = None,
         limit: int = 20,
         offset: int = 0,
     ) -> tuple[list[EntitySummary], int]:
@@ -172,6 +174,7 @@ class PostgresEntityRepository:
             project_ids: Optional filter by project IDs (returns entities linked to ANY of these projects)
             entity_type: Optional filter by entity type
             tags: Optional filter by tags (returns entities with ANY of these tags)
+            q: Literal substring on name or one AKA value (ASCII case fold only)
             limit: Maximum number of entities to return (default 20)
             offset: Number of entities to skip (default 0)
 
@@ -180,8 +183,6 @@ class PostgresEntityRepository:
             - entities: List of EntitySummary (lightweight, excludes notes)
             - total_count: Total matching entities before pagination
         """
-        from sqlalchemy import func
-
         try:
             async with self.db_adapter.session(user_id) as session:
                 # Build base conditions
@@ -189,6 +190,34 @@ class PostgresEntityRepository:
 
                 if entity_type:
                     conditions.append(EntitiesTable.entity_type == entity_type.value)
+
+                if q is not None:
+                    folded_q = fold_ascii(q)
+                    aka_values = (
+                        func.unnest(EntitiesTable.aka).table_valued("aka_value").render_derived()
+                    )
+                    aka_match = (
+                        select(1)
+                        .select_from(aka_values)
+                        .where(
+                            func.strpos(
+                                func.lower(aka_values.c.aka_value.collate("C")),
+                                folded_q,
+                            )
+                            > 0,
+                        )
+                        .exists()
+                    )
+                    conditions.append(
+                        or_(
+                            func.strpos(
+                                func.lower(EntitiesTable.name.collate("C")),
+                                folded_q,
+                            )
+                            > 0,
+                            aka_match,
+                        ),
+                    )
 
                 if tags:
                     # GIN array overlap search - finds entities with ANY of the provided tags

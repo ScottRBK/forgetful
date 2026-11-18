@@ -5,6 +5,8 @@ Tests the /api/v1/entities endpoints.
 """
 import pytest
 
+from tests.entity_list_cases import TestEntityListContract as TestEntityListContract
+
 
 class TestEntityAPIList:
     """Test GET /api/v1/entities endpoint."""

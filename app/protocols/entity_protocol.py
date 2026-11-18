@@ -68,6 +68,7 @@ class EntityRepository(Protocol):
         project_ids: list[int] | None = None,
         entity_type: EntityType | None = None,
         tags: list[str] | None = None,
+        q: str | None = None,
         limit: int = 20,
         offset: int = 0,
     ) -> tuple[list[EntitySummary], int]:
@@ -78,6 +79,7 @@ class EntityRepository(Protocol):
             project_ids: Optional filter by projects (returns entities in ANY of these projects)
             entity_type: Optional filter by entity type (Organization, Individual, etc.)
             tags: Optional filter by tags (returns entities with ANY of these tags)
+            q: Literal substring on name or one AKA value (ASCII case fold only)
             limit: Maximum number of entities to return (default 20)
             offset: Number of entities to skip (default 0)
 
