@@ -24,6 +24,14 @@ from app.models.document_models import (
     DocumentSummary,
     DocumentUpdate,
 )
+from app.models.write_plugin_models import (
+    DocumentDeletedRequest,
+    DocumentDeleteResult,
+    DocumentDeleteSubmission,
+    DocumentSavedRequest,
+    DocumentWriteRequest,
+    DocumentWriteResult,
+)
 from app.protocols.document_protocol import DocumentRepository
 from app.utils.provenance import (
     apply_provenance_defaults,
@@ -33,6 +41,7 @@ from app.utils.pydantic_helper import get_changed_fields
 
 if TYPE_CHECKING:
     from app.events import EventBus
+    from app.services.document_write_plugin_service import DocumentWritePluginService
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +57,7 @@ class DocumentService:
         self,
         document_repo: DocumentRepository,
         event_bus: "EventBus | None" = None,
+        write_plugin: "DocumentWritePluginService | None" = None,
     ):
         """Initialize with repository protocol (not concrete implementation)
 
@@ -57,6 +67,7 @@ class DocumentService:
         """
         self.document_repo = document_repo
         self._event_bus = event_bus
+        self._write_plugin = write_plugin
         logger.info("Document service initialized")
 
     async def _emit_event(
@@ -102,7 +113,7 @@ class DocumentService:
         self,
         user_id: UUID,
         document_data: DocumentCreate,
-    ) -> Document:
+    ) -> DocumentWriteResult:
         """Create new document
 
         Args:
@@ -121,7 +132,16 @@ class DocumentService:
             },
         )
 
+        submitted = document_data.model_copy(deep=True)
         document_data = apply_provenance_defaults(document_data)
+        plugin_warnings = []
+        if self._write_plugin and self._write_plugin.has_before("create"):
+            plugin_warnings = await self._write_plugin.before_save(DocumentWriteRequest(
+                operation="create", user_id=user_id, submitted=submitted, previous=None,
+                proposed=DocumentCreate.model_validate(
+                    document_data.model_dump(include=set(DocumentCreate.model_fields)),
+                ),
+            ))
         document = await self.document_repo.create_document(
             user_id=user_id,
             document_data=document_data,
@@ -144,7 +164,12 @@ class DocumentService:
             snapshot=document.model_dump(mode="json"),
         )
 
-        return document
+        if self._write_plugin:
+            plugin_warnings += await self._write_plugin.after_save(DocumentSavedRequest(
+                operation="create", user_id=user_id, previous=None, saved=document,
+            ))
+
+        return DocumentWriteResult(document=document, plugin_warnings=plugin_warnings)
 
     async def get_document(
         self,
@@ -267,7 +292,7 @@ class DocumentService:
         user_id: UUID,
         document_id: int,
         document_data: DocumentUpdate,
-    ) -> Document:
+    ) -> DocumentWriteResult:
         """Update existing document (PATCH semantics)
 
         Only provided fields are updated. None/omitted fields remain unchanged.
@@ -291,6 +316,7 @@ class DocumentService:
             },
         )
 
+        submitted = document_data.model_copy(deep=True)
         document_data = apply_provenance_defaults_for_update(document_data)
 
         # Get existing document for change detection
@@ -306,6 +332,32 @@ class DocumentService:
         changed_fields = get_changed_fields(
             input_model=document_data, existing_model=existing_document,
         )
+
+        plugin_warnings = []
+        if changed_fields and self._write_plugin and self._write_plugin.has_before("update"):
+            # proposed must mirror DocumentRepository.update_document merge rules.
+            merged = existing_document.model_dump(include=set(DocumentCreate.model_fields))
+            updates = document_data.model_dump(exclude_unset=True)
+            merged.update(updates)
+            if updates.get("content"):
+                merged["size_bytes"] = len(updates["content"].encode("utf-8"))
+            proposed = DocumentCreate.model_validate(merged)
+            plugin_warnings = await self._write_plugin.before_save(DocumentWriteRequest(
+                operation="update", user_id=user_id, submitted=submitted,
+                previous=existing_document.model_copy(deep=True), proposed=proposed,
+            ))
+            existing_document = await self.document_repo.get_document_by_id(
+                user_id=user_id, document_id=document_id,
+            )
+            if not existing_document:
+                raise NotFoundError(f"Document {document_id} not found")
+            changed_fields = get_changed_fields(
+                input_model=document_data, existing_model=existing_document,
+            )
+            if not changed_fields:
+                return DocumentWriteResult(
+                    document=existing_document, plugin_warnings=plugin_warnings,
+                )
 
         document = await self.document_repo.update_document(
             user_id=user_id,
@@ -335,14 +387,19 @@ class DocumentService:
                 snapshot=document.model_dump(mode="json"),
                 changes=changes_dict,
             )
+            if self._write_plugin:
+                previous = existing_document.model_copy(deep=True)
+                plugin_warnings += await self._write_plugin.after_save(DocumentSavedRequest(
+                    operation="update", user_id=user_id, saved=document, previous=previous,
+                ))
 
-        return document
+        return DocumentWriteResult(document=document, plugin_warnings=plugin_warnings)
 
     async def delete_document(
         self,
         user_id: UUID,
         document_id: int,
-    ) -> bool:
+    ) -> DocumentDeleteResult:
         """Delete document (cascade removes memory associations)
 
         Args:
@@ -365,6 +422,14 @@ class DocumentService:
             user_id=user_id,
             document_id=document_id,
         )
+
+        plugin_warnings = []
+        if existing_document and self._write_plugin and self._write_plugin.has_before("delete"):
+            plugin_warnings = await self._write_plugin.before_save(DocumentWriteRequest(
+                operation="delete", user_id=user_id,
+                submitted=DocumentDeleteSubmission(document_id=document_id),
+                previous=existing_document.model_copy(deep=True), proposed=None,
+            ))
 
         success = await self.document_repo.delete_document(
             user_id=user_id,
@@ -389,6 +454,11 @@ class DocumentService:
                     action=ActionType.DELETED,
                     snapshot=existing_document.model_dump(mode="json"),
                 )
+                if self._write_plugin:
+                    plugin_warnings += await self._write_plugin.after_save(DocumentDeletedRequest(
+                        user_id=user_id, deleted_document_id=document_id,
+                        previous=existing_document.model_copy(deep=True),
+                    ))
         else:
             logger.warning(
                 "document not found for deletion",
@@ -398,4 +468,4 @@ class DocumentService:
                 },
             )
 
-        return success
+        return DocumentDeleteResult(deleted=success, plugin_warnings=plugin_warnings)

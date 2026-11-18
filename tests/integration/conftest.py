@@ -2471,6 +2471,45 @@ plugin = EntityPlugin(before_save={"create": decide, "update": decide, "delete":
 
 
 @pytest.fixture
+def document_plugin_runtime(sqlite_runtime_settings, monkeypatch, tmp_path):
+    monkeypatch.setattr("app.bootstrap.check_first_run_models", lambda: None)
+    monkeypatch.syspath_prepend(str(tmp_path))
+    module_name = "runtime_document_checks"
+    (tmp_path / f"{module_name}.py").write_text("""
+from app.models.write_plugin_models import WriteDecision
+from app.protocols.write_plugin_protocol import DocumentPlugin
+
+async def decide(request):
+    if request.operation == "delete":
+        tags = request.previous.tags if request.previous else []
+        if "delete_blocked" in tags:
+            return WriteDecision(outcome="reject", message="Remove the blocked tag.")
+        if "delete_warn" in tags:
+            return WriteDecision(outcome="warn", message="Check the source.", code="source")
+        if "delete_error" in tags:
+            raise RuntimeError("SECRET")
+        return WriteDecision(outcome="allow")
+    if request.proposed and "blocked" in request.proposed.tags:
+        return WriteDecision(outcome="reject", message="Remove the blocked tag.")
+    if request.proposed and "warn" in request.proposed.tags:
+        return WriteDecision(outcome="warn", message="Check the source.", code="source")
+    if request.proposed and "error" in request.proposed.tags:
+        raise RuntimeError("SECRET")
+    return WriteDecision(outcome="allow")
+
+plugin = DocumentPlugin(before_save={"create": decide, "update": decide, "delete": decide})
+""")
+    from app.config.settings import settings
+
+    monkeypatch.setattr(settings, "DOCUMENT_WRITE_PLUGIN", f"{module_name}:plugin")
+    monkeypatch.setattr(settings, "DOCUMENT_WRITE_PLUGIN_MODE", "enforce")
+    yield module_name
+    import sys
+
+    sys.modules.pop(module_name, None)
+
+
+@pytest.fixture
 async def entity_store(sqlite_runtime_settings, monkeypatch):
     from app.config.settings import settings
     from app.events import EventBus
@@ -2486,6 +2525,31 @@ async def entity_store(sqlite_runtime_settings, monkeypatch):
     repo = SqliteEntityRepository(db)
     user = await UserService(SqliteUserRepository(db)).get_or_create_user(
         UserCreate(external_id="entity-plugin-test", name="Entity plugin", email="ep@example.com"),
+    )
+    bus = EventBus()
+    try:
+        yield repo, user.id, bus
+    finally:
+        await bus.wait_for_pending()
+        await db.dispose()
+
+
+@pytest.fixture
+async def document_store(sqlite_runtime_settings, monkeypatch):
+    from app.config.settings import settings
+    from app.events import EventBus
+    from app.models.user_models import UserCreate
+    from app.repositories.sqlite.document_repository import SqliteDocumentRepository
+    from app.repositories.sqlite.sqlite_adapter import SqliteDatabaseAdapter
+    from app.repositories.sqlite.user_repository import SqliteUserRepository
+    from app.services.user_service import UserService
+
+    monkeypatch.setattr(settings, "ACTIVITY_TRACK_READS", False)
+    db = SqliteDatabaseAdapter()
+    await db.init_db()
+    repo = SqliteDocumentRepository(db)
+    user = await UserService(SqliteUserRepository(db)).get_or_create_user(
+        UserCreate(external_id="document-plugin-test", name="Document plugin", email="dp@example.com"),
     )
     bus = EventBus()
     try:

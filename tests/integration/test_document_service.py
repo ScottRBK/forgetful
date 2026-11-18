@@ -20,7 +20,7 @@ async def test_create_document(test_document_service):
         tags=["api", "docs"],
     )
 
-    document = await test_document_service.create_document(user_id, document_data)
+    document = (await test_document_service.create_document(user_id, document_data)).document
 
     assert document.id is not None
     assert document.title == "API Documentation"
@@ -39,7 +39,7 @@ async def test_get_document(test_document_service):
         content="Content here",
         tags=[],
     )
-    created = await test_document_service.create_document(user_id, document_data)
+    created = (await test_document_service.create_document(user_id, document_data)).document
 
     # Get
     retrieved = await test_document_service.get_document(user_id, created.id)
@@ -132,11 +132,11 @@ async def test_update_document(test_document_service):
         content="original content",
         tags=["original"],
     )
-    created = await test_document_service.create_document(user_id, document_data)
+    created = (await test_document_service.create_document(user_id, document_data)).document
 
     # Update
     update_data = DocumentUpdate(title="Updated", content="new content")
-    updated = await test_document_service.update_document(user_id, created.id, update_data)
+    updated = (await test_document_service.update_document(user_id, created.id, update_data)).document
 
     assert updated.title == "Updated"
     assert updated.content == "new content"
@@ -155,10 +155,10 @@ async def test_delete_document(test_document_service):
         content="content",
         tags=[],
     )
-    created = await test_document_service.create_document(user_id, document_data)
+    created = (await test_document_service.create_document(user_id, document_data)).document
 
     # Delete
-    success = await test_document_service.delete_document(user_id, created.id)
+    success = (await test_document_service.delete_document(user_id, created.id)).deleted
     assert success is True
 
     # Verify deleted

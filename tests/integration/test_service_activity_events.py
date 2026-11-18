@@ -171,7 +171,7 @@ async def test_document_create_emits_event(test_document_service_with_event_bus)
         document_type="text",
         tags=["test"],
     )
-    doc = await service.create_document(user_id, doc_data)
+    doc = (await service.create_document(user_id, doc_data)).document
 
     assert len(event_bus.collected_events) == 1
     event = event_bus.collected_events[0]
@@ -194,7 +194,7 @@ async def test_document_delete_emits_event(test_document_service_with_event_bus)
         document_type="text",
         tags=["test"],
     )
-    doc = await service.create_document(user_id, doc_data)
+    doc = (await service.create_document(user_id, doc_data)).document
     event_bus.collected_events.clear()
 
     # Delete

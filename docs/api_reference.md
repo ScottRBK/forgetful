@@ -686,13 +686,22 @@ Create a new document.
 }
 ```
 
+**Response:** Flat document object, with `plugin_warnings` only when nonempty. Before-save
+rejections return HTTP 400; unavailable before-save returns HTTP 503.
+
 ### PUT /api/v1/documents/{id}
 
 Update an existing document.
 
+**Response:** Flat document object, with `plugin_warnings` only when nonempty (see create).
+No-op updates skip the plugin.
+
 ### DELETE /api/v1/documents/{id}
 
 Delete a document.
+
+**Response:** `{"success": true}` with `plugin_warnings` only when nonempty. Before-save
+rejections return HTTP 400; unavailable before-save returns HTTP 503.
 
 ---
 
