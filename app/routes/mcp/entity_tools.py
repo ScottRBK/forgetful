@@ -22,7 +22,11 @@ from app.models.entity_models import (
     EntityType,
     EntityUpdate,
 )
-from app.routes.write_plugin_responses import EntityDeleteResponse, EntityWriteResponse
+from app.routes.write_plugin_responses import (
+    EntityDeleteResponse,
+    EntityRelationshipWriteResponse,
+    EntityWriteResponse,
+)
 from app.utils.pydantic_helper import filter_none_values
 
 logger = logging.getLogger(__name__)
@@ -778,18 +782,24 @@ def register(mcp: FastMCP):
 
         try:
             entity_service = ctx.fastmcp.entity_service
-            relationship = await entity_service.create_entity_relationship(
+            write_result = await entity_service.create_entity_relationship(
                 user_id=user.id,
                 relationship_data=relationship_data,
             )
-
-            return relationship
-
+        except WritePluginRejectedError as exc:
+            raise ToolError(f"WRITE_PLUGIN_REJECTED: {exc}") from None
+        except WritePluginUnavailableError as exc:
+            raise ToolError(f"WRITE_PLUGIN_UNAVAILABLE: {exc}") from None
         except NotFoundError as e:
             raise ToolError(str(e))
         except Exception as e:
             logger.error("Failed to create entity relationship", exc_info=True)
             raise ToolError(f"Failed to create entity relationship: {e!s}")
+
+        return EntityRelationshipWriteResponse(
+            **write_result.relationship.model_dump(),
+            plugin_warnings=write_result.plugin_warnings,
+        )
 
     @mcp.tool()
     async def get_entity_relationships(
@@ -924,19 +934,25 @@ def register(mcp: FastMCP):
 
         try:
             entity_service = ctx.fastmcp.entity_service
-            relationship = await entity_service.update_entity_relationship(
+            write_result = await entity_service.update_entity_relationship(
                 user_id=user.id,
                 relationship_id=relationship_id,
                 relationship_data=relationship_data,
             )
-
-            return relationship
-
+        except WritePluginRejectedError as exc:
+            raise ToolError(f"WRITE_PLUGIN_REJECTED: {exc}") from None
+        except WritePluginUnavailableError as exc:
+            raise ToolError(f"WRITE_PLUGIN_UNAVAILABLE: {exc}") from None
         except NotFoundError as e:
             raise ToolError(str(e))
         except Exception as e:
             logger.error("Failed to update entity relationship", exc_info=True)
             raise ToolError(f"Failed to update entity relationship: {e!s}")
+
+        return EntityRelationshipWriteResponse(
+            **write_result.relationship.model_dump(),
+            plugin_warnings=write_result.plugin_warnings,
+        )
 
     @mcp.tool()
     async def delete_entity_relationship(
@@ -968,19 +984,25 @@ def register(mcp: FastMCP):
 
         try:
             entity_service = ctx.fastmcp.entity_service
-            success = await entity_service.delete_entity_relationship(
+            delete_result = await entity_service.delete_entity_relationship(
                 user_id=user.id,
                 relationship_id=relationship_id,
             )
-
-            if not success:
-                raise ToolError(f"Entity relationship {relationship_id} not found")
-
-            return {"deleted_id": relationship_id}
-
+        except WritePluginRejectedError as exc:
+            raise ToolError(f"WRITE_PLUGIN_REJECTED: {exc}") from None
+        except WritePluginUnavailableError as exc:
+            raise ToolError(f"WRITE_PLUGIN_UNAVAILABLE: {exc}") from None
         except Exception as e:
             logger.error("Failed to delete entity relationship", exc_info=True)
             raise ToolError(f"Failed to delete entity relationship: {e!s}")
+
+        if not delete_result.deleted:
+            raise ToolError(f"Entity relationship {relationship_id} not found")
+
+        response = EntityDeleteResponse(
+            success=True, plugin_warnings=delete_result.plugin_warnings,
+        )
+        return {**response.model_dump(), "deleted_id": relationship_id}
 
     @mcp.tool()
     async def get_entity_memories(

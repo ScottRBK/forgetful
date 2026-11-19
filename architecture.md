@@ -30,9 +30,12 @@ flowchart TD
     WritePlugin --> Callable["MemoryPlugin: explicit operation-to-handler mappings"]
     Services --> EntityWritePlugin["EntityWritePluginService: before_save and advisory after_save"]
     EntityWritePlugin --> EntityCallable["EntityPlugin: create, update, delete mappings"]
+    Services --> RelationshipPlugin["EntityRelationshipPluginService: before_save and advisory after_save"]
+    RelationshipPlugin --> RelationshipCallable["EntityRelationshipPlugin: create, update, delete mappings"]
     Bootstrap --> Loader["config.write_plugin: trusted module:object loaders"]
     Loader -. supplies registration .-> WritePlugin
     Loader -. supplies registration .-> EntityWritePlugin
+    Loader -. supplies registration .-> RelationshipPlugin
     SQLite["SQLite repositories"] -. implements .-> Contracts
     Postgres["PostgreSQL repositories"] -. implements .-> Contracts
     SQLite --> SQLiteDB["SQLite adapter and sqlite-vec"]
@@ -181,6 +184,13 @@ per-task hooks; project/user cascades do not dispatch Plan hooks. No durable del
 snapshots only; deleting an entity row cascades at the database to `entity_project_association`,
 `memory_entity_association`, `entity_file_association`, and `entity_relationships` rows whose
 `source_entity_id` / `target_entity_id` reference the entity, without separate plugin hooks.
+
+**Entity Relationship Plugin:** a separate registration (`load_entity_relationship_plugin`,
+`EntityRelationshipPlugin`, `EntityRelationshipPluginService`) for typed relationship create, update,
+and delete in `EntityService`. Contexts carry detached relationship snapshots plus the owned source
+and target entities, read after ownership checks and before persistence; the repository re-checks
+ownership on write. Update/delete reread the relationship after a before-handler await. Entity
+deletion cascades, memory links, and entity associations never dispatch relationship hooks.
 
 **Memory Plugin:** `app/config/write_plugin.py` loads one trusted `module:object` registration before
 costly resources. `MemoryPlugin` in `app/protocols/write_plugin_protocol.py` owns copied, frozen

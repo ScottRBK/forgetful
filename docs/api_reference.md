@@ -629,7 +629,12 @@ Update an entity relationship.
 
 ### DELETE /api/v1/entities/relationships/{id}
 
-Delete an entity relationship.
+Delete an entity relationship. Successful responses keep `{"success": true}`.
+
+When an Entity Relationship Plugin is registered, relationship create (201), update and delete
+responses add `plugin_warnings` only when nonempty; create and update stay flat relationship
+objects. Before-save rejections return 400; unavailable before-save returns 503 with
+`Entity Relationship Plugin unavailable.`
 
 ---
 

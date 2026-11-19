@@ -1500,7 +1500,9 @@ Create a typed relationship between two entities.
 - `metadata` (optional): Additional JSON metadata
 
 **Returns:**
-- Created relationship with `relationship_id`
+- Created relationship with `relationship_id`, with `plugin_warnings` only when nonempty when an
+  Entity Relationship Plugin is registered. Before-save errors: `WRITE_PLUGIN_REJECTED` or
+  `WRITE_PLUGIN_UNAVAILABLE`.
 
 **Example:**
 ```python
@@ -1573,7 +1575,9 @@ Update entity relationship (PATCH semantics).
 - `relationship_type`, `strength`, `confidence`, `metadata` (all optional)
 
 **Returns:**
-- Updated relationship object
+- Updated relationship object, with `plugin_warnings` only when nonempty when an Entity
+  Relationship Plugin is registered. Before-save errors: `WRITE_PLUGIN_REJECTED` or
+  `WRITE_PLUGIN_UNAVAILABLE`.
 
 **Example:**
 ```python
@@ -1599,7 +1603,8 @@ Delete entity relationship (removes knowledge graph edge).
 - `relationship_id` (required): Relationship ID
 
 **Returns:**
-- Confirmation of deletion
+- Confirmation of deletion, with `plugin_warnings` only when nonempty when an Entity Relationship
+  Plugin is registered
 
 **Example:**
 ```python

@@ -292,7 +292,9 @@ async def test_create_entity_relationship(test_entity_service):
         metadata={"role": "developer"},
     )
 
-    relationship = await test_entity_service.create_entity_relationship(user_id, relationship_data)
+    relationship = (await test_entity_service.create_entity_relationship(
+        user_id, relationship_data,
+    )).relationship
 
     assert relationship.id is not None
     assert relationship.source_entity_id == entity1.id
@@ -385,7 +387,7 @@ async def test_update_entity_relationship(test_entity_service):
         EntityCreate(name="Entity 2", entity_type=EntityType.INDIVIDUAL, tags=[]),
     )).entity
 
-    relationship = await test_entity_service.create_entity_relationship(
+    relationship = (await test_entity_service.create_entity_relationship(
         user_id,
         EntityRelationshipCreate(
             source_entity_id=entity1.id,
@@ -393,13 +395,13 @@ async def test_update_entity_relationship(test_entity_service):
             relationship_type="employs",
             strength=0.5,
         ),
-    )
+    )).relationship
 
     # Update
     update_data = EntityRelationshipUpdate(strength=0.9, metadata={"updated": True})
-    updated = await test_entity_service.update_entity_relationship(
+    updated = (await test_entity_service.update_entity_relationship(
         user_id, relationship.id, update_data,
-    )
+    )).relationship
 
     assert updated.strength == 0.9
     assert updated.metadata == {"updated": True}
@@ -420,18 +422,18 @@ async def test_delete_entity_relationship(test_entity_service):
         EntityCreate(name="Entity 2", entity_type=EntityType.INDIVIDUAL, tags=[]),
     )).entity
 
-    relationship = await test_entity_service.create_entity_relationship(
+    relationship = (await test_entity_service.create_entity_relationship(
         user_id,
         EntityRelationshipCreate(
             source_entity_id=entity1.id,
             target_entity_id=entity2.id,
             relationship_type="employs",
         ),
-    )
+    )).relationship
 
     # Delete
-    success = await test_entity_service.delete_entity_relationship(user_id, relationship.id)
-    assert success is True
+    result = await test_entity_service.delete_entity_relationship(user_id, relationship.id)
+    assert result.deleted is True
 
     # Verify deleted
     relationships = await test_entity_service.get_entity_relationships(user_id, entity1.id)

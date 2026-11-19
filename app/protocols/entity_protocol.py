@@ -282,6 +282,22 @@ class EntityRepository(Protocol):
         """
         ...
 
+    async def get_entity_relationship_by_id(
+        self,
+        user_id: UUID,
+        relationship_id: int,
+    ) -> EntityRelationship | None:
+        """Get one entity relationship by ID
+
+        Args:
+            user_id: User ID for ownership verification
+            relationship_id: Relationship ID to retrieve
+
+        Returns:
+            EntityRelationship if found and owned by user, None otherwise
+        """
+        ...
+
     async def update_entity_relationship(
         self,
         user_id: UUID,

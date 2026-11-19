@@ -1675,7 +1675,11 @@ def register_entity_tools_metadata(
                 {"name": "agent_version", "type": "Optional[str]", "description": "Agent version for provenance tracking", "required": False, "default": None, "example": "1.0"},
                 {"name": "agent_model", "type": "Optional[str]", "description": "LLM model used for provenance tracking", "required": False, "default": None, "example": "claude-sonnet-4-6"},
             ],
-            "returns": "EntityRelationship with id and timestamps",
+            "returns": (
+                "Flat EntityRelationship after create, with plugin_warnings only when nonempty. "
+                "After-save warnings are advisory. Before-save errors: WRITE_PLUGIN_REJECTED "
+                "(correct the stated issue) or WRITE_PLUGIN_UNAVAILABLE."
+            ),
             "examples": [
                 'execute_forgetful_tool("create_entity_relationship", {"source_entity_id": 1, "target_entity_id": 2, "relationship_type": "works_for"})',
                 'execute_forgetful_tool("create_entity_relationship", {"source_entity_id": 8, "target_entity_id": 12, "relationship_type": "part_of"})',
@@ -1718,7 +1722,11 @@ def register_entity_tools_metadata(
                 {"name": "agent_version", "type": "Optional[str]", "description": "Agent version for provenance tracking", "required": False, "default": None, "example": "1.0"},
                 {"name": "agent_model", "type": "Optional[str]", "description": "LLM model used for provenance tracking", "required": False, "default": None, "example": "claude-sonnet-4-6"},
             ],
-            "returns": "Updated EntityRelationship object",
+            "returns": (
+                "Flat EntityRelationship after update, with plugin_warnings only when nonempty. "
+                "After-save warnings preserve success. Before-save errors: "
+                "WRITE_PLUGIN_REJECTED or WRITE_PLUGIN_UNAVAILABLE. No-op updates skip the plugin."
+            ),
             "examples": [
                 'execute_forgetful_tool("update_entity_relationship", {"relationship_id": 1, "strength": 0.95})',
             ],
@@ -1732,7 +1740,11 @@ def register_entity_tools_metadata(
                 {"name": "relationship_id", "type": "int", "description": "Relationship ID to delete", "required": True, "example": 1},
                 {"name": "ctx", "type": "Context", "description": "FastMCP Context (automatically injected)", "required": True},
             ],
-            "returns": "Dictionary with deletion confirmation",
+            "returns": (
+                "Dict with success boolean, deleted_id, and plugin_warnings only when nonempty. "
+                "After-save warnings preserve success. Before-save errors: WRITE_PLUGIN_REJECTED "
+                "or WRITE_PLUGIN_UNAVAILABLE."
+            ),
             "examples": [
                 'execute_forgetful_tool("delete_entity_relationship", {"relationship_id": 1})',
             ],
