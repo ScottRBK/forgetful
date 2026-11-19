@@ -125,18 +125,22 @@ async def test_before_unavailable_is_generic_and_mode_controls_persistence(
             raise RuntimeError("SECRET relationship metadata")
         if failure == "timeout":
             await asyncio.sleep(10)
+            return WriteDecision(outcome="allow")
         return {"outcome": "invalid", "message": "SECRET relationship metadata"}
 
     service = relationship_service(
         repo, mode=mode, timeout_seconds=0.01, before_save={"create": before},
     )
+    # The outer deadline fails fast if the plugin deadline is ever removed.
     if mode == "enforce":
         with pytest.raises(
             WritePluginUnavailableError, match=r"^Entity Relationship Plugin unavailable\.$",
         ):
-            await service.create_entity_relationship(user_id, candidate(person, org))
+            async with asyncio.timeout(2):
+                await service.create_entity_relationship(user_id, candidate(person, org))
     else:
-        result = await service.create_entity_relationship(user_id, candidate(person, org))
+        async with asyncio.timeout(2):
+            result = await service.create_entity_relationship(user_id, candidate(person, org))
         assert result.plugin_warnings == [PluginWarning(
             message="Entity Relationship Plugin unavailable.", code="WRITE_PLUGIN_UNAVAILABLE",
         )]
@@ -163,6 +167,7 @@ async def test_after_failure_warns_without_failing_completed_write(
             raise RuntimeError("SECRET relationship metadata")
         if failure == "timeout":
             await asyncio.sleep(10)
+            return None
         if failure == "reject":
             return {"outcome": "reject", "message": "SECRET relationship metadata"}
         child = asyncio.create_task(asyncio.sleep(10))
@@ -173,18 +178,23 @@ async def test_after_failure_warns_without_failing_completed_write(
         repo, timeout_seconds=0.01 if failure == "timeout" else 5,
         after_save={operation: after},
     )
+    # The outer deadline fails fast if the plugin deadline is ever removed.
+    async with asyncio.timeout(2):
+        if operation == "create":
+            result = await service.create_entity_relationship(
+                user_id, candidate(person, org, relationship_type="advises"),
+            )
+        elif operation == "update":
+            result = await service.update_entity_relationship(
+                user_id, existing.id, EntityRelationshipUpdate(strength=0.9),
+            )
+        else:
+            result = await service.delete_entity_relationship(user_id, existing.id)
     if operation == "create":
-        result = await service.create_entity_relationship(
-            user_id, candidate(person, org, relationship_type="advises"),
-        )
         assert await repo.get_entity_relationship_by_id(user_id, result.relationship.id)
     elif operation == "update":
-        result = await service.update_entity_relationship(
-            user_id, existing.id, EntityRelationshipUpdate(strength=0.9),
-        )
         assert (await repo.get_entity_relationship_by_id(user_id, existing.id)).strength == 0.9
     else:
-        result = await service.delete_entity_relationship(user_id, existing.id)
         assert result.deleted is True
         assert await repo.get_entity_relationship_by_id(user_id, existing.id) is None
 
@@ -201,6 +211,7 @@ async def test_detached_snapshots_survive_handler_mutation(entity_store):
     repo, user_id, _ = entity_store
     person, org = await endpoints(repo, user_id)
     seen = []
+    after_source_names = []
 
     async def before(request):
         seen.append(request.model_copy(deep=True))
@@ -209,6 +220,7 @@ async def test_detached_snapshots_survive_handler_mutation(entity_store):
         return WriteDecision(outcome="allow")
 
     async def after(request):
+        after_source_names.append(request.source.name)
         request.saved.relationship_type = "mutated"
         return None
 
@@ -218,6 +230,8 @@ async def test_detached_snapshots_survive_handler_mutation(entity_store):
     result = await service.create_entity_relationship(user_id, candidate(person, org))
 
     assert seen[0].proposed.relationship_type == "works_for"
+    # The before-save mutation of source must not leak into the after-save snapshot.
+    assert after_source_names == ["Synthetic Person"]
     assert result.relationship.relationship_type == "works_for"
     stored = await repo.get_entity_relationship_by_id(user_id, result.relationship.id)
     assert stored.relationship_type == "works_for"
