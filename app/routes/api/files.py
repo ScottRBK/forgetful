@@ -15,6 +15,7 @@ from app.models.file_models import (
     FileCreate,
     FileUpdate,
 )
+from app.routes.api.list_pagination import parse_list_pagination
 from app.routes.api.params import parse_path_int
 
 logger = logging.getLogger(__name__)
@@ -28,6 +29,8 @@ def register(mcp: FastMCP):
         """List files with optional filtering.
 
         Query params:
+            limit: Results per page (1-100, default 20)
+            offset: Results to skip (default 0)
             project_id: Filter by project
             mime_type: Filter by MIME type
             tags: Comma-separated tags (OR logic)
@@ -38,6 +41,10 @@ def register(mcp: FastMCP):
             return JSONResponse({"error": str(e)}, status_code=401)
 
         params = request.query_params
+        try:
+            limit, offset = parse_list_pagination(params)
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
         project_id_str = params.get("project_id")
         mime_type = params.get("mime_type")
         tags_str = params.get("tags")
@@ -53,8 +60,10 @@ def register(mcp: FastMCP):
                 )
         tags = [t.strip() for t in tags_str.split(",")] if tags_str else None
 
-        files = await mcp.file_service.list_files(
+        files, total = await mcp.file_service.list_files_page(
             user_id=user.id,
+            limit=limit,
+            offset=offset,
             project_id=project_id,
             mime_type=mime_type,
             tags=tags,
@@ -62,7 +71,9 @@ def register(mcp: FastMCP):
 
         return JSONResponse({
             "files": [f.model_dump(mode="json") for f in files],
-            "total": len(files),
+            "total": total,
+            "limit": limit,
+            "offset": offset,
         })
 
     @mcp.custom_route("/api/v1/files/{file_id}", methods=["GET"])

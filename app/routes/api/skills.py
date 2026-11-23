@@ -13,6 +13,7 @@ from starlette.responses import JSONResponse
 from app.exceptions import NotFoundError
 from app.middleware.auth import get_user_from_request
 from app.models.skill_models import SkillCreate, SkillUpdate
+from app.routes.api.list_pagination import parse_list_pagination
 from app.routes.api.params import parse_path_int
 from app.utils.bundle_validation import bundle_validation_message
 
@@ -53,6 +54,8 @@ def register(mcp: FastMCP):
         """List skills with optional filtering.
 
         Query params:
+            limit: Results per page (1-100, default 20)
+            offset: Results to skip (default 0)
             project_id: Filter by project
             tags: Comma-separated tags (OR logic)
             importance_threshold: Minimum importance level
@@ -63,6 +66,10 @@ def register(mcp: FastMCP):
             return JSONResponse({"error": str(e)}, status_code=401)
 
         params = request.query_params
+        try:
+            limit, offset = parse_list_pagination(params)
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
         project_id_str = params.get("project_id")
         tags_str = params.get("tags")
         importance_threshold_str = params.get("importance_threshold")
@@ -94,8 +101,10 @@ def register(mcp: FastMCP):
                     status_code=400,
                 )
 
-        skills = await mcp.skill_service.list_skills(
+        skills, total = await mcp.skill_service.list_skills_page(
             user_id=user.id,
+            limit=limit,
+            offset=offset,
             project_id=project_id,
             tags=tags,
             importance_threshold=importance_threshold,
@@ -103,7 +112,9 @@ def register(mcp: FastMCP):
 
         return JSONResponse({
             "skills": [s.model_dump(mode="json") for s in skills],
-            "total": len(skills),
+            "total": total,
+            "limit": limit,
+            "offset": offset,
         })
 
     @mcp.custom_route("/api/v1/skills/search", methods=["GET"])

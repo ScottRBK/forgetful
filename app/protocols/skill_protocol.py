@@ -100,6 +100,19 @@ class SkillRepository(Protocol):
         """
         ...
 
+    async def list_skills_page(
+        self,
+        user_id: UUID,
+        project_id: int | None = None,
+        tags: list[str] | None = None,
+        importance_threshold: int | None = None,
+        *,
+        limit: int,
+        offset: int,
+    ) -> tuple[list[SkillSummary], int]:
+        """Return a bounded summary page and the full matching count."""
+        ...
+
     async def update_skill(
         self,
         user_id: UUID,

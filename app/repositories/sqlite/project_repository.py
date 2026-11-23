@@ -1,10 +1,11 @@
 """Project repository for SQLite data access operations
 """
 
+import json
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import bindparam, delete, func, select, update
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import selectinload
 
@@ -18,7 +19,11 @@ from app.models.project_models import (
     ProjectUpdate,
 )
 from app.repositories.sqlite.sqlite_adapter import SqliteDatabaseAdapter
-from app.repositories.sqlite.sqlite_tables import ProjectsTable
+from app.repositories.sqlite.sqlite_tables import (
+    MemoryTable,
+    ProjectsTable,
+    memory_project_association,
+)
 from app.utils.repository_identity import repository_identity
 
 logger = logging.getLogger(__name__)
@@ -117,6 +122,81 @@ class SqliteProjectRepository:
             )
 
             return projects
+
+    async def list_projects_page(
+        self,
+        user_id: UUID,
+        status: ProjectStatus | None = None,
+        repo_name: str | None = None,
+        name: str | None = None,
+        *,
+        limit: int,
+        offset: int,
+    ) -> tuple[list[ProjectSummary], int]:
+        """Return a counted SQL page using only summary columns."""
+        async with self.db_adapter.session(user_id) as session:
+            conditions = [ProjectsTable.user_id == str(user_id)]
+            if status:
+                conditions.append(ProjectsTable.status == status.value)
+            if name:
+                conditions.append(ProjectsTable.name.like(f"%{name}%"))
+            if repo_name:
+                # Repository equivalence requires the existing Python normalizer.
+                # Only identifier metadata is read; COUNT and pagination remain in SQL.
+                identity = repository_identity(repo_name)
+                candidates = await session.execute(
+                    select(ProjectsTable.id, ProjectsTable.repo_name).where(
+                        *conditions, ProjectsTable.repo_name.is_not(None),
+                    ),
+                )
+                matching_ids = [
+                    project_id for project_id, stored_repo in candidates
+                    if repository_identity(stored_repo) == identity
+                ]
+                matching_values = func.json_each(
+                    bindparam("matching_project_ids", json.dumps(matching_ids)),
+                ).table_valued("value")
+                conditions.append(
+                    ProjectsTable.id.in_(select(matching_values.c.value)),
+                )
+
+            # Match the existing relationship count, including obsolete memories.
+            memory_count = (
+                select(func.count(MemoryTable.id))
+                .select_from(memory_project_association.join(
+                    MemoryTable,
+                    memory_project_association.c.memory_id == MemoryTable.id,
+                ))
+                .where(memory_project_association.c.project_id == ProjectsTable.id)
+                .correlate(ProjectsTable)
+                .scalar_subquery()
+                .label("memory_count")
+            )
+
+            count_stmt = select(func.count(ProjectsTable.id)).where(*conditions)
+            total = await session.scalar(count_stmt)
+            stmt = (
+                select(
+                    ProjectsTable.id,
+                    ProjectsTable.name,
+                    ProjectsTable.project_type,
+                    ProjectsTable.status,
+                    ProjectsTable.repo_name,
+                    ProjectsTable.last_encoding_point,
+                    memory_count,
+                    ProjectsTable.created_at,
+                    ProjectsTable.updated_at,
+                )
+                .where(*conditions)
+                .order_by(
+                    ProjectsTable.created_at.desc(),
+                    ProjectsTable.id.desc(),
+                )
+                .offset(offset)
+                .limit(limit)
+            )
+            result = await session.execute(stmt)
+            return [ProjectSummary.model_validate(row) for row in result.mappings().all()], total or 0
 
     async def get_project_by_id(self, user_id: UUID, project_id: int) -> Project | None:
         """Get single project by ID

@@ -26,6 +26,7 @@ from app.models.plan_models import (
     TaskTransitionRequest,
     TaskUpdate,
 )
+from app.routes.api.list_pagination import parse_list_pagination
 from app.routes.api.params import parse_path_int
 from app.routes.plan_plugin_responses import (
     PlanningDeleteResponse,
@@ -41,13 +42,20 @@ def register(mcp: FastMCP):
 
     @mcp.custom_route("/api/v1/tasks", methods=["GET"])
     async def list_tasks(request: Request) -> JSONResponse:
-        """Query tasks. plan_id is required."""
+        """Query tasks. plan_id is required.
+
+        Pagination: limit 1-100 (default 20), offset >= 0 (default 0).
+        """
         try:
             user = await get_user_from_request(request, mcp)
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
         params = request.query_params
+        try:
+            limit, offset = parse_list_pagination(params)
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
         plan_id_str = params.get("plan_id")
         if not plan_id_str:
             return JSONResponse({"error": "plan_id query param is required"}, status_code=400)
@@ -60,13 +68,17 @@ def register(mcp: FastMCP):
         state = TaskState(state_str) if state_str else None
         priority = TaskPriority(priority_str) if priority_str else None
 
-        tasks = await mcp.task_service.list_tasks(
-            user_id=user.id, plan_id=plan_id,
+        tasks, total = await mcp.task_service.list_tasks_page(
+            user_id=user.id,
+            limit=limit,
+            offset=offset, plan_id=plan_id,
             state=state, priority=priority, assigned_agent=assigned_agent,
         )
         return JSONResponse({
             "tasks": [t.model_dump(mode="json") for t in tasks],
-            "total": len(tasks),
+            "total": total,
+            "limit": limit,
+            "offset": offset,
         })
 
     @mcp.custom_route("/api/v1/tasks/{task_id}", methods=["GET"])

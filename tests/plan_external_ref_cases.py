@@ -58,7 +58,8 @@ class TestPlanExternalRefAPI:
             other_user.setattr(settings, "DEFAULT_USER_EMAIL", "ref-other@example.test")
             other_project = await create_project(http_client)
             missing = await http_client.get("/api/v1/plans", params={"external_ref": "private:42"})
-            assert missing.json() == {"plans": [], "total": 0}
+            assert missing.status_code == 200, missing.text[:1024]
+            assert missing.json() == {"plans": [], "total": 0, "limit": 20, "offset": 0}, missing.text[:1024]
             assert (await http_client.get(f"/api/v1/plans/{original_id}")).status_code == 404
             update = await http_client.put(
                 f"/api/v1/plans/{original_id}", json={"external_ref": "stolen"},
@@ -125,7 +126,8 @@ class TestPlanExternalRefAPI:
         assert found.json()["plans"][0]["external_ref"] == reference
         assert found.json()["plans"][0]["id"] == plan["id"]
         missing = await http_client.get("/api/v1/plans", params={"external_ref": reference.lower()})
-        assert missing.json() == {"plans": [], "total": 0}
+        assert missing.status_code == 200, missing.text[:1024]
+        assert missing.json() == {"plans": [], "total": 0, "limit": 20, "offset": 0}, missing.text[:1024]
 
 
     async def test_external_ref_duplicate_create_and_optional_reference(self, http_client):

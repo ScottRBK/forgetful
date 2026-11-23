@@ -16,6 +16,7 @@ from app.models.document_models import (
     DocumentCreate,
     DocumentUpdate,
 )
+from app.routes.api.list_pagination import parse_list_pagination
 from app.routes.api.params import parse_path_int
 
 logger = logging.getLogger(__name__)
@@ -29,6 +30,8 @@ def register(mcp: FastMCP):
         """List documents with optional filtering.
 
         Query params:
+            limit: Results per page (1-100, default 20)
+            offset: Results to skip (default 0)
             project_id: Filter by project
             document_type: Filter by document type
             tags: Comma-separated tags (OR logic)
@@ -39,6 +42,10 @@ def register(mcp: FastMCP):
             return JSONResponse({"error": str(e)}, status_code=401)
 
         params = request.query_params
+        try:
+            limit, offset = parse_list_pagination(params)
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
         project_id_str = params.get("project_id")
         document_type = params.get("document_type")
         tags_str = params.get("tags")
@@ -54,8 +61,10 @@ def register(mcp: FastMCP):
                 )
         tags = [t.strip() for t in tags_str.split(",")] if tags_str else None
 
-        documents = await mcp.document_service.list_documents(
+        documents, total = await mcp.document_service.list_documents_page(
             user_id=user.id,
+            limit=limit,
+            offset=offset,
             project_id=project_id,
             document_type=document_type,
             tags=tags,
@@ -63,7 +72,9 @@ def register(mcp: FastMCP):
 
         return JSONResponse({
             "documents": [d.model_dump(mode="json") for d in documents],
-            "total": len(documents),
+            "total": total,
+            "limit": limit,
+            "offset": offset,
         })
 
     @mcp.custom_route("/api/v1/documents/{document_id}", methods=["GET"])
