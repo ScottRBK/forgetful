@@ -16,6 +16,7 @@ from app.models.code_artifact_models import (
     CodeArtifactCreate,
     CodeArtifactUpdate,
 )
+from app.routes.api.params import parse_path_int
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +74,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        artifact_id = int(request.path_params["artifact_id"])
+        try:
+            artifact_id = parse_path_int(request, "artifact_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             artifact = await mcp.code_artifact_service.get_code_artifact(
@@ -117,7 +121,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        artifact_id = int(request.path_params["artifact_id"])
+        try:
+            artifact_id = parse_path_int(request, "artifact_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             body = await request.json()
@@ -144,7 +151,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        artifact_id = int(request.path_params["artifact_id"])
+        try:
+            artifact_id = parse_path_int(request, "artifact_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             success = await mcp.code_artifact_service.delete_code_artifact(

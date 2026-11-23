@@ -17,6 +17,7 @@ from app.exceptions import (
 )
 from app.middleware.auth import get_user_from_request
 from app.models.plan_models import PlanCreate, PlanStatus, PlanUpdate
+from app.routes.api.params import parse_path_int
 from app.routes.plan_plugin_responses import PlanningDeleteResponse, PlanWriteResponse
 
 logger = logging.getLogger(__name__)
@@ -68,7 +69,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        plan_id = int(request.path_params["plan_id"])
+        try:
+            plan_id = parse_path_int(request, "plan_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
         try:
             plan = await mcp.plan_service.get_plan(user_id=user.id, plan_id=plan_id)
         except NotFoundError:
@@ -112,7 +116,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        plan_id = int(request.path_params["plan_id"])
+        try:
+            plan_id = parse_path_int(request, "plan_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             body = await request.json()
@@ -150,7 +157,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        plan_id = int(request.path_params["plan_id"])
+        try:
+            plan_id = parse_path_int(request, "plan_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
         try:
             result = await mcp.plan_service.delete_plan(user_id=user.id, plan_id=plan_id)
         except PlanPluginRejectedError as e:

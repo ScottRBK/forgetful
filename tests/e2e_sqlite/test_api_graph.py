@@ -564,7 +564,9 @@ class TestMemorySubgraph:
         """GET /api/v1/graph/memory/{id} returns 400 for invalid memory_id."""
         response = await http_client.get("/api/v1/graph/memory/not_a_number")
         assert response.status_code == 400
-        assert "Invalid memory_id" in response.json()["error"]
+        assert response.json() == {
+            "error": "Invalid value for 'memory_id': must be an integer",
+        }
 
     @pytest.mark.asyncio
     async def test_get_memory_subgraph_invalid_depth(self, http_client):

@@ -13,6 +13,7 @@ from starlette.responses import JSONResponse
 from app.config.settings import settings
 from app.exceptions import NotFoundError
 from app.middleware.auth import get_user_from_request
+from app.routes.api.params import parse_path_int
 
 logger = logging.getLogger(__name__)
 
@@ -786,12 +787,9 @@ def register(mcp: FastMCP):
 
         # Validate memory_id path parameter
         try:
-            memory_id = int(request.path_params["memory_id"])
-        except ValueError:
-            return JSONResponse(
-                {"error": f"Invalid memory_id: {request.path_params['memory_id']}. Must be an integer."},
-                status_code=400,
-            )
+            memory_id = parse_path_int(request, "memory_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         params = request.query_params
         depth_str = params.get("depth", "1")
