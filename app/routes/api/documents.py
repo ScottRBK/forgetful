@@ -16,6 +16,7 @@ from app.models.document_models import (
     DocumentCreate,
     DocumentUpdate,
 )
+from app.routes.api.params import parse_path_int
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +74,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        document_id = int(request.path_params["document_id"])
+        try:
+            document_id = parse_path_int(request, "document_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             document = await mcp.document_service.get_document(
@@ -117,7 +121,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        document_id = int(request.path_params["document_id"])
+        try:
+            document_id = parse_path_int(request, "document_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             body = await request.json()
@@ -144,7 +151,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        document_id = int(request.path_params["document_id"])
+        try:
+            document_id = parse_path_int(request, "document_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             success = await mcp.document_service.delete_document(

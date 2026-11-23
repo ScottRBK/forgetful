@@ -17,6 +17,7 @@ from app.models.project_models import (
     ProjectStatus,
     ProjectUpdate,
 )
+from app.routes.api.params import parse_path_int
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +72,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        project_id = int(request.path_params["project_id"])
+        try:
+            project_id = parse_path_int(request, "project_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             project = await mcp.project_service.get_project(
@@ -112,7 +116,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        project_id = int(request.path_params["project_id"])
+        try:
+            project_id = parse_path_int(request, "project_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             body = await request.json()
@@ -142,7 +149,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        project_id = int(request.path_params["project_id"])
+        try:
+            project_id = parse_path_int(request, "project_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             success = await mcp.project_service.delete_project(

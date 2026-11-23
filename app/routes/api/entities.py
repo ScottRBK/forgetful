@@ -4,7 +4,6 @@ Phase 2 of the Web UI foundation (Issue #3).
 Provides CRUD operations for entities with relationships and memory links.
 """
 import logging
-from typing import Any
 
 from fastmcp import FastMCP
 from pydantic import ValidationError
@@ -25,32 +24,10 @@ from app.models.entity_models import (
     EntityType,
     EntityUpdate,
 )
+from app.routes.api.params import parse_int_param, parse_path_int
 from app.routes.write_plugin_responses import EntityDeleteResponse, EntityWriteResponse
 
 logger = logging.getLogger(__name__)
-
-
-def parse_int_param(params: Any, name: str, default: int | None = None) -> int | None:
-    """Parse integer query parameter with strict validation.
-
-    Args:
-        params: Query parameters object
-        name: Parameter name to extract
-        default: Default value if parameter not provided
-
-    Returns:
-        Parsed integer value or default
-
-    Raises:
-        ValueError: If value is not a valid integer
-    """
-    raw = params.get(name)
-    if raw is None:
-        return default
-    try:
-        return int(raw)
-    except (ValueError, TypeError):
-        raise ValueError(f"Invalid value for '{name}': must be an integer")
 
 
 def register(mcp: FastMCP):
@@ -130,7 +107,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        entity_id = int(request.path_params["entity_id"])
+        try:
+            entity_id = parse_path_int(request, "entity_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             entity = await mcp.entity_service.get_entity(
@@ -179,7 +159,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        entity_id = int(request.path_params["entity_id"])
+        try:
+            entity_id = parse_path_int(request, "entity_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             body = await request.json()
@@ -213,7 +196,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        entity_id = int(request.path_params["entity_id"])
+        try:
+            entity_id = parse_path_int(request, "entity_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             delete_result = await mcp.entity_service.delete_entity(
@@ -284,7 +270,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        entity_id = int(request.path_params["entity_id"])
+        try:
+            entity_id = parse_path_int(request, "entity_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             body = await request.json()
@@ -314,8 +303,11 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        entity_id = int(request.path_params["entity_id"])
-        memory_id = int(request.path_params["memory_id"])
+        try:
+            entity_id = parse_path_int(request, "entity_id")
+            memory_id = parse_path_int(request, "memory_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             success = await mcp.entity_service.unlink_entity_from_memory(
@@ -339,7 +331,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        entity_id = int(request.path_params["entity_id"])
+        try:
+            entity_id = parse_path_int(request, "entity_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             memory_ids, count, memories = await mcp.entity_service.get_entity_memories(
@@ -364,7 +359,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        entity_id = int(request.path_params["entity_id"])
+        try:
+            entity_id = parse_path_int(request, "entity_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             relationships = await mcp.entity_service.get_entity_relationships(
@@ -387,7 +385,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        source_entity_id = int(request.path_params["entity_id"])
+        try:
+            source_entity_id = parse_path_int(request, "entity_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             body = await request.json()
@@ -415,7 +416,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        relationship_id = int(request.path_params["relationship_id"])
+        try:
+            relationship_id = parse_path_int(request, "relationship_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             body = await request.json()
@@ -442,7 +446,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        relationship_id = int(request.path_params["relationship_id"])
+        try:
+            relationship_id = parse_path_int(request, "relationship_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         success = await mcp.entity_service.delete_entity_relationship(
             user_id=user.id,
