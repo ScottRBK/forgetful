@@ -17,6 +17,8 @@ from app.models.project_models import (
     ProjectStatus,
     ProjectUpdate,
 )
+from app.routes.api.list_pagination import parse_list_pagination
+from app.routes.api.params import parse_path_int
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +31,8 @@ def register(mcp: FastMCP):
         """List projects with optional filtering.
 
         Query params:
+            limit: Results per page (1-100, default 20)
+            offset: Results to skip (default 0)
             status: Filter by status (active, archived, completed)
             repo_name: Match equivalent repository addresses or literal identifiers
         """
@@ -38,6 +42,10 @@ def register(mcp: FastMCP):
             return JSONResponse({"error": str(e)}, status_code=401)
 
         params = request.query_params
+        try:
+            limit, offset = parse_list_pagination(params)
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
         status_str = params.get("status")
         repo_name = params.get("repo_name")
 
@@ -52,15 +60,19 @@ def register(mcp: FastMCP):
                     status_code=400,
                 )
 
-        projects = await mcp.project_service.list_projects(
+        projects, total = await mcp.project_service.list_projects_page(
             user_id=user.id,
+            limit=limit,
+            offset=offset,
             status=status,
             repo_name=repo_name,
         )
 
         return JSONResponse({
             "projects": [p.model_dump(mode="json") for p in projects],
-            "total": len(projects),
+            "total": total,
+            "limit": limit,
+            "offset": offset,
         })
 
     @mcp.custom_route("/api/v1/projects/{project_id}", methods=["GET"])
@@ -71,7 +83,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        project_id = int(request.path_params["project_id"])
+        try:
+            project_id = parse_path_int(request, "project_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             project = await mcp.project_service.get_project(
@@ -112,7 +127,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        project_id = int(request.path_params["project_id"])
+        try:
+            project_id = parse_path_int(request, "project_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             body = await request.json()
@@ -142,7 +160,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        project_id = int(request.path_params["project_id"])
+        try:
+            project_id = parse_path_int(request, "project_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             success = await mcp.project_service.delete_project(

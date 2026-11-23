@@ -791,6 +791,13 @@ class InMemoryProjectRepository(ProjectRepository):
 
         return summaries
 
+
+    async def list_projects_page(self, user_id: UUID, status: ProjectStatus | None=None, repo_name: str | None=None, name: str | None=None, *, limit: int, offset: int) -> tuple[list[ProjectSummary], int]:
+        """Explicit in-memory test seam; full-list filters remain authoritative."""
+        rows = await self.list_projects(user_id=user_id, status=status, repo_name=repo_name, name=name)
+        rows.sort(key=lambda row: (row.created_at, row.id), reverse=True)
+        return rows[offset:offset + limit], len(rows)
+
     async def get_project_by_id(self, user_id: UUID, project_id: int) -> Project | None:
         """Get single project by ID"""
         user_projects = self._projects.get(user_id, {})
@@ -955,6 +962,13 @@ class InMemoryCodeArtifactRepository(CodeArtifactRepository):
         artifacts.sort(key=lambda a: a.created_at, reverse=True)
         return [CodeArtifactSummary.model_validate(a) for a in artifacts]
 
+
+    async def list_code_artifacts_page(self, user_id: UUID, project_id: int | None=None, language: str | None=None, tags: list[str] | None=None, *, limit: int, offset: int) -> tuple[list[CodeArtifactSummary], int]:
+        """Explicit in-memory test seam; full-list filters remain authoritative."""
+        rows = await self.list_code_artifacts(user_id=user_id, project_id=project_id, language=language, tags=tags)
+        rows.sort(key=lambda row: (row.created_at, row.id), reverse=True)
+        return rows[offset:offset + limit], len(rows)
+
     async def update_code_artifact(
         self, user_id: UUID, artifact_id: int, artifact_data: CodeArtifactUpdate,
     ) -> CodeArtifact:
@@ -1074,6 +1088,13 @@ class InMemoryDocumentRepository(DocumentRepository):
         documents.sort(key=lambda d: d.created_at, reverse=True)
         return [DocumentSummary.model_validate(d) for d in documents]
 
+
+    async def list_documents_page(self, user_id: UUID, project_id: int | None=None, document_type: str | None=None, tags: list[str] | None=None, *, limit: int, offset: int) -> tuple[list[DocumentSummary], int]:
+        """Explicit in-memory test seam; full-list filters remain authoritative."""
+        rows = await self.list_documents(user_id=user_id, project_id=project_id, document_type=document_type, tags=tags)
+        rows.sort(key=lambda row: (row.created_at, row.id), reverse=True)
+        return rows[offset:offset + limit], len(rows)
+
     async def update_document(
         self, user_id: UUID, document_id: int, document_data: DocumentUpdate,
     ) -> Document:
@@ -1191,6 +1212,13 @@ class InMemoryFileRepository(FileRepository):
 
         files.sort(key=lambda f: f.created_at, reverse=True)
         return [FileSummary.model_validate(f) for f in files]
+
+
+    async def list_files_page(self, user_id: UUID, project_id: int | None=None, mime_type: str | None=None, tags: list[str] | None=None, *, limit: int, offset: int) -> tuple[list[FileSummary], int]:
+        """Explicit in-memory test seam; full-list filters remain authoritative."""
+        rows = await self.list_files(user_id=user_id, project_id=project_id, mime_type=mime_type, tags=tags)
+        rows.sort(key=lambda row: (row.created_at, row.id), reverse=True)
+        return rows[offset:offset + limit], len(rows)
 
     async def update_file(
         self, user_id: UUID, file_id: int, file_data: FileUpdate,
@@ -1721,6 +1749,13 @@ class InMemoryPlanRepository(PlanRepository):
             for p in plans
         ]
 
+
+    async def list_plans_page(self, user_id: UUID, project_id: int | None=None, status: PlanStatus | None=None, external_ref: str | None=None, *, limit: int, offset: int) -> tuple[list[PlanSummary], int]:
+        """Explicit in-memory test seam; full-list filters remain authoritative."""
+        rows = await self.list_plans(user_id=user_id, project_id=project_id, status=status, external_ref=external_ref)
+        rows.sort(key=lambda row: (row.created_at, row.id), reverse=True)
+        return rows[offset:offset + limit], len(rows)
+
     async def update_plan(
         self, user_id: UUID, plan_id: int, plan_data: PlanUpdate,
     ) -> Plan:
@@ -1879,6 +1914,13 @@ class InMemoryTaskRepository(TaskRepository):
             )
 
         return summaries
+
+
+    async def list_tasks_page(self, user_id: UUID, plan_id: int, state: TaskState | None=None, priority: TaskPriority | None=None, assigned_agent: str | None=None, *, limit: int, offset: int) -> tuple[list[TaskSummary], int]:
+        """Explicit in-memory test seam; full-list filters remain authoritative."""
+        rows = await self.list_tasks(user_id=user_id, plan_id=plan_id, state=state, priority=priority, assigned_agent=assigned_agent)
+        rows.sort(key=lambda row: (row.created_at, row.id), reverse=False)
+        return rows[offset:offset + limit], len(rows)
 
     async def list_tasks_for_user(
         self,
@@ -2205,6 +2247,13 @@ class InMemorySkillRepository(SkillRepository):
 
         skills.sort(key=lambda s: s.created_at, reverse=True)
         return [SkillSummary.model_validate(s) for s in skills]
+
+
+    async def list_skills_page(self, user_id: UUID, project_id: int | None=None, tags: list[str] | None=None, importance_threshold: int | None=None, *, limit: int, offset: int) -> tuple[list[SkillSummary], int]:
+        """Explicit in-memory test seam; full-list filters remain authoritative."""
+        rows = await self.list_skills(user_id=user_id, project_id=project_id, tags=tags, importance_threshold=importance_threshold)
+        rows.sort(key=lambda row: (row.created_at, row.id), reverse=True)
+        return rows[offset:offset + limit], len(rows)
 
     async def update_skill(
         self, user_id: UUID, skill_id: int, skill_data: SkillUpdate,

@@ -36,6 +36,20 @@ class TaskRepository(Protocol):
         assigned_agent: str | None = None,
     ) -> list[TaskSummary]: ...
 
+    async def list_tasks_page(
+        self,
+        user_id: UUID,
+        plan_id: int,
+        state: TaskState | None = None,
+        priority: TaskPriority | None = None,
+        assigned_agent: str | None = None,
+        *,
+        limit: int,
+        offset: int,
+    ) -> tuple[list[TaskSummary], int]:
+        """Return a bounded summary page and the full matching count."""
+        ...
+
     async def list_tasks_for_user(
         self,
         user_id: UUID,

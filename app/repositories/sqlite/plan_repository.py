@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
@@ -18,7 +18,7 @@ from app.models.plan_models import (
 )
 from app.repositories.sqlite.project_reference import ensure_project_owned
 from app.repositories.sqlite.sqlite_adapter import SqliteDatabaseAdapter
-from app.repositories.sqlite.sqlite_tables import PlansTable
+from app.repositories.sqlite.sqlite_tables import PlansTable, TasksTable
 
 logger = logging.getLogger(__name__)
 
@@ -94,6 +94,58 @@ class SqlitePlanRepository:
             result = await session.execute(stmt)
             plans_orm = result.scalars().all()
             return [PlanSummary.model_validate(p) for p in plans_orm]
+
+    async def list_plans_page(
+        self,
+        user_id: UUID,
+        project_id: int | None = None,
+        status: PlanStatus | None = None,
+        external_ref: str | None = None,
+        *,
+        limit: int,
+        offset: int,
+    ) -> tuple[list[PlanSummary], int]:
+        """Return a counted SQL page using only summary columns."""
+        async with self.db_adapter.session(user_id) as session:
+            conditions = [PlansTable.user_id == str(user_id)]
+            if project_id is not None:
+                conditions.append(PlansTable.project_id == project_id)
+            if status:
+                conditions.append(PlansTable.status == status.value)
+            if external_ref is not None:
+                conditions.append(PlansTable.external_ref == external_ref)
+
+            task_count = (
+                select(func.count(TasksTable.id))
+                .where(TasksTable.plan_id == PlansTable.id)
+                .correlate(PlansTable)
+                .scalar_subquery()
+                .label("task_count")
+            )
+
+            count_stmt = select(func.count(PlansTable.id)).where(*conditions)
+            total = await session.scalar(count_stmt)
+            stmt = (
+                select(
+                    PlansTable.id,
+                    PlansTable.title,
+                    PlansTable.project_id,
+                    PlansTable.status,
+                    PlansTable.external_ref,
+                    task_count,
+                    PlansTable.created_at,
+                    PlansTable.updated_at,
+                )
+                .where(*conditions)
+                .order_by(
+                    PlansTable.created_at.desc(),
+                    PlansTable.id.desc(),
+                )
+                .offset(offset)
+                .limit(limit)
+            )
+            result = await session.execute(stmt)
+            return [PlanSummary.model_validate(row) for row in result.mappings().all()], total or 0
 
     async def update_plan(
         self, user_id: UUID, plan_id: int, plan_data: PlanUpdate,

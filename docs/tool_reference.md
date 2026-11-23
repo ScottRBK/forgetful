@@ -21,6 +21,15 @@ This guide provides comprehensive documentation for all tools available in the F
 
 ---
 
+## REST list pagination is a separate contract
+
+The REST Projects, Plans, Tasks, Documents, Code Artifacts, Files and Skills lists
+return bounded pages by default. The operations in this MCP reference keep their
+existing full-collection results and arguments; this change does not add REST
+`limit`/`offset` parameters to MCP tools or the CLI registry calls. See the
+[REST pagination and migration guide](api_reference.md#resource-list-pagination-and-migration)
+for the HTTP contract and the required UI transition.
+
 ## Meta-Tools Pattern
 
 Forgetful uses a **meta-tools pattern** to preserve your LLM's context window. Only

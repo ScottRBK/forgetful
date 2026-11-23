@@ -158,6 +158,29 @@ class TaskService:
         logger.info("tasks retrieved", extra={"count": len(tasks)})
         return tasks
 
+    async def list_tasks_page(
+        self,
+        user_id: UUID,
+        plan_id: int,
+        state: TaskState | None = None,
+        priority: TaskPriority | None = None,
+        assigned_agent: str | None = None,
+        *,
+        limit: int,
+        offset: int,
+    ) -> tuple[list[TaskSummary], int]:
+        """Return one bounded page and its full filtered total for REST callers."""
+        items, total = await self.task_repo.list_tasks_page(
+            user_id=user_id,
+            plan_id=plan_id,
+            state=state,
+            priority=priority,
+            assigned_agent=assigned_agent,
+            limit=limit,
+            offset=offset,
+        )
+        return items, total
+
     async def list_tasks_for_user(
         self,
         user_id: UUID,

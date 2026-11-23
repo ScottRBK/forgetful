@@ -3,8 +3,8 @@
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import delete, select, update
-from sqlalchemy.orm import selectinload
+from sqlalchemy import delete, func, select, update
+from sqlalchemy.orm import aliased, selectinload
 
 from app.config.logging_config import logging
 from app.exceptions import ConflictError, NotFoundError
@@ -128,6 +128,93 @@ class SqliteTaskRepository:
                     updated_at=t.updated_at,
                 ))
             return summaries
+
+    async def list_tasks_page(
+        self,
+        user_id: UUID,
+        plan_id: int,
+        state: TaskState | None = None,
+        priority: TaskPriority | None = None,
+        assigned_agent: str | None = None,
+        *,
+        limit: int,
+        offset: int,
+    ) -> tuple[list[TaskSummary], int]:
+        """Return a counted SQL page using only summary columns."""
+        async with self.db_adapter.session(user_id) as session:
+            conditions = [TasksTable.user_id == str(user_id), TasksTable.plan_id == plan_id]
+            if state:
+                conditions.append(TasksTable.state == state.value)
+            if priority:
+                conditions.append(TasksTable.priority == priority.value)
+            if assigned_agent:
+                conditions.append(TasksTable.assigned_agent == assigned_agent)
+
+            # Count the same parent relationships used by the unpaged summaries.
+            criteria_total = (
+                select(func.count(CriteriaTable.id))
+                .where(CriteriaTable.task_id == TasksTable.id)
+                .correlate(TasksTable)
+                .scalar_subquery()
+                .label("criteria_total")
+            )
+            criteria_met = (
+                select(func.count(CriteriaTable.id))
+                .where(CriteriaTable.task_id == TasksTable.id, CriteriaTable.met.is_(True))
+                .correlate(TasksTable)
+                .scalar_subquery()
+                .label("criteria_met")
+            )
+            target = aliased(TasksTable)
+            owned_done_target = (
+                select(target.id)
+                .where(
+                    target.id == TaskDependenciesTable.depends_on_task_id,
+                    target.user_id == str(user_id),
+                    target.state == TaskState.DONE.value,
+                )
+                .correlate(TaskDependenciesTable)
+                .exists()
+            )
+            # Missing or inaccessible targets also block, just as the unpaged lookup does.
+            blocked = (
+                select(TaskDependenciesTable.id)
+                .where(
+                    TaskDependenciesTable.task_id == TasksTable.id,
+                    ~owned_done_target,
+                )
+                .correlate(TasksTable)
+                .exists()
+                .label("blocked")
+            )
+
+            count_stmt = select(func.count(TasksTable.id)).where(*conditions)
+            total = await session.scalar(count_stmt)
+            stmt = (
+                select(
+                    TasksTable.id,
+                    TasksTable.title,
+                    TasksTable.plan_id,
+                    TasksTable.state,
+                    TasksTable.priority,
+                    TasksTable.assigned_agent,
+                    TasksTable.version,
+                    criteria_met,
+                    criteria_total,
+                    blocked,
+                    TasksTable.created_at,
+                    TasksTable.updated_at,
+                )
+                .where(*conditions)
+                .order_by(
+                    TasksTable.created_at.asc(),
+                    TasksTable.id.asc(),
+                )
+                .offset(offset)
+                .limit(limit)
+            )
+            result = await session.execute(stmt)
+            return [TaskSummary.model_validate(row) for row in result.mappings().all()], total or 0
 
     async def list_tasks_for_user(
         self,

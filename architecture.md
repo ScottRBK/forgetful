@@ -280,6 +280,14 @@ PostgreSQL `tsvector` + GIN via Alembic `20261103_memory_search_tsv`), fuse the 
 with reciprocal rank fusion, then apply that same rerank pool. With the flag off, search stays
 dense-only and `MemoryScore` omits `keyword_rank` / `fusion_score`.
 
+## Resource list contracts
+
+The seven resource REST lists use explicit paged service and repository methods,
+returning lightweight summaries plus a filtered total. Count and page selection stay
+behind the repository protocols. The original full-list methods remain unchanged for
+MCP, CLI, graph views and plan-completion checks; bounded REST defaults do not truncate
+those internal collections. See [the REST migration contract](docs/api_reference.md#resource-list-pagination-and-migration).
+
 ## Contracts, storage, and implementation variants
 
 | Boundary | Implementations / inspection points |
