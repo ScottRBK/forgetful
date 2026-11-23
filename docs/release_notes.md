@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Non-integer REST path IDs return HTTP 400
+
+A REST path ID that is not an integer, such as `/api/v1/entities/abc/memories`, now returns
+HTTP 400 with `{"error": "Invalid value for '<name>': must be an integer"}`, the message already
+used for integer query parameters. Most routes previously failed with HTTP 500. The memory graph
+and activity routes already returned 400; their error text now uses the same message.
+
 ### Azure OpenAI embedding request concurrency and timeout (#90)
 
 Azure embeddings now use a native async `AsyncAzureOpenAI` client with a per-process

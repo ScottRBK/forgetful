@@ -16,6 +16,7 @@ from app.models.file_models import (
     FileUpdate,
 )
 from app.routes.api.list_pagination import parse_list_pagination
+from app.routes.api.params import parse_path_int
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +84,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        file_id = int(request.path_params["file_id"])
+        try:
+            file_id = parse_path_int(request, "file_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             file = await mcp.file_service.get_file(
@@ -127,7 +131,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        file_id = int(request.path_params["file_id"])
+        try:
+            file_id = parse_path_int(request, "file_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             body = await request.json()
@@ -154,7 +161,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        file_id = int(request.path_params["file_id"])
+        try:
+            file_id = parse_path_int(request, "file_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             success = await mcp.file_service.delete_file(

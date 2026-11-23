@@ -155,25 +155,27 @@ would overwrite that audit trail.
 
 ## Build cache
 
-A public cache exists at <https://forgetful.cachix.org>. The flake does not
-consume or push to it yet; wiring `nixConfig` and the CI push is separate
-work.
+The cache is public at <https://forgetful.cachix.org> and is wired in both
+directions. The flake advertises it through `nixConfig`, so anyone evaluating
+this flake substitutes from it without extra flags; CI pushes to it, so a
+merged change is served to those readers rather than rebuilt. The public key is
+committed alongside the substituter URL in `flake.nix`.
 
 ## Nix design decisions
 
 Recorded so nobody re-derives them.
 
-| Axis | Choice | Why |
+| Decision | Choice | Why |
 | --- | --- | --- |
-| nixpkgs channel | `nixos-unstable` | an app wanting current packages; the estate's stable pin isn't relevant to an upstream-facing repo |
+| nixpkgs channel | `nixos-unstable` | an application that wants current packages; a stable channel pin buys nothing for an upstream-facing repo |
 | Release | tags | hatch-vcs derives the version from tags |
 | `follows` edges | `pyproject-nix`, `uv2nix`, `pyproject-build-systems`, `git-hooks-nix` → `nixpkgs`; `flake-parts` → `nixpkgs-lib`; `git-hooks-nix` → `flake-compat` | one nix source in the closure, so `nix flake update nixpkgs` moves everything together. `flake.lock` holds 8 nodes |
 | Source filtering | allow-list via `lib.fileset.toSource` | the tree is ours and the build reads a subset — see [Rebuild scope](#rebuild-scope) |
-| Binary cache | public Cachix | public, upstream-facing repo; the estate attic is the internal channel |
+| Binary cache | public Cachix | the repo is public, so the cache is public and readers need no credentials |
 | Version identity | scm-stamp (`FORGETFUL_VERSION` → `SETUPTOOLS_SCM_PRETEND_VERSION`) | pure builds have no `.git` and must never crash; they get `0.0.0+dev`, releases stamp the tag |
 | Test tiers | sandbox tiers as checks; PostgreSQL tier opt-in | `nix flake check` with zero authored checks passes while proving nothing |
 | Architectures | `x86_64-linux`, `aarch64-linux`, `aarch64-darwin` | see caveat below |
-| flake-compat | included | house default; zero cost to flake-native users |
+| flake-compat | included | zero cost to flake-native users; the shim is read from `flake.lock` |
 
 ### Rebuild scope
 

@@ -15,6 +15,7 @@ from starlette.responses import JSONResponse
 
 from app.middleware.auth import get_user_from_request
 from app.models.activity_models import ActionType, ActorType, EntityType
+from app.routes.api.params import parse_path_int
 
 logger = logging.getLogger(__name__)
 
@@ -185,7 +186,6 @@ def register(mcp: FastMCP):
             return JSONResponse({"error": str(e)}, status_code=401)
 
         entity_type_str = request.path_params["entity_type"]
-        entity_id_str = request.path_params["entity_id"]
 
         # Convert and validate entity_type (excluding "link" for entity history)
         valid_for_history = {EntityType.MEMORY, EntityType.PROJECT, EntityType.DOCUMENT,
@@ -203,12 +203,9 @@ def register(mcp: FastMCP):
 
         # Parse entity_id
         try:
-            entity_id = int(entity_id_str)
-        except ValueError:
-            return JSONResponse(
-                {"error": "entity_id must be an integer"},
-                status_code=400,
-            )
+            entity_id = parse_path_int(request, "entity_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         params = request.query_params
         limit = parse_int_param(params, "limit", 50)

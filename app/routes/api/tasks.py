@@ -27,6 +27,7 @@ from app.models.plan_models import (
     TaskUpdate,
 )
 from app.routes.api.list_pagination import parse_list_pagination
+from app.routes.api.params import parse_path_int
 from app.routes.plan_plugin_responses import (
     PlanningDeleteResponse,
     TaskTransitionResponse,
@@ -88,7 +89,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        task_id = int(request.path_params["task_id"])
+        try:
+            task_id = parse_path_int(request, "task_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
         try:
             task = await mcp.task_service.get_task(user_id=user.id, task_id=task_id)
         except NotFoundError:
@@ -128,7 +132,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        task_id = int(request.path_params["task_id"])
+        try:
+            task_id = parse_path_int(request, "task_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             body = await request.json()
@@ -151,7 +158,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        task_id = int(request.path_params["task_id"])
+        try:
+            task_id = parse_path_int(request, "task_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
         result = await mcp.task_service.delete_task(user_id=user.id, task_id=task_id)
         if not result.success:
             return JSONResponse({"error": "Task not found"}, status_code=404)
@@ -166,7 +176,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        task_id = int(request.path_params["task_id"])
+        try:
+            task_id = parse_path_int(request, "task_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             transition = TaskTransitionRequest.model_validate_json(await request.body(), strict=True)
@@ -198,7 +211,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        task_id = int(request.path_params["task_id"])
+        try:
+            task_id = parse_path_int(request, "task_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             claim = TaskClaimRequest.model_validate_json(await request.body(), strict=True)
@@ -231,7 +247,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        task_id = int(request.path_params["task_id"])
+        try:
+            task_id = parse_path_int(request, "task_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             body = await request.json()
@@ -258,7 +277,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        criterion_id = int(request.path_params["criterion_id"])
+        try:
+            criterion_id = parse_path_int(request, "criterion_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             body = await request.json()
@@ -283,7 +305,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        criterion_id = int(request.path_params["criterion_id"])
+        try:
+            criterion_id = parse_path_int(request, "criterion_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
         success = await mcp.task_service.delete_criterion(
             user_id=user.id, criterion_id=criterion_id,
         )
@@ -301,7 +326,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        task_id = int(request.path_params["task_id"])
+        try:
+            task_id = parse_path_int(request, "task_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             dependency = TaskDependencyRequest.model_validate_json(await request.body(), strict=True)
@@ -329,8 +357,11 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        task_id = int(request.path_params["task_id"])
-        depends_on_task_id = int(request.path_params["depends_on_task_id"])
+        try:
+            task_id = parse_path_int(request, "task_id")
+            depends_on_task_id = parse_path_int(request, "depends_on_task_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         success = await mcp.task_service.remove_dependency(
             user_id=user.id, task_id=task_id, depends_on_task_id=depends_on_task_id,

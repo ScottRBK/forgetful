@@ -52,7 +52,7 @@ See [FastMCP Auth Documentation](https://fastmcp.wiki/en/servers/auth/authentica
 |------|-------------|
 | 200 | Success |
 | 201 | Created |
-| 400 | Bad Request (validation error, `CyclicDependencyError`) |
+| 400 | Bad Request (validation error, including a non-integer path ID; `CyclicDependencyError`) |
 | 401 | Unauthorized (missing/invalid token) |
 | 404 | Not Found (also returned when a referenced `project_id` does not exist or belongs to another user) |
 | 409 | Conflict (`ConflictError` -- version mismatch in optimistic concurrency) |
