@@ -76,3 +76,8 @@ are recorded, and none duplicate an existing edge.
 When `ENTITY_WRITE_PLUGIN` is configured, create/update/delete may return `plugin_warnings` or
 fail with `WRITE_PLUGIN_REJECTED` / `WRITE_PLUGIN_UNAVAILABLE` before persistence. After-save
 warnings are advisory; the mutation already succeeded.
+
+When `ENTITY_RELATIONSHIP_PLUGIN` is configured, `create_entity_relationship`,
+`update_entity_relationship` and `delete_entity_relationship` behave the same way. A rejection
+names the deployment's relationship rule (for example an allowed type or endpoint type); fix the
+stated issue instead of retrying unchanged.

@@ -35,6 +35,12 @@ from app.models.write_plugin_models import (
     EntityDeletedRequest,
     EntityDeleteResult,
     EntityDeleteSubmission,
+    EntityRelationshipDeletedRequest,
+    EntityRelationshipDeleteResult,
+    EntityRelationshipDeleteSubmission,
+    EntityRelationshipSavedRequest,
+    EntityRelationshipWriteRequest,
+    EntityRelationshipWriteResult,
     EntitySavedRequest,
     EntityWriteRequest,
     EntityWriteResult,
@@ -48,6 +54,9 @@ from app.utils.pydantic_helper import filter_none_values, get_changed_fields
 
 if TYPE_CHECKING:
     from app.events import EventBus
+    from app.services.entity_relationship_plugin_service import (
+        EntityRelationshipPluginService,
+    )
     from app.services.entity_write_plugin_service import EntityWritePluginService
 
 logger = logging.getLogger(__name__)
@@ -65,6 +74,7 @@ class EntityService:
         entity_repo: EntityRepository,
         event_bus: "EventBus | None" = None,
         write_plugin: "EntityWritePluginService | None" = None,
+        relationship_plugin: "EntityRelationshipPluginService | None" = None,
     ):
         """Initialize with repository protocol (not concrete implementation)
 
@@ -72,10 +82,12 @@ class EntityService:
             entity_repo: Entity repository implementing the protocol
             event_bus: Optional event bus for activity tracking
             write_plugin: Optional Entity Plugin runner
+            relationship_plugin: Optional Entity Relationship Plugin runner
         """
         self.entity_repo = entity_repo
         self._event_bus = event_bus
         self._write_plugin = write_plugin
+        self._relationship_plugin = relationship_plugin
         logger.info("Entity service initialized")
 
     async def _emit_event(
@@ -828,7 +840,7 @@ class EntityService:
         self,
         user_id: UUID,
         relationship_data: EntityRelationshipCreate,
-    ) -> EntityRelationship:
+    ) -> EntityRelationshipWriteResult:
         """Create relationship between two entities
 
         Args:
@@ -836,7 +848,7 @@ class EntityService:
             relationship_data: EntityRelationshipCreate with relationship details
 
         Returns:
-            Created EntityRelationship with generated ID and timestamps
+            Created relationship and any plugin warnings
 
         Raises:
             NotFoundError: If source or target entity not found or not owned by user
@@ -851,7 +863,25 @@ class EntityService:
             },
         )
 
+        submitted = relationship_data.model_copy(deep=True)
         relationship_data = apply_provenance_defaults(relationship_data)
+        plugin = self._relationship_plugin
+        plugin_warnings = []
+        endpoints = None
+        if plugin and plugin.has_any("create"):
+            # Ownership is checked before policy; the repository re-checks it at persistence.
+            endpoints = await self._get_relationship_endpoints(
+                user_id, relationship_data.source_entity_id, relationship_data.target_entity_id,
+            )
+            if plugin.has_before("create"):
+                plugin_warnings = await plugin.before_save(EntityRelationshipWriteRequest(
+                    operation="create", user_id=user_id, submitted=submitted, previous=None,
+                    proposed=EntityRelationshipCreate.model_validate(
+                        relationship_data.model_dump(),
+                    ),
+                    source=endpoints[0], target=endpoints[1],
+                ))
+
         relationship = await self.entity_repo.create_entity_relationship(
             user_id=user_id,
             relationship_data=relationship_data,
@@ -874,7 +904,31 @@ class EntityService:
             snapshot=relationship.model_dump(mode="json"),
         )
 
-        return relationship
+        if endpoints and plugin.has_after("create"):
+            plugin_warnings += await plugin.after_save(EntityRelationshipSavedRequest(
+                operation="create", user_id=user_id, saved=relationship, previous=None,
+                source=endpoints[0], target=endpoints[1],
+            ))
+
+        return EntityRelationshipWriteResult(
+            relationship=relationship, plugin_warnings=plugin_warnings,
+        )
+
+    async def _get_relationship_endpoints(
+        self, user_id: UUID, source_entity_id: int, target_entity_id: int,
+    ) -> tuple[Entity, Entity]:
+        """Detached owned endpoint snapshots for Entity Relationship Plugin contexts."""
+        source = await self.entity_repo.get_entity_by_id(
+            user_id=user_id, entity_id=source_entity_id,
+        )
+        if not source:
+            raise NotFoundError(f"Source entity {source_entity_id} not found")
+        target = await self.entity_repo.get_entity_by_id(
+            user_id=user_id, entity_id=target_entity_id,
+        )
+        if not target:
+            raise NotFoundError(f"Target entity {target_entity_id} not found")
+        return source.model_copy(deep=True), target.model_copy(deep=True)
 
     async def get_entity_relationships(
         self,
@@ -933,7 +987,7 @@ class EntityService:
         user_id: UUID,
         relationship_id: int,
         relationship_data: EntityRelationshipUpdate,
-    ) -> EntityRelationship:
+    ) -> EntityRelationshipWriteResult:
         """Update entity relationship (PATCH semantics)
 
         Only provided fields are updated. None/omitted fields remain unchanged.
@@ -944,7 +998,7 @@ class EntityService:
             relationship_data: EntityRelationshipUpdate with fields to change
 
         Returns:
-            Updated EntityRelationship
+            Updated relationship and any plugin warnings
 
         Raises:
             NotFoundError: If relationship not found or not owned by user
@@ -957,10 +1011,45 @@ class EntityService:
             },
         )
 
+        submitted = relationship_data.model_copy(deep=True)
         relationship_data = apply_provenance_defaults_for_update(relationship_data)
 
-        # Note: The repo doesn't have a direct get_relationship_by_id, so we'll emit
-        # the event unconditionally without a changes dict
+        plugin = self._relationship_plugin
+        plugin_warnings = []
+        previous = None
+        endpoints = None
+        if plugin and plugin.has_any("update"):
+            previous = await self.entity_repo.get_entity_relationship_by_id(
+                user_id=user_id, relationship_id=relationship_id,
+            )
+            if not previous:
+                raise NotFoundError(f"Entity relationship {relationship_id} not found")
+            # No-op updates skip the plugin but still run the repository update.
+            if get_changed_fields(input_model=relationship_data, existing_model=previous):
+                endpoints = await self._get_relationship_endpoints(
+                    user_id, previous.source_entity_id, previous.target_entity_id,
+                )
+            if endpoints and plugin.has_before("update"):
+                proposed_data = previous.model_dump(
+                    include=set(EntityRelationshipCreate.model_fields),
+                )
+                proposed_data.update(relationship_data.model_dump(exclude_unset=True))
+                plugin_warnings = await plugin.before_save(EntityRelationshipWriteRequest(
+                    operation="update", user_id=user_id, submitted=submitted,
+                    previous=previous.model_copy(deep=True),
+                    proposed=EntityRelationshipCreate.model_validate(proposed_data),
+                    source=endpoints[0], target=endpoints[1],
+                ))
+                # Refresh after the handler wait so after-save sees the state actually replaced.
+                previous = await self.entity_repo.get_entity_relationship_by_id(
+                    user_id=user_id, relationship_id=relationship_id,
+                )
+                if not previous:
+                    raise NotFoundError(f"Entity relationship {relationship_id} not found")
+                if not get_changed_fields(input_model=relationship_data, existing_model=previous):
+                    return EntityRelationshipWriteResult(
+                        relationship=previous, plugin_warnings=plugin_warnings,
+                    )
 
         relationship = await self.entity_repo.update_entity_relationship(
             user_id=user_id,
@@ -987,13 +1076,22 @@ class EntityService:
             snapshot=relationship.model_dump(mode="json"),
         )
 
-        return relationship
+        if endpoints and plugin.has_after("update"):
+            plugin_warnings += await plugin.after_save(EntityRelationshipSavedRequest(
+                operation="update", user_id=user_id, saved=relationship,
+                previous=previous.model_copy(deep=True),
+                source=endpoints[0], target=endpoints[1],
+            ))
+
+        return EntityRelationshipWriteResult(
+            relationship=relationship, plugin_warnings=plugin_warnings,
+        )
 
     async def delete_entity_relationship(
         self,
         user_id: UUID,
         relationship_id: int,
-    ) -> bool:
+    ) -> EntityRelationshipDeleteResult:
         """Delete entity relationship
 
         Args:
@@ -1001,7 +1099,7 @@ class EntityService:
             relationship_id: Relationship ID to delete
 
         Returns:
-            True if deleted, False if not found or not owned by user
+            Whether the relationship was deleted and any plugin warnings
         """
         logger.info(
             "deleting entity relationship",
@@ -1011,8 +1109,34 @@ class EntityService:
             },
         )
 
-        # Note: We can't easily fetch the relationship before deletion without
-        # a get_relationship_by_id method, so snapshot will be minimal
+        plugin = self._relationship_plugin
+        plugin_warnings = []
+        previous = None
+        endpoints = None
+        if plugin and plugin.has_any("delete"):
+            previous = await self.entity_repo.get_entity_relationship_by_id(
+                user_id=user_id, relationship_id=relationship_id,
+            )
+            # Missing relationships skip both phases.
+            if not previous:
+                return EntityRelationshipDeleteResult(deleted=False, plugin_warnings=[])
+            endpoints = await self._get_relationship_endpoints(
+                user_id, previous.source_entity_id, previous.target_entity_id,
+            )
+            if plugin.has_before("delete"):
+                plugin_warnings = await plugin.before_save(EntityRelationshipWriteRequest(
+                    operation="delete", user_id=user_id,
+                    submitted=EntityRelationshipDeleteSubmission(relationship_id=relationship_id),
+                    previous=previous.model_copy(deep=True), proposed=None,
+                    source=endpoints[0], target=endpoints[1],
+                ))
+                previous = await self.entity_repo.get_entity_relationship_by_id(
+                    user_id=user_id, relationship_id=relationship_id,
+                )
+                if not previous:
+                    return EntityRelationshipDeleteResult(
+                        deleted=False, plugin_warnings=plugin_warnings,
+                    )
 
         success = await self.entity_repo.delete_entity_relationship(
             user_id=user_id,
@@ -1036,6 +1160,12 @@ class EntityService:
                 action=ActionType.DELETED,
                 snapshot={"id": relationship_id},  # Minimal snapshot
             )
+            if endpoints and plugin.has_after("delete"):
+                plugin_warnings += await plugin.after_save(EntityRelationshipDeletedRequest(
+                    user_id=user_id, deleted_relationship_id=relationship_id,
+                    previous=previous.model_copy(deep=True),
+                    source=endpoints[0], target=endpoints[1],
+                ))
         else:
             logger.warning(
                 "entity relationship not found for deletion",
@@ -1045,7 +1175,7 @@ class EntityService:
                 },
             )
 
-        return success
+        return EntityRelationshipDeleteResult(deleted=success, plugin_warnings=plugin_warnings)
 
     # Graph visualization operations
 

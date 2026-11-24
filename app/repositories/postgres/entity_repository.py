@@ -923,6 +923,51 @@ class PostgresEntityRepository:
             )
             raise
 
+    async def get_entity_relationship_by_id(
+        self,
+        user_id: UUID,
+        relationship_id: int,
+    ) -> EntityRelationship | None:
+        """Get one entity relationship by ID
+
+        Args:
+            user_id: User ID for ownership verification
+            relationship_id: Relationship ID to retrieve
+
+        Returns:
+            EntityRelationship if found and owned by user, None otherwise
+        """
+        async with self.db_adapter.session(user_id) as session:
+            stmt = select(EntityRelationshipsTable).where(
+                EntityRelationshipsTable.id == relationship_id,
+                EntityRelationshipsTable.user_id == user_id,
+            )
+            result = await session.execute(stmt)
+            r = result.scalar_one_or_none()
+            if r is None:
+                return None
+
+            # Convert ORM to Pydantic (manually map relationship_metadata -> metadata)
+            return EntityRelationship(
+                id=r.id,
+                source_entity_id=r.source_entity_id,
+                target_entity_id=r.target_entity_id,
+                relationship_type=r.relationship_type,
+                strength=r.strength,
+                confidence=r.confidence,
+                metadata=r.relationship_metadata,
+                created_at=r.created_at,
+                updated_at=r.updated_at,
+                source_repo=r.source_repo,
+                source_files=r.source_files,
+                source_url=r.source_url,
+                encoding_agent=r.encoding_agent,
+                encoding_version=r.encoding_version,
+                agent_id=r.agent_id,
+                agent_version=r.agent_version,
+                agent_model=r.agent_model,
+            )
+
     async def update_entity_relationship(
         self,
         user_id: UUID,

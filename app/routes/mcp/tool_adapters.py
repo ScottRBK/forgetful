@@ -63,6 +63,7 @@ from app.routes.mcp.query_memory_format import (
 from app.routes.plan_plugin_responses import PlanWriteResponse, TaskTransitionResponse
 from app.routes.write_plugin_responses import (
     EntityDeleteResponse,
+    EntityRelationshipWriteResponse,
     EntityWriteResponse,
     MemoryCreateWriteResponse,
     MemoryLifecycleResponse,
@@ -1735,11 +1736,19 @@ class EntityToolAdapters:
             agent_model=agent_model,
         )
 
-        relationship = await self.entity_service.create_entity_relationship(
-            user_id=user.id, relationship_data=relationship_data,
-        )
+        try:
+            write_result = await self.entity_service.create_entity_relationship(
+                user_id=user.id, relationship_data=relationship_data,
+            )
+        except WritePluginRejectedError as exc:
+            raise ToolError(f"WRITE_PLUGIN_REJECTED: {exc}") from None
+        except WritePluginUnavailableError as exc:
+            raise ToolError(f"WRITE_PLUGIN_UNAVAILABLE: {exc}") from None
 
-        return relationship
+        return EntityRelationshipWriteResponse(
+            **write_result.relationship.model_dump(),
+            plugin_warnings=write_result.plugin_warnings,
+        )
 
     async def get_entity_relationships(
         self,
@@ -1798,13 +1807,21 @@ class EntityToolAdapters:
 
         relationship_data = EntityRelationshipUpdate(**updated_dict)
 
-        relationship = await self.entity_service.update_entity_relationship(
-            user_id=user.id,
-            relationship_id=relationship_id,
-            relationship_data=relationship_data,
-        )
+        try:
+            write_result = await self.entity_service.update_entity_relationship(
+                user_id=user.id,
+                relationship_id=relationship_id,
+                relationship_data=relationship_data,
+            )
+        except WritePluginRejectedError as exc:
+            raise ToolError(f"WRITE_PLUGIN_REJECTED: {exc}") from None
+        except WritePluginUnavailableError as exc:
+            raise ToolError(f"WRITE_PLUGIN_UNAVAILABLE: {exc}") from None
 
-        return relationship
+        return EntityRelationshipWriteResponse(
+            **write_result.relationship.model_dump(),
+            plugin_warnings=write_result.plugin_warnings,
+        )
 
     async def delete_entity_relationship(
         self, relationship_id: int, ctx: Context,
@@ -1812,11 +1829,19 @@ class EntityToolAdapters:
         """Adapter for delete_entity_relationship tool"""
         user = await get_user_from_auth(ctx)
 
-        result = await self.entity_service.delete_entity_relationship(
-            user_id=user.id, relationship_id=relationship_id,
-        )
+        try:
+            delete_result = await self.entity_service.delete_entity_relationship(
+                user_id=user.id, relationship_id=relationship_id,
+            )
+        except WritePluginRejectedError as exc:
+            raise ToolError(f"WRITE_PLUGIN_REJECTED: {exc}") from None
+        except WritePluginUnavailableError as exc:
+            raise ToolError(f"WRITE_PLUGIN_UNAVAILABLE: {exc}") from None
 
-        return {"success": result, "deleted_id": relationship_id}
+        response = EntityDeleteResponse(
+            success=delete_result.deleted, plugin_warnings=delete_result.plugin_warnings,
+        )
+        return {**response.model_dump(), "deleted_id": relationship_id}
 
     async def get_entity_memories(self, entity_id: int, ctx: Context) -> dict:
         """Adapter for get_entity_memories tool"""
