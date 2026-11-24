@@ -54,6 +54,7 @@ async def test_after_failure_warns_without_failing_saved_create(entity_store, mo
             raise RuntimeError("SECRET entity content")
         if failure == "timeout":
             await asyncio.sleep(10)
+            return None
         if failure == "reject":
             return {"outcome": "reject", "message": "SECRET entity content"}
         if failure == "cancelled_child":
@@ -70,7 +71,9 @@ async def test_after_failure_warns_without_failing_saved_create(entity_store, mo
             mode=mode, timeout_seconds=0.01 if failure == "timeout" else 5,
         ),
     )
-    result = await service.create_entity(user_id, candidate())
+    # The outer deadline fails fast if the plugin deadline is ever removed.
+    async with asyncio.timeout(2):
+        result = await service.create_entity(user_id, candidate())
     assert result.plugin_warnings == [PluginWarning(
         message="Entity saved, but after-save plugin unavailable.",
         code="ENTITY_PLUGIN_AFTER_SAVE_UNAVAILABLE",
@@ -293,6 +296,7 @@ async def test_before_unavailable_is_generic_and_mode_controls_persistence(
             raise RuntimeError("SECRET entity content")
         if failure == "timeout":
             await asyncio.sleep(10)
+            return WriteDecision(outcome="allow")
         if failure == "blank":
             return {"outcome": "reject", "message": "  "}
         if failure == "mutated":
@@ -307,13 +311,16 @@ async def test_before_unavailable_is_generic_and_mode_controls_persistence(
             mode=mode, timeout_seconds=0.01,
         ),
     )
+    # The outer deadline fails fast if the plugin deadline is ever removed.
     if mode == "enforce":
         with pytest.raises(
             WritePluginUnavailableError, match=r"^Entity Write Plugin unavailable\.$",
         ):
-            await service.create_entity(user_id, candidate())
+            async with asyncio.timeout(2):
+                await service.create_entity(user_id, candidate())
     else:
-        result = await service.create_entity(user_id, candidate())
+        async with asyncio.timeout(2):
+            result = await service.create_entity(user_id, candidate())
         assert result.plugin_warnings[0].message == "Entity Write Plugin unavailable."
         assert result.plugin_warnings[0].code == "WRITE_PLUGIN_UNAVAILABLE"
     _, total = await service.list_entities(user_id)
