@@ -233,6 +233,7 @@ async def build_runtime() -> Runtime:
         load_entity_plugin,
         load_entity_relationship_plugin,
         load_memory_link_plugin,
+        load_task_plugin,
         load_write_plugin,
     )
     from app.services.entity_relationship_plugin_service import (
@@ -241,6 +242,7 @@ async def build_runtime() -> Runtime:
     from app.services.entity_write_plugin_service import EntityWritePluginService
     from app.services.memory_link_service import MemoryLinkService
     from app.services.plan_write_plugin_service import PlanWritePluginService
+    from app.services.task_write_plugin_service import TaskWritePluginService
     from app.services.write_plugin_service import WritePluginService
 
     link_registration = load_memory_link_plugin(settings)
@@ -248,6 +250,7 @@ async def build_runtime() -> Runtime:
     entity_plugin = load_entity_plugin(settings)
     relationship_registration = load_entity_relationship_plugin(settings)
     plan_registration = load_plan_plugin(settings)
+    task_registration = load_task_plugin(settings)
     plugin_logger_states = {}
     for registration, reference in (
         (plugin, settings.MEMORY_WRITE_PLUGIN),
@@ -255,6 +258,7 @@ async def build_runtime() -> Runtime:
         (entity_plugin, settings.ENTITY_WRITE_PLUGIN),
         (relationship_registration, settings.ENTITY_RELATIONSHIP_PLUGIN),
         (plan_registration, settings.PLAN_WRITE_PLUGIN),
+        (task_registration, settings.TASK_WRITE_PLUGIN),
     ):
         if registration is None:
             continue
@@ -289,6 +293,11 @@ async def build_runtime() -> Runtime:
         timeout_seconds=settings.PLAN_WRITE_PLUGIN_TIMEOUT_SECONDS,
     ) if plan_registration is not None else None)
 
+    task_write_plugin = (TaskWritePluginService(
+        task_registration, mode=settings.TASK_WRITE_PLUGIN_MODE,
+        timeout_seconds=settings.TASK_WRITE_PLUGIN_TIMEOUT_SECONDS,
+    ) if task_registration is not None else None)
+
     check_first_run_models()
 
     embeddings_adapter = get_embedding_adapter()
@@ -309,6 +318,7 @@ async def build_runtime() -> Runtime:
         logging.getLogger("app.services.entity_write_plugin_service").disabled = False
         logging.getLogger("app.services.entity_relationship_plugin_service").disabled = False
         logging.getLogger("app.services.plan_write_plugin_service").disabled = False
+        logging.getLogger("app.services.task_write_plugin_service").disabled = False
         logging.getLogger("app.services.memory_link_service").disabled = False
         for plugin_logger, was_disabled in plugin_logger_states.items():
             plugin_logger.disabled = was_disabled
@@ -392,7 +402,10 @@ async def build_runtime() -> Runtime:
                 repos["plan"], event_bus=event_bus, plan_plugin=plan_plugin,
                 project_repo=repos["project"],
             )
-            task_service = TaskService(repos["task"], plan_service=plan_service, event_bus=event_bus)
+            task_service = TaskService(
+                repos["task"], plan_service=plan_service, event_bus=event_bus,
+                write_plugin=task_write_plugin,
+            )
             logger.info("Planning feature enabled")
         else:
             logger.info("Planning feature disabled (PLANNING_ENABLED=false)")

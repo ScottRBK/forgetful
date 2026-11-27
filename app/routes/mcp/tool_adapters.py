@@ -60,7 +60,11 @@ from app.routes.mcp.query_memory_format import (
     project_query_memory_result,
     require_query_memory_response_format,
 )
-from app.routes.plan_plugin_responses import PlanWriteResponse, TaskTransitionResponse
+from app.routes.plan_plugin_responses import (
+    PlanWriteResponse,
+    TaskTransitionResponse,
+    TaskWriteResponse,
+)
 from app.routes.write_plugin_responses import (
     EntityDeleteResponse,
     EntityRelationshipWriteResponse,
@@ -2098,7 +2102,18 @@ class TaskToolAdapters:
             agent_version=agent_version,
             agent_model=agent_model,
         )
-        return await self.task_service.create_task(user_id=user.id, task_data=task_data)
+        try:
+            write_result = await self.task_service.create_task(
+                user_id=user.id, task_data=task_data,
+            )
+        except WritePluginRejectedError as exc:
+            raise ToolError(f"WRITE_PLUGIN_REJECTED: {exc}") from None
+        except WritePluginUnavailableError as exc:
+            raise ToolError(f"WRITE_PLUGIN_UNAVAILABLE: {exc}") from None
+
+        return TaskWriteResponse(
+            **write_result.task.model_dump(), plugin_warnings=write_result.plugin_warnings,
+        )
 
     async def update_task(
         self,
@@ -2134,8 +2149,18 @@ class TaskToolAdapters:
             agent_model=agent_model,
         )
         task_data = TaskUpdate(**updated_dict)
-        return await self.task_service.update_task(
-            user_id=user.id, task_id=task_id, task_data=task_data,
+        try:
+            write_result = await self.task_service.update_task(
+                user_id=user.id, task_id=task_id, task_data=task_data,
+            )
+        except WritePluginRejectedError as exc:
+            raise ToolError(f"WRITE_PLUGIN_REJECTED: {exc}") from None
+        except WritePluginUnavailableError as exc:
+            raise ToolError(f"WRITE_PLUGIN_UNAVAILABLE: {exc}") from None
+        if not write_result:
+            raise ToolError(f"Task with id {task_id} not found")
+        return TaskWriteResponse(
+            **write_result.task.model_dump(), plugin_warnings=write_result.plugin_warnings,
         )
 
     async def get_task(self, task_id: int, ctx: Context):
@@ -2196,9 +2221,17 @@ class TaskToolAdapters:
             )
         task_id = self._action_id(task_id, "task_id")
         user = await get_user_from_auth(ctx)
-        return await self.task_service.claim_task(
-            user_id=user.id, task_id=task_id,
-            agent_id=agent_id, expected_version=version,
+        try:
+            claim_result = await self.task_service.claim_task(
+                user_id=user.id, task_id=task_id,
+                agent_id=agent_id, expected_version=version,
+            )
+        except WritePluginRejectedError as exc:
+            raise ToolError(f"WRITE_PLUGIN_REJECTED: {exc}") from None
+        except WritePluginUnavailableError as exc:
+            raise ToolError(f"WRITE_PLUGIN_UNAVAILABLE: {exc}") from None
+        return TaskTransitionResponse(
+            **claim_result.task.model_dump(), plugin_warnings=claim_result.plugin_warnings,
         )
 
     async def transition_task(
@@ -2225,10 +2258,15 @@ class TaskToolAdapters:
             ) from None
         task_id = self._action_id(task_id, "task_id")
         user = await get_user_from_auth(ctx)
-        result = await self.task_service.transition_task(
-            user_id=user.id, task_id=task_id,
-            new_state=new_state, expected_version=version,
-        )
+        try:
+            result = await self.task_service.transition_task(
+                user_id=user.id, task_id=task_id,
+                new_state=new_state, expected_version=version,
+            )
+        except WritePluginRejectedError as exc:
+            raise ToolError(f"WRITE_PLUGIN_REJECTED: {exc}") from None
+        except WritePluginUnavailableError as exc:
+            raise ToolError(f"WRITE_PLUGIN_UNAVAILABLE: {exc}") from None
         return TaskTransitionResponse(**result.task.model_dump(), plugin_warnings=result.plugin_warnings)
 
     async def add_criterion(

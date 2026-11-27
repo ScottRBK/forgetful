@@ -32,10 +32,13 @@ flowchart TD
     EntityWritePlugin --> EntityCallable["EntityPlugin: create, update, delete mappings"]
     Services --> RelationshipPlugin["EntityRelationshipPluginService: before_save and advisory after_save"]
     RelationshipPlugin --> RelationshipCallable["EntityRelationshipPlugin: create, update, delete mappings"]
+    Services --> TaskPlugin["TaskWritePluginService: before_save and advisory after_save"]
+    TaskPlugin --> TaskCallable["TaskPlugin: create, update, delete mappings"]
     Bootstrap --> Loader["config.write_plugin: trusted module:object loaders"]
     Loader -. supplies registration .-> WritePlugin
     Loader -. supplies registration .-> EntityWritePlugin
     Loader -. supplies registration .-> RelationshipPlugin
+    Loader -. supplies registration .-> TaskPlugin
     SQLite["SQLite repositories"] -. implements .-> Contracts
     Postgres["PostgreSQL repositories"] -. implements .-> Contracts
     SQLite --> SQLiteDB["SQLite adapter and sqlite-vec"]
@@ -191,6 +194,15 @@ and delete in `EntityService`. Contexts carry detached relationship snapshots pl
 and target entities, read after ownership checks and before persistence; the repository re-checks
 ownership on write. Update/delete reread the relationship after a before-handler await. Entity
 deletion cascades, memory links, and entity associations never dispatch relationship hooks.
+
+**Task Plugin:** mirrors the Memory Plugin contract for task create, metadata update, state
+transition, claim and delete via `load_task_plugin`, `TaskPlugin`, and `TaskWritePluginService`,
+wired only when `PLANNING_ENABLED` builds the service. A transition and a claim fire as an update
+whose `proposed` is the full post-write `Task`, because `TaskCreate` has no state field. Version
+checks and state-machine validation run before any handler, so a plugin can veto a transition but
+cannot alter the rules. Dependency and criterion edits do not fire; deleting a task cascades its
+criteria and its dependency rows in both directions, silently unblocking tasks that depended on it,
+and deleting a plan cascades its tasks without a task hook.
 
 **Memory Plugin:** `app/config/write_plugin.py` loads one trusted `module:object` registration before
 costly resources. `MemoryPlugin` in `app/protocols/write_plugin_protocol.py` owns copied, frozen

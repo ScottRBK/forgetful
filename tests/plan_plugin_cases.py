@@ -218,7 +218,7 @@ class TestPlanPluginPersistence:
     async def test_cascades_do_not_dispatch_per_task_or_indirect_plan(self, plan_store, cascade):
         s = plan_store
         plan = await active_plan(s)
-        task = await s.tasks.create_task(s.user.id, TaskCreate(plan_id=plan.id, title="Cascaded task"))
+        task = (await s.tasks.create_task(s.user.id, TaskCreate(plan_id=plan.id, title="Cascaded task"))).task
         s.state.before.clear()
         s.state.after.clear()
         if cascade == "plan":
@@ -240,8 +240,8 @@ class TestPlanPluginPersistence:
     async def test_task_commit_survives_secondary_policy_outcome(self, plan_store, path, policy, mode, code):
         s = plan_store
         plan = await active_plan(s)
-        target = await s.tasks.create_task(s.user.id, TaskCreate(plan_id=plan.id, title="Target"))
-        blocker = await s.tasks.create_task(s.user.id, TaskCreate(plan_id=plan.id, title="Blocker"))
+        target = (await s.tasks.create_task(s.user.id, TaskCreate(plan_id=plan.id, title="Target"))).task
+        blocker = (await s.tasks.create_task(s.user.id, TaskCreate(plan_id=plan.id, title="Blocker"))).task
         doing = await s.tasks.transition_task(s.user.id, target.id, TaskState.DOING, target.version)
         if path == "delete":
             done = await s.tasks.transition_task(s.user.id, target.id, TaskState.DONE, doing.task.version)
@@ -276,8 +276,8 @@ class TestPlanPluginPersistence:
     async def test_automatic_completion_rechecks_tasks_after_policy(self, plan_store, path, change):
         s = plan_store
         plan = await active_plan(s)
-        target = await s.tasks.create_task(s.user.id, TaskCreate(plan_id=plan.id, title="Target"))
-        blocker = await s.tasks.create_task(s.user.id, TaskCreate(plan_id=plan.id, title="Blocker"))
+        target = (await s.tasks.create_task(s.user.id, TaskCreate(plan_id=plan.id, title="Target"))).task
+        blocker = (await s.tasks.create_task(s.user.id, TaskCreate(plan_id=plan.id, title="Blocker"))).task
         doing = await s.tasks.transition_task(s.user.id, target.id, TaskState.DOING, target.version)
         if path == "delete":
             await s.tasks.transition_task(s.user.id, target.id, TaskState.DONE, doing.task.version)
@@ -285,7 +285,7 @@ class TestPlanPluginPersistence:
             await s.tasks.delete_task(s.user.id, blocker.id)
         reopen = None
         if change == "reopened":
-            reopen = await s.tasks.create_task(s.user.id, TaskCreate(plan_id=plan.id, title="Reopen"))
+            reopen = (await s.tasks.create_task(s.user.id, TaskCreate(plan_id=plan.id, title="Reopen"))).task
             cancelled = await s.tasks.transition_task(s.user.id, reopen.id, TaskState.CANCELLED, reopen.version)
             reopen = cancelled.task
         entered, release = asyncio.Event(), asyncio.Event()
@@ -305,7 +305,7 @@ class TestPlanPluginPersistence:
         if path == "delete":
             assert await s.repos["task"].get_task_by_id(s.user.id, blocker.id) is None
         if change == "added":
-            pending = await s.tasks.create_task(s.user.id, TaskCreate(plan_id=plan.id, title="Added"))
+            pending = (await s.tasks.create_task(s.user.id, TaskCreate(plan_id=plan.id, title="Added"))).task
         elif change == "reopened":
             pending = (await s.tasks.transition_task(s.user.id, reopen.id, TaskState.TODO, reopen.version)).task
         release.set()
@@ -335,8 +335,8 @@ class TestPlanPluginPersistence:
     async def test_plugin_child_cancellation_keeps_primary_task_success(self, plan_store, path, mode):
         s = plan_store
         plan = await active_plan(s)
-        target = await s.tasks.create_task(s.user.id, TaskCreate(plan_id=plan.id, title="Target"))
-        blocker = await s.tasks.create_task(s.user.id, TaskCreate(plan_id=plan.id, title="Blocker"))
+        target = (await s.tasks.create_task(s.user.id, TaskCreate(plan_id=plan.id, title="Target"))).task
+        blocker = (await s.tasks.create_task(s.user.id, TaskCreate(plan_id=plan.id, title="Blocker"))).task
         doing = await s.tasks.transition_task(s.user.id, target.id, TaskState.DOING, target.version)
         if path == "delete":
             await s.tasks.transition_task(s.user.id, target.id, TaskState.DONE, doing.task.version)
@@ -409,7 +409,7 @@ class TestPlanPluginPersistence:
     async def test_concurrent_completions_do_not_promise_atomic_dispatch(self, plan_store):
         s = plan_store
         plan = await active_plan(s)
-        task = await s.tasks.create_task(s.user.id, TaskCreate(plan_id=plan.id, title="Done seed"))
+        task = (await s.tasks.create_task(s.user.id, TaskCreate(plan_id=plan.id, title="Done seed"))).task
         doing = await s.repos["task"].transition_task_state(s.user.id, task.id, TaskState.DOING, task.version)
         await s.repos["task"].transition_task_state(s.user.id, task.id, TaskState.DONE, doing.version)
         barrier = asyncio.Barrier(2)
@@ -433,7 +433,7 @@ class TestPlanPluginPersistence:
         s = plan_store
         plan = await active_plan(s)
         if control != "empty":
-            task = await s.tasks.create_task(s.user.id, TaskCreate(plan_id=plan.id, title="Control"))
+            task = (await s.tasks.create_task(s.user.id, TaskCreate(plan_id=plan.id, title="Control"))).task
             state = TaskState.CANCELLED if control == "all_cancelled" else TaskState.DONE
             if state == TaskState.DONE:
                 doing = await s.repos["task"].transition_task_state(s.user.id, task.id, TaskState.DOING, task.version)
@@ -449,7 +449,7 @@ class TestPlanPluginPersistence:
     async def test_unrelated_secondary_error_keeps_existing_postcommit_propagation(self, plan_store, monkeypatch):
         s = plan_store
         plan = await active_plan(s)
-        task = await s.tasks.create_task(s.user.id, TaskCreate(plan_id=plan.id, title="Committed task"))
+        task = (await s.tasks.create_task(s.user.id, TaskCreate(plan_id=plan.id, title="Committed task"))).task
         doing = await s.tasks.transition_task(s.user.id, task.id, TaskState.DOING, task.version)
 
         async def fail(*args, **kwargs):
@@ -465,7 +465,7 @@ class TestPlanPluginPersistence:
     async def test_cancelled_request_during_secondary_policy_keeps_primary_committed(self, plan_store):
         s = plan_store
         plan = await active_plan(s)
-        task = await s.tasks.create_task(s.user.id, TaskCreate(plan_id=plan.id, title="Cancelled request"))
+        task = (await s.tasks.create_task(s.user.id, TaskCreate(plan_id=plan.id, title="Cancelled request"))).task
         doing = await s.tasks.transition_task(s.user.id, task.id, TaskState.DOING, task.version)
         entered = asyncio.Event()
 

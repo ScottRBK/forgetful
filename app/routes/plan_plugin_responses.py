@@ -17,3 +17,7 @@ class TaskTransitionResponse(Task):
 class PlanningDeleteResponse(BaseModel):
     success: bool
     plugin_warnings: list[PluginWarning] = Field(default_factory=list, exclude_if=lambda v: not v)
+
+
+class TaskWriteResponse(Task):
+    plugin_warnings: list[PluginWarning] = Field(default_factory=list, exclude_if=lambda v: not v)
