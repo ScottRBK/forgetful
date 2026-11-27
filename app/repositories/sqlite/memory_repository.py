@@ -7,7 +7,7 @@ from uuid import UUID
 import sqlite_vec
 from sqlalchemy import bindparam, func, or_, select, text, update
 from sqlalchemy.exc import IntegrityError, NoResultFound, SQLAlchemyError
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import aliased, selectinload
 
 from app.config.logging_config import logging
 from app.config.settings import settings
@@ -24,6 +24,7 @@ from app.repositories.sqlite.sqlite_tables import (
     MemoryTable,
     ProjectsTable,
     SkillsTable,
+    memory_project_association,
 )
 from app.utils.embedding_helpers import (
     build_contextual_query,
@@ -1202,6 +1203,75 @@ class SqliteMemoryRepository:
             })
 
             return deleted
+
+    async def get_memory_links_incident_to(
+        self,
+        user_id: UUID,
+        memory_ids: list[int],
+        project_ids: list[int] | None = None,
+        include_obsolete: bool = False,
+    ) -> list[tuple[int, int]]:
+        """Get memory-to-memory links touching any of ``memory_ids`` (graph overview).
+
+        A graph overview pages over memories, so filtering links by the page's own
+        ids hides every link whose endpoints land on different pages. This returns
+        each link once if either endpoint is on the page, while requiring BOTH
+        endpoints to fall inside the caller's filtered memory set: same user, not
+        obsolete, and in the requested projects. Those are the same conditions
+        ``list_memories`` applies, so an emitted edge never points outside the
+        pagination the client is walking.
+
+        Args:
+            user_id: User ID for ownership filtering
+            memory_ids: Memory IDs on the current page
+            project_ids: Optional project filter applied to both endpoints
+            include_obsolete: Include links to or from obsolete memories
+
+        Returns:
+            List of (source_id, target_id) tuples, direction as stored
+        """
+        if not memory_ids:
+            return []
+        source = aliased(MemoryTable)
+        target = aliased(MemoryTable)
+        conditions = [
+            MemoryLinkTable.user_id == str(user_id),
+            source.user_id == str(user_id),
+            target.user_id == str(user_id),
+        ]
+        if not include_obsolete:
+            conditions.append(source.is_obsolete.is_(False))
+            conditions.append(target.is_obsolete.is_(False))
+        if project_ids:
+            for endpoint in (source, target):
+                conditions.append(
+                    select(memory_project_association.c.memory_id).where(
+                        memory_project_association.c.memory_id == endpoint.id,
+                        memory_project_association.c.project_id.in_(project_ids),
+                    ).exists(),
+                )
+        try:
+            async with self.db_adapter.session(user_id) as session:
+                stmt = (
+                    select(MemoryLinkTable.source_id, MemoryLinkTable.target_id)
+                    .join(source, source.id == MemoryLinkTable.source_id)
+                    .join(target, target.id == MemoryLinkTable.target_id)
+                    .where(
+                        *conditions,
+                        or_(
+                            MemoryLinkTable.source_id.in_(memory_ids),
+                            MemoryLinkTable.target_id.in_(memory_ids),
+                        ),
+                    )
+                )
+                rows = (await session.execute(stmt)).all()
+                return [(row[0], row[1]) for row in rows]
+        except SQLAlchemyError as e:
+            logger.error(
+                "Error getting incident memory links",
+                extra={"user_id": str(user_id), "error": str(e)},
+            )
+            raise
 
     async def list_memories(
             self,

@@ -2893,3 +2893,323 @@ class TestSubgraphPlanTaskCTE:
         meta = response.json()["meta"]
         for k in ["plan_count", "task_count", "plan_project_count", "plan_task_count"]:
             assert k in meta
+
+
+class TestGraphMemoryLinkPagination:
+    """Memory links must survive pagination, not only when both ends share a page."""
+
+    @staticmethod
+    async def _memory(http_client, title: str) -> int:
+        response = await http_client.post("/api/v1/memories", json={
+            "title": title,
+            "content": f"Content for {title}",
+            "context": "Cross-page link test",
+            "keywords": [title.replace(" ", "-").lower()],
+            "tags": ["cross-page"],
+            "importance": 7,
+        })
+        assert response.status_code in [200, 201], response.text
+        return response.json()["id"]
+
+    @pytest.mark.asyncio
+    async def test_link_across_two_pages_is_emitted_when_opted_in(self, http_client):
+        """With cross_page_edges=true a link spanning two pages is emitted once."""
+        first = await self._memory(http_client, "Cross Page One")
+        await self._memory(http_client, "Cross Page Two")
+        third = await self._memory(http_client, "Cross Page Three")
+
+        link = await http_client.post(f"/api/v1/memories/{first}/links", json={
+            "related_ids": [third],
+        })
+        assert link.status_code in [200, 201], link.text
+
+        # Page 1 of 2 holds the first and second memory only.
+        page_one = await http_client.get(
+            "/api/v1/graph?node_types=memory&limit=2&offset=0"
+            "&sort_by=created_at&sort_order=asc&cross_page_edges=true",
+        )
+        assert page_one.status_code == 200
+        data = page_one.json()
+        page_ids = {node["data"]["id"] for node in data["nodes"]}
+        assert first in page_ids
+        assert third not in page_ids, "test needs the endpoints on different pages"
+
+        # Auto-linking may add other edges; the assertion is about this link.
+        canonical = f"memory_{min(first, third)}_memory_{max(first, third)}"
+        matching = [
+            e for e in data["edges"]
+            if e["type"] == "memory_link" and e["id"] == canonical
+        ]
+        assert len(matching) == 1, f"expected the cross-page link exactly once, got {matching}"
+        edge = matching[0]
+        assert {edge["source"], edge["target"]} == {
+            f"memory_{min(first, third)}", f"memory_{max(first, third)}",
+        }
+        assert f"memory_{third}" in {edge["source"], edge["target"]}, (
+            "edge should reference the off-page memory"
+        )
+
+    @pytest.mark.asyncio
+    async def test_link_on_one_page_is_not_duplicated(self, http_client):
+        """Even opted in, an edge appears once per page, not once per endpoint."""
+        a = await self._memory(http_client, "Same Page A")
+        b = await self._memory(http_client, "Same Page B")
+        await http_client.post(f"/api/v1/memories/{a}/links", json={"related_ids": [b]})
+
+        response = await http_client.get(
+            "/api/v1/graph?node_types=memory&limit=10&sort_by=created_at&sort_order=asc"
+            "&cross_page_edges=true",
+        )
+        data = response.json()
+        edges = [
+            e for e in data["edges"]
+            if e["type"] == "memory_link"
+            and {e["source"], e["target"]} == {
+                f"memory_{min(a, b)}", f"memory_{max(a, b)}",
+            }
+        ]
+        assert len(edges) == 1
+
+    @pytest.mark.asyncio
+    async def test_project_filter_does_not_leak_cross_project_links(self, http_client):
+        """A project-scoped overview must not emit a link to another project's memory."""
+        project_response = await http_client.post("/api/v1/projects", json={
+            "name": "Cross Page Scope Project",
+            "description": "Scope for the pagination edge test",
+            "project_type": "development",
+        })
+        assert project_response.status_code in [200, 201], project_response.text
+        project_id = project_response.json()["id"]
+
+        inside = await self._memory(http_client, "Scoped Inside")
+        outside = await self._memory(http_client, "Scoped Outside")
+        await http_client.post(f"/api/v1/memories/{inside}/links", json={
+            "related_ids": [outside],
+        })
+        # Attach only one endpoint to the project.
+        attached = await http_client.put(f"/api/v1/memories/{inside}", json={
+            "project_ids": [project_id],
+        })
+        assert attached.status_code in [200, 201], attached.text
+
+        response = await http_client.get(
+            f"/api/v1/graph?node_types=memory&project_id={project_id}"
+            "&cross_page_edges=true",
+        )
+        assert response.status_code == 200
+        data = response.json()
+        node_ids = {node["data"]["id"] for node in data["nodes"]}
+        assert inside in node_ids
+        assert outside not in node_ids
+
+        leaking = [
+            e for e in data["edges"]
+            if e["type"] == "memory_link"
+            and f"memory_{outside}" in {e["source"], e["target"]}
+        ]
+        assert leaking == [], f"project-scoped overview leaked an out-of-project edge: {leaking}"
+
+
+class TestGraphCrossPageOptIn:
+    """cross_page_edges is opt-in; the default must stay page-scoped."""
+
+    @staticmethod
+    async def _memory(http_client, title: str) -> int:
+        response = await http_client.post("/api/v1/memories", json={
+            "title": title,
+            "content": f"Content for {title}",
+            "context": "Cross-page opt-in test",
+            "keywords": [title.replace(" ", "-").lower()],
+            "tags": ["cross-page-opt-in"],
+            "importance": 7,
+        })
+        assert response.status_code in [200, 201], response.text
+        return response.json()["id"]
+
+    @staticmethod
+    def _edge_pairs(payload) -> list[tuple[str, str]]:
+        return [
+            (e["id"], e["source"], e["target"])
+            for e in payload["edges"]
+            if e["type"] == "memory_link"
+        ]
+
+    @pytest.mark.asyncio
+    async def test_default_is_the_page_scoped_rule(self, http_client):
+        """Default output equals the pre-opt-in rule, edge for edge and in order.
+
+        The expected edges are recomputed from the page's own memories using the
+        original rule (both endpoints on the page, source = the iterated memory),
+        so any change to default emission fails here.
+        """
+        first = await self._memory(http_client, "Default One")
+        await self._memory(http_client, "Default Two")
+        third = await self._memory(http_client, "Default Three")
+        await http_client.post(f"/api/v1/memories/{first}/links", json={
+            "related_ids": [third],
+        })
+
+        page_path = (
+            "/api/v1/graph?node_types=memory&limit=2&offset=0"
+            "&sort_by=created_at&sort_order=asc"
+        )
+        graph = (await http_client.get(page_path)).json()
+
+        page = (await http_client.get(
+            "/api/v1/memories?limit=2&offset=0&sort_by=created_at&sort_order=asc",
+        )).json()["memories"]
+        page_ids = {memory["id"] for memory in page}
+        assert first in page_ids and third not in page_ids
+
+        expected: list[tuple[str, str, str]] = []
+        seen: set[str] = set()
+        for memory in page:
+            for linked_id in memory["linked_memory_ids"]:
+                if linked_id in page_ids:
+                    edge_id = (
+                        f"memory_{min(memory['id'], linked_id)}"
+                        f"_memory_{max(memory['id'], linked_id)}"
+                    )
+                    if edge_id not in seen:
+                        seen.add(edge_id)
+                        expected.append((
+                            edge_id,
+                            f"memory_{memory['id']}",
+                            f"memory_{linked_id}",
+                        ))
+
+        assert self._edge_pairs(graph) == expected
+        # The cross-page link is not among them.
+        assert all(third not in (src, tgt) for _, src, tgt in self._edge_pairs(graph))
+
+    @pytest.mark.asyncio
+    async def test_opt_in_emits_the_cross_page_link(self, http_client):
+        first = await self._memory(http_client, "Opt In One")
+        await self._memory(http_client, "Opt In Two")
+        third = await self._memory(http_client, "Opt In Three")
+        await http_client.post(f"/api/v1/memories/{first}/links", json={
+            "related_ids": [third],
+        })
+
+        base = (
+            "/api/v1/graph?node_types=memory&limit=2&offset=0"
+            "&sort_by=created_at&sort_order=asc"
+        )
+        default_edges = self._edge_pairs((await http_client.get(base)).json())
+        opted_edges = self._edge_pairs(
+            (await http_client.get(f"{base}&cross_page_edges=true")).json(),
+        )
+
+        canonical = f"memory_{min(first, third)}_memory_{max(first, third)}"
+        assert all(edge_id != canonical for edge_id, _, _ in default_edges)
+        assert any(edge_id == canonical for edge_id, _, _ in opted_edges)
+
+    @pytest.mark.asyncio
+    async def test_only_the_literal_true_opts_in(self, http_client):
+        first = await self._memory(http_client, "Strict One")
+        await self._memory(http_client, "Strict Two")
+        third = await self._memory(http_client, "Strict Three")
+        await http_client.post(f"/api/v1/memories/{first}/links", json={
+            "related_ids": [third],
+        })
+
+        canonical = f"memory_{min(first, third)}_memory_{max(first, third)}"
+        base = (
+            "/api/v1/graph?node_types=memory&limit=2&offset=0"
+            "&sort_by=created_at&sort_order=asc"
+        )
+        for value in ("1", "yes", "TRUE_ish", ""):
+            payload = (await http_client.get(
+                f"{base}&cross_page_edges={value}",
+            )).json()
+            assert all(
+                edge_id != canonical for edge_id, _, _ in self._edge_pairs(payload)
+            ), f"cross_page_edges={value!r} must not opt in"
+
+    @pytest.mark.asyncio
+    async def test_opt_in_excludes_links_to_obsolete_memories(self, http_client):
+        """An obsolete memory is not in the filtered set, so its links stay out."""
+        active = await self._memory(http_client, "Obsolete Active")
+        obsolete = await self._memory(http_client, "Obsolete Target")
+        await http_client.post(f"/api/v1/memories/{active}/links", json={
+            "related_ids": [obsolete],
+        })
+
+        marked = await http_client.delete(f"/api/v1/memories/{obsolete}")
+        assert marked.status_code == 200, marked.text
+
+        response = await http_client.get(
+            "/api/v1/graph?node_types=memory&cross_page_edges=true",
+        )
+        assert response.status_code == 200
+        data = response.json()
+
+        assert all(
+            node["data"]["id"] != obsolete for node in data["nodes"]
+        ), "obsolete memory must not become a node"
+        assert all(
+            f"memory_{obsolete}" not in (e["source"], e["target"])
+            for e in data["edges"] if e["type"] == "memory_link"
+        ), "a link to an obsolete memory must not be emitted"
+
+    @pytest.mark.asyncio
+    async def test_ownership_predicate_rejects_a_cross_user_link(
+        self, graph_http_client_factory, embedding_adapter, reranker_adapter,
+    ):
+        """A link row whose far endpoint belongs to another user must never surface.
+
+        The incident restriction alone would hide another user's links, because
+        their ids are not on this page. To exercise the ownership predicate itself
+        the test plants the row a corrupted or bypassed write could produce: the
+        link belongs to user A while its far endpoint is user B's memory.
+        """
+        from app.config.settings import settings
+        from app.models.memory_models import MemoryCreate
+        from app.models.user_models import UserCreate
+        from app.repositories.sqlite.sqlite_tables import MemoryLinkTable
+
+        http, app = await graph_http_client_factory({"memory"})
+
+        mine = await self._memory(http, "Ownership Mine")
+        owner = await app.user_service.get_or_create_user(UserCreate(
+            external_id=settings.DEFAULT_USER_ID,
+            name=settings.DEFAULT_USER_NAME,
+            email=settings.DEFAULT_USER_EMAIL,
+        ))
+        other = await app.user_service.get_or_create_user(UserCreate(
+            external_id="graph-other-user",
+            name="Other",
+            email="other-graph@example.com",
+        ))
+        theirs = await app.memory_service.create_memory(other.id, MemoryCreate(
+            title="Outsider memory",
+            content="Belongs to another user",
+            context="Ownership isolation test",
+            keywords=["outsider"],
+            tags=["outsider"],
+            importance=5,
+        ))
+
+        # Plant a link owned by A but pointing at B's memory.
+        adapter = app.memory_service.memory_repo.db_adapter
+        async with adapter.session(owner.id) as session:
+            await session.execute(MemoryLinkTable.__table__.insert().values(
+                user_id=str(owner.id),
+                source_id=mine,
+                target_id=theirs.memory.id,
+            ))
+
+        links = await app.memory_service.get_memory_links_incident_to(
+            user_id=owner.id, memory_ids=[mine],
+        )
+        assert (mine, theirs.memory.id) not in links
+        assert (theirs.memory.id, mine) not in links
+        assert links == [], "the ownership predicate must reject the planted link"
+
+        payload = (await http.get(
+            "/api/v1/graph?node_types=memory&cross_page_edges=true",
+        )).json()
+        assert all(
+            f"memory_{theirs.memory.id}" not in (e["source"], e["target"])
+            for e in payload["edges"]
+        ), "another user's memory appeared as an edge endpoint"

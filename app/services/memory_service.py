@@ -671,6 +671,26 @@ class MemoryService:
             updated_to=updated_to,
         )
 
+    async def get_memory_links_incident_to(
+            self,
+            user_id: UUID,
+            memory_ids: list[int],
+            project_ids: list[int] | None = None,
+            include_obsolete: bool = False,
+    ) -> list[tuple[int, int]]:
+        """Links touching any of ``memory_ids``, for graph overview edges.
+
+        See ``MemoryRepository.get_memory_links_incident_to``. Scoped to the same
+        filtered memory set the caller pages over so a link is emitted once even
+        when its endpoints land on different pages.
+        """
+        return await self.memory_repo.get_memory_links_incident_to(
+            user_id=user_id,
+            memory_ids=memory_ids,
+            project_ids=project_ids,
+            include_obsolete=include_obsolete,
+        )
+
     async def link_memories(
             self,
             user_id: UUID,
