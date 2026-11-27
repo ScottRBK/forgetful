@@ -33,7 +33,8 @@ async def test_create_file(test_file_service, test_user):
         tags=["greeting", "test"],
     )
 
-    file = await test_file_service.create_file(test_user.id, file_data)
+    result = await test_file_service.create_file(test_user.id, file_data)
+    file = result.file
 
     assert file.id is not None
     assert file.filename == "hello.txt"
@@ -55,7 +56,7 @@ async def test_get_file(test_file_service, test_user):
         mime_type="text/plain",
         tags=["test"],
     )
-    created = await test_file_service.create_file(test_user.id, file_data)
+    created = (await test_file_service.create_file(test_user.id, file_data)).file
 
     retrieved = await test_file_service.get_file(test_user.id, created.id)
 
@@ -157,10 +158,10 @@ async def test_update_file(test_file_service, test_user):
         mime_type="text/plain",
         tags=["original"],
     )
-    created = await test_file_service.create_file(test_user.id, file_data)
+    created = (await test_file_service.create_file(test_user.id, file_data)).file
 
     update_data = FileUpdate(filename="updated.txt", description="Updated description")
-    updated = await test_file_service.update_file(test_user.id, created.id, update_data)
+    updated = (await test_file_service.update_file(test_user.id, created.id, update_data)).file
 
     assert updated.filename == "updated.txt"
     assert updated.description == "Updated description"
@@ -177,13 +178,13 @@ async def test_update_file_data(test_file_service, test_user):
         mime_type="application/octet-stream",
         tags=[],
     )
-    created = await test_file_service.create_file(test_user.id, file_data)
+    created = (await test_file_service.create_file(test_user.id, file_data)).file
     original_size = created.size_bytes
 
     new_content = b"This is much longer content than Hello, World!"
     new_data = base64.b64encode(new_content).decode("utf-8")
     update_data = FileUpdate(data=new_data)
-    updated = await test_file_service.update_file(test_user.id, created.id, update_data)
+    updated = (await test_file_service.update_file(test_user.id, created.id, update_data)).file
 
     assert updated.data == new_data
     assert updated.size_bytes == len(new_content)
@@ -207,9 +208,9 @@ async def test_delete_file(test_file_service, test_user):
         mime_type="text/plain",
         tags=[],
     )
-    created = await test_file_service.create_file(test_user.id, file_data)
+    created = (await test_file_service.create_file(test_user.id, file_data)).file
 
-    success = await test_file_service.delete_file(test_user.id, created.id)
+    success = (await test_file_service.delete_file(test_user.id, created.id)).deleted
     assert success is True
 
     with pytest.raises(NotFoundError):
@@ -218,7 +219,7 @@ async def test_delete_file(test_file_service, test_user):
 
 @pytest.mark.asyncio
 async def test_delete_file_not_found(test_file_service, test_user):
-    result = await test_file_service.delete_file(test_user.id, 999)
+    result = (await test_file_service.delete_file(test_user.id, 999)).deleted
     assert result is False
 
 
@@ -233,7 +234,7 @@ async def test_create_file_activity_events(test_file_service_with_event_bus, tes
         mime_type="text/plain",
         tags=["events"],
     )
-    file = await service.create_file(test_user.id, file_data)
+    file = (await service.create_file(test_user.id, file_data)).file
 
     assert len(event_bus.collected_events) == 1
     event = event_bus.collected_events[0]
@@ -254,7 +255,7 @@ async def test_update_file_activity_events(test_file_service_with_event_bus, tes
         mime_type="text/plain",
         tags=["test"],
     )
-    created = await service.create_file(test_user.id, file_data)
+    created = (await service.create_file(test_user.id, file_data)).file
     event_bus.collected_events.clear()
 
     update_data = FileUpdate(filename="renamed.txt")

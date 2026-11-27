@@ -65,6 +65,7 @@ from app.routes.write_plugin_responses import (
     EntityDeleteResponse,
     EntityRelationshipWriteResponse,
     EntityWriteResponse,
+    FileWriteResponse,
     MemoryCreateWriteResponse,
     MemoryLifecycleResponse,
     MemoryUpdateResponse,
@@ -2321,11 +2322,18 @@ class FileToolAdapters:
             agent_model=agent_model,
         )
 
-        file = await self.file_service.create_file(
-            user_id=user.id, file_data=file_data,
-        )
+        try:
+            write_result = await self.file_service.create_file(
+                user_id=user.id, file_data=file_data,
+            )
+        except WritePluginRejectedError as exc:
+            raise ToolError(f"WRITE_PLUGIN_REJECTED: {exc}") from None
+        except WritePluginUnavailableError as exc:
+            raise ToolError(f"WRITE_PLUGIN_UNAVAILABLE: {exc}") from None
 
-        return file
+        return FileWriteResponse(
+            **write_result.file.model_dump(), plugin_warnings=write_result.plugin_warnings,
+        )
 
     async def get_file(self, file_id: int, ctx: Context):
         """Adapter for get_file tool"""
@@ -2402,23 +2410,38 @@ class FileToolAdapters:
 
         file_data = FileUpdate(**updated_dict)
 
-        file = await self.file_service.update_file(
-            user_id=user.id,
-            file_id=file_id,
-            file_data=file_data,
-        )
+        try:
+            write_result = await self.file_service.update_file(
+                user_id=user.id,
+                file_id=file_id,
+                file_data=file_data,
+            )
+        except WritePluginRejectedError as exc:
+            raise ToolError(f"WRITE_PLUGIN_REJECTED: {exc}") from None
+        except WritePluginUnavailableError as exc:
+            raise ToolError(f"WRITE_PLUGIN_UNAVAILABLE: {exc}") from None
 
-        return file
+        return FileWriteResponse(
+            **write_result.file.model_dump(), plugin_warnings=write_result.plugin_warnings,
+        )
 
     async def delete_file(self, file_id: int, ctx: Context) -> dict:
         """Adapter for delete_file tool"""
         user = await get_user_from_auth(ctx)
 
-        result = await self.file_service.delete_file(
-            user_id=user.id, file_id=file_id,
-        )
+        try:
+            delete_result = await self.file_service.delete_file(
+                user_id=user.id, file_id=file_id,
+            )
+        except WritePluginRejectedError as exc:
+            raise ToolError(f"WRITE_PLUGIN_REJECTED: {exc}") from None
+        except WritePluginUnavailableError as exc:
+            raise ToolError(f"WRITE_PLUGIN_UNAVAILABLE: {exc}") from None
 
-        return {"success": result, "deleted_id": file_id}
+        response = {"success": delete_result.deleted, "deleted_id": file_id}
+        if delete_result.plugin_warnings:
+            response["plugin_warnings"] = delete_result.plugin_warnings
+        return response
 
 
 def create_file_adapters(file_service, user_service: UserService) -> dict[str, Any]:

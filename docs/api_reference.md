@@ -959,6 +959,25 @@ Use the individual file endpoint when its data is needed. See
 [resource list pagination and migration](#resource-list-pagination-and-migration)
 for ordering, validation, filtering and client transition rules.
 
+### POST /api/v1/files
+
+Create a file.
+
+Successful responses (201) stay flat file objects and add `plugin_warnings` only when nonempty
+when a File Plugin is registered. Before-save rejections return 400; unavailable before-save
+returns 503 with `File Write Plugin unavailable.`
+
+### PUT /api/v1/files/{id}
+
+Update a file. Explicit `null` fields are treated as unchanged, so an update that changes nothing
+skips the plugin entirely. Response semantics match create.
+
+### DELETE /api/v1/files/{id}
+
+Delete a file. Successful responses keep `{"success": true}` and add `plugin_warnings` only when
+nonempty when a File Plugin is registered. Before-save rejections return 400; unavailable
+before-save returns 503.
+
 ---
 
 ## Skills

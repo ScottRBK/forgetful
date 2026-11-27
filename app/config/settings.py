@@ -67,6 +67,9 @@ class Settings(BaseSettings):
     ENTITY_RELATIONSHIP_PLUGIN_TIMEOUT_SECONDS: float = Field(
         default=5.0, gt=0, allow_inf_nan=False,
     )
+    FILE_WRITE_PLUGIN: str = ""
+    FILE_WRITE_PLUGIN_MODE: Literal["warn", "enforce"] = "enforce"
+    FILE_WRITE_PLUGIN_TIMEOUT_SECONDS: float = Field(default=5.0, gt=0, allow_inf_nan=False)
 
     # Database Configuration
     DATABASE: str = "SQLite"  # "Postgres" or "SQLite"
