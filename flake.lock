@@ -36,6 +36,36 @@
         "type": "github"
       }
     },
+    "forgetful-ui": {
+      "inputs": {
+        "flake-compat": [
+          "flake-compat"
+        ],
+        "flake-parts": [
+          "flake-parts"
+        ],
+        "git-hooks-nix": [
+          "git-hooks-nix"
+        ],
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1795836363,
+        "narHash": "sha256-mG9GUfnelsLi1euoOt+wzVEaCMVrHV3gR7ATWa70hlU=",
+        "owner": "twstagg",
+        "repo": "forgetful-ui",
+        "rev": "7428a5dc210009826f38aa854a034c392206aa25",
+        "type": "github"
+      },
+      "original": {
+        "owner": "twstagg",
+        "repo": "forgetful-ui",
+        "rev": "7428a5dc210009826f38aa854a034c392206aa25",
+        "type": "github"
+      }
+    },
     "git-hooks-nix": {
       "inputs": {
         "flake-compat": [
@@ -125,6 +155,7 @@
       "inputs": {
         "flake-compat": "flake-compat",
         "flake-parts": "flake-parts",
+        "forgetful-ui": "forgetful-ui",
         "git-hooks-nix": "git-hooks-nix",
         "nixpkgs": "nixpkgs",
         "pyproject-build-systems": "pyproject-build-systems",

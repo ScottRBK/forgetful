@@ -318,6 +318,37 @@ def _serve(transport, host, port):
         import warnings
         warnings.filterwarnings("ignore", category=DeprecationWarning)
         mcp.run(show_banner=False)
+    elif settings.UI_ENABLED:
+        # The UI needs a Starlette mount, so this path always builds the app
+        # explicitly instead of using mcp.run(). Nothing here applies unless
+        # UI_ENABLED is set; the branches below are untouched.
+        from app.routes import ui
+
+        middleware = None
+        if settings.CORS_ENABLED:
+            from starlette.middleware import Middleware
+            from starlette.middleware.cors import CORSMiddleware
+
+            middleware = [
+                Middleware(
+                    CORSMiddleware,
+                    allow_origins=settings.CORS_ORIGINS,
+                    allow_credentials=True,
+                    allow_methods=["*"],
+                    allow_headers=[
+                        "mcp-protocol-version",
+                        "mcp-session-id",
+                        "Authorization",
+                        "Content-Type",
+                    ],
+                    expose_headers=["mcp-session-id"],
+                ),
+            ]
+
+        import uvicorn
+        app = mcp.http_app(middleware=middleware)
+        ui.mount(app)
+        uvicorn.run(app, host=host, port=port)
     elif not settings.CORS_ENABLED:
         # No CORS - use existing code path (zero behavioral change)
         mcp.run(transport="http", host=host, port=port, show_banner=False)

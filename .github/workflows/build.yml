@@ -59,6 +59,13 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest,enable={{is_default_branch}}
 
+      - name: Read the pinned web UI revision
+        id: ui
+        run: |
+          rev=$(python3 -c "import json; print(json.load(open('flake.lock'))['nodes']['forgetful-ui']['locked']['rev'])")
+          test -n "$rev"
+          echo "rev=$rev" >> "$GITHUB_OUTPUT"
+
       - name: Build release candidate locally
         uses: docker/build-push-action@v7
         with:
@@ -68,6 +75,7 @@ jobs:
           provenance: mode=max
           build-args: |
             VERSION=${{ steps.meta.outputs.version }}
+            FORGETFUL_UI_REV=${{ steps.ui.outputs.rev }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha

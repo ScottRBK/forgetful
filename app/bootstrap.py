@@ -310,6 +310,9 @@ async def build_runtime() -> Runtime:
         logging.getLogger("app.services.entity_relationship_plugin_service").disabled = False
         logging.getLogger("app.services.plan_write_plugin_service").disabled = False
         logging.getLogger("app.services.memory_link_service").disabled = False
+        # The UI mount warns when it is enabled without a bundle; that warning is
+        # the only signal an operator gets, so keep it from being silenced here.
+        logging.getLogger("app.routes.ui").disabled = False
         for plugin_logger, was_disabled in plugin_logger_states.items():
             plugin_logger.disabled = was_disabled
         logger.info("Database initialized")

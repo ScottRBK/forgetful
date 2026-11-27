@@ -134,6 +134,13 @@ jobs:
           enable-cache: true
           prune-cache: true
 
+      - name: Read the pinned web UI revision
+        id: ui
+        run: |
+          rev=$(python3 -c "import json; print(json.load(open('flake.lock'))['nodes']['forgetful-ui']['locked']['rev'])")
+          test -n "$rev"
+          echo "rev=$rev" >> "$GITHUB_OUTPUT"
+
       - name: Build candidate image
         uses: docker/build-push-action@v7
         with:
@@ -142,7 +149,9 @@ jobs:
           push: false
           provenance: mode=max
           tags: forgetful:offline-test
-          build-args: VERSION=0.0.0+dev
+          build-args: |
+            VERSION=0.0.0+dev
+            FORGETFUL_UI_REV=${{ steps.ui.outputs.rev }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

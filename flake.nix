@@ -40,6 +40,24 @@
       };
     };
 
+    # The web UI this server can host. Pinned by revision in flake.lock, which
+    # is content-addressed, so the bundle consumed from it is reproducible and
+    # does not depend on any branch moving. The same locked revision feeds the
+    # container's Node stage, so every path builds one commit of one project.
+    #
+    # A flake, not a plain source tree: the UI project builds its own production
+    # bundle and asserts the shape of it, so this repository consumes that output
+    # instead of restating the recipe, the dependency hash and the version.
+    forgetful-ui = {
+      url = "github:twstagg/forgetful-ui/7428a5dc210009826f38aa854a034c392206aa25";
+      inputs = {
+        nixpkgs.follows = "nixpkgs";
+        flake-parts.follows = "flake-parts";
+        git-hooks-nix.follows = "git-hooks-nix";
+        flake-compat.follows = "flake-compat";
+      };
+    };
+
     git-hooks-nix = {
       url = "github:cachix/git-hooks.nix";
       inputs = {
@@ -79,7 +97,12 @@
       imports = [ inputs.git-hooks-nix.flakeModule ];
 
       perSystem =
-        { config, pkgs, ... }:
+        {
+          config,
+          pkgs,
+          system,
+          ...
+        }:
         let
           inherit (pkgs) lib;
           python = pkgs.python312;
@@ -131,6 +154,20 @@
           # 5. Runtime env from the lock (default groups)
           forgetfulEnv = pythonSet.mkVirtualEnv "forgetful-env" workspace.deps.default;
 
+          # 5b. Web UI bundle
+          #
+          # Taken from the UI project's own flake rather than rebuilt here, so a
+          # Nix install ships a real bundle without this repository restating
+          # that project's build recipe, dependency hash or version. The UI
+          # project also checks the produced bundle's shape, which this side
+          # cannot assert about a tree it does not own.
+          #
+          # It publishes x86_64-linux only. Evaluating another architecture
+          # fails here with that reason rather than a missing attribute.
+          uiBundle =
+            inputs.forgetful-ui.packages.${system}.default
+              or (throw "forgetful-ui publishes no bundle for ${system}; add it to the UI flake's systems first");
+
           # 6. App package: stdenv + makeWrapper around the runtime env
           #
           # Limit the wrapper's source to the files copied by installPhase.
@@ -160,6 +197,11 @@
             installPhase = ''
               mkdir -p $out/bin $out/lib
               cp -r app main.py alembic.ini alembic $out/lib/
+              # Package data, so UI_ENABLED=true needs no UI_DIST_DIR and no dist/.
+              # This path is inside the store, which is what makes the default
+              # bundle location a store path rather than a build-time accident.
+              mkdir -p $out/lib/app/web
+              cp -r ${uiBundle} $out/lib/app/web/ui
               makeWrapper ${forgetfulEnv}/bin/forgetful $out/bin/forgetful-ai \
                 --prefix PYTHONPATH : "$out/lib"
               ln -s $out/bin/forgetful-ai $out/bin/forgetful
@@ -189,6 +231,9 @@
               # sys.path. Listed as a file, not a directory, so the 428K
               # synthetic corpus stays out of the test source.
               ./benchmarks/retrieval/eval_lib.py
+              # Imported by the packaging tests; lives at the root because the
+              # build hook loads it by path, outside the installed package.
+              ./ui_bundle.py
             ];
           };
 
@@ -276,6 +321,9 @@
           # docker-compose default (`forgetful:latest`); pname stays forgetful-ai.
           packages = {
             forgetful-ai = appPkg;
+            # The built bundle on its own, so a reviewer can inspect exactly what
+            # the package ships without unpacking it.
+            ui-bundle = uiBundle;
             default = appPkg;
             docker = pkgs.dockerTools.buildLayeredImage {
               name = "forgetful";

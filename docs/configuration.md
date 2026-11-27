@@ -1189,6 +1189,26 @@ REST listing does not emit those events.
 - **Note**: Before this setting was introduced the cap was hardcoded to `500`, which excluded older memories from the full graph visualization on larger knowledge bases.
 - **Example**: `MAX_GRAPH_LIMIT=5000`
 
+## Web UI Configuration
+
+These settings control the built-in web UI. It is served only when Forgetful runs as an HTTP
+server; a STDIO run never mounts it.
+
+### `UI_ENABLED`
+- **Default**: `false`
+- **Description**: Master feature flag for the web UI
+- **Values**: `true`, `false`
+- **Behavior**: When disabled, nothing is mounted and no `/ui` route is registered, so the server behaves exactly as it did before the feature existed. When enabled, the bundle is served at `/ui/`. If enabled with no bundle present, the server logs a warning and mounts nothing rather than serving 404s from an empty directory.
+- **Example**: `UI_ENABLED=true`
+
+### `UI_DIST_DIR`
+- **Default**: empty
+- **Description**: Bundle directory override, for serving a hand-built `dist/` during UI development
+- **Behavior**: Empty means the copy shipped as package data at `app/web/ui`, which is what a wheel and the Nix package both provide. Only relevant when `UI_ENABLED=true`.
+- **Example**: `UI_DIST_DIR=/home/me/forgetful-ui/dist`
+
+See [ui.md](ui.md) for the `/ui/` prefix contract and what a reverse proxy must forward.
+
 ### Example Configuration
 
 ```bash
