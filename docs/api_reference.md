@@ -83,9 +83,10 @@ Health check endpoint (no authentication required).
 
 ### GET /.well-known
 
-Public JSON metadata describing which optional features the instance has enabled. No credentials are
-required, even when authentication is enabled. All callers receive the same schema version and
-capability booleans; the response does not expose raw configuration or user data.
+Public JSON metadata describing which optional features the instance has enabled, and the field
+limits that write requests must respect. No credentials are required, even when authentication is
+enabled. All callers receive the same schema version, capability booleans and limits. The response
+does not expose other configuration, such as retrieval or similarity tuning, or any user data.
 
 The path is relative to the application's deployment base, not `/api/v1` or the MCP endpoint:
 
@@ -104,9 +105,22 @@ hardcoded route. This project-specific endpoint is separate from OAuth's standar
     "skills": false,
     "files": true,
     "activity_stream": false
+  },
+  "limits": {
+    "memory": {
+      "title": {"max_length": 200},
+      "content": {"max_length": 2000},
+      "context": {"max_length": 500},
+      "keywords": {"max_items": 10},
+      "tags": {"max_items": 10}
+    },
+    "plan": {"title": {"max_length": 500}},
+    "file": {"filename": {"max_length": 255}, "data": {"max_decoded_bytes": 10485760}}
   }
 }
 ```
+
+The example shortens `limits`. The real response lists every bounded field of each type.
 
 Each value maps directly to the settings singleton:
 
@@ -125,7 +139,26 @@ caching and refresh policy. These booleans describe configuration, not service h
 permissions, or a guarantee that a feature request will succeed. Feature routes keep their normal
 authentication and authorization requirements.
 
-For schema version `1`, clients should ignore additional capability keys. Only an explicit `false`
+### Field limits
+
+`limits` maps each type to its bounded fields. Each field has one bound:
+
+| Bound | Meaning |
+|-------|---------|
+| `max_length` | Maximum characters in a string field. |
+| `max_items` | Maximum items in a list field. |
+| `max_decoded_bytes` | Maximum decoded size of base64 content. |
+
+The core types are `memory`, `entity`, `entity_relationship`, `document`, `code_artifact` and
+`project`. Optional types appear only when their feature is enabled: `plan`, `task` and
+`criterion` for planning, `file` for files, and `skill` and `skill_bundle` for skills.
+
+Limits come from the same request models that validate writes, so a configured limit such as
+`MEMORY_CONTENT_MAX_LENGTH` is published when the server starts. A value at the limit is accepted;
+a value over it is rejected with HTTP 400. Fields with no length or count bound are not listed.
+
+For schema version `1`, clients should ignore additional capability, type and field keys. A
+missing `limits` key means the server does not publish limits. Only an explicit `false`
 means disabled; a missing key, unsupported schema version, or unavailable document means unknown.
 Older servers may not provide this endpoint. Clients may fall back to probing a feature route, but
 must not treat authentication errors, routing errors, or temporary outages as a disabled feature.
