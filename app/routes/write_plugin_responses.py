@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 
 from app.models.entity_models import Entity, EntityRelationship
 from app.models.memory_models import Memory, MemoryCreateResponse
+from app.models.skill_models import Skill
 from app.models.write_plugin_models import MemoryLinkOutcome, PluginWarning
 
 
@@ -30,5 +31,14 @@ class EntityRelationshipWriteResponse(EntityRelationship):
 
 
 class EntityDeleteResponse(BaseModel):
+    success: bool
+    plugin_warnings: list[PluginWarning] = Field(default_factory=list, exclude_if=lambda v: not v)
+
+
+class SkillWriteResponse(Skill):
+    plugin_warnings: list[PluginWarning] = Field(default_factory=list, exclude_if=lambda v: not v)
+
+
+class SkillDeleteResponse(BaseModel):
     success: bool
     plugin_warnings: list[PluginWarning] = Field(default_factory=list, exclude_if=lambda v: not v)

@@ -782,6 +782,111 @@ REST relationship writes add `plugin_warnings` only when nonempty; rejections re
 unavailable before-save returns 503. MCP and local CLI use `WRITE_PLUGIN_REJECTED: <message>` or
 `WRITE_PLUGIN_UNAVAILABLE: Entity Relationship Plugin unavailable.`
 
+### Skill Plugin
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `SKILL_WRITE_PLUGIN` | empty | Importable `module:object` containing a `SkillPlugin` |
+| `SKILL_WRITE_PLUGIN_MODE` | `enforce` | `warn` or `enforce`, for **before_save only** |
+| `SKILL_WRITE_PLUGIN_TIMEOUT_SECONDS` | `5.0` | Positive, finite deadline for each handler |
+
+Scoped to skill `create`, `update`, and `delete` through `SkillService`, and active only when
+`SKILLS_ENABLED` is set, because the skill service itself is not built otherwise. Registration,
+startup validation, modes, timeouts, warnings, and error codes mirror the Memory Plugin above.
+
+```python
+# my_plugins/skill_checks.py (example rules, not built into Forgetful)
+from app.models.write_plugin_models import PluginWarning, WriteDecision
+from app.protocols.write_plugin_protocol import SkillPlugin
+
+
+async def check_name(request):
+    proposed = request.proposed
+    if proposed and " " in proposed.name:
+        return WriteDecision(outcome="reject", message="Skill names use kebab-case.")
+    if proposed and not proposed.description.strip():
+        return WriteDecision(outcome="warn", message="Description is empty.", code="desc")
+    return WriteDecision(outcome="allow")
+
+
+async def notify_catalogue(request):
+    return PluginWarning(message="Catalogue indexer notified.", code="CATALOGUE_NOTIFIED")
+
+
+plugin = SkillPlugin(
+    before_save={"create": check_name, "update": check_name, "delete": check_name},
+    after_save={"create": notify_catalogue, "update": notify_catalogue},
+)
+```
+
+Set `SKILL_WRITE_PLUGIN=my_plugins.skill_checks:plugin`.
+
+- Before handlers receive `SkillWriteRequest` with `operation`, `user_id`, `submitted`
+  (`SkillCreate`, `SkillUpdate`, or `SkillDeleteSubmission`), `previous` (`None` on create), and
+  `proposed`. On `create` and `update`, `proposed` is a complete `SkillCreate` describing the skill
+  as it will be after the write, not only the fields that changed. `proposed` is `None` on delete.
+- After handlers receive `SkillSavedRequest` (`saved`, `previous`) for create/update, or
+  `SkillDeletedRequest` (`deleted_skill_id`, `previous`) for delete. They return `PluginWarning` or
+  `None`; failures add `SKILL_PLUGIN_AFTER_SAVE_UNAVAILABLE` without undoing the write.
+- `import_skill` parses markdown and delegates to `create_skill`, so the plugin fires for it and the
+  response carries any warnings.
+- A no-op update skips both phases but still runs the repository update. Explicit `null` PATCH
+  fields are treated as unchanged, so resending a value fires nothing.
+- Deleting a skill that does not exist, or belongs to another user, skips both phases.
+- Update and delete reread the skill after a before handler returns, so a change made while the
+  handler ran is seen rather than overwritten by a stale snapshot.
+
+#### Skill bundle resources
+
+Skills are the only content type whose write can create other records: a bundle import stores a
+skill together with the documents, files and code artifacts listed in its resources. This is where
+skill behaviour differs from the other plugin families, so it is worth stating what happens on
+each path.
+
+| Path | What happens | Plugin fires |
+| --- | --- | --- |
+| `create_skill` | Skill row written | yes |
+| `import_skill` | Parses markdown, then delegates to `create_skill` | yes |
+| `update_skill` | Skill row patched; bundle resources untouched | yes |
+| `delete_skill` | Skill row deleted; links and bundle resource rows cascade away | yes |
+| `import_skill_bundle` | Skill **and** its resource records written in one transaction | **no** |
+| `link_skill_to_document` / `_file` / `_code_artifact` / `_memory` | Association row added or removed | no |
+| `export_skill_bundle` | Read-only | no |
+
+`import_skill_bundle` is the one write that does not fire a phase. It is an atomic operation with a
+different result type, it creates records of several content types at once, and it has no channel
+for returning warnings. A rule that must apply to bundled skills as well as ordinary ones has to
+cover that path separately. This is a deliberate gap rather than an oversight.
+
+**Deleting a skill does not delete what its bundle imported.** The database cascades the skill row,
+its association rows, and its `skill_bundle_resources` rows. The documents, files and code artifacts
+those resources point at are separate records and survive, with no remaining link to the deleted
+skill. A `delete` handler cannot enumerate them afterwards either, because the resource rows are
+already gone by the time `after_save` runs; a rule that must clean them up has to collect them in
+`before_save` and act on its own.
+
+**The reverse direction is worse.** Deleting a document, file or code artifact that a bundle
+resource points at sets the resource's foreign key to `NULL` (`ON DELETE SET NULL`). The resource
+row survives with nothing behind it, nothing cleans it up, and reading that skill's bundle
+afterwards raises `ValueError("Bundle member '<path>' was deleted")`, so the whole bundle becomes
+unreadable until the row is removed. No skill plugin phase sees it.
+
+Deleting other records does not fire the skill plugin:
+
+| Action | Effect on skills | Plugin fires |
+| --- | --- | --- |
+| Delete a project | `skills.project_id` set to `NULL` | no |
+| Delete a memory, document, file or code artifact | its `skill_*_association` rows cascade away, or a bundle resource loses its foreign key | no |
+| Delete a user | the user's `skills` rows cascade away | no |
+
+Both databases behave the same way. The SQLite adapter enables `PRAGMA foreign_keys=ON` per
+connection, so these cascades and `SET NULL`s are enforced there too, not only in Postgres.
+
+REST skill writes add `plugin_warnings` only when nonempty; rejections return 400 and unavailable
+before-save returns 503. MCP and local CLI use `WRITE_PLUGIN_REJECTED: <message>` or
+`WRITE_PLUGIN_UNAVAILABLE: Skill Write Plugin unavailable.` A rejection prints nothing on stdout and
+exits 1 in the local CLI.
+
 ## Memory Configuration
 
 These settings control the atomic memory system's behavior and constraints.

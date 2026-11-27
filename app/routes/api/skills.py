@@ -10,11 +10,16 @@ from pydantic import ValidationError
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-from app.exceptions import NotFoundError
+from app.exceptions import (
+    NotFoundError,
+    WritePluginRejectedError,
+    WritePluginUnavailableError,
+)
 from app.middleware.auth import get_user_from_request
 from app.models.skill_models import SkillCreate, SkillUpdate
 from app.routes.api.list_pagination import parse_list_pagination
 from app.routes.api.params import parse_path_int
+from app.routes.write_plugin_responses import SkillDeleteResponse, SkillWriteResponse
 from app.utils.bundle_validation import bundle_validation_message
 
 logger = logging.getLogger(__name__)
@@ -38,16 +43,23 @@ def register(mcp: FastMCP):
             return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
-            skill = await mcp.skill_service.create_skill(
+            write_result = await mcp.skill_service.create_skill(
                 user_id=user.id,
                 skill_data=skill_data,
             )
+        except WritePluginRejectedError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        except WritePluginUnavailableError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=503)
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=400)
         except NotFoundError as e:
             return JSONResponse({"error": str(e)}, status_code=404)
 
-        return JSONResponse(skill.model_dump(mode="json"), status_code=201)
+        response = SkillWriteResponse(
+            **write_result.skill.model_dump(), plugin_warnings=write_result.plugin_warnings,
+        )
+        return JSONResponse(response.model_dump(mode="json"), status_code=201)
 
     @mcp.custom_route("/api/v1/skills", methods=["GET"])
     async def list_skills(request: Request) -> JSONResponse:
@@ -215,15 +227,22 @@ def register(mcp: FastMCP):
             return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
-            skill = await mcp.skill_service.update_skill(
+            write_result = await mcp.skill_service.update_skill(
                 user_id=user.id,
                 skill_id=skill_id,
                 skill_data=update_data,
             )
+        except WritePluginRejectedError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        except WritePluginUnavailableError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=503)
         except NotFoundError:
             return JSONResponse({"error": "Skill not found"}, status_code=404)
 
-        return JSONResponse(skill.model_dump(mode="json"))
+        response = SkillWriteResponse(
+            **write_result.skill.model_dump(), plugin_warnings=write_result.plugin_warnings,
+        )
+        return JSONResponse(response.model_dump(mode="json"))
 
     @mcp.custom_route("/api/v1/skills/{skill_id}", methods=["DELETE"])
     async def delete_skill(request: Request) -> JSONResponse:
@@ -239,17 +258,24 @@ def register(mcp: FastMCP):
             return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
-            success = await mcp.skill_service.delete_skill(
+            delete_result = await mcp.skill_service.delete_skill(
                 user_id=user.id,
                 skill_id=skill_id,
             )
+        except WritePluginRejectedError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        except WritePluginUnavailableError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=503)
         except NotFoundError:
             return JSONResponse({"error": "Skill not found"}, status_code=404)
 
-        if not success:
+        if not delete_result.deleted:
             return JSONResponse({"error": "Skill not found"}, status_code=404)
 
-        return JSONResponse({"success": True})
+        response = SkillDeleteResponse(
+            success=True, plugin_warnings=delete_result.plugin_warnings,
+        )
+        return JSONResponse(response.model_dump(mode="json"))
 
     @mcp.custom_route("/api/v1/skills/import", methods=["POST"])
     async def import_skill(request: Request) -> JSONResponse:
@@ -281,12 +307,16 @@ def register(mcp: FastMCP):
         importance = body.get("importance", 7)
 
         try:
-            skill = await mcp.skill_service.import_skill(
+            write_result = await mcp.skill_service.import_skill(
                 user_id=user.id,
                 skill_md_content=skill_md,
                 project_id=project_id,
                 importance=importance,
             )
+        except WritePluginRejectedError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        except WritePluginUnavailableError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=503)
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=400)
         except ValidationError as e:
@@ -294,7 +324,10 @@ def register(mcp: FastMCP):
         except NotFoundError as e:
             return JSONResponse({"error": str(e)}, status_code=404)
 
-        return JSONResponse(skill.model_dump(mode="json"), status_code=201)
+        response = SkillWriteResponse(
+            **write_result.skill.model_dump(), plugin_warnings=write_result.plugin_warnings,
+        )
+        return JSONResponse(response.model_dump(mode="json"), status_code=201)
 
     @mcp.custom_route("/api/v1/skills/{skill_id}/export", methods=["GET"])
     async def export_skill(request: Request) -> JSONResponse:
