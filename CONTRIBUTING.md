@@ -45,6 +45,45 @@ uv sync --locked --all-extras --dev
 Run the remaining commands from the repository root. Use `uv run` to run commands in the
 project's Python environment without activating it manually.
 
+### Running the suite in the development shell
+
+The flake development shell is the supported way to run the suite. It provides a Python environment
+built from `uv.lock` including the `dev` dependency group, so the architecture contracts run there,
+the `pg_dump` and `psql` client tools the PostgreSQL tier needs, and the embedding model, reranking
+model and tokenizer blob, pinned and hashed the same way the sandboxed check gets them. One command
+runs the tiers CI runs, from a fresh shell, with no download and no warm cache in your home
+directory:
+
+```bash
+nix develop --command uv run --frozen pytest \
+  tests/architecture tests/integration tests/e2e_sqlite tests/e2e_provider_sessions
+```
+
+The PostgreSQL end-to-end tier is separate because it needs a running server; the section below
+covers it. Those tests skip locally when the client tools are missing and fail in CI, where they
+must run.
+
+A standalone virtual environment outside the shell needs `libstdc++` on the loader path. Prebuilt
+manylinux wheels such as `greenlet` and `protobuf`'s `_upb` link against it and expect a conventional
+loader path, which NixOS does not populate:
+
+```
+ImportError: libstdc++.so.6: cannot open shared object file: No such file or directory
+# surfaced later as:
+ValueError: the greenlet library is required to use this function. libstdc++.so.6: cannot open ...
+```
+
+Inside the shell this does not arise, because the shell's own build of the dependency set takes
+precedence over the project's `.venv`. For a standalone environment, point the loader at the C++
+runtime for that command:
+
+```bash
+export LD_LIBRARY_PATH="$(nix eval --raw nixpkgs#stdenv.cc.cc.lib)/lib"
+.venv/bin/python -m pytest tests/integration/
+```
+
+This is a property of NixOS and prebuilt wheels, not of this repository.
+
 ## Architecture
 
 Before changing code, read the [architecture overview](architecture.md).
