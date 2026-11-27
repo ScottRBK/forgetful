@@ -1048,30 +1048,59 @@ Get full knowledge graph for visualization. Returns all nodes and edges for the 
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `node_types` | string | `memory,entity,project,document,code_artifact` | Comma-separated list of node types to include |
+| `node_types` | string | all enabled types | Comma-separated list of node types to include (see below) |
 | `project_id` | int | - | Filter to specific project |
 | `include_entities` | bool | true | Include entity nodes (deprecated, use `node_types`) |
-| `limit` | int | 100 | Max memories to include (max 500) |
+| `limit` | int | 100 | Max memories to include; capped at `MAX_GRAPH_LIMIT` (default 2000) |
 | `offset` | int | 0 | Number of memories to skip for pagination |
 | `sort_by` | string | `created_at` | Sort field: `created_at`, `updated_at`, or `importance` |
 | `sort_order` | string | `desc` | Sort direction: `asc` or `desc` |
 
-**Node Types:**
-- `memory` - Knowledge memories
-- `entity` - People, organizations, devices
-- `project` - Project contexts
-- `document` - Long-form documents
-- `code_artifact` - Code snippets
+**Node Types** (9):
 
-**Edge Types:**
-- `memory_link` - Memory-to-memory connections
-- `entity_memory` - Entity linked to memory
-- `entity_relationship` - Entity-to-entity relationship
-- `memory_project` - Memory linked to project
-- `document_project` - Document belongs to project
-- `code_artifact_project` - Code artifact belongs to project
-- `memory_document` - Memory linked to document
-- `memory_code_artifact` - Memory linked to code artifact
+| Type | Source | Gated by |
+|------|--------|----------|
+| `memory` | Memories | - |
+| `entity` | Entities | - |
+| `project` | Projects | - |
+| `document` | Documents | - |
+| `code_artifact` | Code artifacts | - |
+| `file` | Files | `FILES_ENABLED` |
+| `skill` | Skills | `SKILLS_ENABLED` |
+| `plan` | Plans | `PLANNING_ENABLED` |
+| `task` | Plan tasks | `PLANNING_ENABLED` |
+
+When `node_types` is omitted, every enabled type is included. Naming a type whose feature flag is
+disabled returns 400 with the flag to enable. Unknown types return 400.
+
+**Edge Types** — 19 distinct labels appear in graph payloads (`SubgraphEdge.type`):
+
+| Type | Connects |
+|------|----------|
+| `memory_link` | memory -> memory |
+| `entity_memory` | entity <-> memory |
+| `entity_relationship` | entity -> entity |
+| `entity_project` | entity <-> project |
+| `entity_file` | entity <-> file |
+| `memory_project` | memory <-> project |
+| `memory_document` | memory <-> document |
+| `memory_code_artifact` | memory <-> code artifact |
+| `memory_file` | memory <-> file |
+| `memory_skill` | memory <-> skill |
+| `document_project` | document -> project |
+| `code_artifact_project` | code artifact -> project |
+| `file_project` | file -> project |
+| `skill_project` | skill -> project |
+| `skill_file` | skill <-> file |
+| `skill_code_artifact` | skill <-> code artifact |
+| `skill_document` | skill <-> document |
+| `plan_project` | plan -> project |
+| `plan_task` | plan -> task |
+
+These 19 labels are the whole payload vocabulary. The recursive traversal behind
+`/api/v1/graph/subgraph` runs 36 directional branches, because most relations are walked in
+both directions, and those branches collapse onto the same 19 labels. A count of traversal
+branches is therefore not a count of edge types; 19 is the number a client can receive.
 
 **Response:**
 ```json
@@ -1135,15 +1164,30 @@ Get full knowledge graph for visualization. Returns all nodes and edges for the 
     "project_count": 3,
     "document_count": 5,
     "code_artifact_count": 8,
+    "file_count": 2,
+    "skill_count": 1,
     "edge_count": 75,
     "memory_link_count": 25,
     "entity_relationship_count": 5,
     "entity_memory_count": 15,
+    "entity_project_count": 4,
     "memory_project_count": 12,
     "document_project_count": 5,
     "code_artifact_project_count": 8,
     "memory_document_count": 3,
-    "memory_code_artifact_count": 2
+    "memory_code_artifact_count": 2,
+    "memory_file_count": 1,
+    "file_project_count": 2,
+    "entity_file_count": 1,
+    "memory_skill_count": 1,
+    "skill_project_count": 1,
+    "skill_file_count": 0,
+    "skill_code_artifact_count": 0,
+    "skill_document_count": 0,
+    "plan_count": 2,
+    "task_count": 9,
+    "plan_project_count": 2,
+    "plan_task_count": 9
   }
 }
 ```
@@ -1170,10 +1214,10 @@ This is the recommended endpoint for graph visualization with depth-limited trav
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `node_id` | string | *required* | Center node (e.g., `memory_1`, `entity_5`, `project_3`, `document_2`, `code_artifact_4`) |
+| `node_id` | string | *required* | Center node: `memory_{id}`, `entity_{id}`, `project_{id}`, `document_{id}`, `code_artifact_{id}`, `file_{id}`, `skill_{id}`, `plan_{id}`, or `task_{id}` |
 | `depth` | int | 2 | Traversal depth (1-3, clamped) |
-| `node_types` | string | `memory,entity,project,document,code_artifact` | Comma-separated list of types to traverse |
-| `max_nodes` | int | 200 | Maximum nodes to return (max 500) |
+| `node_types` | string | all enabled types | Comma-separated list of types to traverse (same 9 types and flags as above) |
+| `max_nodes` | int | 200 | Maximum nodes to return; clamped to `MAX_GRAPH_LIMIT` (default 2000) |
 
 **Response:**
 ```json
@@ -1195,25 +1239,40 @@ This is the recommended endpoint for graph visualization with depth-limited trav
     }
   ],
   "edges": [...],
-  "meta": {
+    "meta": {
     "center_node_id": "memory_1",
     "depth": 2,
-    "node_types": ["memory", "entity"],
+    "node_types": ["code_artifact", "document", "entity", "file", "memory", "plan", "project", "skill", "task"],
     "max_nodes": 200,
     "memory_count": 5,
     "entity_count": 2,
     "project_count": 0,
     "document_count": 0,
     "code_artifact_count": 0,
+    "file_count": 0,
     "edge_count": 6,
     "memory_link_count": 3,
     "entity_relationship_count": 1,
     "entity_memory_count": 2,
+    "entity_project_count": 0,
     "memory_project_count": 0,
     "document_project_count": 0,
     "code_artifact_project_count": 0,
     "memory_document_count": 0,
     "memory_code_artifact_count": 0,
+    "memory_file_count": 0,
+    "file_project_count": 0,
+    "entity_file_count": 0,
+    "skill_count": 0,
+    "memory_skill_count": 0,
+    "skill_project_count": 0,
+    "skill_file_count": 0,
+    "skill_code_artifact_count": 0,
+    "skill_document_count": 0,
+    "plan_count": 0,
+    "task_count": 0,
+    "plan_project_count": 0,
+    "plan_task_count": 0,
     "truncated": false
   }
 }
@@ -1239,7 +1298,11 @@ Get subgraph centered on a specific memory.
   "center_memory_id": 1,
   "meta": {
     "memory_count": 5,
+    "entity_count": 2,
     "edge_count": 4,
+    "memory_link_count": 2,
+    "entity_relationship_count": 1,
+    "entity_memory_count": 1,
     "depth": 1
   }
 }
