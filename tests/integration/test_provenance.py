@@ -306,12 +306,12 @@ async def test_code_artifact_service_applies_provenance_defaults(test_code_artif
             mock_settings.AGENT_MODEL = ""
             mock_settings.ENFORCE_ENV_OVERWRITE = False
 
-            artifact = await test_code_artifact_service.create_code_artifact(
+            artifact = (await test_code_artifact_service.create_code_artifact(
                 user_id=user_id,
                 artifact_data=CodeArtifactCreate(
                     title="test", description="test", code="print(1)", language="python",
                 ),
-            )
+            )).artifact
 
         mock_apply.assert_called_once()
 

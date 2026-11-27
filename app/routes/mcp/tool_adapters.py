@@ -62,6 +62,7 @@ from app.routes.mcp.query_memory_format import (
 )
 from app.routes.plan_plugin_responses import PlanWriteResponse, TaskTransitionResponse
 from app.routes.write_plugin_responses import (
+    CodeArtifactWriteResponse,
     EntityDeleteResponse,
     EntityRelationshipWriteResponse,
     EntityWriteResponse,
@@ -1156,11 +1157,19 @@ class CodeArtifactToolAdapters:
             agent_model=agent_model,
         )
 
-        artifact = await self.code_artifact_service.create_code_artifact(
-            user_id=user.id, artifact_data=artifact_data,
-        )
+        try:
+            write_result = await self.code_artifact_service.create_code_artifact(
+                user_id=user.id, artifact_data=artifact_data,
+            )
+        except WritePluginRejectedError as exc:
+            raise ToolError(f"WRITE_PLUGIN_REJECTED: {exc}") from None
+        except WritePluginUnavailableError as exc:
+            raise ToolError(f"WRITE_PLUGIN_UNAVAILABLE: {exc}") from None
 
-        return artifact
+        return CodeArtifactWriteResponse(
+            **write_result.artifact.model_dump(),
+            plugin_warnings=write_result.plugin_warnings,
+        )
 
     async def get_code_artifact(self, artifact_id: int, ctx: Context) -> CodeArtifact:
         """Adapter for get_code_artifact tool"""
@@ -1235,23 +1244,39 @@ class CodeArtifactToolAdapters:
 
         artifact_data = CodeArtifactUpdate(**updated_dict)
 
-        artifact = await self.code_artifact_service.update_code_artifact(
-            user_id=user.id,
-            artifact_id=artifact_id,
-            artifact_data=artifact_data,
-        )
+        try:
+            write_result = await self.code_artifact_service.update_code_artifact(
+                user_id=user.id,
+                artifact_id=artifact_id,
+                artifact_data=artifact_data,
+            )
+        except WritePluginRejectedError as exc:
+            raise ToolError(f"WRITE_PLUGIN_REJECTED: {exc}") from None
+        except WritePluginUnavailableError as exc:
+            raise ToolError(f"WRITE_PLUGIN_UNAVAILABLE: {exc}") from None
 
-        return artifact
+        return CodeArtifactWriteResponse(
+            **write_result.artifact.model_dump(),
+            plugin_warnings=write_result.plugin_warnings,
+        )
 
     async def delete_code_artifact(self, artifact_id: int, ctx: Context) -> dict:
         """Adapter for delete_code_artifact tool"""
         user = await get_user_from_auth(ctx)
 
-        result = await self.code_artifact_service.delete_code_artifact(
-            user_id=user.id, artifact_id=artifact_id,
-        )
+        try:
+            delete_result = await self.code_artifact_service.delete_code_artifact(
+                user_id=user.id, artifact_id=artifact_id,
+            )
+        except WritePluginRejectedError as exc:
+            raise ToolError(f"WRITE_PLUGIN_REJECTED: {exc}") from None
+        except WritePluginUnavailableError as exc:
+            raise ToolError(f"WRITE_PLUGIN_UNAVAILABLE: {exc}") from None
 
-        return {"success": result, "deleted_id": artifact_id}
+        response = {"success": delete_result.deleted, "deleted_id": artifact_id}
+        if delete_result.plugin_warnings:
+            response["plugin_warnings"] = delete_result.plugin_warnings
+        return response
 
 
 def create_code_artifact_adapters(

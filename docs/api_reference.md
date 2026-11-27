@@ -909,13 +909,24 @@ Create a new code artifact.
 }
 ```
 
+Successful responses (201) stay flat artifact objects and add `plugin_warnings` only when
+nonempty when a Code Artifact Plugin is registered. Before-save rejections return 400; unavailable
+before-save returns 503 with `Code Artifact Write Plugin unavailable.`
+
 ### PUT /api/v1/code-artifacts/{id}
 
 Update an existing code artifact.
 
+Explicit `null` fields are treated as unchanged, so an update that changes nothing skips the plugin
+entirely. Response semantics match create.
+
 ### DELETE /api/v1/code-artifacts/{id}
 
 Delete a code artifact.
+
+Successful responses keep `{"success": true}` and add `plugin_warnings` only when nonempty when a
+Code Artifact Plugin is registered. Before-save rejections return 400; unavailable before-save
+returns 503.
 
 ---
 

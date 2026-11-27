@@ -5,6 +5,11 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from app.models.code_artifact_models import (
+    CodeArtifact,
+    CodeArtifactCreate,
+    CodeArtifactUpdate,
+)
 from app.models.entity_models import (
     Entity,
     EntityCreate,
@@ -249,3 +254,44 @@ class MemoryLinkResult(BaseModel):
 
 
 MemoryCreateResult.model_rebuild()
+
+
+CodeArtifactOperation = Literal["create", "update", "delete"]
+
+
+class CodeArtifactDeleteSubmission(BaseModel):
+    artifact_id: int
+
+
+class CodeArtifactWriteRequest(BaseModel):
+    """Detached domain snapshots; operation distinguishes create, update, and delete."""
+
+    operation: CodeArtifactOperation
+    user_id: UUID
+    submitted: CodeArtifactCreate | CodeArtifactUpdate | CodeArtifactDeleteSubmission
+    previous: CodeArtifact | None
+    proposed: CodeArtifactCreate | None
+
+
+class CodeArtifactSavedRequest(BaseModel):
+    operation: Literal["create", "update"]
+    user_id: UUID
+    saved: CodeArtifact
+    previous: CodeArtifact | None
+
+
+class CodeArtifactDeletedRequest(BaseModel):
+    operation: Literal["delete"] = "delete"
+    user_id: UUID
+    deleted_artifact_id: int
+    previous: CodeArtifact
+
+
+class CodeArtifactWriteResult(BaseModel):
+    artifact: CodeArtifact
+    plugin_warnings: list[PluginWarning] = Field(default_factory=list)
+
+
+class CodeArtifactDeleteResult(BaseModel):
+    deleted: bool
+    plugin_warnings: list[PluginWarning] = Field(default_factory=list)

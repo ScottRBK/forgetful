@@ -20,7 +20,9 @@ async def test_create_code_artifact(test_code_artifact_service):
         tags=["fastapi", "auth"],
     )
 
-    artifact = await test_code_artifact_service.create_code_artifact(user_id, artifact_data)
+    artifact = (await test_code_artifact_service.create_code_artifact(
+        user_id, artifact_data,
+    )).artifact
 
     assert artifact.id is not None
     assert artifact.title == "JWT Middleware"
@@ -40,7 +42,9 @@ async def test_get_code_artifact(test_code_artifact_service):
         language="python",
         tags=[],
     )
-    created = await test_code_artifact_service.create_code_artifact(user_id, artifact_data)
+    created = (await test_code_artifact_service.create_code_artifact(
+        user_id, artifact_data,
+    )).artifact
 
     # Get
     retrieved = await test_code_artifact_service.get_code_artifact(user_id, created.id)
@@ -135,11 +139,15 @@ async def test_update_code_artifact(test_code_artifact_service):
         language="python",
         tags=["original"],
     )
-    created = await test_code_artifact_service.create_code_artifact(user_id, artifact_data)
+    created = (await test_code_artifact_service.create_code_artifact(
+        user_id, artifact_data,
+    )).artifact
 
     # Update
     update_data = CodeArtifactUpdate(title="Updated", tags=["updated"])
-    updated = await test_code_artifact_service.update_code_artifact(user_id, created.id, update_data)
+    updated = (await test_code_artifact_service.update_code_artifact(
+        user_id, created.id, update_data,
+    )).artifact
 
     assert updated.title == "Updated"
     assert updated.description == "Original desc"  # Unchanged
@@ -158,10 +166,14 @@ async def test_delete_code_artifact(test_code_artifact_service):
         language="python",
         tags=[],
     )
-    created = await test_code_artifact_service.create_code_artifact(user_id, artifact_data)
+    created = (await test_code_artifact_service.create_code_artifact(
+        user_id, artifact_data,
+    )).artifact
 
     # Delete
-    success = await test_code_artifact_service.delete_code_artifact(user_id, created.id)
+    success = (await test_code_artifact_service.delete_code_artifact(
+        user_id, created.id,
+    )).deleted
     assert success is True
 
     # Verify deleted

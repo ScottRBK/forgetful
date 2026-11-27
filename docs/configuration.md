@@ -782,6 +782,109 @@ REST relationship writes add `plugin_warnings` only when nonempty; rejections re
 unavailable before-save returns 503. MCP and local CLI use `WRITE_PLUGIN_REJECTED: <message>` or
 `WRITE_PLUGIN_UNAVAILABLE: Entity Relationship Plugin unavailable.`
 
+### Code Artifact Plugin
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `CODE_ARTIFACT_WRITE_PLUGIN` | empty | Importable `module:object` containing a `CodeArtifactPlugin` |
+| `CODE_ARTIFACT_WRITE_PLUGIN_MODE` | `enforce` | `warn` or `enforce`, for **before_save only** |
+| `CODE_ARTIFACT_WRITE_PLUGIN_TIMEOUT_SECONDS` | `5.0` | Positive, finite deadline for each handler |
+
+Scoped to code artifact `create`, `update`, and `delete` through `CodeArtifactService`.
+Registration, startup validation, modes, timeouts, warnings, and error codes mirror the Memory
+Plugin above.
+
+```python
+# my_plugins/artifact_checks.py (example rules, not built into Forgetful)
+from app.models.write_plugin_models import PluginWarning, WriteDecision
+from app.protocols.write_plugin_protocol import CodeArtifactPlugin
+
+
+async def check_language(request):
+    proposed = request.proposed
+    if proposed and not proposed.code.strip():
+        return WriteDecision(outcome="reject", message="Code artifacts must contain code.")
+    if proposed and proposed.language not in {"python", "rust", "nix", "typescript"}:
+        return WriteDecision(outcome="warn", message="Unusual language for this repository.")
+    return WriteDecision(outcome="allow")
+
+
+async def notify_indexer(request):
+    return PluginWarning(message="Search indexer notified.", code="INDEXER_NOTIFIED")
+
+
+plugin = CodeArtifactPlugin(
+    before_save={"create": check_language, "update": check_language, "delete": check_language},
+    after_save={"create": notify_indexer, "update": notify_indexer},
+)
+```
+
+Set `CODE_ARTIFACT_WRITE_PLUGIN=my_plugins.artifact_checks:plugin`.
+
+- Before handlers receive `CodeArtifactWriteRequest` with `operation`, `user_id`, `submitted`
+  (`CodeArtifactCreate`, `CodeArtifactUpdate`, or `CodeArtifactDeleteSubmission`), `previous`
+  (`None` on create), and `proposed`. On `create` and `update`, `proposed` is a complete
+  `CodeArtifactCreate` describing the artifact as it will be after the write, not only the fields
+  that changed, so a rule can inspect every field without knowing which ones the caller supplied.
+  `proposed` is `None` on delete.
+- After handlers receive `CodeArtifactSavedRequest` (`saved`, `previous`) for create/update, or
+  `CodeArtifactDeletedRequest` (`deleted_artifact_id`, `previous`) for delete. They return
+  `PluginWarning` or `None`; failures add `CODE_ARTIFACT_PLUGIN_AFTER_SAVE_UNAVAILABLE` without
+  undoing the write.
+- A no-op update skips both phases but still runs the repository update. Explicit `null` PATCH
+  fields are treated as unchanged, so resending a value fires nothing.
+- Deleting an artifact that does not exist, or belongs to another user, skips both phases.
+- Update and delete reread the artifact after a before handler returns, so a change made while the
+  handler ran is seen rather than overwritten by a stale snapshot.
+
+#### What the Code Artifact Plugin does not see
+
+A handler runs only for `create_code_artifact`, `update_code_artifact` and `delete_code_artifact`
+on `CodeArtifactService`, and it receives the snapshot of that one artifact row. Every other way an
+artifact row or its links change reaches the database without firing a phase.
+
+Deleting an artifact cascades at the database:
+
+| Table | Column | On artifact delete | Hook fires |
+| --- | --- | --- | --- |
+| `memory_code_artifact_association` | `code_artifact_id` | row deleted (`ON DELETE CASCADE`) | no |
+| `skill_code_artifact_association` | `code_artifact_id` | row deleted (`ON DELETE CASCADE`) | no |
+| `skill_bundle_resources` | `code_artifact_id` | set to `NULL` (`ON DELETE SET NULL`) | no |
+
+The last row is worth knowing about, and it is not harmless. A skill bundle resource of kind
+`code_artifact` keeps its row and loses its `code_artifact_id`, because the table's check constraint
+does not require that column to be present. No code path cleans those rows up. Reading the owning
+skill's bundle afterwards raises `ValueError("Bundle member '<path>' was deleted")`, so the whole
+bundle becomes unreadable until the resource row is removed. A `delete` hook cannot prevent it and
+does not see it.
+
+Indirect mutations of an artifact row fire nothing either:
+
+| Action | Effect on artifacts | Hook fires |
+| --- | --- | --- |
+| Delete a project | `code_artifacts.project_id` set to `NULL` | no |
+| Delete a memory or skill | its `*_code_artifact_association` rows cascade away | no |
+| Link or unlink an artifact on a memory or skill | association row added or removed | no |
+| Delete a user | the user's `code_artifacts` rows cascade away | no |
+
+Consequences for a plugin author:
+
+- A before-save `delete` handler sees the artifact about to go and its pre-deletion snapshot. It
+  cannot inspect, block or count the association rows that will be removed with it. Query those
+  tables yourself if a rule needs them.
+- A rule that must run when an artifact gains or loses an association belongs on the object being
+  written (the Memory or Skill plugin), not on the Code Artifact Plugin.
+- `update_code_artifact` only fires when `CodeArtifactService.update_code_artifact` is called.
+  Writing `project_id` back to `NULL` through project deletion is invisible.
+
+Both databases behave the same way. The SQLite adapter enables `PRAGMA foreign_keys=ON` per
+connection, so these cascades and `SET NULL`s are enforced there too, not only in Postgres.
+
+REST artifact writes add `plugin_warnings` only when nonempty; rejections return 400 and
+unavailable before-save returns 503. MCP and local CLI use `WRITE_PLUGIN_REJECTED: <message>` or
+`WRITE_PLUGIN_UNAVAILABLE: Code Artifact Write Plugin unavailable.` A rejection prints nothing on
+stdout and exits 1 in the local CLI.
+
 ## Memory Configuration
 
 These settings control the atomic memory system's behavior and constraints.
