@@ -45,6 +45,7 @@ from app.repositories.sqlite.user_repository import SqliteUserRepository
 from app.routes.api import (
     activity,
     auth,
+    capabilities,
     code_artifacts,
     documents,
     entities,
@@ -299,6 +300,7 @@ async def build_sqlite_app(embedding_adapter, reranker_adapter, enabled_features
         mcp = FastMCP("Forgetful-SQLite-E2E", lifespan=lifespan)
 
         # Core routes (always registered)
+        capabilities.register(mcp)
         health.register(mcp)
         auth.register(mcp)
         memories.register(mcp)
