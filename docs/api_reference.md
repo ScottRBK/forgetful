@@ -1004,17 +1004,33 @@ Create a new skill.
 }
 ```
 
+Successful responses (201) stay flat skill objects and add `plugin_warnings` only when nonempty
+when a Skill Plugin is registered. Before-save rejections return 400; unavailable before-save
+returns 503 with `Skill Write Plugin unavailable.`
+
 ### PUT /api/v1/skills/{id}
 
 Update an existing skill (PATCH semantics).
+
+Explicit `null` fields are treated as unchanged, so an update that changes nothing skips the plugin
+entirely. Response semantics match create.
 
 ### DELETE /api/v1/skills/{id}
 
 Delete a skill.
 
+Successful responses keep `{"success": true}` and add `plugin_warnings` only when nonempty when a
+Skill Plugin is registered. Before-save rejections return 400; unavailable before-save returns 503.
+Deleting a skill also removes its bundle resource rows, but not the documents, files or code
+artifacts those resources referenced.
+
 ### POST /api/v1/skills/import
 
 Import a skill from Agent Skills markdown format.
+
+Import delegates to create, so a Skill Plugin runs for it and the response carries
+`plugin_warnings` and the same before-save errors. Importing a bundle
+(`import_skill_bundle`) does not run the plugin.
 
 **Request Body:**
 ```json

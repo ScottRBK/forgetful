@@ -68,6 +68,7 @@ from app.routes.write_plugin_responses import (
     MemoryCreateWriteResponse,
     MemoryLifecycleResponse,
     MemoryUpdateResponse,
+    SkillWriteResponse,
 )
 from app.services.code_artifact_service import CodeArtifactService
 from app.services.document_service import DocumentService
@@ -2496,11 +2497,18 @@ class SkillToolAdapters:
             agent_model=agent_model,
         )
 
-        skill = await self.skill_service.create_skill(
-            user_id=user.id, skill_data=skill_data,
-        )
+        try:
+            write_result = await self.skill_service.create_skill(
+                user_id=user.id, skill_data=skill_data,
+            )
+        except WritePluginRejectedError as exc:
+            raise ToolError(f"WRITE_PLUGIN_REJECTED: {exc}") from None
+        except WritePluginUnavailableError as exc:
+            raise ToolError(f"WRITE_PLUGIN_UNAVAILABLE: {exc}") from None
 
-        return skill
+        return SkillWriteResponse(
+            **write_result.skill.model_dump(), plugin_warnings=write_result.plugin_warnings,
+        )
 
     async def get_skill(self, skill_id: int, ctx: Context):
         """Adapter for get_skill tool"""
@@ -2585,23 +2593,38 @@ class SkillToolAdapters:
 
         skill_data = SkillUpdate(**updated_dict)
 
-        skill = await self.skill_service.update_skill(
-            user_id=user.id,
-            skill_id=skill_id,
-            skill_data=skill_data,
-        )
+        try:
+            write_result = await self.skill_service.update_skill(
+                user_id=user.id,
+                skill_id=skill_id,
+                skill_data=skill_data,
+            )
+        except WritePluginRejectedError as exc:
+            raise ToolError(f"WRITE_PLUGIN_REJECTED: {exc}") from None
+        except WritePluginUnavailableError as exc:
+            raise ToolError(f"WRITE_PLUGIN_UNAVAILABLE: {exc}") from None
 
-        return skill
+        return SkillWriteResponse(
+            **write_result.skill.model_dump(), plugin_warnings=write_result.plugin_warnings,
+        )
 
     async def delete_skill(self, skill_id: int, ctx: Context) -> dict:
         """Adapter for delete_skill tool"""
         user = await get_user_from_auth(ctx)
 
-        result = await self.skill_service.delete_skill(
-            user_id=user.id, skill_id=skill_id,
-        )
+        try:
+            delete_result = await self.skill_service.delete_skill(
+                user_id=user.id, skill_id=skill_id,
+            )
+        except WritePluginRejectedError as exc:
+            raise ToolError(f"WRITE_PLUGIN_REJECTED: {exc}") from None
+        except WritePluginUnavailableError as exc:
+            raise ToolError(f"WRITE_PLUGIN_UNAVAILABLE: {exc}") from None
 
-        return {"success": result, "deleted_id": skill_id}
+        response = {"success": delete_result.deleted, "deleted_id": skill_id}
+        if delete_result.plugin_warnings:
+            response["plugin_warnings"] = delete_result.plugin_warnings
+        return response
 
     async def search_skills(
         self,
@@ -2636,14 +2659,21 @@ class SkillToolAdapters:
         """Adapter for import_skill tool"""
         user = await get_user_from_auth(ctx)
 
-        skill = await self.skill_service.import_skill(
-            user_id=user.id,
-            skill_md_content=skill_md_content,
-            project_id=project_id,
-            importance=importance,
-        )
+        try:
+            write_result = await self.skill_service.import_skill(
+                user_id=user.id,
+                skill_md_content=skill_md_content,
+                project_id=project_id,
+                importance=importance,
+            )
+        except WritePluginRejectedError as exc:
+            raise ToolError(f"WRITE_PLUGIN_REJECTED: {exc}") from None
+        except WritePluginUnavailableError as exc:
+            raise ToolError(f"WRITE_PLUGIN_UNAVAILABLE: {exc}") from None
 
-        return skill
+        return SkillWriteResponse(
+            **write_result.skill.model_dump(), plugin_warnings=write_result.plugin_warnings,
+        )
 
     async def export_skill(self, skill_id: int, ctx: Context) -> str:
         """Adapter for export_skill tool"""

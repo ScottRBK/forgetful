@@ -28,6 +28,14 @@ from app.models.skill_models import (
     SkillSummary,
     SkillUpdate,
 )
+from app.models.write_plugin_models import (
+    SkillDeletedRequest,
+    SkillDeleteResult,
+    SkillDeleteSubmission,
+    SkillSavedRequest,
+    SkillWriteRequest,
+    SkillWriteResult,
+)
 from app.protocols.skill_protocol import SkillRepository
 from app.utils.bundle_validation import safe_bundle_validation
 from app.utils.file_snapshot import file_snapshot
@@ -47,6 +55,7 @@ from app.utils.skill_markdown import (
 
 if TYPE_CHECKING:
     from app.events import EventBus
+    from app.services.skill_write_plugin_service import SkillWritePluginService
 
 logger = logging.getLogger(__name__)
 
@@ -64,15 +73,18 @@ class SkillService:
         self,
         skill_repo: SkillRepository,
         event_bus: "EventBus | None" = None,
+        write_plugin: "SkillWritePluginService | None" = None,
     ):
         """Initialize with repository protocol (not concrete implementation)
 
         Args:
             skill_repo: Skill repository implementing the protocol
             event_bus: Optional event bus for activity tracking
+            write_plugin: Optional Skill Plugin runner
         """
         self.skill_repo = skill_repo
         self._event_bus = event_bus
+        self._write_plugin = write_plugin
         logger.info("Skill service initialized")
 
     async def _emit_event(
@@ -118,7 +130,7 @@ class SkillService:
         self,
         user_id: UUID,
         skill_data: SkillCreate,
-    ) -> Skill:
+    ) -> SkillWriteResult:
         """Create new skill
 
         Args:
@@ -126,7 +138,7 @@ class SkillService:
             skill_data: SkillCreate with name, description, content, etc.
 
         Returns:
-            Created Skill with generated ID and timestamps
+            Created Skill with generated ID and timestamps, plus plugin warnings
         """
         logger.info(
             "creating skill",
@@ -141,7 +153,16 @@ class SkillService:
             msg = f"A skill named '{skill_data.name}' already exists"
             raise ValueError(msg)
 
+        submitted = skill_data.model_copy(deep=True)
         skill_data = apply_provenance_defaults(skill_data)
+        plugin_warnings = []
+        if self._write_plugin and self._write_plugin.has_before("create"):
+            plugin_warnings = await self._write_plugin.before_save(SkillWriteRequest(
+                operation="create", user_id=user_id, submitted=submitted, previous=None,
+                proposed=SkillCreate.model_validate(
+                    skill_data.model_dump(include=set(SkillCreate.model_fields)),
+                ),
+            ))
         skill = await self.skill_repo.create_skill(
             user_id=user_id,
             skill_data=skill_data,
@@ -164,7 +185,12 @@ class SkillService:
             snapshot=skill.model_dump(mode="json"),
         )
 
-        return skill
+        if self._write_plugin:
+            plugin_warnings += await self._write_plugin.after_save(SkillSavedRequest(
+                operation="create", user_id=user_id, previous=None, saved=skill,
+            ))
+
+        return SkillWriteResult(skill=skill, plugin_warnings=plugin_warnings)
 
     async def get_skill(
         self,
@@ -326,7 +352,7 @@ class SkillService:
         user_id: UUID,
         skill_id: int,
         skill_data: SkillUpdate,
-    ) -> Skill:
+    ) -> SkillWriteResult:
         """Update existing skill (PATCH semantics)
 
         Only provided fields are updated. None/omitted fields remain unchanged.
@@ -337,7 +363,7 @@ class SkillService:
             skill_data: SkillUpdate with fields to change
 
         Returns:
-            Updated Skill
+            Updated Skill plus plugin warnings
 
         Raises:
             NotFoundError: If skill not found or not owned by user
@@ -350,6 +376,9 @@ class SkillService:
             },
         )
 
+        submitted = skill_data.model_copy(deep=True)
+        # Null policy is unchanged by this feature: explicit nulls are submitted values,
+        # exactly as before. Only the plugin is skipped when nothing changed.
         skill_data = apply_provenance_defaults_for_update(skill_data)
 
         # Get existing skill for change detection
@@ -365,6 +394,32 @@ class SkillService:
         changed_fields = get_changed_fields(
             input_model=skill_data, existing_model=existing_skill,
         )
+
+        plugin_warnings = []
+        if changed_fields and self._write_plugin and self._write_plugin.has_before("update"):
+            # Merged view of the skill as it will be after the write, matching the
+            # snapshot rule set by the Memory Plugin contract (PR #164) and implemented
+            # for entity writes in PR #184: the full record, not just changed fields.
+            proposed_data = existing_skill.model_dump(include=set(SkillCreate.model_fields))
+            proposed_data.update(skill_data.model_dump(exclude_unset=True))
+            proposed = SkillCreate.model_validate(proposed_data)
+            plugin_warnings = await self._write_plugin.before_save(SkillWriteRequest(
+                operation="update", user_id=user_id, submitted=submitted,
+                previous=existing_skill.model_copy(deep=True), proposed=proposed,
+            ))
+            existing_skill = await self.skill_repo.get_skill_by_id(
+                user_id=user_id,
+                skill_id=skill_id,
+            )
+            if not existing_skill:
+                raise NotFoundError(f"Skill {skill_id} not found")
+            changed_fields = get_changed_fields(
+                input_model=skill_data, existing_model=existing_skill,
+            )
+            if not changed_fields:
+                return SkillWriteResult(
+                    skill=existing_skill, plugin_warnings=plugin_warnings,
+                )
 
         skill = await self.skill_repo.update_skill(
             user_id=user_id,
@@ -394,14 +449,19 @@ class SkillService:
                 snapshot=skill.model_dump(mode="json"),
                 changes=changes_dict,
             )
+            if self._write_plugin:
+                previous = existing_skill.model_copy(deep=True)
+                plugin_warnings += await self._write_plugin.after_save(SkillSavedRequest(
+                    operation="update", user_id=user_id, saved=skill, previous=previous,
+                ))
 
-        return skill
+        return SkillWriteResult(skill=skill, plugin_warnings=plugin_warnings)
 
     async def delete_skill(
         self,
         user_id: UUID,
         skill_id: int,
-    ) -> bool:
+    ) -> SkillDeleteResult:
         """Delete skill
 
         Args:
@@ -409,7 +469,7 @@ class SkillService:
             skill_id: Skill ID to delete
 
         Returns:
-            True if deleted, False if not found or not owned by user
+            Whether it was deleted, plus any plugin warnings
         """
         logger.info(
             "deleting skill",
@@ -424,6 +484,20 @@ class SkillService:
             user_id=user_id,
             skill_id=skill_id,
         )
+
+        plugin_warnings = []
+        if existing_skill and self._write_plugin and self._write_plugin.has_before("delete"):
+            plugin_warnings = await self._write_plugin.before_save(SkillWriteRequest(
+                operation="delete", user_id=user_id,
+                submitted=SkillDeleteSubmission(skill_id=skill_id),
+                previous=existing_skill.model_copy(deep=True), proposed=None,
+            ))
+            existing_skill = await self.skill_repo.get_skill_by_id(
+                user_id=user_id,
+                skill_id=skill_id,
+            )
+            if not existing_skill:
+                return SkillDeleteResult(deleted=False, plugin_warnings=plugin_warnings)
 
         success = await self.skill_repo.delete_skill(
             user_id=user_id,
@@ -457,7 +531,12 @@ class SkillService:
                 },
             )
 
-        return success
+        if success and existing_skill and self._write_plugin:
+            plugin_warnings += await self._write_plugin.after_save(SkillDeletedRequest(
+                user_id=user_id, deleted_skill_id=skill_id, previous=existing_skill,
+            ))
+
+        return SkillDeleteResult(deleted=success, plugin_warnings=plugin_warnings)
 
     async def search_skills(
         self,
@@ -510,7 +589,7 @@ class SkillService:
         skill_md_content: str,
         project_id: int | None = None,
         importance: int = 7,
-    ) -> Skill:
+    ) -> SkillWriteResult:
         """Import a skill from Agent Skills markdown format
 
         Parses YAML frontmatter between --- delimiters and extracts
@@ -535,6 +614,8 @@ class SkillService:
 
         skill_data = parse_skill_markdown(skill_md_content, project_id, importance)
 
+        # Delegates to create_skill, so the plugin fires here too and any warnings
+        # travel back with the created skill.
         return await self.create_skill(user_id=user_id, skill_data=skill_data)
 
     async def export_skill(

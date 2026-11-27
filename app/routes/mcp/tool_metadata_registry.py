@@ -2344,7 +2344,11 @@ def register_skill_tools_metadata(
                 {"name": "agent_version", "type": "Optional[str]", "description": "Agent version for provenance tracking", "required": False, "default": None, "example": "1.0"},
                 {"name": "agent_model", "type": "Optional[str]", "description": "LLM model used for provenance tracking", "required": False, "default": None, "example": "claude-sonnet-4-6"},
             ],
-            "returns": "Skill with id, name, and timestamps",
+            "returns": (
+                "Flat Skill object after create, with plugin_warnings only when nonempty. "
+                "After-save warnings are advisory. Before-save errors: WRITE_PLUGIN_REJECTED "
+                "(correct the stated issue) or WRITE_PLUGIN_UNAVAILABLE."
+            ),
             "examples": [
                 'execute_forgetful_tool("create_skill", {"name": "code-review", "description": "Review code for quality", "content": "## Steps\\n1. Check security\\n2. Review naming"})',
             ],
@@ -2406,7 +2410,12 @@ def register_skill_tools_metadata(
                 {"name": "agent_version", "type": "Optional[str]", "description": "Agent version for provenance tracking", "required": False, "default": None, "example": "1.0"},
                 {"name": "agent_model", "type": "Optional[str]", "description": "LLM model used for provenance tracking", "required": False, "default": None, "example": "claude-sonnet-4-6"},
             ],
-            "returns": "Updated Skill object",
+            "returns": (
+                "Flat Skill object after update, with plugin_warnings only when nonempty. "
+                "After-save warnings preserve success. Before-save errors: "
+                "WRITE_PLUGIN_REJECTED or WRITE_PLUGIN_UNAVAILABLE. A no-op update skips "
+                "the plugin entirely."
+            ),
             "examples": [
                 'execute_forgetful_tool("update_skill", {"skill_id": 1, "importance": 9, "tags": ["updated"]})',
             ],
@@ -2420,7 +2429,11 @@ def register_skill_tools_metadata(
                 {"name": "skill_id", "type": "int", "description": "ID of the skill to delete", "required": True, "example": 1},
                 {"name": "ctx", "type": "Context", "description": "FastMCP Context (automatically injected)", "required": True},
             ],
-            "returns": "Dictionary with deletion confirmation",
+            "returns": (
+                "Dictionary with deletion confirmation and plugin_warnings only when nonempty. "
+                "After-save warnings preserve success. Before-save errors: "
+                "WRITE_PLUGIN_REJECTED or WRITE_PLUGIN_UNAVAILABLE."
+            ),
             "examples": [
                 'execute_forgetful_tool("delete_skill", {"skill_id": 1})',
             ],
@@ -2452,7 +2465,10 @@ def register_skill_tools_metadata(
                 {"name": "project_id", "type": "Optional[int]", "description": "Project association (overrides frontmatter)", "required": False, "default": None, "example": 1},
                 {"name": "importance", "type": "int", "description": "Importance level (default: 7)", "required": False, "default": 7, "example": 8},
             ],
-            "returns": "Created Skill from parsed markdown",
+            "returns": (
+                "Created Skill from parsed markdown. Import delegates to create_skill, so "
+                "plugin_warnings appear here too, along with the same before-save errors."
+            ),
             "examples": [
                 'execute_forgetful_tool("import_skill", {"skill_md_content": "---\\nname: my-skill\\ndescription: Does things\\n---\\n\\nInstructions here"})',
             ],
