@@ -32,10 +32,13 @@ flowchart TD
     EntityWritePlugin --> EntityCallable["EntityPlugin: create, update, delete mappings"]
     Services --> RelationshipPlugin["EntityRelationshipPluginService: before_save and advisory after_save"]
     RelationshipPlugin --> RelationshipCallable["EntityRelationshipPlugin: create, update, delete mappings"]
+    Services --> CodeArtifactPlugin["CodeArtifactWritePluginService: before_save and advisory after_save"]
+    CodeArtifactPlugin --> CodeArtifactCallable["CodeArtifactPlugin: create, update, delete mappings"]
     Bootstrap --> Loader["config.write_plugin: trusted module:object loaders"]
     Loader -. supplies registration .-> WritePlugin
     Loader -. supplies registration .-> EntityWritePlugin
     Loader -. supplies registration .-> RelationshipPlugin
+    Loader -. supplies registration .-> CodeArtifactPlugin
     SQLite["SQLite repositories"] -. implements .-> Contracts
     Postgres["PostgreSQL repositories"] -. implements .-> Contracts
     SQLite --> SQLiteDB["SQLite adapter and sqlite-vec"]
@@ -191,6 +194,14 @@ and delete in `EntityService`. Contexts carry detached relationship snapshots pl
 and target entities, read after ownership checks and before persistence; the repository re-checks
 ownership on write. Update/delete reread the relationship after a before-handler await. Entity
 deletion cascades, memory links, and entity associations never dispatch relationship hooks.
+
+**Code Artifact Plugin:** mirrors the Memory Plugin contract for code artifact create, update, and
+delete via `load_code_artifact_plugin`, `CodeArtifactPlugin`, and
+`CodeArtifactWritePluginService`. Handlers see detached snapshots; the update request carries the
+full artifact as it will be after the write, not only the changed fields. Deleting an artifact row
+cascades at the database to `memory_code_artifact_association` and
+`skill_code_artifact_association`, and sets `skill_bundle_resources.code_artifact_id` to NULL,
+without separate plugin hooks.
 
 **Memory Plugin:** `app/config/write_plugin.py` loads one trusted `module:object` registration before
 costly resources. `MemoryPlugin` in `app/protocols/write_plugin_protocol.py` owns copied, frozen

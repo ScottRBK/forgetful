@@ -224,7 +224,7 @@ async def test_code_artifact_create_emits_event(test_code_artifact_service_with_
         language="python",
         tags=["test"],
     )
-    artifact = await service.create_code_artifact(user_id, artifact_data)
+    artifact = (await service.create_code_artifact(user_id, artifact_data)).artifact
 
     assert len(event_bus.collected_events) == 1
     event = event_bus.collected_events[0]
@@ -247,7 +247,7 @@ async def test_code_artifact_delete_emits_event(test_code_artifact_service_with_
         language="python",
         tags=["test"],
     )
-    artifact = await service.create_code_artifact(user_id, artifact_data)
+    artifact = (await service.create_code_artifact(user_id, artifact_data)).artifact
     event_bus.collected_events.clear()
 
     # Delete

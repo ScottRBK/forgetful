@@ -24,6 +24,14 @@ from app.models.code_artifact_models import (
     CodeArtifactSummary,
     CodeArtifactUpdate,
 )
+from app.models.write_plugin_models import (
+    CodeArtifactDeletedRequest,
+    CodeArtifactDeleteResult,
+    CodeArtifactDeleteSubmission,
+    CodeArtifactSavedRequest,
+    CodeArtifactWriteRequest,
+    CodeArtifactWriteResult,
+)
 from app.protocols.code_artifact_protocol import CodeArtifactRepository
 from app.utils.provenance import (
     apply_provenance_defaults,
@@ -33,6 +41,9 @@ from app.utils.pydantic_helper import get_changed_fields
 
 if TYPE_CHECKING:
     from app.events import EventBus
+    from app.services.code_artifact_write_plugin_service import (
+        CodeArtifactWritePluginService,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -48,15 +59,18 @@ class CodeArtifactService:
         self,
         artifact_repo: CodeArtifactRepository,
         event_bus: "EventBus | None" = None,
+        write_plugin: "CodeArtifactWritePluginService | None" = None,
     ):
         """Initialize with repository protocol (not concrete implementation)
 
         Args:
             artifact_repo: Code artifact repository implementing the protocol
             event_bus: Optional event bus for activity tracking
+            write_plugin: Optional Code Artifact Plugin runner
         """
         self.artifact_repo = artifact_repo
         self._event_bus = event_bus
+        self._write_plugin = write_plugin
         logger.info("Code artifact service initialized")
 
     async def _emit_event(
@@ -102,7 +116,7 @@ class CodeArtifactService:
         self,
         user_id: UUID,
         artifact_data: CodeArtifactCreate,
-    ) -> CodeArtifact:
+    ) -> CodeArtifactWriteResult:
         """Create new code artifact
 
         Args:
@@ -110,7 +124,7 @@ class CodeArtifactService:
             artifact_data: CodeArtifactCreate with title, description, code, language, tags
 
         Returns:
-            Created CodeArtifact with generated ID and timestamps
+            Created CodeArtifact with generated ID and timestamps, plus plugin warnings
         """
         logger.info(
             "creating code artifact",
@@ -121,7 +135,16 @@ class CodeArtifactService:
             },
         )
 
+        submitted = artifact_data.model_copy(deep=True)
         artifact_data = apply_provenance_defaults(artifact_data)
+        plugin_warnings = []
+        if self._write_plugin and self._write_plugin.has_before("create"):
+            plugin_warnings = await self._write_plugin.before_save(CodeArtifactWriteRequest(
+                operation="create", user_id=user_id, submitted=submitted, previous=None,
+                proposed=CodeArtifactCreate.model_validate(
+                    artifact_data.model_dump(include=set(CodeArtifactCreate.model_fields)),
+                ),
+            ))
         artifact = await self.artifact_repo.create_code_artifact(
             user_id=user_id,
             artifact_data=artifact_data,
@@ -144,7 +167,12 @@ class CodeArtifactService:
             snapshot=artifact.model_dump(mode="json"),
         )
 
-        return artifact
+        if self._write_plugin:
+            plugin_warnings += await self._write_plugin.after_save(CodeArtifactSavedRequest(
+                operation="create", user_id=user_id, previous=None, saved=artifact,
+            ))
+
+        return CodeArtifactWriteResult(artifact=artifact, plugin_warnings=plugin_warnings)
 
     async def get_code_artifact(
         self,
@@ -306,7 +334,7 @@ class CodeArtifactService:
         user_id: UUID,
         artifact_id: int,
         artifact_data: CodeArtifactUpdate,
-    ) -> CodeArtifact:
+    ) -> CodeArtifactWriteResult:
         """Update existing artifact (PATCH semantics)
 
         Only provided fields are updated. None/omitted fields remain unchanged.
@@ -317,7 +345,7 @@ class CodeArtifactService:
             artifact_data: CodeArtifactUpdate with fields to change
 
         Returns:
-            Updated CodeArtifact
+            Updated CodeArtifact plus plugin warnings
 
         Raises:
             NotFoundError: If artifact not found or not owned by user
@@ -330,6 +358,10 @@ class CodeArtifactService:
             },
         )
 
+        submitted = artifact_data.model_copy(deep=True)
+        # Null policy is unchanged by this feature. An explicit null is a submitted
+        # value and reaches the repository as it does without a plugin, so a
+        # nullable column is cleared by one and a required column still fails.
         artifact_data = apply_provenance_defaults_for_update(artifact_data)
 
         # Get existing artifact for change detection
@@ -345,6 +377,37 @@ class CodeArtifactService:
         changed_fields = get_changed_fields(
             input_model=artifact_data, existing_model=existing_artifact,
         )
+
+        plugin_warnings = []
+        if changed_fields and self._write_plugin and self._write_plugin.has_before("update"):
+            # Merged view of the artifact as it will be after the write, matching the
+            # snapshot rule set by the Memory Plugin contract (PR #164) and implemented
+            # for entity writes in PR #184: the full record, not just changed fields.
+            proposed_data = existing_artifact.model_dump(
+                include=set(CodeArtifactCreate.model_fields),
+            )
+            proposed_data.update(artifact_data.model_dump(exclude_unset=True))
+            # model_construct: a null on a required field must reach the repository and
+            # fail there, as it does without a plugin, rather than fail while the
+            # context is assembled. The caller already validated this payload.
+            proposed = CodeArtifactCreate.model_construct(**proposed_data)
+            plugin_warnings = await self._write_plugin.before_save(CodeArtifactWriteRequest(
+                operation="update", user_id=user_id, submitted=submitted,
+                previous=existing_artifact.model_copy(deep=True), proposed=proposed,
+            ))
+            existing_artifact = await self.artifact_repo.get_code_artifact_by_id(
+                user_id=user_id,
+                artifact_id=artifact_id,
+            )
+            if not existing_artifact:
+                raise NotFoundError(f"Code artifact {artifact_id} not found")
+            changed_fields = get_changed_fields(
+                input_model=artifact_data, existing_model=existing_artifact,
+            )
+            if not changed_fields:
+                return CodeArtifactWriteResult(
+                    artifact=existing_artifact, plugin_warnings=plugin_warnings,
+                )
 
         artifact = await self.artifact_repo.update_code_artifact(
             user_id=user_id,
@@ -374,14 +437,22 @@ class CodeArtifactService:
                 snapshot=artifact.model_dump(mode="json"),
                 changes=changes_dict,
             )
+            if self._write_plugin:
+                previous = existing_artifact.model_copy(deep=True)
+                plugin_warnings += await self._write_plugin.after_save(
+                    CodeArtifactSavedRequest(
+                        operation="update", user_id=user_id, saved=artifact,
+                        previous=previous,
+                    ),
+                )
 
-        return artifact
+        return CodeArtifactWriteResult(artifact=artifact, plugin_warnings=plugin_warnings)
 
     async def delete_code_artifact(
         self,
         user_id: UUID,
         artifact_id: int,
-    ) -> bool:
+    ) -> CodeArtifactDeleteResult:
         """Delete artifact (cascade removes memory associations)
 
         Args:
@@ -389,7 +460,7 @@ class CodeArtifactService:
             artifact_id: Artifact ID to delete
 
         Returns:
-            True if deleted, False if not found or not owned by user
+            Whether it was deleted, plus any plugin warnings
         """
         logger.info(
             "deleting code artifact",
@@ -404,6 +475,22 @@ class CodeArtifactService:
             user_id=user_id,
             artifact_id=artifact_id,
         )
+
+        plugin_warnings = []
+        if existing_artifact and self._write_plugin and self._write_plugin.has_before("delete"):
+            plugin_warnings = await self._write_plugin.before_save(CodeArtifactWriteRequest(
+                operation="delete", user_id=user_id,
+                submitted=CodeArtifactDeleteSubmission(artifact_id=artifact_id),
+                previous=existing_artifact.model_copy(deep=True), proposed=None,
+            ))
+            existing_artifact = await self.artifact_repo.get_code_artifact_by_id(
+                user_id=user_id,
+                artifact_id=artifact_id,
+            )
+            if not existing_artifact:
+                return CodeArtifactDeleteResult(
+                    deleted=False, plugin_warnings=plugin_warnings,
+                )
 
         success = await self.artifact_repo.delete_code_artifact(
             user_id=user_id,
@@ -437,4 +524,12 @@ class CodeArtifactService:
                 },
             )
 
-        return success
+        if success and existing_artifact and self._write_plugin:
+            plugin_warnings += await self._write_plugin.after_save(
+                CodeArtifactDeletedRequest(
+                    user_id=user_id, deleted_artifact_id=artifact_id,
+                    previous=existing_artifact,
+                ),
+            )
+
+        return CodeArtifactDeleteResult(deleted=success, plugin_warnings=plugin_warnings)

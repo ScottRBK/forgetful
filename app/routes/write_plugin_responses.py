@@ -2,6 +2,7 @@
 
 from pydantic import BaseModel, Field
 
+from app.models.code_artifact_models import CodeArtifact
 from app.models.entity_models import Entity, EntityRelationship
 from app.models.memory_models import Memory, MemoryCreateResponse
 from app.models.write_plugin_models import MemoryLinkOutcome, PluginWarning
@@ -30,5 +31,14 @@ class EntityRelationshipWriteResponse(EntityRelationship):
 
 
 class EntityDeleteResponse(BaseModel):
+    success: bool
+    plugin_warnings: list[PluginWarning] = Field(default_factory=list, exclude_if=lambda v: not v)
+
+
+class CodeArtifactWriteResponse(CodeArtifact):
+    plugin_warnings: list[PluginWarning] = Field(default_factory=list, exclude_if=lambda v: not v)
+
+
+class CodeArtifactDeleteResponse(BaseModel):
     success: bool
     plugin_warnings: list[PluginWarning] = Field(default_factory=list, exclude_if=lambda v: not v)

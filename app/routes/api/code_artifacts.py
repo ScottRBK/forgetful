@@ -10,7 +10,11 @@ from pydantic import ValidationError
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-from app.exceptions import NotFoundError
+from app.exceptions import (
+    NotFoundError,
+    WritePluginRejectedError,
+    WritePluginUnavailableError,
+)
 from app.middleware.auth import get_user_from_request
 from app.models.code_artifact_models import (
     CodeArtifactCreate,
@@ -18,6 +22,10 @@ from app.models.code_artifact_models import (
 )
 from app.routes.api.list_pagination import parse_list_pagination
 from app.routes.api.params import parse_path_int
+from app.routes.write_plugin_responses import (
+    CodeArtifactDeleteResponse,
+    CodeArtifactWriteResponse,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -115,14 +123,22 @@ def register(mcp: FastMCP):
             return JSONResponse({"error": e.errors()}, status_code=400)
 
         try:
-            artifact = await mcp.code_artifact_service.create_code_artifact(
+            write_result = await mcp.code_artifact_service.create_code_artifact(
                 user_id=user.id,
                 artifact_data=artifact_data,
             )
+        except WritePluginRejectedError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        except WritePluginUnavailableError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=503)
         except NotFoundError as e:
             return JSONResponse({"error": str(e)}, status_code=404)
 
-        return JSONResponse(artifact.model_dump(mode="json"), status_code=201)
+        response = CodeArtifactWriteResponse(
+            **write_result.artifact.model_dump(),
+            plugin_warnings=write_result.plugin_warnings,
+        )
+        return JSONResponse(response.model_dump(mode="json"), status_code=201)
 
     @mcp.custom_route("/api/v1/code-artifacts/{artifact_id}", methods=["PUT"])
     async def update_code_artifact(request: Request) -> JSONResponse:
@@ -144,15 +160,23 @@ def register(mcp: FastMCP):
             return JSONResponse({"error": e.errors()}, status_code=400)
 
         try:
-            artifact = await mcp.code_artifact_service.update_code_artifact(
+            write_result = await mcp.code_artifact_service.update_code_artifact(
                 user_id=user.id,
                 artifact_id=artifact_id,
                 artifact_data=update_data,
             )
+        except WritePluginRejectedError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        except WritePluginUnavailableError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=503)
         except NotFoundError:
             return JSONResponse({"error": "Code artifact not found"}, status_code=404)
 
-        return JSONResponse(artifact.model_dump(mode="json"))
+        response = CodeArtifactWriteResponse(
+            **write_result.artifact.model_dump(),
+            plugin_warnings=write_result.plugin_warnings,
+        )
+        return JSONResponse(response.model_dump(mode="json"))
 
     @mcp.custom_route("/api/v1/code-artifacts/{artifact_id}", methods=["DELETE"])
     async def delete_code_artifact(request: Request) -> JSONResponse:
@@ -168,14 +192,21 @@ def register(mcp: FastMCP):
             return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
-            success = await mcp.code_artifact_service.delete_code_artifact(
+            delete_result = await mcp.code_artifact_service.delete_code_artifact(
                 user_id=user.id,
                 artifact_id=artifact_id,
             )
+        except WritePluginRejectedError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        except WritePluginUnavailableError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=503)
         except NotFoundError:
             return JSONResponse({"error": "Code artifact not found"}, status_code=404)
 
-        if not success:
+        if not delete_result.deleted:
             return JSONResponse({"error": "Code artifact not found"}, status_code=404)
 
-        return JSONResponse({"success": True})
+        response = CodeArtifactDeleteResponse(
+            success=True, plugin_warnings=delete_result.plugin_warnings,
+        )
+        return JSONResponse(response.model_dump(mode="json"))
