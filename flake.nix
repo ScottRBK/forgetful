@@ -285,6 +285,9 @@
                 appPkg
                 pkgs.bashInteractive
                 pkgs.cacert
+                # pg_dump and psql, which the PostgreSQL backup and restore path runs.
+                # Same major version as the pgvector:pg16 database service.
+                pkgs.postgresql_16
               ];
               config = {
                 Cmd = [

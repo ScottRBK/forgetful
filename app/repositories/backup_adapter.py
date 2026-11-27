@@ -3,6 +3,7 @@
 Supports both SQLite (file copy) and PostgreSQL (pg_dump/psql) backup strategies.
 """
 import logging
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -73,6 +74,18 @@ class DatabaseBackupAdapter:
 
         logger.info("SQLite database restored", extra={"backup_path": str(backup_path)})
 
+    @staticmethod
+    def _postgres_env() -> dict[str, str]:
+        """Environment for pg_dump/psql: inherited, plus the password.
+
+        Passing only {"PGPASSWORD": ...} replaces the whole environment, so the
+        child gets no PATH. execvp then searches the compiled-in default
+        (/bin:/usr/bin), which is empty in any Nix deployment and in slim images
+        that keep client tools outside /usr/bin, so pg_dump was never found even
+        when it was on the PATH of the process that launched it.
+        """
+        return {**os.environ, "PGPASSWORD": settings.POSTGRES_PASSWORD}
+
     def _backup_postgres(self, timestamp: str) -> Path:
         """Backup PostgreSQL database using pg_dump"""
         backup_dir = Path(settings.SQLITE_PATH).parent  # reuse data dir
@@ -89,9 +102,7 @@ class DatabaseBackupAdapter:
             "-f", str(backup_path),
         ]
 
-        env = {"PGPASSWORD": settings.POSTGRES_PASSWORD}
-
-        result = subprocess.run(cmd, env=env, capture_output=True, text=True)
+        result = subprocess.run(cmd, env=self._postgres_env(), capture_output=True, text=True)
         if result.returncode != 0:
             raise RuntimeError(f"pg_dump failed: {result.stderr}")
 
@@ -109,9 +120,7 @@ class DatabaseBackupAdapter:
             "-f", str(backup_path),
         ]
 
-        env = {"PGPASSWORD": settings.POSTGRES_PASSWORD}
-
-        result = subprocess.run(cmd, env=env, capture_output=True, text=True)
+        result = subprocess.run(cmd, env=self._postgres_env(), capture_output=True, text=True)
         if result.returncode != 0:
             raise RuntimeError(f"psql restore failed: {result.stderr}")
 
