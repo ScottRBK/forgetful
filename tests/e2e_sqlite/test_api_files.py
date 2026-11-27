@@ -291,3 +291,44 @@ class TestFileMemoryLinking:
         assert get_response.status_code == 200
         memory_data = get_response.json()
         assert file_id in memory_data.get("file_ids", [])
+
+
+class TestFileAssociationCascade:
+    """Deleting a file removes its association rows at the database level."""
+
+    @pytest.mark.asyncio
+    async def test_delete_file_removes_memory_association(self, http_client):
+        """ON DELETE CASCADE clears memory_file_association; the memory survives."""
+        file_response = await http_client.post("/api/v1/files", json={
+            "filename": "cascade.png",
+            "description": "File whose associations must cascade",
+            "data": PNG_HEADER,
+            "mime_type": "image/png",
+            "tags": ["cascade"],
+        })
+        assert file_response.status_code == 201
+        file_id = file_response.json()["id"]
+
+        memory_response = await http_client.post("/api/v1/memories", json={
+            "title": "Memory surviving a file deletion",
+            "content": "The file link must disappear, the memory must not.",
+            "context": "Cascade documentation test",
+            "keywords": ["cascade"],
+            "tags": ["cascade"],
+            "importance": 6,
+            "file_ids": [file_id],
+        })
+        assert memory_response.status_code == 201
+        memory_id = memory_response.json()["id"]
+
+        linked = await http_client.get(f"/api/v1/memories/{memory_id}")
+        assert file_id in linked.json()["file_ids"]
+
+        deleted = await http_client.delete(f"/api/v1/files/{file_id}")
+        assert deleted.status_code == 200
+
+        # The association row is gone; the memory itself is untouched.
+        after = await http_client.get(f"/api/v1/memories/{memory_id}")
+        assert after.status_code == 200
+        assert after.json()["file_ids"] == []
+        assert after.json()["title"] == "Memory surviving a file deletion"

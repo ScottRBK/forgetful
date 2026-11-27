@@ -1118,7 +1118,11 @@ def register_project_tools_metadata(
                 {"name": "project_id", "type": "int", "description": "ID of the project to delete", "required": True, "example": 1},
                 {"name": "ctx", "type": "Context", "description": "FastMCP Context (automatically injected)", "required": True},
             ],
-            "returns": "Dictionary with deletion confirmation",
+            "returns": (
+                "Dictionary with deletion confirmation and plugin_warnings only when nonempty. "
+                "After-save warnings preserve success. Before-save errors: "
+                "WRITE_PLUGIN_REJECTED or WRITE_PLUGIN_UNAVAILABLE."
+            ),
             "examples": [
                 'execute_forgetful_tool("delete_project", {"project_id": 1})',
             ],
@@ -1297,7 +1301,11 @@ def register_code_artifact_tools_metadata(
                 {"name": "artifact_id", "type": "int", "description": "ID of the artifact to delete", "required": True, "example": 1},
                 {"name": "ctx", "type": "Context", "description": "FastMCP Context (automatically injected)", "required": True},
             ],
-            "returns": "Dictionary with deletion confirmation",
+            "returns": (
+                "Dictionary with deletion confirmation and plugin_warnings only when nonempty. "
+                "After-save warnings preserve success. Before-save errors: "
+                "WRITE_PLUGIN_REJECTED or WRITE_PLUGIN_UNAVAILABLE."
+            ),
             "examples": [
                 'execute_forgetful_tool("delete_code_artifact", {"artifact_id": 1})',
             ],
@@ -1428,7 +1436,11 @@ def register_document_tools_metadata(
                 {"name": "document_id", "type": "int", "description": "ID of the document to delete", "required": True, "example": 1},
                 {"name": "ctx", "type": "Context", "description": "FastMCP Context (automatically injected)", "required": True},
             ],
-            "returns": "Dictionary with deletion confirmation",
+            "returns": (
+                "Dictionary with deletion confirmation and plugin_warnings only when nonempty. "
+                "After-save warnings preserve success. Before-save errors: "
+                "WRITE_PLUGIN_REJECTED or WRITE_PLUGIN_UNAVAILABLE."
+            ),
             "examples": [
                 'execute_forgetful_tool("delete_document", {"document_id": 1})',
             ],
@@ -2124,7 +2136,11 @@ def register_task_tools_metadata(
                 {"name": "criterion_id", "type": "int", "description": "ID of the criterion to delete", "required": True, "example": 1},
                 {"name": "ctx", "type": "Context", "description": "FastMCP Context (automatically injected)", "required": True},
             ],
-            "returns": "Dictionary with deletion confirmation",
+            "returns": (
+                "Dictionary with deletion confirmation and plugin_warnings only when nonempty. "
+                "After-save warnings preserve success. Before-save errors: "
+                "WRITE_PLUGIN_REJECTED or WRITE_PLUGIN_UNAVAILABLE."
+            ),
             "examples": [
                 'execute_forgetful_tool("delete_criterion", {"criterion_id": 1})',
             ],
@@ -2154,7 +2170,11 @@ def register_task_tools_metadata(
                 {"name": "depends_on_task_id", "type": "int", "description": "ID of the task to remove dependency on", "required": True, "example": 1},
                 {"name": "ctx", "type": "Context", "description": "FastMCP Context (automatically injected)", "required": True},
             ],
-            "returns": "Dictionary with deletion confirmation",
+            "returns": (
+                "Dictionary with deletion confirmation and plugin_warnings only when nonempty. "
+                "After-save warnings preserve success. Before-save errors: "
+                "WRITE_PLUGIN_REJECTED or WRITE_PLUGIN_UNAVAILABLE."
+            ),
             "examples": [
                 'execute_forgetful_tool("remove_dependency", {"task_id": 2, "depends_on_task_id": 1})',
             ],
@@ -2211,7 +2231,11 @@ def register_file_tools_metadata(
                 {"name": "agent_version", "type": "Optional[str]", "description": "Agent version for provenance tracking", "required": False, "default": None, "example": "1.0"},
                 {"name": "agent_model", "type": "Optional[str]", "description": "LLM model used for provenance tracking", "required": False, "default": None, "example": "claude-sonnet-4-6"},
             ],
-            "returns": "File with id, size_bytes, and timestamps",
+            "returns": (
+                "Flat File object after create, with plugin_warnings only when nonempty. "
+                "After-save warnings are advisory. Before-save errors: WRITE_PLUGIN_REJECTED "
+                "(correct the stated issue) or WRITE_PLUGIN_UNAVAILABLE."
+            ),
             "examples": [
                 'execute_forgetful_tool("create_file", {"filename": "logo.png", "description": "Project logo", "data": "<base64>", "mime_type": "image/png"})',
             ],
@@ -2269,7 +2293,12 @@ def register_file_tools_metadata(
                 {"name": "agent_version", "type": "Optional[str]", "description": "Agent version for provenance tracking", "required": False, "default": None, "example": "1.0"},
                 {"name": "agent_model", "type": "Optional[str]", "description": "LLM model used for provenance tracking", "required": False, "default": None, "example": "claude-sonnet-4-6"},
             ],
-            "returns": "Updated File object",
+            "returns": (
+                "Flat File object after update, with plugin_warnings only when nonempty. "
+                "After-save warnings preserve success. Before-save errors: "
+                "WRITE_PLUGIN_REJECTED or WRITE_PLUGIN_UNAVAILABLE. A no-op update skips "
+                "the plugin entirely."
+            ),
             "examples": [
                 'execute_forgetful_tool("update_file", {"file_id": 1, "tags": ["updated"]})',
             ],
@@ -2283,7 +2312,11 @@ def register_file_tools_metadata(
                 {"name": "file_id", "type": "int", "description": "ID of the file to delete", "required": True, "example": 1},
                 {"name": "ctx", "type": "Context", "description": "FastMCP Context (automatically injected)", "required": True},
             ],
-            "returns": "Dictionary with deletion confirmation",
+            "returns": (
+                "Dictionary with deletion confirmation and plugin_warnings only when nonempty. "
+                "After-save warnings preserve success. Before-save errors: "
+                "WRITE_PLUGIN_REJECTED or WRITE_PLUGIN_UNAVAILABLE."
+            ),
             "examples": [
                 'execute_forgetful_tool("delete_file", {"file_id": 1})',
             ],
@@ -2420,7 +2453,11 @@ def register_skill_tools_metadata(
                 {"name": "skill_id", "type": "int", "description": "ID of the skill to delete", "required": True, "example": 1},
                 {"name": "ctx", "type": "Context", "description": "FastMCP Context (automatically injected)", "required": True},
             ],
-            "returns": "Dictionary with deletion confirmation",
+            "returns": (
+                "Dictionary with deletion confirmation and plugin_warnings only when nonempty. "
+                "After-save warnings preserve success. Before-save errors: "
+                "WRITE_PLUGIN_REJECTED or WRITE_PLUGIN_UNAVAILABLE."
+            ),
             "examples": [
                 'execute_forgetful_tool("delete_skill", {"skill_id": 1})',
             ],

@@ -15,6 +15,10 @@ from app.models.write_plugin_models import (
     EntityRelationshipWriteRequest,
     EntitySavedRequest,
     EntityWriteRequest,
+    FileDeletedRequest,
+    FileOperation,
+    FileSavedRequest,
+    FileWriteRequest,
     MemoryLifecycleRequest,
     MemoryLinkOperation,
     MemoryLinkRequest,
@@ -161,6 +165,50 @@ class MemoryLinkPlugin:
             for operation, handler in handlers.items():
                 if operation not in get_args(MemoryLinkOperation):
                     raise ValueError(f"{phase} contains an unsupported memory-link operation")
+                if not inspect.iscoroutinefunction(handler):
+                    raise ValueError(f"{phase} handlers must be async functions")
+                try:
+                    inspect.signature(handler).bind(object())
+                except (TypeError, ValueError):
+                    raise ValueError(f"{phase} handlers must accept one context argument") from None
+            object.__setattr__(self, phase, MappingProxyType(handlers))
+
+
+class FileBeforeSave(Protocol):
+    async def __call__(self, request: FileWriteRequest) -> WriteDecision:
+        ...
+
+
+class FileAfterSave(Protocol):
+    async def __call__(
+        self, request: FileSavedRequest | FileDeletedRequest,
+    ) -> PluginWarning | None:
+        ...
+
+
+@dataclass(frozen=True)
+class FilePlugin:
+    """One administrator registration for file create, update and delete.
+
+    The contract (phases, decisions, warning shape, registration rules) is the
+    Memory Plugin introduced in PR #164. The implementation precedent, which this
+    mirrors function for function, is the Entity Plugin in PR #184. Keep those two
+    in step: a change to the contract belongs to #164's shape, and a change to how
+    a phase is dispatched belongs to #184's shape.
+    """
+
+    before_save: Mapping[FileOperation, FileBeforeSave] = field(default_factory=dict)
+    after_save: Mapping[FileOperation, FileAfterSave] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        for phase in ("before_save", "after_save"):
+            handlers = getattr(self, phase)
+            if not isinstance(handlers, Mapping):
+                raise ValueError(f"{phase} must be an operation-to-handler mapping")
+            handlers = dict(handlers)
+            for operation, handler in handlers.items():
+                if operation not in get_args(FileOperation):
+                    raise ValueError(f"{phase} contains an unsupported file operation")
                 if not inspect.iscoroutinefunction(handler):
                     raise ValueError(f"{phase} handlers must be async functions")
                 try:

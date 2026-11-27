@@ -14,6 +14,14 @@ from app.config.settings import settings
 from app.exceptions import NotFoundError
 from app.models.activity_models import ActionType, ActivityEvent, ActorType, EntityType
 from app.models.file_models import File, FileCreate, FileSummary, FileUpdate
+from app.models.write_plugin_models import (
+    FileDeletedRequest,
+    FileDeleteResult,
+    FileDeleteSubmission,
+    FileSavedRequest,
+    FileWriteRequest,
+    FileWriteResult,
+)
 from app.protocols.file_protocol import FileRepository
 from app.utils.file_snapshot import file_snapshot
 from app.utils.provenance import (
@@ -24,6 +32,7 @@ from app.utils.pydantic_helper import get_changed_fields
 
 if TYPE_CHECKING:
     from app.events import EventBus
+    from app.services.file_write_plugin_service import FileWritePluginService
 
 logger = logging.getLogger(__name__)
 
@@ -39,15 +48,18 @@ class FileService:
         self,
         file_repo: FileRepository,
         event_bus: "EventBus | None" = None,
+        write_plugin: "FileWritePluginService | None" = None,
     ):
         """Initialize with repository protocol (not concrete implementation)
 
         Args:
             file_repo: File repository implementing the protocol
             event_bus: Optional event bus for activity tracking
+            write_plugin: Optional File Plugin runner
         """
         self.file_repo = file_repo
         self._event_bus = event_bus
+        self._write_plugin = write_plugin
         logger.info("File service initialized")
 
     async def _emit_event(
@@ -88,7 +100,7 @@ class FileService:
         self,
         user_id: UUID,
         file_data: FileCreate,
-    ) -> File:
+    ) -> FileWriteResult:
         """Create new file
 
         Args:
@@ -96,7 +108,7 @@ class FileService:
             file_data: FileCreate with filename, description, data (base64), mime_type, tags
 
         Returns:
-            Created File with generated ID, size_bytes, and timestamps
+            Created File with generated ID, size_bytes, and timestamps, plus plugin warnings
         """
         logger.info(
             "creating file",
@@ -107,7 +119,18 @@ class FileService:
             },
         )
 
+        submitted = file_data.model_copy(deep=True)
         file_data = apply_provenance_defaults(file_data)
+        plugin_warnings = []
+        if self._write_plugin and self._write_plugin.has_before("create"):
+            plugin_warnings = await self._write_plugin.before_save(FileWriteRequest(
+                operation="create", user_id=user_id, submitted=submitted, previous=None,
+                # model_construct: the caller already validated, and re-validating
+                # would decode the whole base64 payload a second time.
+                proposed=FileCreate.model_construct(
+                    **file_data.model_dump(include=set(FileCreate.model_fields)),
+                ),
+            ))
         file = await self.file_repo.create_file(
             user_id=user_id,
             file_data=file_data,
@@ -129,7 +152,12 @@ class FileService:
             snapshot=self._snapshot_without_data(file),
         )
 
-        return file
+        if self._write_plugin:
+            plugin_warnings += await self._write_plugin.after_save(FileSavedRequest(
+                operation="create", user_id=user_id, previous=None, saved=file,
+            ))
+
+        return FileWriteResult(file=file, plugin_warnings=plugin_warnings)
 
     async def get_file(
         self,
@@ -289,7 +317,7 @@ class FileService:
         user_id: UUID,
         file_id: int,
         file_data: FileUpdate,
-    ) -> File:
+    ) -> FileWriteResult:
         """Update existing file (PATCH semantics)
 
         Only provided fields are updated. None/omitted fields remain unchanged.
@@ -300,7 +328,7 @@ class FileService:
             file_data: FileUpdate with fields to change
 
         Returns:
-            Updated File
+            Updated File plus plugin warnings
 
         Raises:
             NotFoundError: If file not found or not owned by user
@@ -313,6 +341,10 @@ class FileService:
             },
         )
 
+        submitted = file_data.model_copy(deep=True)
+        # Null policy is unchanged by this feature. An explicit null is a submitted
+        # value and reaches the repository as it does without a plugin, so a
+        # nullable column is cleared by one and a required column still fails.
         file_data = apply_provenance_defaults_for_update(file_data)
 
         existing_file = await self.file_repo.get_file_by_id(
@@ -326,6 +358,33 @@ class FileService:
         changed_fields = get_changed_fields(
             input_model=file_data, existing_model=existing_file,
         )
+
+        plugin_warnings = []
+        if changed_fields and self._write_plugin and self._write_plugin.has_before("update"):
+            # Merged view of the file as it will be after the update, matching the
+            # snapshot rule set by the Memory Plugin contract (PR #164) and implemented
+            # for entity writes in PR #184: a full snapshot, not just changed fields.
+            # model_construct avoids re-decoding ``data``; both inputs are validated.
+            proposed_data = existing_file.model_dump(include=set(FileCreate.model_fields))
+            proposed_data.update(file_data.model_dump(exclude_unset=True))
+            proposed = FileCreate.model_construct(**proposed_data)
+            plugin_warnings = await self._write_plugin.before_save(FileWriteRequest(
+                operation="update", user_id=user_id, submitted=submitted,
+                previous=existing_file.model_copy(deep=True), proposed=proposed,
+            ))
+            existing_file = await self.file_repo.get_file_by_id(
+                user_id=user_id,
+                file_id=file_id,
+            )
+            if not existing_file:
+                raise NotFoundError(f"File {file_id} not found")
+            changed_fields = get_changed_fields(
+                input_model=file_data, existing_model=existing_file,
+            )
+            if not changed_fields:
+                return FileWriteResult(
+                    file=existing_file, plugin_warnings=plugin_warnings,
+                )
 
         file = await self.file_repo.update_file(
             user_id=user_id,
@@ -357,14 +416,19 @@ class FileService:
                     snapshot=self._snapshot_without_data(file),
                     changes=changes_dict,
                 )
+            if self._write_plugin:
+                previous = existing_file.model_copy(deep=True)
+                plugin_warnings += await self._write_plugin.after_save(FileSavedRequest(
+                    operation="update", user_id=user_id, saved=file, previous=previous,
+                ))
 
-        return file
+        return FileWriteResult(file=file, plugin_warnings=plugin_warnings)
 
     async def delete_file(
         self,
         user_id: UUID,
         file_id: int,
-    ) -> bool:
+    ) -> FileDeleteResult:
         """Delete file (cascade removes memory/entity associations)
 
         Args:
@@ -372,7 +436,7 @@ class FileService:
             file_id: File ID to delete
 
         Returns:
-            True if deleted, False if not found or not owned by user
+            Whether the file was deleted, plus any plugin warnings
         """
         logger.info(
             "deleting file",
@@ -386,6 +450,20 @@ class FileService:
             user_id=user_id,
             file_id=file_id,
         )
+
+        plugin_warnings = []
+        if existing_file and self._write_plugin and self._write_plugin.has_before("delete"):
+            plugin_warnings = await self._write_plugin.before_save(FileWriteRequest(
+                operation="delete", user_id=user_id,
+                submitted=FileDeleteSubmission(file_id=file_id),
+                previous=existing_file.model_copy(deep=True), proposed=None,
+            ))
+            existing_file = await self.file_repo.get_file_by_id(
+                user_id=user_id,
+                file_id=file_id,
+            )
+            if not existing_file:
+                return FileDeleteResult(deleted=False, plugin_warnings=plugin_warnings)
 
         success = await self.file_repo.delete_file(
             user_id=user_id,
@@ -418,4 +496,10 @@ class FileService:
                 },
             )
 
-        return success
+        if success and existing_file and self._write_plugin:
+            plugin_warnings += await self._write_plugin.after_save(FileDeletedRequest(
+                operation="delete", user_id=user_id,
+                deleted_file_id=file_id, previous=existing_file,
+            ))
+
+        return FileDeleteResult(deleted=success, plugin_warnings=plugin_warnings)

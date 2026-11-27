@@ -232,6 +232,7 @@ async def build_runtime() -> Runtime:
     from app.config.write_plugin import (
         load_entity_plugin,
         load_entity_relationship_plugin,
+        load_file_plugin,
         load_memory_link_plugin,
         load_write_plugin,
     )
@@ -239,6 +240,7 @@ async def build_runtime() -> Runtime:
         EntityRelationshipPluginService,
     )
     from app.services.entity_write_plugin_service import EntityWritePluginService
+    from app.services.file_write_plugin_service import FileWritePluginService
     from app.services.memory_link_service import MemoryLinkService
     from app.services.plan_write_plugin_service import PlanWritePluginService
     from app.services.write_plugin_service import WritePluginService
@@ -247,6 +249,7 @@ async def build_runtime() -> Runtime:
     plugin = load_write_plugin(settings)
     entity_plugin = load_entity_plugin(settings)
     relationship_registration = load_entity_relationship_plugin(settings)
+    file_registration = load_file_plugin(settings)
     plan_registration = load_plan_plugin(settings)
     plugin_logger_states = {}
     for registration, reference in (
@@ -284,6 +287,11 @@ async def build_runtime() -> Runtime:
         timeout_seconds=settings.ENTITY_RELATIONSHIP_PLUGIN_TIMEOUT_SECONDS,
     ) if relationship_registration is not None else None)
 
+    file_write_plugin = (FileWritePluginService(
+        file_registration, mode=settings.FILE_WRITE_PLUGIN_MODE,
+        timeout_seconds=settings.FILE_WRITE_PLUGIN_TIMEOUT_SECONDS,
+    ) if file_registration is not None else None)
+
     plan_plugin = (PlanWritePluginService(
         plan_registration, mode=settings.PLAN_WRITE_PLUGIN_MODE,
         timeout_seconds=settings.PLAN_WRITE_PLUGIN_TIMEOUT_SECONDS,
@@ -309,6 +317,7 @@ async def build_runtime() -> Runtime:
         logging.getLogger("app.services.entity_write_plugin_service").disabled = False
         logging.getLogger("app.services.entity_relationship_plugin_service").disabled = False
         logging.getLogger("app.services.plan_write_plugin_service").disabled = False
+        logging.getLogger("app.services.file_write_plugin_service").disabled = False
         logging.getLogger("app.services.memory_link_service").disabled = False
         for plugin_logger, was_disabled in plugin_logger_states.items():
             plugin_logger.disabled = was_disabled
@@ -364,7 +373,9 @@ async def build_runtime() -> Runtime:
 
         if settings.FILES_ENABLED:
             from app.services.file_service import FileService
-            file_service = FileService(repos["file"], event_bus=event_bus)
+            file_service = FileService(
+                repos["file"], event_bus=event_bus, write_plugin=file_write_plugin,
+            )
             logger.info("Files feature enabled")
         else:
             logger.info("Files feature disabled (FILES_ENABLED=false)")

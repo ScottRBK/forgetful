@@ -13,6 +13,7 @@ from app.models.entity_models import (
     EntityRelationshipUpdate,
     EntityUpdate,
 )
+from app.models.file_models import File, FileCreate, FileUpdate
 from app.models.memory_models import Memory, MemoryCreate, MemorySummary, MemoryUpdate
 
 MemoryOperation = Literal["create", "update", "obsolete", "restore"]
@@ -249,3 +250,44 @@ class MemoryLinkResult(BaseModel):
 
 
 MemoryCreateResult.model_rebuild()
+
+
+FileOperation = Literal["create", "update", "delete"]
+
+
+class FileDeleteSubmission(BaseModel):
+    file_id: int
+
+
+class FileWriteRequest(BaseModel):
+    """Detached domain snapshots; operation distinguishes create, update, and delete."""
+
+    operation: FileOperation
+    user_id: UUID
+    submitted: FileCreate | FileUpdate | FileDeleteSubmission
+    previous: File | None
+    proposed: FileCreate | FileUpdate | None
+
+
+class FileSavedRequest(BaseModel):
+    operation: Literal["create", "update"]
+    user_id: UUID
+    saved: File
+    previous: File | None
+
+
+class FileDeletedRequest(BaseModel):
+    operation: Literal["delete"] = "delete"
+    user_id: UUID
+    deleted_file_id: int
+    previous: File
+
+
+class FileWriteResult(BaseModel):
+    file: File
+    plugin_warnings: list[PluginWarning] = Field(default_factory=list)
+
+
+class FileDeleteResult(BaseModel):
+    deleted: bool
+    plugin_warnings: list[PluginWarning] = Field(default_factory=list)

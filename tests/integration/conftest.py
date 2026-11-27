@@ -2590,3 +2590,74 @@ plugin = EntityRelationshipPlugin(
     import sys
 
     sys.modules.pop(module_name, None)
+
+@pytest.fixture
+def file_plugin_runtime(sqlite_runtime_settings, monkeypatch, tmp_path):
+    monkeypatch.setattr("app.bootstrap.check_first_run_models", lambda: None)
+    monkeypatch.syspath_prepend(str(tmp_path))
+    module_name = "runtime_file_checks"
+    (tmp_path / f"{module_name}.py").write_text("""
+from app.models.write_plugin_models import PluginWarning, WriteDecision
+from app.protocols.write_plugin_protocol import FilePlugin
+
+async def decide(request):
+    if request.operation == "delete":
+        tags = request.previous.tags if request.previous else []
+        if "delete_blocked" in tags:
+            return WriteDecision(outcome="reject", message="Remove the blocked tag.")
+        if "delete_warn" in tags:
+            return WriteDecision(outcome="warn", message="Check the source.", code="source")
+        if "delete_error" in tags:
+            raise RuntimeError("SECRET")
+        return WriteDecision(outcome="allow")
+    if request.proposed and "blocked" in request.proposed.tags:
+        return WriteDecision(outcome="reject", message="Remove the blocked tag.")
+    if request.proposed and "warn" in request.proposed.tags:
+        return WriteDecision(outcome="warn", message="Check the source.", code="source")
+    if request.proposed and "error" in request.proposed.tags:
+        raise RuntimeError("SECRET")
+    return WriteDecision(outcome="allow")
+
+async def after(request):
+    if "after_warn" in request.saved.tags:
+        return PluginWarning(message="Post-save check.", code="post")
+    return None
+
+plugin = FilePlugin(
+    before_save={"create": decide, "update": decide, "delete": decide},
+    after_save={"create": after, "update": after},
+)
+""")
+    from app.config.settings import settings
+
+    monkeypatch.setattr(settings, "FILE_WRITE_PLUGIN", f"{module_name}:plugin")
+    monkeypatch.setattr(settings, "FILE_WRITE_PLUGIN_MODE", "enforce")
+    yield module_name
+    import sys
+
+    sys.modules.pop(module_name, None)
+
+
+@pytest.fixture
+async def file_store(sqlite_runtime_settings, monkeypatch):
+    from app.config.settings import settings
+    from app.events import EventBus
+    from app.models.user_models import UserCreate
+    from app.repositories.sqlite.file_repository import SqliteFileRepository
+    from app.repositories.sqlite.sqlite_adapter import SqliteDatabaseAdapter
+    from app.repositories.sqlite.user_repository import SqliteUserRepository
+    from app.services.user_service import UserService
+
+    monkeypatch.setattr(settings, "ACTIVITY_TRACK_READS", False)
+    db = SqliteDatabaseAdapter()
+    await db.init_db()
+    repo = SqliteFileRepository(db)
+    user = await UserService(SqliteUserRepository(db)).get_or_create_user(
+        UserCreate(external_id="file-plugin-test", name="File plugin", email="fp@example.com"),
+    )
+    bus = EventBus()
+    try:
+        yield repo, user.id, bus
+    finally:
+        await bus.wait_for_pending()
+        await db.dispose()

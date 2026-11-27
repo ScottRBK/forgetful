@@ -9,7 +9,11 @@ from pydantic import ValidationError
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-from app.exceptions import NotFoundError
+from app.exceptions import (
+    NotFoundError,
+    WritePluginRejectedError,
+    WritePluginUnavailableError,
+)
 from app.middleware.auth import get_user_from_request
 from app.models.file_models import (
     FileCreate,
@@ -17,6 +21,7 @@ from app.models.file_models import (
 )
 from app.routes.api.list_pagination import parse_list_pagination
 from app.routes.api.params import parse_path_int
+from app.routes.write_plugin_responses import FileDeleteResponse, FileWriteResponse
 
 logger = logging.getLogger(__name__)
 
@@ -114,14 +119,21 @@ def register(mcp: FastMCP):
             return JSONResponse({"error": e.errors()}, status_code=400)
 
         try:
-            file = await mcp.file_service.create_file(
+            write_result = await mcp.file_service.create_file(
                 user_id=user.id,
                 file_data=file_data,
             )
+        except WritePluginRejectedError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        except WritePluginUnavailableError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=503)
         except NotFoundError as e:
             return JSONResponse({"error": str(e)}, status_code=404)
 
-        return JSONResponse(file.model_dump(mode="json"), status_code=201)
+        response = FileWriteResponse(
+            **write_result.file.model_dump(), plugin_warnings=write_result.plugin_warnings,
+        )
+        return JSONResponse(response.model_dump(mode="json"), status_code=201)
 
     @mcp.custom_route("/api/v1/files/{file_id}", methods=["PUT"])
     async def update_file(request: Request) -> JSONResponse:
@@ -143,15 +155,22 @@ def register(mcp: FastMCP):
             return JSONResponse({"error": e.errors()}, status_code=400)
 
         try:
-            file = await mcp.file_service.update_file(
+            write_result = await mcp.file_service.update_file(
                 user_id=user.id,
                 file_id=file_id,
                 file_data=update_data,
             )
+        except WritePluginRejectedError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        except WritePluginUnavailableError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=503)
         except NotFoundError:
             return JSONResponse({"error": "File not found"}, status_code=404)
 
-        return JSONResponse(file.model_dump(mode="json"))
+        response = FileWriteResponse(
+            **write_result.file.model_dump(), plugin_warnings=write_result.plugin_warnings,
+        )
+        return JSONResponse(response.model_dump(mode="json"))
 
     @mcp.custom_route("/api/v1/files/{file_id}", methods=["DELETE"])
     async def delete_file(request: Request) -> JSONResponse:
@@ -167,14 +186,21 @@ def register(mcp: FastMCP):
             return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
-            success = await mcp.file_service.delete_file(
+            delete_result = await mcp.file_service.delete_file(
                 user_id=user.id,
                 file_id=file_id,
             )
+        except WritePluginRejectedError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        except WritePluginUnavailableError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=503)
         except NotFoundError:
             return JSONResponse({"error": "File not found"}, status_code=404)
 
-        if not success:
+        if not delete_result.deleted:
             return JSONResponse({"error": "File not found"}, status_code=404)
 
-        return JSONResponse({"success": True})
+        response = FileDeleteResponse(
+            success=True, plugin_warnings=delete_result.plugin_warnings,
+        )
+        return JSONResponse(response.model_dump(mode="json"))

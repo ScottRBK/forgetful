@@ -723,6 +723,71 @@ before-save uses `EntityDeleteSubmission`; `proposed` is `None` for delete. Miss
 delete skip both phases. No-op updates skip the plugin but still run the repository update.
 Association rows removed by database `ON DELETE CASCADE` are not visible to the plugin.
 
+### File Plugin
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `FILE_WRITE_PLUGIN` | empty | Importable `module:object` containing a `FilePlugin` |
+| `FILE_WRITE_PLUGIN_MODE` | `enforce` | `warn` or `enforce`, for **before_save only** |
+| `FILE_WRITE_PLUGIN_TIMEOUT_SECONDS` | `5.0` | Positive, finite deadline for each handler |
+
+Registration, startup validation, before/after semantics, and response shapes mirror the Memory
+Plugin above, scoped to file `create`, `update`, and `delete` through `FileService`. Context types
+are `FileWriteRequest`, `FileSavedRequest`, and `FileDeletedRequest`. Delete before-save uses
+`FileDeleteSubmission`; `proposed` is `None` for delete. Missing files on delete skip both phases.
+
+No-op updates skip the plugin but still run the repository update. Explicit `null` PATCH fields are
+stripped before change detection, so sending the same value is a no-op and runs no handler.
+
+`File` snapshots include the base64 `data` payload, because a handler that hashes or inspects
+content needs it. Handlers receive the saved file, so keep handler logging free of `data`; the
+service never logs plugin payloads.
+
+#### What the File Plugin does not see
+
+A handler runs only for `create_file`, `update_file` and `delete_file` on `FileService`, and it
+receives the snapshot of that one file row. Every other way a file row or its links change reaches
+the database without firing a phase. This is deliberate: adding hooks to cascades would mean
+running administrator code inside other objects' write paths.
+
+Deleting a file row cascades at the database:
+
+| Table | Column | On file delete | Hook fires |
+| --- | --- | --- | --- |
+| `memory_file_association` | `file_id` | row deleted (`ON DELETE CASCADE`) | no |
+| `entity_file_association` | `file_id` | row deleted (`ON DELETE CASCADE`) | no |
+| `skill_file_association` | `file_id` | row deleted (`ON DELETE CASCADE`) | no |
+| `skill_bundle_resources` | `file_id` | set to `NULL` (`ON DELETE SET NULL`) | no |
+
+The last row is worth knowing about, and it is not harmless. A skill bundle resource of kind `file`
+keeps its row and loses its `file_id`, because the table's check constraint does not require
+`file_id` to be present. No code path cleans those rows up. Reading the owning skill's bundle
+afterwards raises `ValueError("Bundle member '<path>' was deleted")` from
+`app/repositories/skill_bundle_export.py`, so the whole bundle becomes unreadable until the
+resource row is removed. A `delete` hook cannot prevent it and does not see it.
+
+Indirect mutations of a file row fire nothing either:
+
+| Action | Effect on files | Hook fires |
+| --- | --- | --- |
+| Delete a project | `files.project_id` set to `NULL` | no |
+| Delete a memory, entity or skill | its `*_file_association` rows cascade away | no |
+| Link or unlink a file on a memory, entity or skill | association row added or removed | no |
+| Delete a user | the user's `files` rows cascade away | no |
+
+Consequences for a plugin author:
+
+- A before-save `delete` handler sees the file about to go and its pre-deletion snapshot. It cannot
+  inspect, block or count the association rows that will be removed with it, and it cannot stop the
+  skill bundle resource from being orphaned. Query those tables yourself if a rule needs them.
+- A rule that must run when a file gains or loses an association belongs on the object being
+  written (the Memory, Entity or Skill plugin), not on the File Plugin.
+- `update_file` only fires when `FileService.update_file` is called. Writing `project_id` back to
+  `NULL` through project deletion, and association changes made from the other side, are invisible.
+
+Both databases behave the same way. The SQLite adapter enables `PRAGMA foreign_keys=ON` per
+connection, so these cascades and `SET NULL`s are enforced there too, not only in Postgres.
+
 ### Entity Relationship Plugin
 
 | Setting | Default | Meaning |
