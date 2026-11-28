@@ -40,8 +40,8 @@ Forgetful repo.
 
 ## Optional feature discovery over HTTP
 
-`GET <application-base>/.well-known` publicly reports enabled planning, skills, files, and activity
-streaming without creating a user. Keep any deployment prefix: for a server at
+`GET <application-base>/.well-known` publicly reports enabled planning, skills, files, UI hosting,
+and activity streaming without creating a user. Keep any deployment prefix: for a server at
 `https://host/forgetful/mcp`, use `https://host/forgetful/.well-known`. These settings are not a
 health or permission check. Treat missing keys or unsupported schema versions as unknown, not
 disabled. See `docs/api_reference.md` for the capability document. MCP tool discovery is unchanged.

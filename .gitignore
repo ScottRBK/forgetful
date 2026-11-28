@@ -43,3 +43,6 @@ result-*
 
 # Retrieval benchmark generated artefacts
 benchmarks/retrieval/output/
+
+# Built web UI bundle (build output, never committed)
+app/web/ui/

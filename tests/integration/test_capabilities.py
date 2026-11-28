@@ -17,7 +17,7 @@ from app.config.settings import settings
 from app.routes.api import capabilities
 
 ROOT = Path(__file__).resolve().parents[2]
-FLAGS = ("PLANNING_ENABLED", "SKILLS_ENABLED", "FILES_ENABLED", "ACTIVITY_ENABLED")
+FLAGS = ("PLANNING_ENABLED", "SKILLS_ENABLED", "FILES_ENABLED", "UI_ENABLED", "ACTIVITY_ENABLED")
 CORE_LIMITS = {"memory", "entity", "entity_relationship", "document", "code_artifact", "project"}
 BOUND_KEYS = {"max_length", "max_items", "max_decoded_bytes"}
 
@@ -25,7 +25,7 @@ BOUND_KEYS = {"max_length", "max_items", "max_decoded_bytes"}
 @pytest.fixture
 def capability_server(monkeypatch):
     """No domain services are attached: discovery must not need or create them."""
-    for flag in ("PLANNING_ENABLED", "SKILLS_ENABLED", "FILES_ENABLED", "ACTIVITY_ENABLED"):
+    for flag in ("PLANNING_ENABLED", "SKILLS_ENABLED", "FILES_ENABLED", "UI_ENABLED", "ACTIVITY_ENABLED"):
         monkeypatch.setattr(settings, flag, False)
     server = FastMCP("Capability test")
     capabilities.register(server)
@@ -35,7 +35,7 @@ def capability_server(monkeypatch):
 @pytest.mark.parametrize("prefix", ["", "/forgetful"])
 async def test_capabilities_available_with_all_features_disabled(monkeypatch, prefix):
     # Arrange: use the production routes, without starting the domain runtime.
-    for flag in ("PLANNING_ENABLED", "SKILLS_ENABLED", "FILES_ENABLED", "ACTIVITY_ENABLED"):
+    for flag in ("PLANNING_ENABLED", "SKILLS_ENABLED", "FILES_ENABLED", "UI_ENABLED", "ACTIVITY_ENABLED"):
         monkeypatch.setattr(settings, flag, False)
     import main
 
@@ -59,6 +59,7 @@ async def test_capabilities_available_with_all_features_disabled(monkeypatch, pr
         "planning": False,
         "skills": False,
         "files": False,
+        "ui": False,
         "activity_stream": False,
     }
     assert set(body["limits"]) == CORE_LIMITS
@@ -68,16 +69,24 @@ async def test_capabilities_available_with_all_features_disabled(monkeypatch, pr
     "flag, expected, feature_limits",
     [
         ("PLANNING_ENABLED", {
-            "planning": True, "skills": False, "files": False, "activity_stream": False,
+            "planning": True, "skills": False, "files": False, "ui": False,
+            "activity_stream": False,
         }, {"plan", "task", "criterion"}),
         ("SKILLS_ENABLED", {
-            "planning": False, "skills": True, "files": False, "activity_stream": False,
+            "planning": False, "skills": True, "files": False, "ui": False,
+            "activity_stream": False,
         }, {"skill", "skill_bundle"}),
         ("FILES_ENABLED", {
-            "planning": False, "skills": False, "files": True, "activity_stream": False,
+            "planning": False, "skills": False, "files": True, "ui": False,
+            "activity_stream": False,
         }, {"file"}),
+        ("UI_ENABLED", {
+            "planning": False, "skills": False, "files": False, "ui": True,
+            "activity_stream": False,
+        }, set()),
         ("ACTIVITY_ENABLED", {
-            "planning": False, "skills": False, "files": False, "activity_stream": True,
+            "planning": False, "skills": False, "files": False, "ui": False,
+            "activity_stream": True,
         }, set()),
     ],
 )

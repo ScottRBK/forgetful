@@ -80,6 +80,12 @@ source = "vcs"
 [tool.hatch.build.hooks.vcs]
 version-file = "app/_version.py"
 
+# The web UI bundle is a build output, not source. The hook includes it when a
+# build has produced it, and fails the build when FORGETFUL_REQUIRE_UI_BUNDLE=1
+# and it is missing, so a release cannot ship an empty UI by accident.
+[tool.hatch.build.hooks.custom]
+path = "hatch_build.py"
+
 [tool.hatch.build.targets.wheel]
 packages = ["app", "main.py"]
 
@@ -88,7 +94,7 @@ packages = ["app", "main.py"]
 "alembic" = "alembic"
 
 [tool.hatch.build.targets.sdist]
-include = ["app", "main.py", "alembic.ini", "alembic/", "README.md", "LICENCE.md"]
+include = ["app", "main.py", "alembic.ini", "alembic/", "README.md", "LICENCE.md", "hatch_build.py", "ui_bundle.py"]
 
 [tool.importlinter]
 root_package = "app"

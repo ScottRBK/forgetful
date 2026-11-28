@@ -72,6 +72,7 @@ In addition to just memories, **Forgetful** also has the concept of entities (th
 - Automatic linking of semantically similar memories, automating the creation of the knowledge graph.
 - Plans and Tasks for multi-agent coordination -- structure work into plans with tasks that have acceptance criteria, state management with optimistic locking, and dependency tracking with cycle detection.
 - Skills for procedural memory -- store step-by-step instructions and agent capabilities with semantic search, import/export in Agent Skills SKILL.md format, and cross-referencing with memories.
+- Optional built-in web UI -- the server can host the read-only [forgetful-ui](https://github.com/ScottRBK/forgetful-ui) bundle at `/ui/`; off unless `UI_ENABLED=true`. See [Web UI hosting](docs/ui.md).
 
 For the complete roadmap, see [Features Roadmap](docs/features_roadmap.md).
 

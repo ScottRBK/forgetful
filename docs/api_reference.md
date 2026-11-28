@@ -104,6 +104,7 @@ hardcoded route. This project-specific endpoint is separate from OAuth's standar
     "planning": true,
     "skills": false,
     "files": true,
+    "ui": false,
     "activity_stream": false
   },
   "limits": {
@@ -129,6 +130,7 @@ Each value maps directly to the settings singleton:
 | `planning` | `PLANNING_ENABLED` | Plans and tasks are enabled together. |
 | `skills` | `SKILLS_ENABLED` | Skill operations are enabled. |
 | `files` | `FILES_ENABLED` | File operations are enabled. |
+| `ui` | `UI_ENABLED` | The built-in web UI is served at `/ui/`. |
 | `activity_stream` | `ACTIVITY_ENABLED` | Activity tracking and live streaming are enabled. |
 
 `activity_stream: false` does not disable queries of previously stored activity history.
@@ -162,6 +164,13 @@ missing `limits` key means the server does not publish limits. Only an explicit 
 means disabled; a missing key, unsupported schema version, or unavailable document means unknown.
 Older servers may not provide this endpoint. Clients may fall back to probing a feature route, but
 must not treat authentication errors, routing errors, or temporary outages as a disabled feature.
+
+Adding a capability does not change `schema_version`. A new key is a compatible change for clients
+that follow the rule above, so a server can advertise a newly optional feature without a coordinated
+release. Change the version only when the change is not additive: removing or renaming a capability,
+or changing what an existing boolean means. A bump is a breaking release, because a client that
+compares `schema_version` for equality against `1` will treat any other value as unsupported and stop
+reporting capabilities altogether.
 
 ---
 

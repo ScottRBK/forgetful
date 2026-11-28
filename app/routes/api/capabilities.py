@@ -82,6 +82,7 @@ def register(mcp: FastMCP):
                 "planning": settings.PLANNING_ENABLED,
                 "skills": settings.SKILLS_ENABLED,
                 "files": settings.FILES_ENABLED,
+                "ui": settings.UI_ENABLED,
                 "activity_stream": settings.ACTIVITY_ENABLED,
             },
             "limits": published_limits(),

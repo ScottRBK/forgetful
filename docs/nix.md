@@ -176,6 +176,41 @@ Recorded so nobody re-derives them.
 | Test tiers | sandbox tiers as checks; PostgreSQL tier opt-in | `nix flake check` with zero authored checks passes while proving nothing |
 | Architectures | `x86_64-linux`, `aarch64-linux`, `aarch64-darwin` | see caveat below |
 | flake-compat | included | zero cost to flake-native users; the shim is read from `flake.lock` |
+| Web UI source | flake input pinned by revision, not a git submodule | see below |
+
+### Web UI bundle
+
+The server can host the built UI, and a Nix install must ship a real bundle: the
+bundle is a gitignored build output, so a clean source tree has none and
+`UI_ENABLED=true` would serve nothing. The `forgetful-ui` flake input is consumed
+as a flake, and `packages.ui-bundle` re-exposes that project's own `default`
+package, which `forgetful-ai` installs at `lib/app/web/ui` inside the store. Node
+is a build-time dependency of the UI project, not of this one.
+
+Building it here was a second copy of the same recipe: its own dependency hash,
+its own version string, and nothing asserting that the directory it produced had
+an `index.html` and the chunk that index references. The UI project builds that
+bundle and checks its shape with `bundleCheck`, so consuming the output drops the
+hash, the version and the drift between the two.
+
+The input is pinned by revision and carries a `narHash` in `flake.lock`, so the
+bundle is reproducible and content-addressed. The UI flake lists `x86_64-linux`
+as its only system, so evaluating the bundle for another architecture fails here
+with that message instead of a missing-attribute error.
+
+**Why not a git submodule.** A submodule would also pin a commit, and for
+`docker build` and a plain checkout it is the more obvious tool. It fails the
+one requirement that matters here: flake source fetching does not include
+submodule contents, so `inputs.self` would contain an empty directory where the
+UI should be. The bundle derivation would have nothing to build, and the fix
+would be a second, differently-pinned copy of the same repository — exactly the
+two-sources-of-truth problem the pinning is supposed to remove. A flake input is
+invisible to `pip` and `docker build`, so those paths use the same revision read
+from `flake.lock` instead: CI passes it to the container build as
+`FORGETFUL_UI_REV`, and the container fetches that commit, not a branch.
+
+`npm run build` runs with `--ignore-scripts`, because nothing in the build needs
+a post-install download and Playwright's browser fetch would fail in the sandbox.
 
 ### Rebuild scope
 

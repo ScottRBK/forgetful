@@ -195,9 +195,16 @@ class Settings(BaseSettings):
 
     # Skills Feature Flag
     SKILLS_ENABLED: bool = False
+
     # Portable skill package bounds (decoded text and binary bytes).
     SKILL_BUNDLE_MAX_RESOURCES: int = 100
     SKILL_BUNDLE_MAX_BYTES: int = 20_971_520
+
+    # Web UI Feature Flag
+    UI_ENABLED: bool = False                     # Serve the bundled web UI at /ui/
+
+    # Web UI Configuration (only relevant when UI_ENABLED=True)
+    UI_DIST_DIR: str = ""                        # Bundle override; empty uses package data
 
     # Skills Configuration
     SKILL_NAME_MAX_LENGTH: int = 64
@@ -207,6 +214,7 @@ class Settings(BaseSettings):
     SKILL_COMPATIBILITY_MAX_LENGTH: int = 500
     SKILL_ALLOWED_TOOLS_MAX_LENGTH: int = 2000
     SKILL_TAGS_MAX_COUNT: int = 10
+
 
     # Provenance Defaults (auto-applied to all writes when set via MCP env config)
     ENCODING_AGENT: str = ""        # Software running the agent (e.g., "OpenCode")

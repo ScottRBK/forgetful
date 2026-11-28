@@ -159,8 +159,12 @@ Run these checks against an image already present in your Docker daemon. They pr
 tokenizer caches with network access, then test startup and search with networking disabled.
 They also check the installed version and that data survives restart and container recreation.
 
+The image builds the web UI from the commit pinned in `flake.lock`, so pass that revision:
+
 ```bash
-docker build -f docker/Dockerfile --build-arg VERSION=0.0.0+dev -t forgetful:offline-test .
+docker build -f docker/Dockerfile --build-arg VERSION=0.0.0+dev \
+  --build-arg FORGETFUL_UI_REV="$(python3 -c "import json;print(json.load(open('flake.lock'))['nodes']['forgetful-ui']['locked']['rev'])")" \
+  -t forgetful:offline-test .
 FORGETFUL_TEST_IMAGE=forgetful:offline-test FORGETFUL_TEST_VERSION=0.0.0+dev \
   uv run pytest tests/docker/ -v
 ```

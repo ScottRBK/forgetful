@@ -172,8 +172,12 @@ image without requiring a registry pull.
 
 From the repository root, build an image and run the same check used by CI:
 
+The image builds the web UI from the commit pinned in `flake.lock`, so that revision is a required
+build argument. Read it from the lock file rather than passing a branch:
+
 ```bash
 docker build -f docker/Dockerfile --build-arg VERSION=0.0.0+dev \
+  --build-arg FORGETFUL_UI_REV="$(python3 -c "import json;print(json.load(open('flake.lock'))['nodes']['forgetful-ui']['locked']['rev'])")" \
   -t forgetful:offline-test .
 FORGETFUL_TEST_IMAGE=forgetful:offline-test \
   uv run --frozen --no-dev pytest tests/docker/ -v
