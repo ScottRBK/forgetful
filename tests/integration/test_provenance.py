@@ -254,12 +254,12 @@ async def test_document_service_applies_provenance_defaults(test_document_servic
             mock_settings.AGENT_MODEL = ""
             mock_settings.ENFORCE_ENV_OVERWRITE = False
 
-            doc = await test_document_service.create_document(
+            doc = (await test_document_service.create_document(
                 user_id=user_id,
                 document_data=DocumentCreate(
                     title="test doc", description="test", content="content",
                 ),
-            )
+            )).document
 
         mock_apply.assert_called_once()
 

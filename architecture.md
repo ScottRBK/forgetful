@@ -250,6 +250,13 @@ After failures return success with `MEMORY_PLUGIN_AFTER_SAVE_UNAVAILABLE`. The l
 `memory_tools.py` unwraps lifecycle results to bool, without becoming a supported plugin transport.
 CLI memory-save rendering shows warnings with success.
 
+**Document Plugin:** `load_document_plugin` in `app/config/write_plugin.py` mirrors the memory
+loader. `DocumentPlugin` maps `create`, `update`, and `delete` to async handlers; bootstrap
+injects `DocumentWritePluginService` into `DocumentService`. Delete on a missing document keeps the
+existing repository call without plugin hooks (unlike entity delete early return). Document delete
+DB cascades on memory/skill association tables and `SET NULL` on `project_id` when a project is
+removed are outside plugin visibility.
+
 Bootstrap restores the core diagnostic logger and pre-initialization states of existing loggers
 for the configured module, every handler's defining module, and their children after Alembic's
 logger-disabling setup. Re-exports, partial handlers, and intentionally disabled loggers are

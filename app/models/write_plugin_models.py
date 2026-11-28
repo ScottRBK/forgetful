@@ -1,10 +1,11 @@
-"""Detached contexts and results for the trusted Memory and Entity write plugins."""
+"""Detached contexts and results for trusted Memory, Entity, and Document write plugins."""
 
 from typing import Literal, Self
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from app.models.document_models import Document, DocumentCreate, DocumentUpdate
 from app.models.entity_models import (
     Entity,
     EntityCreate,
@@ -148,6 +149,47 @@ class EntityWriteResult(BaseModel):
 
 
 class EntityDeleteResult(BaseModel):
+    deleted: bool
+    plugin_warnings: list[PluginWarning] = Field(default_factory=list)
+
+
+DocumentOperation = Literal["create", "update", "delete"]
+
+
+class DocumentDeleteSubmission(BaseModel):
+    document_id: int
+
+
+class DocumentWriteRequest(BaseModel):
+    """Detached domain snapshots; operation distinguishes create, update, and delete."""
+
+    operation: DocumentOperation
+    user_id: UUID
+    submitted: DocumentCreate | DocumentUpdate | DocumentDeleteSubmission
+    previous: Document | None
+    proposed: DocumentCreate | None
+
+
+class DocumentSavedRequest(BaseModel):
+    operation: Literal["create", "update"]
+    user_id: UUID
+    saved: Document
+    previous: Document | None
+
+
+class DocumentDeletedRequest(BaseModel):
+    operation: Literal["delete"] = "delete"
+    user_id: UUID
+    deleted_document_id: int
+    previous: Document
+
+
+class DocumentWriteResult(BaseModel):
+    document: Document
+    plugin_warnings: list[PluginWarning] = Field(default_factory=list)
+
+
+class DocumentDeleteResult(BaseModel):
     deleted: bool
     plugin_warnings: list[PluginWarning] = Field(default_factory=list)
 

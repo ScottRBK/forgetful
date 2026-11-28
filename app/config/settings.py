@@ -68,6 +68,10 @@ class Settings(BaseSettings):
         default=5.0, gt=0, allow_inf_nan=False,
     )
 
+    DOCUMENT_WRITE_PLUGIN: str = ""
+    DOCUMENT_WRITE_PLUGIN_MODE: Literal["warn", "enforce"] = "enforce"
+    DOCUMENT_WRITE_PLUGIN_TIMEOUT_SECONDS: float = Field(default=5.0, gt=0, allow_inf_nan=False)
+
     # Database Configuration
     DATABASE: str = "SQLite"  # "Postgres" or "SQLite"
 

@@ -723,6 +723,28 @@ before-save uses `EntityDeleteSubmission`; `proposed` is `None` for delete. Miss
 delete skip both phases. No-op updates skip the plugin but still run the repository update.
 Association rows removed by database `ON DELETE CASCADE` are not visible to the plugin.
 
+### Document Plugin
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `DOCUMENT_WRITE_PLUGIN` | empty | Importable `module:object` containing a `DocumentPlugin` |
+| `DOCUMENT_WRITE_PLUGIN_MODE` | `enforce` | `warn` or `enforce`, for **before_save only** |
+| `DOCUMENT_WRITE_PLUGIN_TIMEOUT_SECONDS` | `5.0` | Positive, finite deadline for each handler |
+
+Registration, startup validation, before/after semantics, and response shapes mirror the Memory
+Plugin above, scoped to document `create`, `update`, and `delete` through `DocumentService`.
+Context types are `DocumentWriteRequest`, `DocumentSavedRequest`, and `DocumentDeletedRequest`.
+Delete before-save uses `DocumentDeleteSubmission`; `proposed` is `None` for delete. On update,
+`proposed` follows the same field merge as `DocumentRepository.update_document` (`exclude_unset`
+updates plus `size_bytes` recomputed when new `content` is truthy). Missing documents on delete
+still call the repository (no plugin). No-op updates skip the plugin but still run the repository
+update. A before-save allow decision does not bypass repository ownership checks (for example a
+foreign `project_id` still fails in the repository with no after-save). Document delete cascades
+remove `memory_document_association` and `skill_document_association` rows at the database; project
+delete sets `documents.project_id` to NULL. Those indirect changes do not invoke the plugin.
+Documents created during skill bundle import are written through `SkillRepository.create_skill_bundle`,
+not `DocumentService`, so the Document Plugin is not invoked for those rows.
+
 ### Entity Relationship Plugin
 
 | Setting | Default | Meaning |

@@ -805,7 +805,8 @@ Create a document for long-form content.
 - `project_id` (optional): Link to project
 
 **Returns:**
-- Created document with `document_id`
+- Flat document object after create, with `plugin_warnings` only when nonempty. Before-save
+  errors: `WRITE_PLUGIN_REJECTED` (correct the stated issue) or `WRITE_PLUGIN_UNAVAILABLE`.
 
 **Example:**
 ```python
@@ -912,7 +913,8 @@ Update document (PATCH semantics).
 - `title`, `content`, `document_type`, `description`, `tags` (all optional)
 
 **Returns:**
-- Updated document object
+- Flat document object after update, with `plugin_warnings` only when nonempty. Before-save
+  errors: `WRITE_PLUGIN_REJECTED` or `WRITE_PLUGIN_UNAVAILABLE`. No-op updates skip the plugin.
 
 **Example:**
 ```python
@@ -933,7 +935,8 @@ Delete document (cascades memory associations).
 - `document_id` (required): Document ID
 
 **Returns:**
-- Confirmation of deletion
+- Dict with `success`, `deleted_id`, and `plugin_warnings` only when nonempty. Before-save
+  errors: `WRITE_PLUGIN_REJECTED` or `WRITE_PLUGIN_UNAVAILABLE`.
 
 **Example:**
 ```python

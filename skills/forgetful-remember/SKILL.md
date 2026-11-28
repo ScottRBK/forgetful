@@ -142,3 +142,9 @@ responses. Only IDs actually created appear in `linked_memory_ids`; automatic `r
 links do not mean the memory failed to save. Do not retry a committed write because an
 advisory hook failed. Manual policy errors occur before any eligible batch links change.
 Unlink outcomes distinguish `removed` from `noop`. Reads contain neither transient field.
+
+## Document Plugin (administrator)
+
+When `DOCUMENT_WRITE_PLUGIN` is configured, `create_document` and document updates/deletes may
+return `plugin_warnings` or fail with `WRITE_PLUGIN_REJECTED` / `WRITE_PLUGIN_UNAVAILABLE` before
+persistence. After-save warnings are advisory; the mutation already succeeded.
