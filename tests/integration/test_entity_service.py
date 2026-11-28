@@ -1,10 +1,14 @@
 """Integration tests for EntityService with in-memory stubs
 """
+from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
 
+from app.config.settings import settings
 from app.exceptions import NotFoundError
+from app.models.activity_models import ActionType
+from app.models.activity_models import EntityType as ActivityEntityType
 from app.models.entity_models import (
     EntityCreate,
     EntityRelationshipCreate,
@@ -1172,3 +1176,29 @@ async def test_get_memory_entities_user_isolation(test_entity_service, mock_enti
 
     with pytest.raises(NotFoundError):
         await test_entity_service.get_memory_entities(uuid4(), 1)
+
+
+@pytest.mark.asyncio
+async def test_list_entities_emits_queried_event_with_q_metadata(
+    test_entity_service_with_event_bus,
+):
+    """list_entities(q=...) includes q in entity.queried metadata when read tracking is on."""
+    service, event_bus = test_entity_service_with_event_bus
+    user_id = uuid4()
+
+    entity_data = EntityCreate(
+        name="Acme Corp",
+        entity_type=EntityType.ORGANIZATION,
+        tags=["integration-q"],
+    )
+    await service.create_entity(user_id, entity_data)
+    event_bus.collected_events.clear()
+
+    with patch.object(settings, "ACTIVITY_TRACK_READS", True):
+        await service.list_entities(user_id=user_id, q="acme")
+
+    assert len(event_bus.collected_events) == 1
+    event = event_bus.collected_events[0]
+    assert event.entity_type == ActivityEntityType.ENTITY
+    assert event.action == ActionType.QUERIED
+    assert event.metadata["q"] == "acme"

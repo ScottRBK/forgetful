@@ -45,6 +45,7 @@ def register(mcp: FastMCP):
             entity_type: Filter by type (individual, organization, team, device, other)
             limit: Maximum results per page (1-100, default 20)
             offset: Number of results to skip (default 0)
+            q: Literal substring filter on name or one AKA value (ASCII case fold only)
         """
         try:
             user = await get_user_from_request(request, mcp)
@@ -87,9 +88,19 @@ def register(mcp: FastMCP):
                     status_code=400,
                 )
 
+        q = params.get("q")
+        if q == "":
+            q = None
+        if q is not None and "\x00" in q:
+            return JSONResponse(
+                {"error": "q must not contain NUL"},
+                status_code=400,
+            )
+
         entities, total = await mcp.entity_service.list_entities(
             user_id=user.id,
             entity_type=entity_type,
+            q=q,
             limit=limit,
             offset=offset,
         )

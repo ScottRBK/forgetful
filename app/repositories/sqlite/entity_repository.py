@@ -29,6 +29,7 @@ from app.repositories.sqlite.sqlite_tables import (
     entity_project_association,
     memory_entity_association,
 )
+from app.utils.text_folding import fold_ascii
 
 logger = logging.getLogger(__name__)
 
@@ -164,6 +165,7 @@ class SqliteEntityRepository:
         project_ids: list[int] | None = None,
         entity_type: EntityType | None = None,
         tags: list[str] | None = None,
+        q: str | None = None,
         limit: int = 20,
         offset: int = 0,
     ) -> tuple[list[EntitySummary], int]:
@@ -174,6 +176,7 @@ class SqliteEntityRepository:
             project_ids: Optional filter by project IDs (returns entities linked to ANY of these projects)
             entity_type: Optional filter by entity type
             tags: Optional filter by tags (returns entities with ANY of these tags)
+            q: Literal substring on name or one AKA value (ASCII case fold only)
             limit: Maximum number of entities to return (default 20)
             offset: Number of entities to skip (default 0)
 
@@ -191,6 +194,22 @@ class SqliteEntityRepository:
 
                 if entity_type:
                     conditions.append(EntitiesTable.entity_type == entity_type.value)
+
+                if q is not None:
+                    folded_q = fold_ascii(q)
+                    aka_values = func.json_each(EntitiesTable.aka).table_valued("value")
+                    aka_match = (
+                        select(1)
+                        .select_from(aka_values)
+                        .where(func.instr(func.lower(aka_values.c.value), folded_q) > 0)
+                        .exists()
+                    )
+                    conditions.append(
+                        or_(
+                            func.instr(func.lower(EntitiesTable.name), folded_q) > 0,
+                            aka_match,
+                        ),
+                    )
 
                 if tags:
                     # SQLite JSON array search - finds entities with ANY of the provided tags
