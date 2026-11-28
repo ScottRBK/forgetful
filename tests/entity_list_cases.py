@@ -61,6 +61,11 @@ class TestEntityListContract:
         assert data["entities"] == []
         assert data["total"] == 0
 
+        for spanning in ("b c", 'b","c'):
+            response = await http_client.get("/api/v1/entities", params={"q": spanning})
+            assert response.status_code == 200, response.text
+            assert response.json()["total"] == 0
+
         response_alias = await http_client.get("/api/v1/entities", params={"q": "ab"})
         assert response_alias.status_code == 200, response_alias.text
         assert entity_ids(response_alias.json()) == [aka_hit["id"]]
