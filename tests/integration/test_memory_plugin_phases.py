@@ -85,6 +85,7 @@ async def test_after_failure_warns_without_failing_saved_create(write_store, mod
             raise RuntimeError("SECRET memory content")
         if failure == "timeout":
             await asyncio.sleep(10)
+            return None
         if failure == "cancelled_child":
             child = asyncio.create_task(asyncio.sleep(10))
             child.cancel("SECRET memory content")
@@ -106,7 +107,9 @@ async def test_after_failure_warns_without_failing_saved_create(write_store, mod
         ),
     )
 
-    result = await service.create_memory(user_id, candidate())
+    # The outer deadline fails fast if the plugin deadline is ever removed.
+    async with asyncio.timeout(2):
+        result = await service.create_memory(user_id, candidate())
     await bus.wait_for_pending()
 
     assert asyncio.current_task().cancelling() == 0

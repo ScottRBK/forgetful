@@ -245,6 +245,7 @@ async def test_unavailable_is_generic_and_mode_controls_persistence(
             raise RuntimeError("SECRET full memory content")
         if failure == "timeout":
             await asyncio.sleep(10)
+            return WriteDecision(outcome="allow")
         if failure == "blank":
             return {"outcome": "reject", "message": "  "}
         if failure == "mutated":
@@ -256,13 +257,16 @@ async def test_unavailable_is_generic_and_mode_controls_persistence(
     service = MemoryService(
         repo, write_plugin=WritePluginService(checks(check_write), mode=mode, timeout_seconds=0.01),
     )
+    # The outer deadline fails fast if the plugin deadline is ever removed.
     if mode == "enforce":
         with pytest.raises(
             WritePluginUnavailableError, match=r"^Memory Write Plugin unavailable\.$",
         ):
-            await service.create_memory(user_id, candidate())
+            async with asyncio.timeout(2):
+                await service.create_memory(user_id, candidate())
     else:
-        result = await service.create_memory(user_id, candidate())
+        async with asyncio.timeout(2):
+            result = await service.create_memory(user_id, candidate())
         assert result.plugin_warnings[0].message == "Memory Write Plugin unavailable."
         assert result.plugin_warnings[0].code == "WRITE_PLUGIN_UNAVAILABLE"
     _, total = await service.list_memories(user_id)
