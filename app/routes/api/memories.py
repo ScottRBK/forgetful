@@ -446,7 +446,10 @@ def register(mcp: FastMCP):
             return JSONResponse({"error": str(e)}, status_code=400)
 
         params = request.query_params
-        limit = min(int(params.get("limit", 20)), 100)
+        try:
+            limit = min(parse_int_param(params, "limit", 20), 100)
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         # Get the memory first to access linked_memory_ids
         try:

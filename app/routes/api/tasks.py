@@ -27,7 +27,7 @@ from app.models.plan_models import (
     TaskUpdate,
 )
 from app.routes.api.list_pagination import parse_list_pagination
-from app.routes.api.params import parse_path_int
+from app.routes.api.params import parse_int_param, parse_path_int
 from app.routes.plan_plugin_responses import (
     PlanningDeleteResponse,
     TaskTransitionResponse,
@@ -60,13 +60,30 @@ def register(mcp: FastMCP):
         if not plan_id_str:
             return JSONResponse({"error": "plan_id query param is required"}, status_code=400)
 
-        plan_id = int(plan_id_str)
+        try:
+            plan_id = parse_int_param(params, "plan_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
         state_str = params.get("state")
         priority_str = params.get("priority")
         assigned_agent = params.get("assigned_agent")
 
-        state = TaskState(state_str) if state_str else None
-        priority = TaskPriority(priority_str) if priority_str else None
+        try:
+            state = TaskState(state_str) if state_str else None
+        except ValueError:
+            valid = ", ".join(item.value for item in TaskState)
+            return JSONResponse(
+                {"error": f"Invalid state: {state_str}. Valid: {valid}"},
+                status_code=400,
+            )
+        try:
+            priority = TaskPriority(priority_str) if priority_str else None
+        except ValueError:
+            valid = ", ".join(item.value for item in TaskPriority)
+            return JSONResponse(
+                {"error": f"Invalid priority: {priority_str}. Valid: {valid}"},
+                status_code=400,
+            )
 
         tasks, total = await mcp.task_service.list_tasks_page(
             user_id=user.id,

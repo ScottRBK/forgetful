@@ -18,7 +18,7 @@ from app.exceptions import (
 from app.middleware.auth import get_user_from_request
 from app.models.plan_models import PlanCreate, PlanStatus, PlanUpdate
 from app.routes.api.list_pagination import parse_list_pagination
-from app.routes.api.params import parse_path_int
+from app.routes.api.params import parse_int_param, parse_path_int
 from app.routes.plan_plugin_responses import PlanningDeleteResponse, PlanWriteResponse
 
 logger = logging.getLogger(__name__)
@@ -46,7 +46,10 @@ def register(mcp: FastMCP):
         project_id_str = params.get("project_id")
         status_str = params.get("status")
 
-        project_id = int(project_id_str) if project_id_str else None
+        try:
+            project_id = parse_int_param(params, "project_id") if project_id_str else None
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
         status = None
         if status_str:
             try:
