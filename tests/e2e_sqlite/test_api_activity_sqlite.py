@@ -408,6 +408,55 @@ class TestActivityAPIValidation:
     """Test validation of activity API parameters."""
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("params", "error"),
+        [
+            ({"since": "not-a-date"}, "Invalid value for 'since': must be an ISO 8601 datetime"),
+            ({"until": "not-a-date"}, "Invalid value for 'until': must be an ISO 8601 datetime"),
+            ({"limit": "abc"}, "Invalid value for 'limit': must be an integer"),
+            ({"offset": "abc"}, "Invalid value for 'offset': must be an integer"),
+        ],
+    )
+    async def test_invalid_list_parameter_returns_400(self, http_client, params, error):
+        """GET /api/v1/activity rejects malformed filter parameters."""
+        response = await http_client.get("/api/v1/activity", params=params)
+        assert response.status_code == 400
+        assert response.json() == {"error": error}
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("params", "error"),
+        [
+            ({"limit": "abc"}, "Invalid value for 'limit': must be an integer"),
+            ({"offset": "abc"}, "Invalid value for 'offset': must be an integer"),
+        ],
+    )
+    async def test_invalid_entity_history_parameter_returns_400(
+        self, http_client, params, error,
+    ):
+        """GET entity history rejects malformed pagination parameters."""
+        response = await http_client.get(
+            "/api/v1/activity/memory/1", params=params,
+        )
+        assert response.status_code == 400
+        assert response.json() == {"error": error}
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "params",
+        [
+            {"since": "2026-01-01T00:00:00Z"},
+            {"since": "2026-01-01T00:00:00+00:00"},
+            {"until": "2026-01-01T00:00:00"},
+        ],
+    )
+    async def test_valid_datetime_parameter_is_accepted(self, http_client, params):
+        """GET /api/v1/activity keeps accepting supported datetime forms."""
+        response = await http_client.get("/api/v1/activity", params=params)
+        assert response.status_code == 200
+        assert isinstance(response.json()["events"], list)
+
+    @pytest.mark.asyncio
     async def test_invalid_limit_returns_400(self, http_client):
         """GET /api/v1/activity?limit=0 returns 400."""
         response = await http_client.get("/api/v1/activity?limit=0")
