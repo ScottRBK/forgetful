@@ -1857,6 +1857,9 @@ Create a new task with optional inline criteria and dependencies.
 | 404 | Plan or dependency task not found |
 | 422 | Invalid state transition |
 
+Successful responses (201) stay flat task objects and add `plugin_warnings` only when nonempty when
+a Task Plugin is registered. Before-save rejections return 400; unavailable before-save returns 503.
+
 ### PUT /api/v1/tasks/{task_id}
 
 Update task metadata. State changes must go through the transition endpoint.
@@ -1876,11 +1879,14 @@ Update task metadata. State changes must go through the transition endpoint.
 | `description` | string | Updated description |
 | `priority` | string | Updated priority: `P0`, `P1`, `P2`, `P3` |
 
-**Response:** Updated task object
+**Response:** Updated task object, with `plugin_warnings` only when nonempty. Explicit `null`
+fields are treated as unchanged, so an update that changes nothing skips the plugin entirely.
 
 ### DELETE /api/v1/tasks/{task_id}
 
 Delete a task.
+
+Deletion is REST-only: there is no MCP tool for it, so it has no CLI path either.
 
 **Response:**
 ```json
@@ -1888,6 +1894,10 @@ Delete a task.
   "success": true
 }
 ```
+
+Successful responses add `plugin_warnings` only when nonempty. That list can contain warnings from
+two sources: this task's plugin, and plan policy when the deletion auto-completes the parent plan.
+Before-save rejections return 400; unavailable before-save returns 503.
 
 ### POST /api/v1/tasks/{task_id}/transition
 
@@ -1950,7 +1960,9 @@ Other values are rejected rather than converted to an identifier or version.
 | `agent_id` | string | yes | Identifier of the claiming agent |
 | `version` | int | yes | Current version for optimistic concurrency |
 
-**Response:** Updated task object (state set to `doing`, `assigned_agent` set, version incremented)
+**Response:** Updated task object (state set to `doing`, `assigned_agent` set, version incremented),
+with `plugin_warnings` only when nonempty. A claim fires the Task Plugin as an update whose
+`proposed` carries both the new state and the agent.
 
 **Error Responses:**
 

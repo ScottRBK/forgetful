@@ -34,7 +34,16 @@ from app.models.plan_models import (
     TaskUpdate,
 )
 from app.models.plan_plugin_models import TaskDeleteResult, TaskTransitionResult
-from app.models.write_plugin_models import PluginWarning
+from app.models.write_plugin_models import (
+    PluginWarning,
+    TaskClaimSubmission,
+    TaskDeletedRequest,
+    TaskDeleteSubmission,
+    TaskSavedRequest,
+    TaskTransitionSubmission,
+    TaskWriteRequest,
+    TaskWriteResult,
+)
 from app.protocols.task_protocol import TaskRepository
 from app.services.plan_service import PlanService
 from app.utils.provenance import (
@@ -45,6 +54,7 @@ from app.utils.pydantic_helper import get_changed_fields
 
 if TYPE_CHECKING:
     from app.events import EventBus
+    from app.services.task_write_plugin_service import TaskWritePluginService
 
 logger = logging.getLogger(__name__)
 
@@ -57,10 +67,12 @@ class TaskService:
         task_repo: TaskRepository,
         plan_service: PlanService,
         event_bus: "EventBus | None" = None,
+        write_plugin: "TaskWritePluginService | None" = None,
     ):
         self.task_repo = task_repo
         self.plan_service = plan_service
         self._event_bus = event_bus
+        self._write_plugin = write_plugin
         logger.info("Task service initialised")
 
     async def _emit_event(
@@ -87,7 +99,7 @@ class TaskService:
         )
         await self._event_bus.emit(event)
 
-    async def create_task(self, user_id: UUID, task_data: TaskCreate) -> Task:
+    async def create_task(self, user_id: UUID, task_data: TaskCreate) -> TaskWriteResult:
         """Create task with optional inline criteria and dependencies."""
         logger.info("creating task", extra={"user_id": str(user_id), "plan_id": task_data.plan_id, "title": task_data.title})
 
@@ -101,7 +113,16 @@ class TaskService:
             )
 
         # Create the task (without criteria/deps - repo handles basic creation)
+        submitted = task_data.model_copy(deep=True)
         task_data = apply_provenance_defaults(task_data)
+        plugin_warnings = []
+        if self._write_plugin and self._write_plugin.has_before("create"):
+            plugin_warnings = await self._write_plugin.before_save(TaskWriteRequest(
+                operation="create", user_id=user_id, submitted=submitted, previous=None,
+                proposed=TaskCreate.model_validate(
+                    task_data.model_dump(include=set(TaskCreate.model_fields)),
+                ),
+            ))
         task = await self.task_repo.create_task(user_id=user_id, task_data=task_data)
 
         # Create inline criteria
@@ -131,7 +152,13 @@ class TaskService:
             action=ActionType.CREATED,
             snapshot=task.model_dump(mode="json"),
         )
-        return task
+
+        if self._write_plugin:
+            plugin_warnings += await self._write_plugin.after_save(TaskSavedRequest(
+                operation="create", user_id=user_id, previous=None, saved=task,
+            ))
+
+        return TaskWriteResult(task=task, plugin_warnings=plugin_warnings)
 
     async def get_task(self, user_id: UUID, task_id: int) -> Task:
         logger.info("getting task", extra={"user_id": str(user_id), "task_id": task_id})
@@ -196,10 +223,14 @@ class TaskService:
 
     async def update_task(
         self, user_id: UUID, task_id: int, task_data: TaskUpdate,
-    ) -> Task | None:
+    ) -> TaskWriteResult | None:
         """PATCH for metadata only (title, description, priority). NOT for state changes."""
         logger.info("updating task", extra={"user_id": str(user_id), "task_id": task_id})
 
+        submitted = task_data.model_copy(deep=True)
+        # Null policy is unchanged by this feature: an explicit null is a submitted value
+        # and reaches the repository, exactly as before. Only the plugin is skipped when
+        # nothing changed.
         task_data = apply_provenance_defaults_for_update(task_data)
 
         existing = await self.task_repo.get_task_by_id(user_id=user_id, task_id=task_id)
@@ -208,7 +239,19 @@ class TaskService:
 
         changed_fields = get_changed_fields(input_model=task_data, existing_model=existing)
         if not changed_fields:
-            return existing
+            # Nothing to write, so nothing to ask the plugin about.
+            return TaskWriteResult(task=existing, plugin_warnings=[])
+
+        plugin_warnings = []
+        if self._write_plugin and self._write_plugin.has_before("update"):
+            # Merged view of the task metadata as it will be after the write.
+            proposed_data = existing.model_dump(include=set(TaskCreate.model_fields))
+            proposed_data.update(task_data.model_dump(exclude_unset=True))
+            proposed = TaskCreate.model_validate(proposed_data)
+            plugin_warnings = await self._write_plugin.before_save(TaskWriteRequest(
+                operation="update", user_id=user_id, submitted=submitted,
+                previous=existing.model_copy(deep=True), proposed=proposed,
+            ))
 
         updated = await self.task_repo.update_task(user_id=user_id, task_id=task_id, task_data=task_data)
         logger.info("task updated", extra={"task_id": task_id})
@@ -225,7 +268,14 @@ class TaskService:
             snapshot=updated.model_dump(mode="json"),
             changes=changes_dict,
         )
-        return updated
+
+        if self._write_plugin:
+            plugin_warnings += await self._write_plugin.after_save(TaskSavedRequest(
+                operation="update", user_id=user_id, saved=updated,
+                previous=existing.model_copy(deep=True),
+            ))
+
+        return TaskWriteResult(task=updated, plugin_warnings=plugin_warnings)
 
     async def delete_task(self, user_id: UUID, task_id: int) -> TaskDeleteResult:
         logger.info("deleting task", extra={"user_id": str(user_id), "task_id": task_id})
@@ -235,8 +285,18 @@ class TaskService:
             return TaskDeleteResult(success=False)
 
         plan_id = existing.plan_id
+        task_warnings: list[PluginWarning] = []
+        if self._write_plugin and self._write_plugin.has_before("delete"):
+            task_warnings = await self._write_plugin.before_save(TaskWriteRequest(
+                operation="delete", user_id=user_id,
+                submitted=TaskDeleteSubmission(task_id=task_id),
+                previous=existing.model_copy(deep=True), proposed=None,
+            ))
+            existing = await self.task_repo.get_task_by_id(user_id=user_id, task_id=task_id)
+            if not existing:
+                return TaskDeleteResult(success=False, plugin_warnings=task_warnings)
         success = await self.task_repo.delete_task(user_id=user_id, task_id=task_id)
-        warnings: list[PluginWarning] = []
+        warnings: list[PluginWarning] = list(task_warnings)
         if success:
             logger.info("task deleted", extra={"task_id": task_id})
             await self._emit_event(
@@ -246,8 +306,12 @@ class TaskService:
                 action=ActionType.DELETED,
                 snapshot=existing.model_dump(mode="json"),
             )
+            if self._write_plugin:
+                warnings += await self._write_plugin.after_save(TaskDeletedRequest(
+                    user_id=user_id, deleted_task_id=task_id, previous=existing,
+                ))
             # Check plan auto-completion
-            warnings = await self._check_plan_auto_completion(user_id, plan_id)
+            warnings += await self._check_plan_auto_completion(user_id, plan_id)
         return TaskDeleteResult(success=success, plugin_warnings=warnings)
 
     async def transition_task(
@@ -292,6 +356,23 @@ class TaskService:
         if new_state == TaskState.DONE:
             await self._validate_all_criteria_met(user_id, task)
 
+        plugin_warnings: list[PluginWarning] = []
+        if self._write_plugin and self._write_plugin.has_before("update"):
+            # A state change is an update to the same record. It cannot be expressed as a
+            # TaskCreate (that model has no state), so proposed carries the complete
+            # post-write task, including the new state and version.
+            proposed = task.model_copy(update={
+                "state": new_state,
+                "version": task.version + 1,
+            })
+            plugin_warnings = await self._write_plugin.before_save(TaskWriteRequest(
+                operation="update", user_id=user_id,
+                submitted=TaskTransitionSubmission(
+                    task_id=task_id, state=new_state, expected_version=expected_version,
+                ),
+                previous=task.model_copy(deep=True), proposed=proposed,
+            ))
+
         # Atomic update
         updated = await self.task_repo.transition_task_state(
             user_id=user_id,
@@ -314,12 +395,16 @@ class TaskService:
             changes={"state": {"old": current_state.value, "new": new_state.value}},
         )
 
-        warnings: list[PluginWarning] = []
+        if self._write_plugin:
+            plugin_warnings += await self._write_plugin.after_save(TaskSavedRequest(
+                operation="update", user_id=user_id, saved=updated,
+                previous=task.model_copy(deep=True),
+            ))
         # If task → done/cancelled: check plan auto-completion
         if new_state in (TaskState.DONE, TaskState.CANCELLED):
-            warnings = await self._check_plan_auto_completion(user_id, task.plan_id)
+            plugin_warnings += await self._check_plan_auto_completion(user_id, task.plan_id)
 
-        return TaskTransitionResult(task=updated, plugin_warnings=warnings)
+        return TaskTransitionResult(task=updated, plugin_warnings=plugin_warnings)
 
     async def claim_task(
         self,
@@ -327,7 +412,7 @@ class TaskService:
         task_id: int,
         agent_id: str,
         expected_version: int,
-    ) -> Task:
+    ) -> TaskTransitionResult:
         """Convenience wrapper: claim task by setting agent and transitioning to doing."""
         logger.info(
             "claiming task",
@@ -353,6 +438,23 @@ class TaskService:
         # Validate dependencies met
         await self._validate_dependencies_met(user_id, task)
 
+        plugin_warnings: list[PluginWarning] = []
+        if self._write_plugin and self._write_plugin.has_before("update"):
+            # A claim is one version-checked write that sets the agent and moves to doing,
+            # so proposed describes both changes.
+            proposed = task.model_copy(update={
+                "state": TaskState.DOING,
+                "assigned_agent": agent_id,
+                "version": task.version + 1,
+            })
+            plugin_warnings = await self._write_plugin.before_save(TaskWriteRequest(
+                operation="update", user_id=user_id,
+                submitted=TaskClaimSubmission(
+                    task_id=task_id, agent_id=agent_id, expected_version=expected_version,
+                ),
+                previous=task.model_copy(deep=True), proposed=proposed,
+            ))
+
         # Atomic: set assigned_agent + state=doing + version+=1
         updated = await self.task_repo.transition_task_state(
             user_id=user_id,
@@ -375,7 +477,14 @@ class TaskService:
                 "assigned_agent": {"old": task.assigned_agent, "new": agent_id},
             },
         )
-        return updated
+
+        if self._write_plugin:
+            plugin_warnings += await self._write_plugin.after_save(TaskSavedRequest(
+                operation="update", user_id=user_id, saved=updated,
+                previous=task.model_copy(deep=True),
+            ))
+        # A claim is a transition with an agent attached, so it reuses that result type.
+        return TaskTransitionResult(task=updated, plugin_warnings=plugin_warnings)
 
     # ---- Criteria ----
 

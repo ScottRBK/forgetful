@@ -13,6 +13,8 @@ from app.exceptions import (
     DependencyNotMetError,
     InvalidStateTransitionError,
     NotFoundError,
+    WritePluginRejectedError,
+    WritePluginUnavailableError,
 )
 from app.middleware.auth import get_user_from_request
 from app.models.plan_models import (
@@ -31,6 +33,7 @@ from app.routes.api.params import parse_path_int
 from app.routes.plan_plugin_responses import (
     PlanningDeleteResponse,
     TaskTransitionResponse,
+    TaskWriteResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -114,7 +117,13 @@ def register(mcp: FastMCP):
             return JSONResponse({"error": e.errors()}, status_code=400)
 
         try:
-            task = await mcp.task_service.create_task(user_id=user.id, task_data=task_data)
+            write_result = await mcp.task_service.create_task(
+                user_id=user.id, task_data=task_data,
+            )
+        except WritePluginRejectedError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        except WritePluginUnavailableError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=503)
         except NotFoundError as e:
             return JSONResponse({"error": str(e)}, status_code=404)
         except InvalidStateTransitionError as e:
@@ -122,7 +131,10 @@ def register(mcp: FastMCP):
         except CyclicDependencyError as e:
             return JSONResponse({"error": str(e)}, status_code=400)
 
-        return JSONResponse(task.model_dump(mode="json"), status_code=201)
+        response = TaskWriteResponse(
+            **write_result.task.model_dump(), plugin_warnings=write_result.plugin_warnings,
+        )
+        return JSONResponse(response.model_dump(mode="json"), status_code=201)
 
     @mcp.custom_route("/api/v1/tasks/{task_id}", methods=["PUT"])
     async def update_task(request: Request) -> JSONResponse:
@@ -143,12 +155,20 @@ def register(mcp: FastMCP):
         except ValidationError as e:
             return JSONResponse({"error": e.errors()}, status_code=400)
 
-        task = await mcp.task_service.update_task(
-            user_id=user.id, task_id=task_id, task_data=update_data,
-        )
-        if not task:
+        try:
+            write_result = await mcp.task_service.update_task(
+                user_id=user.id, task_id=task_id, task_data=update_data,
+            )
+        except WritePluginRejectedError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        except WritePluginUnavailableError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=503)
+        if not write_result:
             return JSONResponse({"error": "Task not found"}, status_code=404)
-        return JSONResponse(task.model_dump(mode="json"))
+        response = TaskWriteResponse(
+            **write_result.task.model_dump(), plugin_warnings=write_result.plugin_warnings,
+        )
+        return JSONResponse(response.model_dump(mode="json"))
 
     @mcp.custom_route("/api/v1/tasks/{task_id}", methods=["DELETE"])
     async def delete_task(request: Request) -> JSONResponse:
@@ -162,7 +182,12 @@ def register(mcp: FastMCP):
             task_id = parse_path_int(request, "task_id")
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=400)
-        result = await mcp.task_service.delete_task(user_id=user.id, task_id=task_id)
+        try:
+            result = await mcp.task_service.delete_task(user_id=user.id, task_id=task_id)
+        except WritePluginRejectedError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        except WritePluginUnavailableError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=503)
         if not result.success:
             return JSONResponse({"error": "Task not found"}, status_code=404)
         payload = PlanningDeleteResponse(success=True, plugin_warnings=result.plugin_warnings)
@@ -199,6 +224,10 @@ def register(mcp: FastMCP):
             return JSONResponse({"error": str(e)}, status_code=422)
         except DependencyNotMetError as e:
             return JSONResponse({"error": str(e)}, status_code=422)
+        except WritePluginRejectedError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        except WritePluginUnavailableError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=503)
 
         payload = TaskTransitionResponse(**result.task.model_dump(), plugin_warnings=result.plugin_warnings)
         return JSONResponse(payload.model_dump(mode="json"))
@@ -222,10 +251,14 @@ def register(mcp: FastMCP):
             return JSONResponse({"error": e.errors(include_context=False, include_input=False)}, status_code=400)
 
         try:
-            task = await mcp.task_service.claim_task(
+            claim_result = await mcp.task_service.claim_task(
                 user_id=user.id, task_id=task_id,
                 agent_id=claim.agent_id, expected_version=claim.version,
             )
+        except WritePluginRejectedError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        except WritePluginUnavailableError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=503)
         except NotFoundError as e:
             return JSONResponse({"error": str(e)}, status_code=404)
         except ConflictError as e:
@@ -235,7 +268,10 @@ def register(mcp: FastMCP):
         except DependencyNotMetError as e:
             return JSONResponse({"error": str(e)}, status_code=422)
 
-        return JSONResponse(task.model_dump(mode="json"))
+        payload = TaskTransitionResponse(
+            **claim_result.task.model_dump(), plugin_warnings=claim_result.plugin_warnings,
+        )
+        return JSONResponse(payload.model_dump(mode="json"))
 
     # ---- Criteria endpoints ----
 

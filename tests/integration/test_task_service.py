@@ -65,7 +65,7 @@ async def test_create_task_basic(test_task_service):
             CriterionCreate(description="E2E test pass"),
         ],
     )
-    task = await task_service.create_task(user_id=user_id, task_data=task_data)
+    task = (await task_service.create_task(user_id=user_id, task_data=task_data)).task
 
     assert task is not None
     assert task.id is not None
@@ -87,14 +87,14 @@ async def test_get_task_with_criteria(test_task_service):
     user_id = uuid4()
     plan = await _create_active_plan(plan_service, user_id)
 
-    created = await task_service.create_task(
+    created = (await task_service.create_task(
         user_id=user_id,
         task_data=TaskCreate(
             title="Task with criteria",
             plan_id=plan.id,
             criteria=[CriterionCreate(description="Acceptance criterion A")],
         ),
-    )
+    )).task
 
     retrieved = await task_service.get_task(user_id=user_id, task_id=created.id)
 
@@ -113,10 +113,10 @@ async def test_list_tasks_by_state(test_task_service):
     plan = await _create_active_plan(plan_service, user_id)
 
     # Create two tasks (both start as TODO)
-    t1 = await task_service.create_task(
+    t1 = (await task_service.create_task(
         user_id=user_id,
         task_data=TaskCreate(title="Task 1", plan_id=plan.id),
-    )
+    )).task
     await task_service.create_task(
         user_id=user_id,
         task_data=TaskCreate(title="Task 2", plan_id=plan.id),
@@ -147,16 +147,16 @@ async def test_update_task_metadata(test_task_service):
     user_id = uuid4()
     plan = await _create_active_plan(plan_service, user_id)
 
-    task = await task_service.create_task(
+    task = (await task_service.create_task(
         user_id=user_id,
         task_data=TaskCreate(title="Original", plan_id=plan.id, priority=TaskPriority.P2),
-    )
+    )).task
 
-    updated = await task_service.update_task(
+    updated = (await task_service.update_task(
         user_id=user_id,
         task_id=task.id,
         task_data=TaskUpdate(title="Renamed", priority=TaskPriority.P0),
-    )
+    )).task
 
     assert updated is not None
     assert updated.title == "Renamed"
@@ -172,10 +172,10 @@ async def test_transition_task_todo_to_doing(test_task_service):
     user_id = uuid4()
     plan = await _create_active_plan(plan_service, user_id)
 
-    task = await task_service.create_task(
+    task = (await task_service.create_task(
         user_id=user_id,
         task_data=TaskCreate(title="Start work", plan_id=plan.id),
-    )
+    )).task
 
     transitioned = (await task_service.transition_task(
         user_id=user_id,
@@ -195,10 +195,10 @@ async def test_transition_task_invalid(test_task_service):
     user_id = uuid4()
     plan = await _create_active_plan(plan_service, user_id)
 
-    task = await task_service.create_task(
+    task = (await task_service.create_task(
         user_id=user_id,
         task_data=TaskCreate(title="Finish me", plan_id=plan.id),
-    )
+    )).task
 
     # TODO -> doing (v1 -> v2)
     await task_service.transition_task(
@@ -226,17 +226,17 @@ async def test_claim_task_success(test_task_service):
     user_id = uuid4()
     plan = await _create_active_plan(plan_service, user_id)
 
-    task = await task_service.create_task(
+    task = (await task_service.create_task(
         user_id=user_id,
         task_data=TaskCreate(title="Claimable", plan_id=plan.id),
-    )
+    )).task
 
-    claimed = await task_service.claim_task(
+    claimed = (await task_service.claim_task(
         user_id=user_id,
         task_id=task.id,
         agent_id="agent-007",
         expected_version=1,
-    )
+    )).task
 
     assert claimed.state == TaskState.DOING
     assert claimed.assigned_agent == "agent-007"
@@ -250,10 +250,10 @@ async def test_claim_task_version_conflict(test_task_service):
     user_id = uuid4()
     plan = await _create_active_plan(plan_service, user_id)
 
-    task = await task_service.create_task(
+    task = (await task_service.create_task(
         user_id=user_id,
         task_data=TaskCreate(title="Contested", plan_id=plan.id),
-    )
+    )).task
 
     # First claim succeeds (version goes from 1 to 2)
     await task_service.claim_task(
@@ -280,7 +280,7 @@ async def test_transition_to_done_with_all_criteria_met(test_task_service):
     user_id = uuid4()
     plan = await _create_active_plan(plan_service, user_id)
 
-    task = await task_service.create_task(
+    task = (await task_service.create_task(
         user_id=user_id,
         task_data=TaskCreate(
             title="With criteria",
@@ -290,7 +290,7 @@ async def test_transition_to_done_with_all_criteria_met(test_task_service):
                 CriterionCreate(description="Criterion 2"),
             ],
         ),
-    )
+    )).task
 
     # Mark both criteria as met
     for criterion in task.criteria:
@@ -318,14 +318,14 @@ async def test_transition_to_done_with_unmet_criteria(test_task_service):
     user_id = uuid4()
     plan = await _create_active_plan(plan_service, user_id)
 
-    task = await task_service.create_task(
+    task = (await task_service.create_task(
         user_id=user_id,
         task_data=TaskCreate(
             title="Incomplete criteria",
             plan_id=plan.id,
             criteria=[CriterionCreate(description="Not met yet")],
         ),
-    )
+    )).task
 
     # TODO -> doing
     await task_service.transition_task(
@@ -350,20 +350,20 @@ async def test_transition_to_doing_with_unmet_deps(test_task_service):
     plan = await _create_active_plan(plan_service, user_id)
 
     # Create prerequisite task (stays in TODO)
-    prereq = await task_service.create_task(
+    prereq = (await task_service.create_task(
         user_id=user_id,
         task_data=TaskCreate(title="Prerequisite", plan_id=plan.id),
-    )
+    )).task
 
     # Create dependent task that depends on prereq
-    dependent = await task_service.create_task(
+    dependent = (await task_service.create_task(
         user_id=user_id,
         task_data=TaskCreate(
             title="Dependent",
             plan_id=plan.id,
             dependency_ids=[prereq.id],
         ),
-    )
+    )).task
 
     # Trying to transition dependent to DOING should fail since prereq is not DONE
     with pytest.raises(DependencyNotMetError):
@@ -382,10 +382,10 @@ async def test_cycle_detection_self(test_task_service):
     user_id = uuid4()
     plan = await _create_active_plan(plan_service, user_id)
 
-    task = await task_service.create_task(
+    task = (await task_service.create_task(
         user_id=user_id,
         task_data=TaskCreate(title="Self loop", plan_id=plan.id),
-    )
+    )).task
 
     with pytest.raises(CyclicDependencyError):
         await task_service.add_dependency(
@@ -400,12 +400,12 @@ async def test_cycle_detection_direct(test_task_service):
     user_id = uuid4()
     plan = await _create_active_plan(plan_service, user_id)
 
-    a = await task_service.create_task(
+    a = (await task_service.create_task(
         user_id=user_id, task_data=TaskCreate(title="A", plan_id=plan.id),
-    )
-    b = await task_service.create_task(
+    )).task
+    b = (await task_service.create_task(
         user_id=user_id, task_data=TaskCreate(title="B", plan_id=plan.id),
-    )
+    )).task
 
     # A depends on B
     await task_service.add_dependency(
@@ -426,15 +426,15 @@ async def test_cycle_detection_transitive(test_task_service):
     user_id = uuid4()
     plan = await _create_active_plan(plan_service, user_id)
 
-    a = await task_service.create_task(
+    a = (await task_service.create_task(
         user_id=user_id, task_data=TaskCreate(title="A", plan_id=plan.id),
-    )
-    b = await task_service.create_task(
+    )).task
+    b = (await task_service.create_task(
         user_id=user_id, task_data=TaskCreate(title="B", plan_id=plan.id),
-    )
-    c = await task_service.create_task(
+    )).task
+    c = (await task_service.create_task(
         user_id=user_id, task_data=TaskCreate(title="C", plan_id=plan.id),
-    )
+    )).task
 
     # A depends on B
     await task_service.add_dependency(
@@ -459,10 +459,10 @@ async def test_add_delete_criteria(test_task_service):
     user_id = uuid4()
     plan = await _create_active_plan(plan_service, user_id)
 
-    task = await task_service.create_task(
+    task = (await task_service.create_task(
         user_id=user_id,
         task_data=TaskCreate(title="Criteria ops", plan_id=plan.id),
-    )
+    )).task
 
     # Add criterion
     criterion = await task_service.add_criterion(
@@ -492,14 +492,14 @@ async def test_verify_criterion(test_task_service):
     user_id = uuid4()
     plan = await _create_active_plan(plan_service, user_id)
 
-    task = await task_service.create_task(
+    task = (await task_service.create_task(
         user_id=user_id,
         task_data=TaskCreate(
             title="Verify criterion",
             plan_id=plan.id,
             criteria=[CriterionCreate(description="Tests pass")],
         ),
-    )
+    )).task
 
     criterion_id = task.criteria[0].id
 
@@ -524,14 +524,14 @@ async def test_plan_auto_completion(test_task_service):
     assert plan.status == PlanStatus.ACTIVE
 
     # Create two tasks
-    t1 = await task_service.create_task(
+    t1 = (await task_service.create_task(
         user_id=user_id,
         task_data=TaskCreate(title="Task 1", plan_id=plan.id),
-    )
-    t2 = await task_service.create_task(
+    )).task
+    t2 = (await task_service.create_task(
         user_id=user_id,
         task_data=TaskCreate(title="Task 2", plan_id=plan.id),
-    )
+    )).task
 
     # Complete first task: todo -> doing -> done
     await task_service.transition_task(
@@ -565,10 +565,10 @@ async def test_plan_auto_completion_missing_plan_silent(test_task_service, monke
     user_id = uuid4()
 
     plan = await _create_active_plan(plan_service, user_id)
-    task = await task_service.create_task(
+    task = (await task_service.create_task(
         user_id=user_id,
         task_data=TaskCreate(title="Only task", plan_id=plan.id),
-    )
+    )).task
 
     async def get_plan_missing(*_args, **_kwargs):
         raise NotFoundError(f"Plan with id {plan.id} not found")
@@ -603,10 +603,10 @@ async def test_user_isolation(test_task_service):
 
     plan = await _create_active_plan(plan_service, user1)
 
-    task = await task_service.create_task(
+    task = (await task_service.create_task(
         user_id=user1,
         task_data=TaskCreate(title="User1 Task", plan_id=plan.id),
-    )
+    )).task
 
     # user2 cannot get user1's task
     with pytest.raises(NotFoundError, match="not found"):

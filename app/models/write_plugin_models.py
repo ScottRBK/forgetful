@@ -15,6 +15,7 @@ from app.models.entity_models import (
     EntityUpdate,
 )
 from app.models.memory_models import Memory, MemoryCreate, MemorySummary, MemoryUpdate
+from app.models.plan_models import Task, TaskCreate, TaskState, TaskUpdate
 
 MemoryOperation = Literal["create", "update", "obsolete", "restore"]
 
@@ -291,3 +292,64 @@ class MemoryLinkResult(BaseModel):
 
 
 MemoryCreateResult.model_rebuild()
+
+
+TaskOperation = Literal["create", "update", "delete"]
+
+
+class TaskDeleteSubmission(BaseModel):
+    task_id: int
+
+
+class TaskTransitionSubmission(BaseModel):
+    """A state change, which TaskUpdate deliberately cannot express."""
+
+    task_id: int
+    state: TaskState
+    expected_version: int
+
+
+class TaskClaimSubmission(BaseModel):
+    """A claim: assign an agent and move to doing in one version-checked write."""
+
+    task_id: int
+    agent_id: str
+    expected_version: int
+
+
+class TaskWriteRequest(BaseModel):
+    """Detached domain snapshots; operation distinguishes create, update, and delete.
+
+    ``proposed`` is a ``TaskCreate`` for metadata writes and a full ``Task`` for a state
+    transition or claim. A state change cannot be represented as a ``TaskCreate`` because
+    that model has no state field, so those operations carry the complete post-write task
+    instead. ``proposed`` is ``None`` on delete.
+    """
+
+    operation: TaskOperation
+    user_id: UUID
+    submitted: (
+        TaskCreate | TaskUpdate | TaskTransitionSubmission | TaskClaimSubmission
+        | TaskDeleteSubmission
+    )
+    previous: Task | None
+    proposed: TaskCreate | Task | None
+
+
+class TaskSavedRequest(BaseModel):
+    operation: Literal["create", "update"]
+    user_id: UUID
+    saved: Task
+    previous: Task | None
+
+
+class TaskDeletedRequest(BaseModel):
+    operation: Literal["delete"] = "delete"
+    user_id: UUID
+    deleted_task_id: int
+    previous: Task
+
+
+class TaskWriteResult(BaseModel):
+    task: Task
+    plugin_warnings: list[PluginWarning] = Field(default_factory=list)

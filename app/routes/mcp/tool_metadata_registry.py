@@ -2004,7 +2004,11 @@ def register_task_tools_metadata(
                 {"name": "agent_version", "type": "Optional[str]", "description": "Agent version for provenance tracking", "required": False, "default": None, "example": "1.0"},
                 {"name": "agent_model", "type": "Optional[str]", "description": "LLM model used for provenance tracking", "required": False, "default": None, "example": "claude-sonnet-4-6"},
             ],
-            "returns": "Task object with id, title, state, priority, and timestamps",
+            "returns": (
+                "Flat Task object after create, with plugin_warnings only when nonempty. "
+                "After-save warnings are advisory. Before-save errors: WRITE_PLUGIN_REJECTED "
+                "(correct the stated issue) or WRITE_PLUGIN_UNAVAILABLE."
+            ),
             "examples": [
                 'execute_forgetful_tool("create_task", {"title": "Add login", "plan_id": 1, "priority": "P1"})',
             ],
@@ -2076,7 +2080,11 @@ def register_task_tools_metadata(
                 {"name": "version", "type": "int", "description": "Current task version as a JSON integer only; booleans, floats, and strings are rejected", "required": True, "example": 1},
                 {"name": "ctx", "type": "Context", "description": "FastMCP Context (automatically injected)", "required": True},
             ],
-            "returns": "Updated Task object with agent assignment",
+            "returns": (
+                "Flat Task object with the agent assigned and nonempty-only plugin_warnings. "
+                "A claim fires the Task Plugin as an update carrying the new state and agent. "
+                "plan_auto_completion_* warns of secondary parent failure after task commit."
+            ),
             "examples": [
                 'execute_forgetful_tool("claim_task", {"task_id": 1, "agent_id": "agent-123", "version": 1})',
             ],

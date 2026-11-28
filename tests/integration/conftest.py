@@ -2665,3 +2665,90 @@ plugin = EntityRelationshipPlugin(
     import sys
 
     sys.modules.pop(module_name, None)
+
+
+@pytest.fixture
+def task_plugin_runtime(sqlite_runtime_settings, monkeypatch, tmp_path):
+    monkeypatch.setattr("app.bootstrap.check_first_run_models", lambda: None)
+    monkeypatch.syspath_prepend(str(tmp_path))
+    module_name = "runtime_task_checks"
+    (tmp_path / f"{module_name}.py").write_text("""
+from app.models.write_plugin_models import PluginWarning, WriteDecision
+from app.protocols.write_plugin_protocol import TaskPlugin
+
+async def decide(request):
+    # Prefix markers, so a delete marker never trips the create rules.
+    if request.operation == "delete":
+        title = request.previous.title if request.previous else ""
+        if title.startswith("delete-blocked"):
+            return WriteDecision(outcome="reject", message="Blocked by policy.")
+        if title.startswith("delete-warn"):
+            return WriteDecision(outcome="warn", message="Check the source.", code="source")
+        return WriteDecision(outcome="allow")
+    proposed = request.proposed
+    title = getattr(proposed, "title", "") or ""
+    if title.startswith("blocked"):
+        return WriteDecision(outcome="reject", message="Blocked by policy.")
+    if title.startswith("warn"):
+        return WriteDecision(outcome="warn", message="Check the source.", code="source")
+    if title.startswith("error"):
+        raise RuntimeError("SECRET")
+    return WriteDecision(outcome="allow")
+
+plugin = TaskPlugin(before_save={"create": decide, "update": decide, "delete": decide})
+""")
+    from app.config.settings import settings
+
+    monkeypatch.setattr(settings, "PLANNING_ENABLED", True)
+    monkeypatch.setattr(settings, "TASK_WRITE_PLUGIN", f"{module_name}:plugin")
+    monkeypatch.setattr(settings, "TASK_WRITE_PLUGIN_MODE", "enforce")
+    yield module_name
+    import sys
+
+    sys.modules.pop(module_name, None)
+
+
+@pytest.fixture
+async def task_store(sqlite_runtime_settings, monkeypatch):
+    from app.config.settings import settings
+    from app.events import EventBus
+    from app.models.project_models import ProjectCreate
+    from app.models.user_models import UserCreate
+    from app.repositories.sqlite.plan_repository import SqlitePlanRepository
+    from app.repositories.sqlite.project_repository import SqliteProjectRepository
+    from app.repositories.sqlite.sqlite_adapter import SqliteDatabaseAdapter
+    from app.repositories.sqlite.task_repository import SqliteTaskRepository
+    from app.repositories.sqlite.user_repository import SqliteUserRepository
+    from app.services.plan_service import PlanService
+    from app.services.project_service import ProjectService
+    from app.services.task_service import TaskService
+    from app.services.user_service import UserService
+
+    monkeypatch.setattr(settings, "ACTIVITY_TRACK_READS", False)
+    db = SqliteDatabaseAdapter()
+    await db.init_db()
+    artifacts: dict = {}
+    user = await UserService(SqliteUserRepository(db)).get_or_create_user(
+        UserCreate(external_id="task-plugin-test", name="Task plugin", email="tp@example.com"),
+    )
+    bus = EventBus()
+    plan_service = PlanService(
+        SqlitePlanRepository(db), event_bus=bus,
+    )
+    task_service = TaskService(
+        SqliteTaskRepository(db), plan_service=plan_service, event_bus=bus,
+    )
+    project = await ProjectService(SqliteProjectRepository(db)).create_project(
+        user.id, ProjectCreate(
+            name="Task plugin project", description="scoped",
+            project_type="development",
+        ),
+    )
+    artifacts.update(
+        plan_service=plan_service, task_service=task_service, project_id=project.id,
+    )
+    try:
+        yield artifacts, user.id, db
+    finally:
+        await bus.wait_for_pending()
+        await db.dispose()

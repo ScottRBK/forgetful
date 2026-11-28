@@ -804,6 +804,117 @@ REST relationship writes add `plugin_warnings` only when nonempty; rejections re
 unavailable before-save returns 503. MCP and local CLI use `WRITE_PLUGIN_REJECTED: <message>` or
 `WRITE_PLUGIN_UNAVAILABLE: Entity Relationship Plugin unavailable.`
 
+### Task Plugin
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `TASK_WRITE_PLUGIN` | empty | Importable `module:object` containing a `TaskPlugin` |
+| `TASK_WRITE_PLUGIN_MODE` | `enforce` | `warn` or `enforce`, for **before_save only** |
+| `TASK_WRITE_PLUGIN_TIMEOUT_SECONDS` | `5.0` | Positive, finite deadline for each handler |
+
+Scoped to task create, metadata update, state transition, claim and delete through `TaskService`,
+and active only when `PLANNING_ENABLED` is set, because the task service is not built otherwise.
+Registration, startup validation, modes, timeouts, warnings, and error codes mirror the Memory
+Plugin above.
+
+```python
+# my_plugins/task_checks.py (example rules, not built into Forgetful)
+from app.models.plan_models import Task
+from app.models.write_plugin_models import PluginWarning, WriteDecision
+from app.protocols.write_plugin_protocol import TaskPlugin
+
+
+async def check_completion(request):
+    proposed = request.proposed
+    # On a transition, proposed is the full Task, so the new state is visible.
+    if isinstance(proposed, Task) and proposed.state == "done" and not proposed.criteria:
+        return WriteDecision(outcome="reject", message="Add an acceptance criterion first.")
+    return WriteDecision(outcome="allow")
+
+
+async def notify_board(request):
+    return PluginWarning(message="Board notification sent.", code="BOARD_NOTIFIED")
+
+
+plugin = TaskPlugin(
+    before_save={"create": check_completion, "update": check_completion},
+    after_save={"create": notify_board, "update": notify_board},
+)
+```
+
+Set `TASK_WRITE_PLUGIN=my_plugins.task_checks:plugin`.
+
+#### What fires, and what `proposed` contains
+
+Tasks have more write paths than the other content types, so each one is listed.
+
+| Path | Operation | `submitted` | `proposed` |
+| --- | --- | --- | --- |
+| `create_task` | `create` | `TaskCreate` | `TaskCreate` with the fields as they will be stored |
+| `update_task` | `update` | `TaskUpdate` | `TaskCreate` merged from the stored task and the patch |
+| `transition_task` | `update` | `TaskTransitionSubmission` | the full `Task`, with the new state and `version + 1` |
+| `claim_task` | `update` | `TaskClaimSubmission` | the full `Task`, with `state=doing`, the assigned agent and `version + 1` |
+| `delete_task` | `delete` | `TaskDeleteSubmission` | `None` |
+| `add_dependency` / `remove_dependency` | none | - | - |
+| `add_criterion` / `update_criterion` / `delete_criterion` | none | - | - |
+
+`update_task` is metadata only; it cannot change state, so a state change never arrives as a plain
+metadata update. A transition and a claim both fire as `operation: "update"` and carry the complete
+post-write `Task` in `proposed`, because `TaskCreate` has no state field and could not describe them.
+A handler can tell them apart with `isinstance(request.proposed, Task)` or by the `submitted` type.
+
+Ordering matters for rejections. The version check and the state-machine validation run **before**
+`before_save`, so a transition that would fail either of those never reaches a handler, and the
+plugin cannot be used to change the state machine's rules. A handler that rejects a transition
+aborts it before the atomic write: the task keeps its old state and its old version.
+
+#### Warnings on transitions and deletes
+
+`transition_task` and `delete_task` already report warnings from a different source: when the
+change completes or cancels the last open task, plan policy may auto-complete the parent plan, and
+that plan plugin's warnings are returned in the same `plugin_warnings` list. Task plugin warnings
+are appended to that list, so a response can contain warnings from both. Codes are distinct:
+`plan_auto_completion_*` come from plan policy, `TASK_PLUGIN_AFTER_SAVE_UNAVAILABLE` from this
+plugin.
+
+#### Dependencies, criteria and parent/child links
+
+There is no parent/child relationship between tasks. A task belongs to a plan, and plans have their
+own plugin; there is no task-to-task parent, so no sub-issue hierarchy is observed or affected here.
+
+What does happen, at the database level, without firing a phase:
+
+| Action | Effect | Task plugin fires |
+| --- | --- | --- |
+| Delete a task | its `task_criteria` rows cascade | yes for the deleted task |
+| Delete a task | `task_dependencies` rows cascade **in both directions**: rows where it is the dependent, and rows where other tasks depended on it | yes for the deleted task only |
+| Delete a task | those other tasks are silently unblocked; nothing notifies them | no |
+| Delete a plan | all of its tasks cascade away | **no** |
+| Delete a user | all of its tasks cascade away | no |
+| Add or remove a dependency | `task_dependencies` row written or removed | no |
+| Add, verify or delete a criterion | `task_criteria` row written or removed | no |
+
+The dependency cascade in the second direction is the one worth knowing about. Removing a blocker
+silently satisfies a dependency for every task that pointed at it, and those tasks can then be moved
+to `doing`. A `delete` handler sees only the task being deleted; it cannot enumerate the tasks that
+were depending on it by the time `after_save` runs, because those rows are already gone. If a rule
+must react to an unblocking, it has to collect the dependents in `before_save` and act on its own.
+
+Restructuring a plan's task graph is likewise invisible: adding and removing dependencies are graph
+edits, not task writes, so they do not fire the plugin and their effects are only visible on the next
+task write.
+
+Both databases behave the same way. The SQLite adapter enables `PRAGMA foreign_keys=ON` per
+connection, so these cascades are enforced there too, not only in Postgres.
+
+REST task writes add `plugin_warnings` only when nonempty; rejections return 400 and unavailable
+before-save returns 503. MCP and local CLI use `WRITE_PLUGIN_REJECTED: <message>` or
+`WRITE_PLUGIN_UNAVAILABLE: Task Write Plugin unavailable.`
+
+Deletion is the exception in transport coverage: task deletion exists only as a REST route. There is
+no MCP tool for it, and therefore no CLI path, so delete warnings and rejections surface on REST
+alone. Create, update, transition and claim are available on all three.
+
 ## Memory Configuration
 
 These settings control the atomic memory system's behavior and constraints.
