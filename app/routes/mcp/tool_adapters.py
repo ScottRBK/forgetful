@@ -1956,6 +1956,7 @@ class PlanToolAdapters:
         agent_version: str | None = None,
         agent_model: str | None = None,
     ):
+        project_id = _coerce_int_id(project_id, "project_id")
         from app.models.plan_models import PlanCreate, PlanStatus
         user = await get_user_from_auth(ctx)
         plan_data = PlanCreate(
@@ -2003,6 +2004,7 @@ class PlanToolAdapters:
         agent_version: str | None = None,
         agent_model: str | None = None,
     ):
+        plan_id = _coerce_int_id(plan_id, "plan_id")
         from app.models.plan_models import PlanStatus, PlanUpdate
         user = await get_user_from_auth(ctx)
         updated_dict = filter_none_values(
@@ -2035,6 +2037,7 @@ class PlanToolAdapters:
         return PlanWriteResponse(**result.plan.model_dump(), plugin_warnings=result.plugin_warnings)
 
     async def get_plan(self, plan_id: int, ctx: Context):
+        plan_id = _coerce_int_id(plan_id, "plan_id")
         user = await get_user_from_auth(ctx)
         return await self.plan_service.get_plan(user_id=user.id, plan_id=plan_id)
 
@@ -2045,6 +2048,8 @@ class PlanToolAdapters:
         status: str | None = None,
         external_ref: str | None = None,
     ):
+        if project_id is not None:
+            project_id = _coerce_int_id(project_id, "project_id")
         from app.models.plan_models import PlanStatus
         user = await get_user_from_auth(ctx)
         status_enum = PlanStatus(status) if status else None
