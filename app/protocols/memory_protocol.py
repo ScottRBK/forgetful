@@ -95,6 +95,15 @@ class MemoryRepository(Protocol):
             max_links: int = 5,
     ) -> list[Memory]:
         ...
+    async def get_memory_links_incident_to(
+            self,
+            user_id: UUID,
+            memory_ids: list[int],
+            project_ids: list[int] | None = None,
+            include_obsolete: bool = False,
+    ) -> list[tuple[int, int]]:
+        """Links with at least one endpoint in ``memory_ids``, both ends in range."""
+        ...
     async def find_similar_memories(
             self,
             user_id: UUID,

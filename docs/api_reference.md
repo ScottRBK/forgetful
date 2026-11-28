@@ -1100,6 +1100,7 @@ Get full knowledge graph for visualization. Returns all nodes and edges for the 
 | `offset` | int | 0 | Number of memories to skip for pagination |
 | `sort_by` | string | `created_at` | Sort field: `created_at`, `updated_at`, or `importance` |
 | `sort_order` | string | `desc` | Sort direction: `asc` or `desc` |
+| `cross_page_edges` | bool | false | Opt in to memory-link edges that may reference nodes on other pages. See [paging and merge rules](#paging-and-merge-rules) |
 
 **Node Types:**
 - `memory` - Knowledge memories
@@ -1205,6 +1206,61 @@ GET /api/v1/graph?limit=50&offset=50&sort_by=importance&sort_order=desc
 # Filter to project and sort by creation date (oldest first)
 GET /api/v1/graph?project_id=4&sort_by=created_at&sort_order=asc
 ```
+
+#### Paging and merge rules
+
+**Ordering is deterministic.** Memories are ordered by the `sort_by` field and then by memory id in
+the same direction as `sort_order` (both databases add this id tiebreak). Two requests with the same
+filters and parameters therefore return the same memories in the same order, which is what makes
+merging pages safe.
+
+**Nodes are page-scoped.** `nodes` contains only the memories on the requested page, plus the other
+node types the request asked for.
+
+**Edges follow one of two rules**, chosen by `cross_page_edges`:
+
+| `cross_page_edges` | Rule | Endpoints |
+| --- | --- | --- |
+| `false` (default) | `memory_link` is emitted only when both memories are on this page | every edge endpoint is a node in the same response |
+| `true` | `memory_link` is emitted when either memory is on this page | an edge may reference a memory node on another page |
+
+The default is the original behaviour, kept so that clients which assume every edge endpoint is
+present in the same response continue to work unchanged. Nothing about the response shape changes:
+the same fields are present with the same meanings.
+
+**Merge rules for `cross_page_edges=true`.** A client that wants the complete picture:
+
+1. Page with `offset` until `meta.has_more` is false. `offset + meta.memory_count` reaches
+   `meta.total_memory_count` at the same time, so either signal works.
+2. Union the `nodes` arrays. Node ids are unique per node, so dedupe by `node.id`. Ordering is
+   deterministic, so pages do not overlap.
+3. Union the `edges` arrays and **dedupe by `edge.id`**. A link whose endpoints fall on two pages is
+   emitted by both of them, so without deduplication it is counted twice. Edge ids are canonical
+   (`memory_{lower_id}_memory_{higher_id}`), and direction is normalised to lower id first, so the
+   same link is identical on every page that reports it.
+4. Loading is complete when `meta.has_more` is false on the last page.
+
+Node coverage and edge coverage are different guarantees and should not be confused. Fetching every
+page gives every memory node and every `memory_link` whose two memories both match the request
+filters. It does not give edges to memories excluded by those filters: a link to an obsolete memory,
+or to a memory outside `project_id`, is never emitted, because both endpoints must satisfy the same
+predicates as the node query.
+
+```bash
+# Complete crawl with cross-page edges, deduplicating by edge id
+offset=0
+while :; do
+  page=$(GET "/api/v1/graph?limit=100&offset=$offset&cross_page_edges=true")
+  merge_nodes  "$page"    # dedupe by node.id
+  merge_edges  "$page"    # dedupe by edge.id
+  has_more=$(jq -r '.meta.has_more' <<<"$page")
+  [ "$has_more" = "true" ] || break
+  offset=$((offset + 100))
+done
+```
+
+With `cross_page_edges=false`, the same loop is still correct, it simply omits every link whose
+endpoints land on different pages.
 
 ### GET /api/v1/graph/subgraph
 

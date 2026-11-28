@@ -1360,3 +1360,58 @@ async def test_subgraph_nonexistent_plan_404_postgres(http_client):
 async def test_subgraph_nonexistent_task_404_postgres(http_client):
     response = await http_client.get("/api/v1/graph/subgraph?node_id=task_999999")
     assert response.status_code == 404
+
+
+@pytest.mark.e2e
+async def test_memory_link_across_pages_is_emitted_when_opted_in(http_client):
+    """With cross_page_edges=true a link spanning two pages is still emitted.
+
+    The overview pages over memories; scoping edges to the page's own ids hid
+    every link whose endpoints did not coincide on one page.
+    """
+    project_resp = await http_client.post("/api/v1/projects", json={
+        "name": "Cross Page Edge Project",
+        "description": "Scopes the pagination edge test to its own memories",
+        "project_type": "development",
+    })
+    assert project_resp.status_code in [200, 201]
+    project_id = project_resp.json()["id"]
+
+    async def make(title: str) -> int:
+        response = await http_client.post("/api/v1/memories", json={
+            "title": title,
+            "content": f"Content for {title}",
+            "context": "Cross-page link test",
+            "keywords": [title.replace(" ", "-").lower()],
+            "tags": ["cross-page-edge"],
+            "importance": 7,
+            "project_ids": [project_id],
+        })
+        assert response.status_code in [200, 201], response.text
+        return response.json()["id"]
+
+    first = await make("Postgres Cross Page One")
+    await make("Postgres Cross Page Two")
+    third = await make("Postgres Cross Page Three")
+
+    link = await http_client.post(f"/api/v1/memories/{first}/links", json={
+        "related_ids": [third],
+    })
+    assert link.status_code in [200, 201], link.text
+
+    response = await http_client.get(
+        f"/api/v1/graph?node_types=memory&project_id={project_id}"
+        "&limit=2&offset=0&sort_by=created_at&sort_order=asc&cross_page_edges=true",
+    )
+    assert response.status_code == 200
+    data = response.json()
+    page_ids = {node["data"]["id"] for node in data["nodes"]}
+    assert first in page_ids
+    assert third not in page_ids, "test needs the endpoints on different pages"
+
+    canonical = f"memory_{min(first, third)}_memory_{max(first, third)}"
+    matching = [
+        e for e in data["edges"]
+        if e["type"] == "memory_link" and e["id"] == canonical
+    ]
+    assert len(matching) == 1, f"expected the cross-page link once, got {matching}"

@@ -68,6 +68,9 @@ def register(mcp: FastMCP):
         offset_str = params.get("offset", "0")
         sort_by = params.get("sort_by", "created_at")
         sort_order = params.get("sort_order", "desc")
+        # Opt-in only, matching the include_entities convention: anything other than
+        # an explicit "true" keeps the page-scoped edge rule that shipped before.
+        cross_page_edges = params.get("cross_page_edges", "false").lower() == "true"
 
         # Parse node_types parameter (new approach)
         available_types = _resolve_available_node_types()
@@ -211,19 +214,50 @@ def register(mcp: FastMCP):
                     },
                 })
 
-            # Add edges for memory links
-            for memory in memories:
-                for linked_id in memory.linked_memory_ids:
-                    if linked_id in seen_memory_ids:
-                        edge_id = f"memory_{min(memory.id, linked_id)}_memory_{max(memory.id, linked_id)}"
-                        if edge_id not in seen_edge_ids:
-                            seen_edge_ids.add(edge_id)
-                            edges.append({
-                                "id": edge_id,
-                                "source": f"memory_{memory.id}",
-                                "target": f"memory_{linked_id}",
-                                "type": "memory_link",
-                            })
+            # Add edges for memory links.
+            #
+            # Default (cross_page_edges=false) keeps the original page-scoped rule:
+            # an edge is emitted only when both endpoints are on this page, so every
+            # edge endpoint is a node in the same response. That is what clients
+            # written against earlier versions expect.
+            #
+            # With cross_page_edges=true the rule widens to the filtered memory set:
+            # a link is emitted when either endpoint is on this page. The repository
+            # applies the same ownership, obsolete and project predicates as the
+            # memory query, so an edge always points at a memory the client will see
+            # while paging. Consequence: an edge can reference a node on another page,
+            # and the same edge can appear on more than one page. Clients dedupe by
+            # edge id.
+            if cross_page_edges and seen_memory_ids:
+                memory_links = await mcp.memory_service.get_memory_links_incident_to(
+                    user_id=user.id,
+                    memory_ids=sorted(seen_memory_ids),
+                    project_ids=project_ids,
+                )
+                for source_id, target_id in memory_links:
+                    low, high = sorted((source_id, target_id))
+                    edge_id = f"memory_{low}_memory_{high}"
+                    if edge_id not in seen_edge_ids:
+                        seen_edge_ids.add(edge_id)
+                        edges.append({
+                            "id": edge_id,
+                            "source": f"memory_{low}",
+                            "target": f"memory_{high}",
+                            "type": "memory_link",
+                        })
+            else:
+                for memory in memories:
+                    for linked_id in memory.linked_memory_ids:
+                        if linked_id in seen_memory_ids:
+                            edge_id = f"memory_{min(memory.id, linked_id)}_memory_{max(memory.id, linked_id)}"
+                            if edge_id not in seen_edge_ids:
+                                seen_edge_ids.add(edge_id)
+                                edges.append({
+                                    "id": edge_id,
+                                    "source": f"memory_{memory.id}",
+                                    "target": f"memory_{linked_id}",
+                                    "type": "memory_link",
+                                })
 
         # Add entity nodes and edges if requested
         seen_entity_ids = set()
