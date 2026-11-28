@@ -383,6 +383,9 @@ def register(mcp: FastMCP):
             raise ToolError(f"WRITE_PLUGIN_REJECTED: {exc}") from None
         except WritePluginUnavailableError as exc:
             raise ToolError(f"WRITE_PLUGIN_UNAVAILABLE: {exc}") from None
+        except Exception as e:
+            logger.error("Failed to delete document", exc_info=True)
+            raise ToolError(f"Failed to delete document: {e!s}")
 
         if not delete_result.deleted:
             raise ToolError(f"Document {document_id} not found")

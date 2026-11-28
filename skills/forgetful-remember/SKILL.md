@@ -97,6 +97,12 @@ memories as entry points, each linked to the document via `document_ids`. Reusab
 becomes `create_code_artifact`, with a memory pointing at it when the *decision* behind the
 code matters too.
 
+## Document Plugin (administrator)
+
+When `DOCUMENT_WRITE_PLUGIN` is configured, `create_document` and document updates/deletes may
+return `plugin_warnings` or fail with `WRITE_PLUGIN_REJECTED` / `WRITE_PLUGIN_UNAVAILABLE` before
+persistence. After-save warnings are advisory; the mutation already succeeded.
+
 Review `plugin_warnings` on create/update/obsolete/restore success. The write already succeeded;
 report the warning and consider the stated correction without repeating it. Near-duplicate
 warnings are advisory after creation. `MEMORY_PLUGIN_AFTER_SAVE_UNAVAILABLE` means the write

@@ -121,7 +121,7 @@ class DocumentService:
             document_data: DocumentCreate with title, description, content, etc.
 
         Returns:
-            Created Document with generated ID and timestamps
+            DocumentWriteResult with the created document and any plugin warnings
         """
         logger.info(
             "creating document",
@@ -303,7 +303,7 @@ class DocumentService:
             document_data: DocumentUpdate with fields to change
 
         Returns:
-            Updated Document
+            DocumentWriteResult with the updated document and any plugin warnings
 
         Raises:
             NotFoundError: If document not found or not owned by user
@@ -407,7 +407,7 @@ class DocumentService:
             document_id: Document ID to delete
 
         Returns:
-            True if deleted, False if not found or not owned by user
+            DocumentDeleteResult with deleted status and any plugin warnings
         """
         logger.info(
             "deleting document",
@@ -430,6 +430,13 @@ class DocumentService:
                 submitted=DocumentDeleteSubmission(document_id=document_id),
                 previous=existing_document.model_copy(deep=True), proposed=None,
             ))
+            existing_document = await self.document_repo.get_document_by_id(
+                user_id=user_id, document_id=document_id,
+            )
+            if not existing_document:
+                return DocumentDeleteResult(
+                    deleted=False, plugin_warnings=plugin_warnings,
+                )
 
         success = await self.document_repo.delete_document(
             user_id=user_id,

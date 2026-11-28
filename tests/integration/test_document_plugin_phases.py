@@ -11,6 +11,7 @@ from app.exceptions import (
     WritePluginRejectedError,
     WritePluginUnavailableError,
 )
+from app.models.activity_models import ActionType
 from app.models.document_models import DocumentUpdate
 from app.models.write_plugin_models import PluginWarning, WriteDecision
 from app.protocols.write_plugin_protocol import DocumentPlugin
@@ -111,8 +112,8 @@ async def test_noop_update_skips_plugin(document_store):
         repo, write_plugin=DocumentWritePluginService(DocumentPlugin(before_save={"update": before})),
     )
     created = (await service.create_document(user_id, candidate(description="same"))).document
-    await service.update_document(user_id, created.id, DocumentUpdate(notes="same"))
-    await service.update_document(user_id, created.id, DocumentUpdate(notes="same"))
+    await service.update_document(user_id, created.id, DocumentUpdate(description="same"))
+    await service.update_document(user_id, created.id, DocumentUpdate(description="same"))
     assert calls == []
 
 
@@ -131,6 +132,79 @@ async def test_delete_missing_skips_plugin(document_store):
     assert result.deleted is False
     assert result.plugin_warnings == []
     assert calls == []
+
+
+async def test_delete_refreshes_snapshot_after_before_wait(document_store):
+    repo, user_id, bus = document_store
+    paused, release = asyncio.Event(), asyncio.Event()
+    after_seen, events = [], []
+
+    async def collect(event):
+        events.append(event)
+
+    bus.subscribe("document.*", collect)
+
+    async def before(request):
+        if request.operation == "delete":
+            paused.set()
+            await release.wait()
+        return WriteDecision(outcome="allow")
+
+    async def after(request):
+        after_seen.append(request)
+        return None
+
+    plugin = DocumentPlugin(
+        before_save={"delete": before}, after_save={"delete": after},
+    )
+    observer = DocumentService(repo, bus)
+    created = (await observer.create_document(
+        user_id, candidate(description="old"),
+    )).document
+    service = DocumentService(
+        repo, bus, DocumentWritePluginService(plugin),
+    )
+
+    async with asyncio.timeout(5), asyncio.TaskGroup() as tasks:
+        pending = tasks.create_task(service.delete_document(user_id, created.id))
+        await paused.wait()
+        try:
+            await observer.update_document(
+                user_id, created.id, DocumentUpdate(description="new"),
+            )
+        finally:
+            release.set()
+    await bus.wait_for_pending()
+
+    assert pending.result().deleted is True
+    assert len(after_seen) == 1
+    assert after_seen[0].previous.description == "new"
+    deleted_events = [event for event in events if event.action == ActionType.DELETED]
+    assert len(deleted_events) == 1
+    assert deleted_events[0].snapshot["description"] == "new"
+
+
+async def test_delete_vanished_during_before_returns_false_with_warnings(document_store):
+    repo, user_id, _ = document_store
+    before_ran = asyncio.Event()
+
+    async def before(request):
+        before_ran.set()
+        await repo.delete_document(user_id=user_id, document_id=request.submitted.document_id)
+        return WriteDecision(outcome="warn", message="vanished", code="vanished")
+
+    service = DocumentService(
+        repo, write_plugin=DocumentWritePluginService(
+            DocumentPlugin(before_save={"delete": before}),
+        ),
+    )
+    observer = DocumentService(repo)
+    created = (await observer.create_document(user_id, candidate())).document
+    result = await service.delete_document(user_id, created.id)
+    assert before_ran.is_set()
+    assert result.deleted is False
+    assert result.plugin_warnings[0].message == "vanished"
+    assert await repo.get_document_by_id(user_id=user_id, document_id=created.id) is None
 
 
 async def test_delete_after_receives_previous_not_saved_object(document_store):
@@ -260,7 +334,7 @@ async def test_unregistered_operation_runs_without_warnings(document_store):
         ),
     )
     created = (await service.create_document(user_id, candidate())).document
-    updated = await service.update_document(user_id, created.id, DocumentUpdate(notes="changed"))
+    updated = await service.update_document(user_id, created.id, DocumentUpdate(description="changed"))
     assert updated.plugin_warnings == []
     assert calls == [calls[0]]
     assert calls[0].operation == "create"
@@ -455,4 +529,96 @@ async def test_foreign_project_id_fails_after_allowing_before_save(document_stor
             user_id, created.id, DocumentUpdate(project_id=foreign_project.id),
         )
     assert after_calls == []
+
+
+@pytest.mark.parametrize("mode", ["warn", "enforce"])
+@pytest.mark.parametrize("failure", ["error", "timeout", "reject", "mutated", "cancelled_child"])
+async def test_after_failure_warns_without_failing_saved_update(document_store, mode, failure, caplog):
+    repo, user_id, _ = document_store
+    logging.getLogger("app.services.document_write_plugin_service").disabled = False
+
+    async def after(request):
+        if failure == "error":
+            raise RuntimeError("SECRET document content")
+        if failure == "timeout":
+            await asyncio.sleep(10)
+        if failure == "reject":
+            return {"outcome": "reject", "message": "SECRET document content"}
+        if failure == "cancelled_child":
+            child = asyncio.create_task(asyncio.sleep(10))
+            child.cancel("SECRET document content")
+            await child
+        warning = PluginWarning(message="Valid originally")
+        warning.message = " "
+        return warning
+
+    async def allow(_request):
+        return WriteDecision(outcome="allow")
+
+    service = DocumentService(
+        repo, write_plugin=DocumentWritePluginService(
+            DocumentPlugin(
+                before_save={"create": allow, "update": allow},
+                after_save={"update": after},
+            ),
+            mode=mode, timeout_seconds=0.01 if failure == "timeout" else 5,
+        ),
+    )
+    created = (await service.create_document(user_id, candidate())).document
+    result = await service.update_document(
+        user_id, created.id, DocumentUpdate(description="revised"),
+    )
+    assert result.plugin_warnings == [PluginWarning(
+        message="Document saved, but after-save plugin unavailable.",
+        code="DOCUMENT_PLUGIN_AFTER_SAVE_UNAVAILABLE",
+    )]
+    assert (await service.get_document(user_id, created.id)).description == "revised"
+    assert "after_save" in caplog.text
+    assert "SECRET" not in caplog.text
+
+
+@pytest.mark.parametrize("mode", ["warn", "enforce"])
+@pytest.mark.parametrize("failure", ["error", "timeout", "reject", "mutated", "cancelled_child"])
+async def test_after_failure_warns_without_failing_saved_delete(document_store, mode, failure, caplog):
+    repo, user_id, _ = document_store
+    logging.getLogger("app.services.document_write_plugin_service").disabled = False
+
+    async def after(request):
+        if failure == "error":
+            raise RuntimeError("SECRET document content")
+        if failure == "timeout":
+            await asyncio.sleep(10)
+        if failure == "reject":
+            return {"outcome": "reject", "message": "SECRET document content"}
+        if failure == "cancelled_child":
+            child = asyncio.create_task(asyncio.sleep(10))
+            child.cancel("SECRET document content")
+            await child
+        warning = PluginWarning(message="Valid originally")
+        warning.message = " "
+        return warning
+
+    async def allow(_request):
+        return WriteDecision(outcome="allow")
+
+    service = DocumentService(
+        repo, write_plugin=DocumentWritePluginService(
+            DocumentPlugin(
+                before_save={"create": allow, "delete": allow},
+                after_save={"delete": after},
+            ),
+            mode=mode, timeout_seconds=0.01 if failure == "timeout" else 5,
+        ),
+    )
+    created = (await service.create_document(user_id, candidate())).document
+    created_id = created.id
+    result = await service.delete_document(user_id, created_id)
+    assert result.deleted is True
+    assert result.plugin_warnings == [PluginWarning(
+        message="Document deleted, but after-save plugin unavailable.",
+        code="DOCUMENT_PLUGIN_AFTER_SAVE_UNAVAILABLE",
+    )]
+    assert await repo.get_document_by_id(user_id=user_id, document_id=created_id) is None
+    assert "after_save" in caplog.text
+    assert "SECRET" not in caplog.text
 

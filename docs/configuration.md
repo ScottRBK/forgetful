@@ -742,6 +742,8 @@ update. A before-save allow decision does not bypass repository ownership checks
 foreign `project_id` still fails in the repository with no after-save). Document delete cascades
 remove `memory_document_association` and `skill_document_association` rows at the database; project
 delete sets `documents.project_id` to NULL. Those indirect changes do not invoke the plugin.
+Documents created during skill bundle import are written through `SkillRepository.create_skill_bundle`,
+not `DocumentService`, so the Document Plugin is not invoked for those rows.
 
 ## Memory Configuration
 
