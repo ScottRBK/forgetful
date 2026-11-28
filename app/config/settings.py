@@ -62,6 +62,11 @@ class Settings(BaseSettings):
     ENTITY_WRITE_PLUGIN: str = ""
     ENTITY_WRITE_PLUGIN_MODE: Literal["warn", "enforce"] = "enforce"
     ENTITY_WRITE_PLUGIN_TIMEOUT_SECONDS: float = Field(default=5.0, gt=0, allow_inf_nan=False)
+    ENTITY_RELATIONSHIP_PLUGIN: str = ""
+    ENTITY_RELATIONSHIP_PLUGIN_MODE: Literal["warn", "enforce"] = "enforce"
+    ENTITY_RELATIONSHIP_PLUGIN_TIMEOUT_SECONDS: float = Field(
+        default=5.0, gt=0, allow_inf_nan=False,
+    )
 
     DOCUMENT_WRITE_PLUGIN: str = ""
     DOCUMENT_WRITE_PLUGIN_MODE: Literal["warn", "enforce"] = "enforce"

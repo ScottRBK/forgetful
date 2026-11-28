@@ -13,6 +13,10 @@ from app.models.write_plugin_models import (
     DocumentWriteRequest,
     EntityDeletedRequest,
     EntityOperation,
+    EntityRelationshipDeletedRequest,
+    EntityRelationshipOperation,
+    EntityRelationshipSavedRequest,
+    EntityRelationshipWriteRequest,
     EntitySavedRequest,
     EntityWriteRequest,
     MemoryLifecycleRequest,
@@ -122,6 +126,47 @@ class DocumentPlugin:
             for operation, handler in handlers.items():
                 if operation not in get_args(DocumentOperation):
                     raise ValueError(f"{phase} contains an unsupported document operation")
+                if not inspect.iscoroutinefunction(handler):
+                    raise ValueError(f"{phase} handlers must be async functions")
+                try:
+                    inspect.signature(handler).bind(object())
+                except (TypeError, ValueError):
+                    raise ValueError(f"{phase} handlers must accept one context argument") from None
+            object.__setattr__(self, phase, MappingProxyType(handlers))
+
+
+class EntityRelationshipBeforeSave(Protocol):
+    async def __call__(self, request: EntityRelationshipWriteRequest) -> WriteDecision:
+        ...
+
+
+class EntityRelationshipAfterSave(Protocol):
+    async def __call__(
+        self, request: EntityRelationshipSavedRequest | EntityRelationshipDeletedRequest,
+    ) -> PluginWarning | None:
+        ...
+
+
+@dataclass(frozen=True)
+class EntityRelationshipPlugin:
+    before_save: Mapping[EntityRelationshipOperation, EntityRelationshipBeforeSave] = field(
+        default_factory=dict,
+    )
+    after_save: Mapping[EntityRelationshipOperation, EntityRelationshipAfterSave] = field(
+        default_factory=dict,
+    )
+
+    def __post_init__(self) -> None:
+        for phase in ("before_save", "after_save"):
+            handlers = getattr(self, phase)
+            if not isinstance(handlers, Mapping):
+                raise ValueError(f"{phase} must be an operation-to-handler mapping")
+            handlers = dict(handlers)
+            for operation, handler in handlers.items():
+                if operation not in get_args(EntityRelationshipOperation):
+                    raise ValueError(
+                        f"{phase} contains an unsupported entity-relationship operation",
+                    )
                 if not inspect.iscoroutinefunction(handler):
                     raise ValueError(f"{phase} handlers must be async functions")
                 try:

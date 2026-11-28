@@ -168,6 +168,56 @@ class SqliteFileRepository:
             )
             raise
 
+    async def list_files_page(
+        self,
+        user_id: UUID,
+        project_id: int | None = None,
+        mime_type: str | None = None,
+        tags: list[str] | None = None,
+        *,
+        limit: int,
+        offset: int,
+    ) -> tuple[list[FileSummary], int]:
+        """Return a counted SQL page using only summary columns."""
+        async with self.db_adapter.session(user_id) as session:
+            conditions = [FilesTable.user_id == str(user_id)]
+            if project_id is not None:
+                conditions.append(FilesTable.project_id == project_id)
+            if mime_type:
+                conditions.append(FilesTable.mime_type == mime_type)
+            if tags:
+                # Preserve the existing SQLite LIKE semantics, including wildcards.
+                tag_conditions = [
+                    func.json_extract(FilesTable.tags, "$").like(f'%"{tag}"%')
+                    for tag in tags
+                ]
+                conditions.append(or_(*tag_conditions))
+
+            count_stmt = select(func.count(FilesTable.id)).where(*conditions)
+            total = await session.scalar(count_stmt)
+            stmt = (
+                select(
+                    FilesTable.id,
+                    FilesTable.filename,
+                    FilesTable.description,
+                    FilesTable.mime_type,
+                    FilesTable.size_bytes,
+                    FilesTable.tags,
+                    FilesTable.project_id,
+                    FilesTable.created_at,
+                    FilesTable.updated_at,
+                )
+                .where(*conditions)
+                .order_by(
+                    FilesTable.created_at.desc(),
+                    FilesTable.id.desc(),
+                )
+                .offset(offset)
+                .limit(limit)
+            )
+            result = await session.execute(stmt)
+            return [FileSummary.model_validate(row) for row in result.mappings().all()], total or 0
+
     async def update_file(
         self,
         user_id: UUID,

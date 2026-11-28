@@ -3,7 +3,7 @@
 from pydantic import BaseModel, Field
 
 from app.models.document_models import Document
-from app.models.entity_models import Entity
+from app.models.entity_models import Entity, EntityRelationship
 from app.models.memory_models import Memory, MemoryCreateResponse
 from app.models.write_plugin_models import MemoryLinkOutcome, PluginWarning
 
@@ -23,6 +23,10 @@ class MemoryLifecycleResponse(BaseModel):
 
 
 class EntityWriteResponse(Entity):
+    plugin_warnings: list[PluginWarning] = Field(default_factory=list, exclude_if=lambda v: not v)
+
+
+class EntityRelationshipWriteResponse(EntityRelationship):
     plugin_warnings: list[PluginWarning] = Field(default_factory=list, exclude_if=lambda v: not v)
 
 

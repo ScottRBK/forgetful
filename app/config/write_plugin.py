@@ -6,6 +6,7 @@ from app.config.settings import Settings
 from app.protocols.write_plugin_protocol import (
     DocumentPlugin,
     EntityPlugin,
+    EntityRelationshipPlugin,
     MemoryLinkPlugin,
     MemoryPlugin,
 )
@@ -108,4 +109,34 @@ def load_memory_link_plugin(config: Settings) -> MemoryLinkPlugin | None:
         ) from None
     if not isinstance(plugin, MemoryLinkPlugin):
         raise ValueError("MEMORY_LINK_PLUGIN must reference a MemoryLinkPlugin registration")
+    return plugin
+
+
+def load_entity_relationship_plugin(config: Settings) -> EntityRelationshipPlugin | None:
+    reference = config.ENTITY_RELATIONSHIP_PLUGIN.strip()
+    if not reference:
+        return None
+    module_name, separator, object_name = reference.partition(":")
+    if (not separator or not object_name.isidentifier()
+            or not all(part.isidentifier() for part in module_name.split("."))):
+        raise ValueError(
+            "ENTITY_RELATIONSHIP_PLUGIN must be an importable module:object reference",
+        )
+    try:
+        module = importlib.import_module(module_name)
+    except Exception as exc:
+        raise ValueError(
+            f"ENTITY_RELATIONSHIP_PLUGIN import failed for {module_name}: {type(exc).__name__}",
+        ) from None
+    try:
+        plugin = getattr(module, object_name)
+    except Exception as exc:
+        raise ValueError(
+            f"ENTITY_RELATIONSHIP_PLUGIN attribute lookup failed for {reference}: "
+            f"{type(exc).__name__}",
+        ) from None
+    if not isinstance(plugin, EntityRelationshipPlugin):
+        raise ValueError(
+            "ENTITY_RELATIONSHIP_PLUGIN must reference an EntityRelationshipPlugin registration",
+        )
     return plugin

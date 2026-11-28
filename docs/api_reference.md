@@ -52,7 +52,7 @@ See [FastMCP Auth Documentation](https://fastmcp.wiki/en/servers/auth/authentica
 |------|-------------|
 | 200 | Success |
 | 201 | Created |
-| 400 | Bad Request (validation error, `CyclicDependencyError`) |
+| 400 | Bad Request (validation error, including a non-integer path ID; `CyclicDependencyError`) |
 | 401 | Unauthorized (missing/invalid token) |
 | 404 | Not Found (also returned when a referenced `project_id` does not exist or belongs to another user) |
 | 409 | Conflict (`ConflictError` -- version mismatch in optimistic concurrency) |
@@ -83,9 +83,10 @@ Health check endpoint (no authentication required).
 
 ### GET /.well-known
 
-Public JSON metadata describing which optional features the instance has enabled. No credentials are
-required, even when authentication is enabled. All callers receive the same schema version and
-capability booleans; the response does not expose raw configuration or user data.
+Public JSON metadata describing which optional features the instance has enabled, and the field
+limits that write requests must respect. No credentials are required, even when authentication is
+enabled. All callers receive the same schema version, capability booleans and limits. The response
+does not expose other configuration, such as retrieval or similarity tuning, or any user data.
 
 The path is relative to the application's deployment base, not `/api/v1` or the MCP endpoint:
 
@@ -104,9 +105,22 @@ hardcoded route. This project-specific endpoint is separate from OAuth's standar
     "skills": false,
     "files": true,
     "activity_stream": false
+  },
+  "limits": {
+    "memory": {
+      "title": {"max_length": 200},
+      "content": {"max_length": 2000},
+      "context": {"max_length": 500},
+      "keywords": {"max_items": 10},
+      "tags": {"max_items": 10}
+    },
+    "plan": {"title": {"max_length": 500}},
+    "file": {"filename": {"max_length": 255}, "data": {"max_decoded_bytes": 10485760}}
   }
 }
 ```
+
+The example shortens `limits`. The real response lists every bounded field of each type.
 
 Each value maps directly to the settings singleton:
 
@@ -125,7 +139,26 @@ caching and refresh policy. These booleans describe configuration, not service h
 permissions, or a guarantee that a feature request will succeed. Feature routes keep their normal
 authentication and authorization requirements.
 
-For schema version `1`, clients should ignore additional capability keys. Only an explicit `false`
+### Field limits
+
+`limits` maps each type to its bounded fields. Each field has one bound:
+
+| Bound | Meaning |
+|-------|---------|
+| `max_length` | Maximum characters in a string field. |
+| `max_items` | Maximum items in a list field. |
+| `max_decoded_bytes` | Maximum decoded size of base64 content. |
+
+The core types are `memory`, `entity`, `entity_relationship`, `document`, `code_artifact` and
+`project`. Optional types appear only when their feature is enabled: `plan`, `task` and
+`criterion` for planning, `file` for files, and `skill` and `skill_bundle` for skills.
+
+Limits come from the same request models that validate writes, so a configured limit such as
+`MEMORY_CONTENT_MAX_LENGTH` is published when the server starts. A value at the limit is accepted;
+a value over it is rejected with HTTP 400. Fields with no length or count bound are not listed.
+
+For schema version `1`, clients should ignore additional capability, type and field keys. A
+missing `limits` key means the server does not publish limits. Only an explicit `false`
 means disabled; a missing key, unsupported schema version, or unavailable document means unknown.
 Older servers may not provide this endpoint. Clients may fall back to probing a feature route, but
 must not treat authentication errors, routing errors, or temporary outages as a disabled feature.
@@ -407,11 +440,115 @@ Remove a link between two memories (bidirectional).
 
 ---
 
+## Resource list pagination and migration
+
+Projects, Plans, Tasks, Documents, Code Artifacts, Files, and Skills return bounded
+pages, including when no pagination arguments are supplied. Their defaults are
+`limit=20` and `offset=0`; `limit` must be between 1 and 100 and `offset` must be
+non-negative. These parameters use the same integer parsing and validation as the
+Memories endpoint. Invalid values return HTTP 400:
+
+- Non-integer `limit` or `offset`: `Invalid value for '<name>': must be an integer`.
+- A limit outside 1–100: `limit must be between 1 and 100`.
+- A negative offset: `offset must be non-negative`.
+
+An offset of `2^63` or greater returns HTTP 500 on both SQLite and PostgreSQL,
+matching the existing Memories endpoint; it is not a valid empty page.
+
+Each response retains its resource array and summary fields, and includes `total`,
+`limit`, and `offset`. `total` is the full count after ownership and all supplied
+filters, even if the page is empty or the offset is beyond the end. It is not the
+number of items on the page. Files, Skills, and Planning retain their feature flags;
+Tasks still requires `plan_id` and remains scoped to that plan and the calling user.
+
+Ordering is `created_at DESC, id DESC`, except Tasks, which uses
+`created_at ASC, id ASC`. The ID breaks timestamp ties. For an unchanged dataset,
+following pages with the same filters returns each matching item once. Separate
+requests do not share a snapshot: concurrent changes can shift offset pages, so a
+client needing a consistent collection should reload if it detects a change.
+
+The list projection excludes full document content, artifact code, file data, and
+skill content. Fetch an individual resource when its content is selected. Existing
+tag matching is preserved: SQLite applies `LIKE` to serialized JSON tags, where
+`%` and `_` are pattern characters; PostgreSQL uses array overlap. Wildcard and
+quoted tag values can therefore match differently between backends. Pagination
+does not change that existing distinction.
+
+### Breaking default and UI rollout
+
+These seven REST lists previously returned complete collections. A parameterless
+request now returns at most 20 summaries. Clients must use the new paging metadata;
+keeping the old array key does not make this default change backward compatible.
+Migrate the UI **before deploying the bounded-default backend**. The backend change
+alone does not establish that an external UI has migrated or been tested.
+
+- List screens send `limit`/`offset`, render `total` and page controls, and reset the
+  offset when filters change. Rendering a page needs no full-collection download.
+- A task board must page each state deliberately, or explicitly collect all pages
+  for its plan before treating the board as complete. Never split only the first
+  page into columns and present it as the whole plan.
+- Resolve a board's project name with `GET /api/v1/projects/{id}`, using the plan's
+  `project_id`, rather than assuming it appears on the first Projects page.
+
+The MCP list operations and local/remote CLI registry calls keep their existing
+full-collection contracts. REST pagination does not add paging arguments to those
+operations, and internal graph rendering and plan-completion checks still use the
+complete service lists.
+
+For a consumer that explicitly needs a whole collection, this example fetches one
+bounded request at a time. Keep `filters` unchanged for the run. Authentication,
+when enabled, belongs in the request headers as described above.
+
+```python
+import json
+from urllib.parse import urlencode
+from urllib.request import urlopen
+
+
+def collect_pages(base_url, resource, array_key, filters, headers):
+    from urllib.request import Request
+
+    collected, seen = [], set()
+    offset, expected_total = 0, None
+    while True:
+        query = urlencode({**filters, "limit": 100, "offset": offset})
+        request = Request(f"{base_url}/{resource}?{query}", headers=headers)
+        with urlopen(request, timeout=30) as response:
+            result = json.load(response)
+        if result["offset"] != offset or result["limit"] != 100:
+            raise RuntimeError("Unexpected pagination metadata; do not render a partial collection")
+        if expected_total is None:
+            expected_total = result["total"]
+        if result["total"] != expected_total:
+            raise RuntimeError("Collection changed; reload")
+        page = result[array_key]
+        ids = [item["id"] for item in page]
+        if len(set(ids)) != len(ids) or seen.intersection(ids):
+            raise RuntimeError("Duplicate page items; reload")
+        if not page and offset < expected_total:
+            raise RuntimeError("No progress before collection completion")
+        seen.update(ids)
+        collected.extend(page)
+        offset += len(page)
+        if offset >= expected_total:
+            if offset != expected_total:
+                raise RuntimeError("Collection changed; reload")
+            return collected
+
+
+# Use only when this board intentionally needs every task of a plan.
+# tasks = collect_pages("http://localhost:8020/api/v1", "tasks", "tasks",
+#                       {"plan_id": 1}, {})
+```
+
+This detects missing progress, duplicates, and changed totals; it is not a
+transactional snapshot guarantee under concurrent writes.
+
 ## Projects
 
 ### GET /api/v1/projects
 
-List all projects.
+List one page of projects.
 
 **Query Parameters:**
 
@@ -419,13 +556,15 @@ List all projects.
 |-----------|------|-------------|
 | `status` | string | Filter by status: `active`, `archived`, `completed` |
 | `repo_name` | string | Match equivalent repository addresses or literal identifiers |
+| `limit` | int | Page size, 1–100; default 20 |
+| `offset` | int | Results to skip; default 0 |
 
 Repository lookup recognises equivalent HTTPS, SSH, and host-qualified addresses. For example,
 `github.com/ScottRBK/forgetful`, `https://github.com/ScottRBK/forgetful.git`, and
 `git@github.com:ScottRBK/forgetful.git` match each other. A trailing slash is optional.
 Hostnames are case-insensitive; repository paths and explicit ports remain significant.
 Hostless paths such as `group/subgroup/repo` do not imply GitHub or another host.
-Unsupported or ambiguous forms use literal matching. Lookup returns every matching project and
+Unsupported or ambiguous forms use literal matching. Lookup counts every matching project before selecting a page and
 can be combined with the status filter; it does not perform partial-name or fuzzy search.
 
 **Response:** `ProjectSummary` items (lightweight; no `description` or `notes`).
@@ -445,9 +584,15 @@ can be combined with the status filter; it does not perform partial-name or fuzz
       "updated_at": "2024-12-05T10:00:00Z"
     }
   ],
-  "total": 5
+  "total": 1,
+  "limit": 20,
+  "offset": 0
 }
 ```
+Repository equivalence uses a lightweight scan of candidate project IDs and
+repository names before the database counts and pages matching summaries. Its
+metadata cost grows with the candidate projects; it is not constant-time lookup.
+
 
 ### GET /api/v1/projects/{id}
 
@@ -629,7 +774,12 @@ Update an entity relationship.
 
 ### DELETE /api/v1/entities/relationships/{id}
 
-Delete an entity relationship.
+Delete an entity relationship. Successful responses keep `{"success": true}`.
+
+When an Entity Relationship Plugin is registered, relationship create (201), update and delete
+responses add `plugin_warnings` only when nonempty; create and update stay flat relationship
+objects. Before-save rejections return 400; unavailable before-save returns 503 with
+`Entity Relationship Plugin unavailable.`
 
 ---
 
@@ -637,7 +787,7 @@ Delete an entity relationship.
 
 ### GET /api/v1/documents
 
-List all documents.
+List one page of documents.
 
 **Query Parameters:**
 
@@ -646,6 +796,8 @@ List all documents.
 | `project_id` | int | Filter by project |
 | `document_type` | string | Filter by type |
 | `tags` | string | Comma-separated tags |
+| `limit` | int | Page size, 1–100; default 20 |
+| `offset` | int | Results to skip; default 0 |
 
 **Response:**
 ```json
@@ -655,13 +807,18 @@ List all documents.
       "id": 1,
       "title": "Document Title",
       "description": "Brief description",
-      "content": "Full document content...",
       "document_type": "analysis",
+      "filename": null,
+      "size_bytes": 128,
       "tags": ["tag1"],
-      "created_at": "2024-12-05T10:00:00Z"
+      "project_id": null,
+      "created_at": "2024-12-05T10:00:00Z",
+      "updated_at": "2024-12-05T10:00:00Z"
     }
   ],
-  "total": 5
+  "total": 1,
+  "limit": 20,
+  "offset": 0
 }
 ```
 
@@ -709,7 +866,7 @@ rejections return HTTP 400; unavailable before-save returns HTTP 503.
 
 ### GET /api/v1/code-artifacts
 
-List all code artifacts.
+List one page of code artifacts.
 
 **Query Parameters:**
 
@@ -718,6 +875,8 @@ List all code artifacts.
 | `project_id` | int | Filter by project |
 | `language` | string | Filter by programming language |
 | `tags` | string | Comma-separated tags |
+| `limit` | int | Page size, 1–100; default 20 |
+| `offset` | int | Results to skip; default 0 |
 
 **Response:**
 ```json
@@ -727,13 +886,16 @@ List all code artifacts.
       "id": 1,
       "title": "Artifact Title",
       "description": "What this code does",
-      "code": "def hello():\n    return 'Hello'",
       "language": "python",
       "tags": ["utility"],
-      "created_at": "2024-12-05T10:00:00Z"
+      "project_id": null,
+      "created_at": "2024-12-05T10:00:00Z",
+      "updated_at": "2024-12-05T10:00:00Z"
     }
   ],
-  "total": 10
+  "total": 1,
+  "limit": 20,
+  "offset": 0
 }
 ```
 
@@ -766,13 +928,55 @@ Delete a code artifact.
 
 ---
 
+## Files
+
+**Requires:** `FILES_ENABLED=true`
+
+### GET /api/v1/files
+
+List one page of file summaries, without base64 file data.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `limit` | int | Page size, 1–100; default 20 |
+| `offset` | int | Results to skip; default 0 |
+| `project_id` | int | Filter by project |
+| `mime_type` | string | Filter by MIME type |
+| `tags` | string | Comma-separated tags (OR logic) |
+
+**Response:**
+```json
+{
+  "files": [{
+    "id": 1,
+    "filename": "diagram.png",
+    "description": "Architecture diagram",
+    "mime_type": "image/png",
+    "size_bytes": 1024,
+    "tags": ["architecture"],
+    "project_id": null,
+    "created_at": "2024-12-05T10:00:00Z",
+    "updated_at": "2024-12-05T10:00:00Z"
+  }],
+  "total": 1,
+  "limit": 20,
+  "offset": 0
+}
+```
+
+Use the individual file endpoint when its data is needed. See
+[resource list pagination and migration](#resource-list-pagination-and-migration)
+for ordering, validation, filtering and client transition rules.
+
+---
+
 ## Skills
 
 **Requires:** `SKILLS_ENABLED=true`
 
 ### GET /api/v1/skills
 
-List all skills.
+List one page of skills.
 
 **Query Parameters:**
 
@@ -781,6 +985,8 @@ List all skills.
 | `project_id` | int | Filter by project |
 | `tags` | string | Comma-separated tags (OR logic) |
 | `importance_threshold` | int | Minimum importance level |
+| `limit` | int | Page size, 1–100; default 20 |
+| `offset` | int | Results to skip; default 0 |
 
 **Response:**
 ```json
@@ -798,7 +1004,9 @@ List all skills.
       "updated_at": "2024-12-05T10:00:00Z"
     }
   ],
-  "total": 5
+  "total": 1,
+  "limit": 20,
+  "offset": 0
 }
 ```
 
@@ -1313,6 +1521,8 @@ List plans with optional filtering.
 | `project_id` | int | Filter by project |
 | `external_ref` | string | Exact, user-scoped reference lookup |
 | `status` | string | Filter by status: `draft`, `active`, `completed`, `archived` |
+| `limit` | int | Page size, 1–100; default 20 |
+| `offset` | int | Results to skip; default 0 |
 
 **Response:**
 ```json
@@ -1329,7 +1539,9 @@ List plans with optional filtering.
       "updated_at": "2024-12-05T10:00:00Z"
     }
   ],
-  "total": 5
+  "total": 1,
+  "limit": 20,
+  "offset": 0
 }
 ```
 
@@ -1470,6 +1682,8 @@ Query tasks for a plan. The `plan_id` query parameter is required.
 | `state` | string | no | Filter by state: `todo`, `doing`, `waiting`, `done`, `cancelled` |
 | `priority` | string | no | Filter by priority: `P0`, `P1`, `P2`, `P3` |
 | `assigned_agent` | string | no | Filter by assigned agent |
+| `limit` | int | no | Page size, 1–100; default 20 |
+| `offset` | int | no | Results to skip; default 0 |
 
 **Response:**
 ```json
@@ -1490,7 +1704,9 @@ Query tasks for a plan. The `plan_id` query parameter is required.
       "updated_at": "2024-12-05T10:00:00Z"
     }
   ],
-  "total": 10
+  "total": 1,
+  "limit": 20,
+  "offset": 0
 }
 ```
 

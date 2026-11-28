@@ -77,6 +77,19 @@ class CodeArtifactRepository(Protocol):
         """
         ...
 
+    async def list_code_artifacts_page(
+        self,
+        user_id: UUID,
+        project_id: int | None = None,
+        language: str | None = None,
+        tags: list[str] | None = None,
+        *,
+        limit: int,
+        offset: int,
+    ) -> tuple[list[CodeArtifactSummary], int]:
+        """Return a bounded summary page and the full matching count."""
+        ...
+
     async def update_code_artifact(
         self,
         user_id: UUID,

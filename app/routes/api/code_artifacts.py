@@ -16,6 +16,8 @@ from app.models.code_artifact_models import (
     CodeArtifactCreate,
     CodeArtifactUpdate,
 )
+from app.routes.api.list_pagination import parse_list_pagination
+from app.routes.api.params import parse_path_int
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +30,8 @@ def register(mcp: FastMCP):
         """List code artifacts with optional filtering.
 
         Query params:
+            limit: Results per page (1-100, default 20)
+            offset: Results to skip (default 0)
             project_id: Filter by project
             language: Filter by programming language
             tags: Comma-separated tags (OR logic)
@@ -38,6 +42,10 @@ def register(mcp: FastMCP):
             return JSONResponse({"error": str(e)}, status_code=401)
 
         params = request.query_params
+        try:
+            limit, offset = parse_list_pagination(params)
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
         project_id_str = params.get("project_id")
         language = params.get("language")
         tags_str = params.get("tags")
@@ -53,8 +61,10 @@ def register(mcp: FastMCP):
                 )
         tags = [t.strip() for t in tags_str.split(",")] if tags_str else None
 
-        artifacts = await mcp.code_artifact_service.list_code_artifacts(
+        artifacts, total = await mcp.code_artifact_service.list_code_artifacts_page(
             user_id=user.id,
+            limit=limit,
+            offset=offset,
             project_id=project_id,
             language=language,
             tags=tags,
@@ -62,7 +72,9 @@ def register(mcp: FastMCP):
 
         return JSONResponse({
             "code_artifacts": [a.model_dump(mode="json") for a in artifacts],
-            "total": len(artifacts),
+            "total": total,
+            "limit": limit,
+            "offset": offset,
         })
 
     @mcp.custom_route("/api/v1/code-artifacts/{artifact_id}", methods=["GET"])
@@ -73,7 +85,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        artifact_id = int(request.path_params["artifact_id"])
+        try:
+            artifact_id = parse_path_int(request, "artifact_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             artifact = await mcp.code_artifact_service.get_code_artifact(
@@ -117,7 +132,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        artifact_id = int(request.path_params["artifact_id"])
+        try:
+            artifact_id = parse_path_int(request, "artifact_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             body = await request.json()
@@ -144,7 +162,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        artifact_id = int(request.path_params["artifact_id"])
+        try:
+            artifact_id = parse_path_int(request, "artifact_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             success = await mcp.code_artifact_service.delete_code_artifact(

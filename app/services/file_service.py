@@ -245,6 +245,45 @@ class FileService:
 
         return files
 
+    async def list_files_page(
+        self,
+        user_id: UUID,
+        project_id: int | None = None,
+        mime_type: str | None = None,
+        tags: list[str] | None = None,
+        *,
+        limit: int,
+        offset: int,
+    ) -> tuple[list[FileSummary], int]:
+        """Return one bounded page and its full filtered total for REST callers."""
+        items, total = await self.file_repo.list_files_page(
+            user_id=user_id,
+            project_id=project_id,
+            mime_type=mime_type,
+            tags=tags,
+            limit=limit,
+            offset=offset,
+        )
+        if settings.ACTIVITY_TRACK_READS and self._event_bus:
+            await self._emit_event(
+                user_id=user_id,
+                entity_type=EntityType.FILE,
+                entity_id=0,
+                action=ActionType.QUERIED,
+                snapshot={
+                    "result_ids": [item.id for item in items],
+                    "total_count": total,
+                },
+                metadata={
+                    "project_id": project_id,
+                    "mime_type": mime_type,
+                    "tags": tags,
+                    "limit": limit,
+                    "offset": offset,
+                },
+            )
+        return items, total
+
     async def update_file(
         self,
         user_id: UUID,

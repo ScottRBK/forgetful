@@ -10,4 +10,6 @@ extend-exclude = [
 ]
 
 [default]
-extend-ignore-re = ["FoRgEtFuL"]
+# `CafÉ` is intentional test data: an uppercase accented letter that must not fold.
+# typos reads the `Caf` part as a misspelling of `Calf`.
+extend-ignore-re = ["FoRgEtFuL", "CafÉ"]

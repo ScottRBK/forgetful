@@ -30,9 +30,12 @@ flowchart TD
     WritePlugin --> Callable["MemoryPlugin: explicit operation-to-handler mappings"]
     Services --> EntityWritePlugin["EntityWritePluginService: before_save and advisory after_save"]
     EntityWritePlugin --> EntityCallable["EntityPlugin: create, update, delete mappings"]
+    Services --> RelationshipPlugin["EntityRelationshipPluginService: before_save and advisory after_save"]
+    RelationshipPlugin --> RelationshipCallable["EntityRelationshipPlugin: create, update, delete mappings"]
     Bootstrap --> Loader["config.write_plugin: trusted module:object loaders"]
     Loader -. supplies registration .-> WritePlugin
     Loader -. supplies registration .-> EntityWritePlugin
+    Loader -. supplies registration .-> RelationshipPlugin
     SQLite["SQLite repositories"] -. implements .-> Contracts
     Postgres["PostgreSQL repositories"] -. implements .-> Contracts
     SQLite --> SQLiteDB["SQLite adapter and sqlite-vec"]
@@ -182,6 +185,13 @@ snapshots only; deleting an entity row cascades at the database to `entity_proje
 `memory_entity_association`, `entity_file_association`, and `entity_relationships` rows whose
 `source_entity_id` / `target_entity_id` reference the entity, without separate plugin hooks.
 
+**Entity Relationship Plugin:** a separate registration (`load_entity_relationship_plugin`,
+`EntityRelationshipPlugin`, `EntityRelationshipPluginService`) for typed relationship create, update,
+and delete in `EntityService`. Contexts carry detached relationship snapshots plus the owned source
+and target entities, read after ownership checks and before persistence; the repository re-checks
+ownership on write. Update/delete reread the relationship after a before-handler await. Entity
+deletion cascades, memory links, and entity associations never dispatch relationship hooks.
+
 **Memory Plugin:** `app/config/write_plugin.py` loads one trusted `module:object` registration before
 costly resources. `MemoryPlugin` in `app/protocols/write_plugin_protocol.py` owns copied, frozen
 `before_save` and `after_save` mappings from explicit operations to async handlers. Supported
@@ -276,6 +286,14 @@ When `HYBRID_SEARCH_ENABLED` is true, both backends also run a keyword leg (SQLi
 PostgreSQL `tsvector` + GIN via Alembic `20261103_memory_search_tsv`), fuse the ranked id lists
 with reciprocal rank fusion, then apply that same rerank pool. With the flag off, search stays
 dense-only and `MemoryScore` omits `keyword_rank` / `fusion_score`.
+
+## Resource list contracts
+
+The seven resource REST lists use explicit paged service and repository methods,
+returning lightweight summaries plus a filtered total. Count and page selection stay
+behind the repository protocols. The original full-list methods remain unchanged for
+MCP, CLI, graph views and plan-completion checks; bounded REST defaults do not truncate
+those internal collections. See [the REST migration contract](docs/api_reference.md#resource-list-pagination-and-migration).
 
 ## Contracts, storage, and implementation variants
 

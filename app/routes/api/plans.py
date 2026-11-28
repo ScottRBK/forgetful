@@ -17,6 +17,8 @@ from app.exceptions import (
 )
 from app.middleware.auth import get_user_from_request
 from app.models.plan_models import PlanCreate, PlanStatus, PlanUpdate
+from app.routes.api.list_pagination import parse_list_pagination
+from app.routes.api.params import parse_path_int
 from app.routes.plan_plugin_responses import PlanningDeleteResponse, PlanWriteResponse
 
 logger = logging.getLogger(__name__)
@@ -27,13 +29,20 @@ def register(mcp: FastMCP):
 
     @mcp.custom_route("/api/v1/plans", methods=["GET"])
     async def list_plans(request: Request) -> JSONResponse:
-        """List plans with optional filtering."""
+        """List plans with optional filtering.
+
+        Pagination: limit 1-100 (default 20), offset >= 0 (default 0).
+        """
         try:
             user = await get_user_from_request(request, mcp)
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
         params = request.query_params
+        try:
+            limit, offset = parse_list_pagination(params)
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
         project_id_str = params.get("project_id")
         status_str = params.get("status")
 
@@ -49,15 +58,21 @@ def register(mcp: FastMCP):
                 )
 
         try:
-            plans = await mcp.plan_service.list_plans(
-                user_id=user.id, project_id=project_id, status=status,
+            plans, total = await mcp.plan_service.list_plans_page(
+                user_id=user.id,
+                project_id=project_id,
+                status=status,
+                limit=limit,
+                offset=offset,
                 external_ref=params.get("external_ref"),
             )
         except ValidationError as e:
             return JSONResponse({"error": e.errors()}, status_code=400)
         return JSONResponse({
             "plans": [p.model_dump(mode="json") for p in plans],
-            "total": len(plans),
+            "total": total,
+            "limit": limit,
+            "offset": offset,
         })
 
     @mcp.custom_route("/api/v1/plans/{plan_id}", methods=["GET"])
@@ -68,7 +83,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        plan_id = int(request.path_params["plan_id"])
+        try:
+            plan_id = parse_path_int(request, "plan_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
         try:
             plan = await mcp.plan_service.get_plan(user_id=user.id, plan_id=plan_id)
         except NotFoundError:
@@ -112,7 +130,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        plan_id = int(request.path_params["plan_id"])
+        try:
+            plan_id = parse_path_int(request, "plan_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             body = await request.json()
@@ -150,7 +171,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        plan_id = int(request.path_params["plan_id"])
+        try:
+            plan_id = parse_path_int(request, "plan_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
         try:
             result = await mcp.plan_service.delete_plan(user_id=user.id, plan_id=plan_id)
         except PlanPluginRejectedError as e:

@@ -287,6 +287,45 @@ class DocumentService:
 
         return documents
 
+    async def list_documents_page(
+        self,
+        user_id: UUID,
+        project_id: int | None = None,
+        document_type: str | None = None,
+        tags: list[str] | None = None,
+        *,
+        limit: int,
+        offset: int,
+    ) -> tuple[list[DocumentSummary], int]:
+        """Return one bounded page and its full filtered total for REST callers."""
+        items, total = await self.document_repo.list_documents_page(
+            user_id=user_id,
+            project_id=project_id,
+            document_type=document_type,
+            tags=tags,
+            limit=limit,
+            offset=offset,
+        )
+        if settings.ACTIVITY_TRACK_READS and self._event_bus:
+            await self._emit_event(
+                user_id=user_id,
+                entity_type=EntityType.DOCUMENT,
+                entity_id=0,
+                action=ActionType.QUERIED,
+                snapshot={
+                    "result_ids": [item.id for item in items],
+                    "total_count": total,
+                },
+                metadata={
+                    "project_id": project_id,
+                    "document_type": document_type,
+                    "tags": tags,
+                    "limit": limit,
+                    "offset": offset,
+                },
+            )
+        return items, total
+
     async def update_document(
         self,
         user_id: UUID,

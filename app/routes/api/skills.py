@@ -13,6 +13,8 @@ from starlette.responses import JSONResponse
 from app.exceptions import NotFoundError
 from app.middleware.auth import get_user_from_request
 from app.models.skill_models import SkillCreate, SkillUpdate
+from app.routes.api.list_pagination import parse_list_pagination
+from app.routes.api.params import parse_path_int
 from app.utils.bundle_validation import bundle_validation_message
 
 logger = logging.getLogger(__name__)
@@ -52,6 +54,8 @@ def register(mcp: FastMCP):
         """List skills with optional filtering.
 
         Query params:
+            limit: Results per page (1-100, default 20)
+            offset: Results to skip (default 0)
             project_id: Filter by project
             tags: Comma-separated tags (OR logic)
             importance_threshold: Minimum importance level
@@ -62,6 +66,10 @@ def register(mcp: FastMCP):
             return JSONResponse({"error": str(e)}, status_code=401)
 
         params = request.query_params
+        try:
+            limit, offset = parse_list_pagination(params)
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
         project_id_str = params.get("project_id")
         tags_str = params.get("tags")
         importance_threshold_str = params.get("importance_threshold")
@@ -93,8 +101,10 @@ def register(mcp: FastMCP):
                     status_code=400,
                 )
 
-        skills = await mcp.skill_service.list_skills(
+        skills, total = await mcp.skill_service.list_skills_page(
             user_id=user.id,
+            limit=limit,
+            offset=offset,
             project_id=project_id,
             tags=tags,
             importance_threshold=importance_threshold,
@@ -102,7 +112,9 @@ def register(mcp: FastMCP):
 
         return JSONResponse({
             "skills": [s.model_dump(mode="json") for s in skills],
-            "total": len(skills),
+            "total": total,
+            "limit": limit,
+            "offset": offset,
         })
 
     @mcp.custom_route("/api/v1/skills/search", methods=["GET"])
@@ -168,7 +180,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        skill_id = int(request.path_params["skill_id"])
+        try:
+            skill_id = parse_path_int(request, "skill_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             skill = await mcp.skill_service.get_skill(
@@ -188,7 +203,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        skill_id = int(request.path_params["skill_id"])
+        try:
+            skill_id = parse_path_int(request, "skill_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             body = await request.json()
@@ -215,7 +233,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        skill_id = int(request.path_params["skill_id"])
+        try:
+            skill_id = parse_path_int(request, "skill_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             success = await mcp.skill_service.delete_skill(
@@ -283,7 +304,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        skill_id = int(request.path_params["skill_id"])
+        try:
+            skill_id = parse_path_int(request, "skill_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             skill_md = await mcp.skill_service.export_skill(
@@ -337,7 +361,7 @@ def register(mcp: FastMCP):
                     raise ValueError("members must be a list")
                 members = [SkillBundleMember.model_validate(member) for member in members]
             bundle = await mcp.skill_service.export_skill_bundle(
-                user.id, int(request.path_params["skill_id"]), members,
+                user.id, parse_path_int(request, "skill_id"), members,
                 allowed_kinds=frozenset({"document", "code_artifact", "file"}),
             )
         except (ValueError, ValidationError) as exc:
@@ -356,7 +380,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        skill_id = int(request.path_params["skill_id"])
+        try:
+            skill_id = parse_path_int(request, "skill_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             body = await request.json()
@@ -383,8 +410,11 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        skill_id = int(request.path_params["skill_id"])
-        file_id = int(request.path_params["file_id"])
+        try:
+            skill_id = parse_path_int(request, "skill_id")
+            file_id = parse_path_int(request, "file_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             result = await mcp.skill_service.unlink_skill_from_file(
@@ -405,7 +435,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        skill_id = int(request.path_params["skill_id"])
+        try:
+            skill_id = parse_path_int(request, "skill_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             body = await request.json()
@@ -435,8 +468,11 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        skill_id = int(request.path_params["skill_id"])
-        code_artifact_id = int(request.path_params["code_artifact_id"])
+        try:
+            skill_id = parse_path_int(request, "skill_id")
+            code_artifact_id = parse_path_int(request, "code_artifact_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             result = await mcp.skill_service.unlink_skill_from_code_artifact(
@@ -457,7 +493,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        skill_id = int(request.path_params["skill_id"])
+        try:
+            skill_id = parse_path_int(request, "skill_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             body = await request.json()
@@ -487,8 +526,11 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        skill_id = int(request.path_params["skill_id"])
-        document_id = int(request.path_params["document_id"])
+        try:
+            skill_id = parse_path_int(request, "skill_id")
+            document_id = parse_path_int(request, "document_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             result = await mcp.skill_service.unlink_skill_from_document(
@@ -509,7 +551,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        skill_id = int(request.path_params["skill_id"])
+        try:
+            skill_id = parse_path_int(request, "skill_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             links = await mcp.skill_service.get_skill_links(

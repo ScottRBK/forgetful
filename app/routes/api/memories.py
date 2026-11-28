@@ -26,6 +26,7 @@ from app.models.memory_models import (
     MemoryUpdate,
 )
 from app.models.write_plugin_models import MemoryLinkResult
+from app.routes.api.params import parse_int_param, parse_path_int
 from app.routes.write_plugin_responses import (
     MemoryCreateWriteResponse,
     MemoryLifecycleResponse,
@@ -37,29 +38,6 @@ logger = logging.getLogger(__name__)
 # Valid values for query parameters
 VALID_SORT_BY = {"created_at", "updated_at", "importance", "title", "project_name"}
 VALID_SORT_ORDER = {"asc", "desc"}
-
-
-def parse_int_param(params: Any, name: str, default: int | None = None) -> int | None:
-    """Parse integer query parameter with strict validation.
-
-    Args:
-        params: Query params object
-        name: Parameter name
-        default: Default value if param not provided
-
-    Returns:
-        Parsed integer or default
-
-    Raises:
-        ValueError: If value is not a valid integer
-    """
-    raw = params.get(name)
-    if raw is None:
-        return default
-    try:
-        return int(raw)
-    except (ValueError, TypeError):
-        raise ValueError(f"Invalid value for '{name}': must be an integer")
 
 
 def parse_datetime_param(params: Any, name: str) -> datetime | None:
@@ -238,7 +216,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        memory_id = int(request.path_params["memory_id"])
+        try:
+            memory_id = parse_path_int(request, "memory_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             memory = await mcp.memory_service.get_memory(
@@ -311,7 +292,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        memory_id = int(request.path_params["memory_id"])
+        try:
+            memory_id = parse_path_int(request, "memory_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             body = await request.json()
@@ -353,7 +337,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        memory_id = int(request.path_params["memory_id"])
+        try:
+            memory_id = parse_path_int(request, "memory_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             body = await request.body()
@@ -414,7 +401,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        memory_id = int(request.path_params["memory_id"])
+        try:
+            memory_id = parse_path_int(request, "memory_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             body = await request.json()
@@ -450,7 +440,10 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        memory_id = int(request.path_params["memory_id"])
+        try:
+            memory_id = parse_path_int(request, "memory_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         params = request.query_params
         limit = min(int(params.get("limit", 20)), 100)
@@ -494,8 +487,11 @@ def register(mcp: FastMCP):
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
 
-        memory_id = int(request.path_params["memory_id"])
-        target_id = int(request.path_params["target_id"])
+        try:
+            memory_id = parse_path_int(request, "memory_id")
+            target_id = parse_path_int(request, "target_id")
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         try:
             success = await mcp.memory_service.unlink_memories(

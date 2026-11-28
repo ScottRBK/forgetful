@@ -40,9 +40,11 @@ from app.models.entity_models import (
 from app.models.memory_models import (
     Memory,
     MemoryCreate,
+    MemoryQueryCompactResult,
     MemoryQueryRequest,
     MemoryQueryResult,
     MemoryUpdate,
+    QueryMemoryResponseFormat,
 )
 from app.models.project_models import (
     Project,
@@ -54,11 +56,16 @@ from app.models.project_models import (
 from app.models.user_models import UserResponse, UserUpdate
 from app.models.write_plugin_models import MemoryLinkResult
 from app.routes.mcp.pagination import clamp_list_pagination
+from app.routes.mcp.query_memory_format import (
+    project_query_memory_result,
+    require_query_memory_response_format,
+)
 from app.routes.plan_plugin_responses import PlanWriteResponse, TaskTransitionResponse
 from app.routes.write_plugin_responses import (
     DocumentDeleteResponse,
     DocumentWriteResponse,
     EntityDeleteResponse,
+    EntityRelationshipWriteResponse,
     EntityWriteResponse,
     MemoryCreateWriteResponse,
     MemoryLifecycleResponse,
@@ -283,8 +290,11 @@ class MemoryToolAdapters:
         importance_threshold: int | None = None,
         project_ids: list[int] | None = None,
         strict_project_filter: bool = False,
-    ) -> MemoryQueryResult:
+        response_format: QueryMemoryResponseFormat = "full",
+    ) -> MemoryQueryResult | MemoryQueryCompactResult:
         """Adapter for query_memory tool"""
+        response_format = require_query_memory_response_format(response_format)
+
         logger.info(
             "MCP Tool -> query_memory",
             extra={"query": query[:50], "k": k, "include_links": include_links},
@@ -320,10 +330,11 @@ class MemoryToolAdapters:
             extra={
                 "total_memories_returned": result.total_count,
                 "token_count": result.token_count,
+                "response_format": response_format,
             },
         )
 
-        return result
+        return project_query_memory_result(result, response_format)
 
     async def update_memory(
         self,
@@ -1749,11 +1760,19 @@ class EntityToolAdapters:
             agent_model=agent_model,
         )
 
-        relationship = await self.entity_service.create_entity_relationship(
-            user_id=user.id, relationship_data=relationship_data,
-        )
+        try:
+            write_result = await self.entity_service.create_entity_relationship(
+                user_id=user.id, relationship_data=relationship_data,
+            )
+        except WritePluginRejectedError as exc:
+            raise ToolError(f"WRITE_PLUGIN_REJECTED: {exc}") from None
+        except WritePluginUnavailableError as exc:
+            raise ToolError(f"WRITE_PLUGIN_UNAVAILABLE: {exc}") from None
 
-        return relationship
+        return EntityRelationshipWriteResponse(
+            **write_result.relationship.model_dump(),
+            plugin_warnings=write_result.plugin_warnings,
+        )
 
     async def get_entity_relationships(
         self,
@@ -1812,13 +1831,21 @@ class EntityToolAdapters:
 
         relationship_data = EntityRelationshipUpdate(**updated_dict)
 
-        relationship = await self.entity_service.update_entity_relationship(
-            user_id=user.id,
-            relationship_id=relationship_id,
-            relationship_data=relationship_data,
-        )
+        try:
+            write_result = await self.entity_service.update_entity_relationship(
+                user_id=user.id,
+                relationship_id=relationship_id,
+                relationship_data=relationship_data,
+            )
+        except WritePluginRejectedError as exc:
+            raise ToolError(f"WRITE_PLUGIN_REJECTED: {exc}") from None
+        except WritePluginUnavailableError as exc:
+            raise ToolError(f"WRITE_PLUGIN_UNAVAILABLE: {exc}") from None
 
-        return relationship
+        return EntityRelationshipWriteResponse(
+            **write_result.relationship.model_dump(),
+            plugin_warnings=write_result.plugin_warnings,
+        )
 
     async def delete_entity_relationship(
         self, relationship_id: int, ctx: Context,
@@ -1826,11 +1853,19 @@ class EntityToolAdapters:
         """Adapter for delete_entity_relationship tool"""
         user = await get_user_from_auth(ctx)
 
-        result = await self.entity_service.delete_entity_relationship(
-            user_id=user.id, relationship_id=relationship_id,
-        )
+        try:
+            delete_result = await self.entity_service.delete_entity_relationship(
+                user_id=user.id, relationship_id=relationship_id,
+            )
+        except WritePluginRejectedError as exc:
+            raise ToolError(f"WRITE_PLUGIN_REJECTED: {exc}") from None
+        except WritePluginUnavailableError as exc:
+            raise ToolError(f"WRITE_PLUGIN_UNAVAILABLE: {exc}") from None
 
-        return {"success": result, "deleted_id": relationship_id}
+        response = EntityDeleteResponse(
+            success=delete_result.deleted, plugin_warnings=delete_result.plugin_warnings,
+        )
+        return {**response.model_dump(), "deleted_id": relationship_id}
 
     async def get_entity_memories(self, entity_id: int, ctx: Context) -> dict:
         """Adapter for get_entity_memories tool"""
@@ -2150,6 +2185,25 @@ class TaskToolAdapters:
         )
         return {"tasks": tasks, "total_count": len(tasks)}
 
+    @staticmethod
+    def _action_id(value: Any, field: str) -> int:
+        try:
+            return _coerce_int_id(value, field)
+        except ValueError:
+            raise ToolError(
+                f"{field} must be an integer, integral float, or integer string "
+                f"(got {type(value).__name__}); correct it and retry",
+            ) from None
+
+    @staticmethod
+    def _action_version(value: Any) -> int:
+        if type(value) is not int:
+            raise ToolError(
+                f"version must be an integer task version (got {type(value).__name__}); "
+                "call get_task and retry with its current version",
+            )
+        return value
+
     async def claim_task(
         self,
         task_id: int,
@@ -2157,6 +2211,14 @@ class TaskToolAdapters:
         version: int,
         ctx: Context,
     ):
+        """Claim a task after validating the MCP action arguments."""
+        version = self._action_version(version)
+        if not isinstance(agent_id, str):
+            raise ToolError(
+                f"agent_id must be a string (got {type(agent_id).__name__}); "
+                "correct it and retry",
+            )
+        task_id = self._action_id(task_id, "task_id")
         user = await get_user_from_auth(ctx)
         return await self.task_service.claim_task(
             user_id=user.id, task_id=task_id,
@@ -2170,11 +2232,26 @@ class TaskToolAdapters:
         version: int,
         ctx: Context,
     ):
+        """Transition a task after validating the MCP action arguments."""
         from app.models.plan_models import TaskState
+        version = self._action_version(version)
+        allowed_states = ", ".join(item.value for item in TaskState)
+        if not isinstance(state, str):
+            raise ToolError(
+                f"state must be a string with one of: {allowed_states} "
+                f"(got {type(state).__name__}); correct it and retry",
+            )
+        try:
+            new_state = TaskState(state)
+        except ValueError:
+            raise ToolError(
+                f"state must be one of: {allowed_states}; correct it and retry",
+            ) from None
+        task_id = self._action_id(task_id, "task_id")
         user = await get_user_from_auth(ctx)
         result = await self.task_service.transition_task(
             user_id=user.id, task_id=task_id,
-            new_state=TaskState(state), expected_version=version,
+            new_state=new_state, expected_version=version,
         )
         return TaskTransitionResponse(**result.task.model_dump(), plugin_warnings=result.plugin_warnings)
 
@@ -2217,6 +2294,9 @@ class TaskToolAdapters:
         depends_on_task_id: int,
         ctx: Context,
     ):
+        """Add a dependency after validating both MCP task identifiers."""
+        task_id = self._action_id(task_id, "task_id")
+        depends_on_task_id = self._action_id(depends_on_task_id, "depends_on_task_id")
         user = await get_user_from_auth(ctx)
         return await self.task_service.add_dependency(
             user_id=user.id, task_id=task_id,

@@ -21,6 +21,15 @@ This guide provides comprehensive documentation for all tools available in the F
 
 ---
 
+## REST list pagination is a separate contract
+
+The REST Projects, Plans, Tasks, Documents, Code Artifacts, Files and Skills lists
+return bounded pages by default. The operations in this MCP reference keep their
+existing full-collection results and arguments; this change does not add REST
+`limit`/`offset` parameters to MCP tools or the CLI registry calls. See the
+[REST pagination and migration guide](api_reference.md#resource-list-pagination-and-migration)
+for the HTTP contract and the required UI transition.
+
 ## Meta-Tools Pattern
 
 Forgetful uses a **meta-tools pattern** to preserve your LLM's context window. Only
@@ -249,12 +258,14 @@ Semantic search across all memories with context-aware ranking.
 - `importance_threshold` (optional): Minimum importance score
 - `project_ids` (optional): Project IDs to search
 - `strict_project_filter` (optional): Apply the project filter to linked memories
+- `response_format` (optional): `"full"` (default) or `"compact"`. Via `execute_forgetful_tool`, any other value raises `VALIDATION_ERROR` before the search runs
 
 **Returns:**
 - List of memories ranked by semantic relevance
 - Each memory includes linked artifacts and 1-hop graph connections
 - `scores`: One `MemoryScore` per primary memory (`memory_id`, `similarity`, `rerank_score`), aligned by index with `primary_memories`. Primaries are importance-sorted after retrieval, so list position is not similarity rank.
 - `access_count` / `last_accessed_at` on each returned **full** `Memory` (not on `MemorySummary`). On upstream they increment when `memory.queried` fires, which requires `ACTIVITY_TRACK_READS=true` and an EventBus. Not request parameters.
+- With `response_format="compact"`: each primary memory keeps only `id`, `title`, `content`, `context`, `importance`, `tags`, `project_ids`; each linked memory keeps the same keys plus `link_source_id`, with no nested `memory`; each score keeps `memory_id` and `similarity`, plus `fusion_score` when `HYBRID_SEARCH_ENABLED=true`. `query`, `total_count` and `truncated` are unchanged. `token_count` is still computed from the full query result payload (before compact projection), not from the compact response size. Use compact when the caller only needs the memory text, not timestamps, access counters or per-stage scores.
 
 **Example:**
 ```python
@@ -1501,7 +1512,9 @@ Create a typed relationship between two entities.
 - `metadata` (optional): Additional JSON metadata
 
 **Returns:**
-- Created relationship with `relationship_id`
+- Created relationship with `relationship_id`, with `plugin_warnings` only when nonempty when an
+  Entity Relationship Plugin is registered. Before-save errors: `WRITE_PLUGIN_REJECTED` or
+  `WRITE_PLUGIN_UNAVAILABLE`.
 
 **Example:**
 ```python
@@ -1574,7 +1587,9 @@ Update entity relationship (PATCH semantics).
 - `relationship_type`, `strength`, `confidence`, `metadata` (all optional)
 
 **Returns:**
-- Updated relationship object
+- Updated relationship object, with `plugin_warnings` only when nonempty when an Entity
+  Relationship Plugin is registered. Before-save errors: `WRITE_PLUGIN_REJECTED` or
+  `WRITE_PLUGIN_UNAVAILABLE`.
 
 **Example:**
 ```python
@@ -1600,7 +1615,8 @@ Delete entity relationship (removes knowledge graph edge).
 - `relationship_id` (required): Relationship ID
 
 **Returns:**
-- Confirmation of deletion
+- Confirmation of deletion, with `plugin_warnings` only when nonempty when an Entity Relationship
+  Plugin is registered
 
 **Example:**
 ```python

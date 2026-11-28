@@ -791,6 +791,13 @@ class InMemoryProjectRepository(ProjectRepository):
 
         return summaries
 
+
+    async def list_projects_page(self, user_id: UUID, status: ProjectStatus | None=None, repo_name: str | None=None, name: str | None=None, *, limit: int, offset: int) -> tuple[list[ProjectSummary], int]:
+        """Explicit in-memory test seam; full-list filters remain authoritative."""
+        rows = await self.list_projects(user_id=user_id, status=status, repo_name=repo_name, name=name)
+        rows.sort(key=lambda row: (row.created_at, row.id), reverse=True)
+        return rows[offset:offset + limit], len(rows)
+
     async def get_project_by_id(self, user_id: UUID, project_id: int) -> Project | None:
         """Get single project by ID"""
         user_projects = self._projects.get(user_id, {})
@@ -955,6 +962,13 @@ class InMemoryCodeArtifactRepository(CodeArtifactRepository):
         artifacts.sort(key=lambda a: a.created_at, reverse=True)
         return [CodeArtifactSummary.model_validate(a) for a in artifacts]
 
+
+    async def list_code_artifacts_page(self, user_id: UUID, project_id: int | None=None, language: str | None=None, tags: list[str] | None=None, *, limit: int, offset: int) -> tuple[list[CodeArtifactSummary], int]:
+        """Explicit in-memory test seam; full-list filters remain authoritative."""
+        rows = await self.list_code_artifacts(user_id=user_id, project_id=project_id, language=language, tags=tags)
+        rows.sort(key=lambda row: (row.created_at, row.id), reverse=True)
+        return rows[offset:offset + limit], len(rows)
+
     async def update_code_artifact(
         self, user_id: UUID, artifact_id: int, artifact_data: CodeArtifactUpdate,
     ) -> CodeArtifact:
@@ -1074,6 +1088,13 @@ class InMemoryDocumentRepository(DocumentRepository):
         documents.sort(key=lambda d: d.created_at, reverse=True)
         return [DocumentSummary.model_validate(d) for d in documents]
 
+
+    async def list_documents_page(self, user_id: UUID, project_id: int | None=None, document_type: str | None=None, tags: list[str] | None=None, *, limit: int, offset: int) -> tuple[list[DocumentSummary], int]:
+        """Explicit in-memory test seam; full-list filters remain authoritative."""
+        rows = await self.list_documents(user_id=user_id, project_id=project_id, document_type=document_type, tags=tags)
+        rows.sort(key=lambda row: (row.created_at, row.id), reverse=True)
+        return rows[offset:offset + limit], len(rows)
+
     async def update_document(
         self, user_id: UUID, document_id: int, document_data: DocumentUpdate,
     ) -> Document:
@@ -1191,6 +1212,13 @@ class InMemoryFileRepository(FileRepository):
 
         files.sort(key=lambda f: f.created_at, reverse=True)
         return [FileSummary.model_validate(f) for f in files]
+
+
+    async def list_files_page(self, user_id: UUID, project_id: int | None=None, mime_type: str | None=None, tags: list[str] | None=None, *, limit: int, offset: int) -> tuple[list[FileSummary], int]:
+        """Explicit in-memory test seam; full-list filters remain authoritative."""
+        rows = await self.list_files(user_id=user_id, project_id=project_id, mime_type=mime_type, tags=tags)
+        rows.sort(key=lambda row: (row.created_at, row.id), reverse=True)
+        return rows[offset:offset + limit], len(rows)
 
     async def update_file(
         self, user_id: UUID, file_id: int, file_data: FileUpdate,
@@ -1537,6 +1565,12 @@ class InMemoryEntityRepository(EntityRepository):
         relationships.sort(key=lambda r: r.created_at, reverse=True)
         return relationships
 
+    async def get_entity_relationship_by_id(
+        self, user_id: UUID, relationship_id: int,
+    ) -> EntityRelationship | None:
+        relationship = self._relationships.get(user_id, {}).get(relationship_id)
+        return relationship.model_copy(deep=True) if relationship else None
+
     async def update_entity_relationship(
         self,
         user_id: UUID,
@@ -1715,6 +1749,13 @@ class InMemoryPlanRepository(PlanRepository):
             for p in plans
         ]
 
+
+    async def list_plans_page(self, user_id: UUID, project_id: int | None=None, status: PlanStatus | None=None, external_ref: str | None=None, *, limit: int, offset: int) -> tuple[list[PlanSummary], int]:
+        """Explicit in-memory test seam; full-list filters remain authoritative."""
+        rows = await self.list_plans(user_id=user_id, project_id=project_id, status=status, external_ref=external_ref)
+        rows.sort(key=lambda row: (row.created_at, row.id), reverse=True)
+        return rows[offset:offset + limit], len(rows)
+
     async def update_plan(
         self, user_id: UUID, plan_id: int, plan_data: PlanUpdate,
     ) -> Plan:
@@ -1873,6 +1914,13 @@ class InMemoryTaskRepository(TaskRepository):
             )
 
         return summaries
+
+
+    async def list_tasks_page(self, user_id: UUID, plan_id: int, state: TaskState | None=None, priority: TaskPriority | None=None, assigned_agent: str | None=None, *, limit: int, offset: int) -> tuple[list[TaskSummary], int]:
+        """Explicit in-memory test seam; full-list filters remain authoritative."""
+        rows = await self.list_tasks(user_id=user_id, plan_id=plan_id, state=state, priority=priority, assigned_agent=assigned_agent)
+        rows.sort(key=lambda row: (row.created_at, row.id), reverse=False)
+        return rows[offset:offset + limit], len(rows)
 
     async def list_tasks_for_user(
         self,
@@ -2199,6 +2247,13 @@ class InMemorySkillRepository(SkillRepository):
 
         skills.sort(key=lambda s: s.created_at, reverse=True)
         return [SkillSummary.model_validate(s) for s in skills]
+
+
+    async def list_skills_page(self, user_id: UUID, project_id: int | None=None, tags: list[str] | None=None, importance_threshold: int | None=None, *, limit: int, offset: int) -> tuple[list[SkillSummary], int]:
+        """Explicit in-memory test seam; full-list filters remain authoritative."""
+        rows = await self.list_skills(user_id=user_id, project_id=project_id, tags=tags, importance_threshold=importance_threshold)
+        rows.sort(key=lambda row: (row.created_at, row.id), reverse=True)
+        return rows[offset:offset + limit], len(rows)
 
     async def update_skill(
         self, user_id: UUID, skill_id: int, skill_data: SkillUpdate,
@@ -2557,3 +2612,45 @@ async def document_store(sqlite_runtime_settings, monkeypatch):
     finally:
         await bus.wait_for_pending()
         await db.dispose()
+
+
+@pytest.fixture
+def entity_relationship_plugin_runtime(sqlite_runtime_settings, monkeypatch, tmp_path):
+    monkeypatch.setattr("app.bootstrap.check_first_run_models", lambda: None)
+    monkeypatch.syspath_prepend(str(tmp_path))
+    module_name = "runtime_relationship_checks"
+    (tmp_path / f"{module_name}.py").write_text("""
+from app.models.write_plugin_models import PluginWarning, WriteDecision
+from app.protocols.write_plugin_protocol import EntityRelationshipPlugin
+
+async def decide(request):
+    if request.operation == "delete":
+        kind, prefix = request.previous.relationship_type, "delete_"
+    else:
+        kind, prefix = request.proposed.relationship_type, ""
+        if kind == "works_for" and request.target.entity_type.value != "Organization":
+            return WriteDecision(outcome="reject", message="works_for must target an Organization.")
+    if kind == prefix + "blocked":
+        return WriteDecision(outcome="reject", message="Relationship type not allowed.")
+    if kind == prefix + "warn":
+        return WriteDecision(outcome="warn", message="Check the relationship.", code="rel")
+    if kind == prefix + "error":
+        raise RuntimeError("SECRET")
+    return WriteDecision(outcome="allow")
+
+async def notify(request):
+    return PluginWarning(message="Graph consumers notified.", code="notify")
+
+plugin = EntityRelationshipPlugin(
+    before_save={"create": decide, "update": decide, "delete": decide},
+    after_save={"delete": notify},
+)
+""")
+    from app.config.settings import settings
+
+    monkeypatch.setattr(settings, "ENTITY_RELATIONSHIP_PLUGIN", f"{module_name}:plugin")
+    monkeypatch.setattr(settings, "ENTITY_RELATIONSHIP_PLUGIN_MODE", "enforce")
+    yield module_name
+    import sys
+
+    sys.modules.pop(module_name, None)

@@ -405,11 +405,20 @@ def register_memory_tools_metadata(
                     "default": False,
                     "example": False,
                 },
+                {
+                    "name": "response_format",
+                    "type": 'Literal["full", "compact"]',
+                    "description": "Response projection: full (default) returns full Memory objects; compact returns a smaller token-economy shape",
+                    "required": False,
+                    "default": "full",
+                    "example": "compact",
+                },
             ],
-            "returns": "MemoryQueryResult with primary_memories, linked_memories, scores, total_count, token_count, truncated flag",
+            "returns": "MemoryQueryResult (response_format=full, default) or MemoryQueryCompactResult (compact). Compact primary keys: id, title, content, context, importance, tags, project_ids; linked adds link_source_id (flattened, no nested memory); scores: memory_id, similarity, plus fusion_score when HYBRID_SEARCH_ENABLED. Both include query, total_count, token_count, truncated.",
             "examples": [
                 'execute_forgetful_tool("query_memory", {"query": "authentication patterns", "query_context": "building API login", "k": 5})',
                 'execute_forgetful_tool("query_memory", {"query": "database design", "query_context": "schema review", "importance_threshold": 8, "k": 3})',
+                'execute_forgetful_tool("query_memory", {"query": "authentication patterns", "query_context": "building API login", "k": 5, "include_links": true, "response_format": "compact"})',
             ],
             "tags": ["memory", "search", "semantic", "query"],
         },
@@ -1678,7 +1687,11 @@ def register_entity_tools_metadata(
                 {"name": "agent_version", "type": "Optional[str]", "description": "Agent version for provenance tracking", "required": False, "default": None, "example": "1.0"},
                 {"name": "agent_model", "type": "Optional[str]", "description": "LLM model used for provenance tracking", "required": False, "default": None, "example": "claude-sonnet-4-6"},
             ],
-            "returns": "EntityRelationship with id and timestamps",
+            "returns": (
+                "Flat EntityRelationship after create, with plugin_warnings only when nonempty. "
+                "After-save warnings are advisory. Before-save errors: WRITE_PLUGIN_REJECTED "
+                "(correct the stated issue) or WRITE_PLUGIN_UNAVAILABLE."
+            ),
             "examples": [
                 'execute_forgetful_tool("create_entity_relationship", {"source_entity_id": 1, "target_entity_id": 2, "relationship_type": "works_for"})',
                 'execute_forgetful_tool("create_entity_relationship", {"source_entity_id": 8, "target_entity_id": 12, "relationship_type": "part_of"})',
@@ -1721,7 +1734,11 @@ def register_entity_tools_metadata(
                 {"name": "agent_version", "type": "Optional[str]", "description": "Agent version for provenance tracking", "required": False, "default": None, "example": "1.0"},
                 {"name": "agent_model", "type": "Optional[str]", "description": "LLM model used for provenance tracking", "required": False, "default": None, "example": "claude-sonnet-4-6"},
             ],
-            "returns": "Updated EntityRelationship object",
+            "returns": (
+                "Flat EntityRelationship after update, with plugin_warnings only when nonempty. "
+                "After-save warnings preserve success. Before-save errors: "
+                "WRITE_PLUGIN_REJECTED or WRITE_PLUGIN_UNAVAILABLE. No-op updates skip the plugin."
+            ),
             "examples": [
                 'execute_forgetful_tool("update_entity_relationship", {"relationship_id": 1, "strength": 0.95})',
             ],
@@ -1735,7 +1752,11 @@ def register_entity_tools_metadata(
                 {"name": "relationship_id", "type": "int", "description": "Relationship ID to delete", "required": True, "example": 1},
                 {"name": "ctx", "type": "Context", "description": "FastMCP Context (automatically injected)", "required": True},
             ],
-            "returns": "Dictionary with deletion confirmation",
+            "returns": (
+                "Dict with success boolean, deleted_id, and plugin_warnings only when nonempty. "
+                "After-save warnings preserve success. Before-save errors: WRITE_PLUGIN_REJECTED "
+                "or WRITE_PLUGIN_UNAVAILABLE."
+            ),
             "examples": [
                 'execute_forgetful_tool("delete_entity_relationship", {"relationship_id": 1})',
             ],
@@ -2050,9 +2071,9 @@ def register_task_tools_metadata(
             "mutates": True,
             "description": "Claim a task for an agent with optimistic concurrency control",
             "parameters": [
-                {"name": "task_id", "type": "int", "description": "ID of the task to claim", "required": True, "example": 1},
-                {"name": "agent_id", "type": "str", "description": "ID of the agent claiming the task", "required": True, "example": "agent-123"},
-                {"name": "version", "type": "int", "description": "Expected task version for optimistic locking", "required": True, "example": 1},
+                {"name": "task_id", "type": "int", "description": "Task ID: integer, integral float, or integer string per the MCP ID rule", "required": True, "example": 1},
+                {"name": "agent_id", "type": "str", "description": "String ID of the agent claiming the task", "required": True, "example": "agent-123"},
+                {"name": "version", "type": "int", "description": "Current task version as a JSON integer only; booleans, floats, and strings are rejected", "required": True, "example": 1},
                 {"name": "ctx", "type": "Context", "description": "FastMCP Context (automatically injected)", "required": True},
             ],
             "returns": "Updated Task object with agent assignment",
@@ -2066,9 +2087,9 @@ def register_task_tools_metadata(
             "mutates": True,
             "description": "Transition task to a new state with optimistic concurrency control",
             "parameters": [
-                {"name": "task_id", "type": "int", "description": "ID of the task to transition", "required": True, "example": 1},
-                {"name": "state", "type": "str", "description": "Target state (todo, doing, waiting, done, cancelled)", "required": True, "example": "done"},
-                {"name": "version", "type": "int", "description": "Expected task version for optimistic locking", "required": True, "example": 2},
+                {"name": "task_id", "type": "int", "description": "Task ID: integer, integral float, or integer string per the MCP ID rule", "required": True, "example": 1},
+                {"name": "state", "type": "str", "description": "Allowed state: todo, doing, waiting, done, or cancelled", "required": True, "example": "done"},
+                {"name": "version", "type": "int", "description": "Current task version as a JSON integer only; booleans, floats, and strings are rejected", "required": True, "example": 2},
                 {"name": "ctx", "type": "Context", "description": "FastMCP Context (automatically injected)", "required": True},
             ],
             "returns": "Flat updated Task with new state and nonempty-only plugin_warnings; plan_auto_completion_* warns of secondary parent failure after task commit",
@@ -2126,8 +2147,8 @@ def register_task_tools_metadata(
             "mutates": True,
             "description": "Add a dependency between tasks (task depends on another task)",
             "parameters": [
-                {"name": "task_id", "type": "int", "description": "ID of the dependent task", "required": True, "example": 2},
-                {"name": "depends_on_task_id", "type": "int", "description": "ID of the task it depends on", "required": True, "example": 1},
+                {"name": "task_id", "type": "int", "description": "Dependent task ID: integer, integral float, or integer string per the MCP ID rule", "required": True, "example": 2},
+                {"name": "depends_on_task_id", "type": "int", "description": "Dependency task ID: integer, integral float, or integer string per the MCP ID rule", "required": True, "example": 1},
                 {"name": "ctx", "type": "Context", "description": "FastMCP Context (automatically injected)", "required": True},
             ],
             "returns": "Dependency object",

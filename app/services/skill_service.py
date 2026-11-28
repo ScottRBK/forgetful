@@ -282,6 +282,45 @@ class SkillService:
 
         return skills
 
+    async def list_skills_page(
+        self,
+        user_id: UUID,
+        project_id: int | None = None,
+        tags: list[str] | None = None,
+        importance_threshold: int | None = None,
+        *,
+        limit: int,
+        offset: int,
+    ) -> tuple[list[SkillSummary], int]:
+        """Return one bounded page and its full filtered total for REST callers."""
+        items, total = await self.skill_repo.list_skills_page(
+            user_id=user_id,
+            project_id=project_id,
+            tags=tags,
+            importance_threshold=importance_threshold,
+            limit=limit,
+            offset=offset,
+        )
+        if settings.ACTIVITY_TRACK_READS and self._event_bus:
+            await self._emit_event(
+                user_id=user_id,
+                entity_type=EntityType.SKILL,
+                entity_id=0,
+                action=ActionType.QUERIED,
+                snapshot={
+                    "result_ids": [item.id for item in items],
+                    "total_count": total,
+                },
+                metadata={
+                    "project_id": project_id,
+                    "tags": tags,
+                    "importance_threshold": importance_threshold,
+                    "limit": limit,
+                    "offset": offset,
+                },
+            )
+        return items, total
+
     async def update_skill(
         self,
         user_id: UUID,

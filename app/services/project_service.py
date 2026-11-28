@@ -156,6 +156,45 @@ class ProjectService:
 
         return projects
 
+    async def list_projects_page(
+        self,
+        user_id: UUID,
+        status: ProjectStatus | None = None,
+        repo_name: str | None = None,
+        name: str | None = None,
+        *,
+        limit: int,
+        offset: int,
+    ) -> tuple[list[ProjectSummary], int]:
+        """Return one bounded page and its full filtered total for REST callers."""
+        items, total = await self.project_repo.list_projects_page(
+            user_id=user_id,
+            status=status,
+            repo_name=repo_name,
+            name=name,
+            limit=limit,
+            offset=offset,
+        )
+        if settings.ACTIVITY_TRACK_READS and self._event_bus:
+            await self._emit_event(
+                user_id=user_id,
+                entity_type=EntityType.PROJECT,
+                entity_id=0,
+                action=ActionType.QUERIED,
+                snapshot={
+                    "result_ids": [item.id for item in items],
+                    "total_count": total,
+                },
+                metadata={
+                    "status": status.value if status else None,
+                    "repo_name": repo_name,
+                    "name": name,
+                    "limit": limit,
+                    "offset": offset,
+                },
+            )
+        return items, total
+
     async def get_project(self, user_id: UUID, project_id: int) -> Project:
         """Get single project by ID
 
