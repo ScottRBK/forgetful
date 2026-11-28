@@ -131,6 +131,22 @@
           # 5. Runtime env from the lock (default groups)
           forgetfulEnv = pythonSet.mkVirtualEnv "forgetful-env" workspace.deps.default;
 
+          # 5a. Development env: the same runtime deps plus the `dev` group.
+          #
+          # The architecture contracts need import-linter, which is declared in
+          # [dependency-groups] dev. `deps.default` is uv's default-groups and
+          # carries no groups, so a shell built from it has no grimp and
+          # tests/architecture cannot be collected at all.
+          #
+          # Kept as a separate environment rather than widening forgetfulEnv:
+          # the runtime env feeds appPkg and the container, and dev-only
+          # tooling has no business in either. The spec is derived from the
+          # workspace rather than hardcoding the project name, and names only
+          # the group we need so the `harness` group and the `ollama` extra
+          # stay out of the shell.
+          devEnvSpec = builtins.mapAttrs (_: _: [ "dev" ]) workspace.deps.default;
+          devEnv = pythonSet.mkVirtualEnv "forgetful-dev-env" devEnvSpec;
+
           # 6. App package: stdenv + makeWrapper around the runtime env
           #
           # Limit the wrapper's source to the files copied by installPhase.
@@ -254,16 +270,30 @@
 
           devShells.default = pkgs.mkShell {
             packages = [
-              forgetfulEnv
+              devEnv
               pkgs.uv
               pkgs.ruff
               pkgs.python312Packages.pytest
               pkgs.python312Packages.pytest-asyncio
+              # pg_dump/psql drive the PostgreSQL backup and restore tests. The
+              # shell must provide them: relying on a user profile made those
+              # tests pass or fail depending on whose machine ran them.
+              pkgs.postgresql_16 # psql and pg_dump for the backup tests
             ]
             ++ config.pre-commit.settings.enabledPackages;
             shellHook = ''
               ${config.pre-commit.shellHook}
               export PYTHONPATH="$PWD:$PYTHONPATH"
+              # The embedding model, reranking model and tokenizer come from the
+              # same pinned fixtures the sandboxed check uses, so the suite needs
+              # no download and no warm cache in the developer's home. The
+              # offline switches make a missing fixture fail loudly instead of
+              # reaching for the network.
+              export FASTEMBED_CACHE_DIR=${testFixtures.fastembedCache}
+              export FASTEMBED_LOCAL_FILES_ONLY=1
+              export HF_HUB_OFFLINE=1
+              export TIKTOKEN_CACHE_DIR=${testFixtures.tiktokenCache}
+              export SSL_CERT_FILE=${testFixtures.caBundle}
             '';
           };
 

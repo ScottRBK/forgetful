@@ -125,6 +125,40 @@ iterating:
 nix develop -c pytest tests/integration/ -q
 ```
 
+`tests/architecture` runs there too. It needs `import-linter` and `grimp`, which
+live in the `dev` dependency group, so the shell builds `forgetful-dev-env` from
+`deps.default` with the `dev` group added rather than widening the runtime
+environment. The runtime env feeds `packages.forgetful-ai` and the container,
+and architecture tooling does not belong in either.
+
+```bash
+nix develop -c pytest tests/architecture/ -q
+```
+
+The shell also installs `postgresql_16`, which is where the PostgreSQL tier's
+`pg_dump` and `psql` come from. Without it those tests pass or fail according to
+what the user's profile happens to contain.
+
+It also provides the embedding model, the reranking model and the tokenizer
+blob, from the same fixtures `nix/test-fixtures.nix` builds for the sandboxed
+check. It exports `FASTEMBED_LOCAL_FILES_ONLY` and `HF_HUB_OFFLINE` as
+well, so a missing fixture fails loudly instead of reaching for the network.
+Providing them costs nothing extra, because the check builds them anyway.
+
+Making the model-dependent tests an opt-in tier was the alternative, and it was
+rejected. Those tests are most of the suite, so a default run that skipped them
+would prove far less than CI does, which is the opposite of what a local run is
+for. Anyone experimenting with a different provider can override
+`FASTEMBED_CACHE_DIR`, `FASTEMBED_LOCAL_FILES_ONLY` and `HF_HUB_OFFLINE` in their
+own shell; the defaults suit the pinned models.
+
+One command runs the tiers CI runs:
+
+```bash
+nix develop --command uv run --frozen pytest \
+  tests/architecture tests/integration tests/e2e_sqlite tests/e2e_provider_sessions
+```
+
 ## Non-flake entry points
 
 `default.nix` and `shell.nix` exist for tooling without native flake support.
