@@ -15,24 +15,17 @@ from starlette.responses import JSONResponse
 
 from app.middleware.auth import get_user_from_request
 from app.models.activity_models import ActionType, ActorType, EntityType
-from app.routes.api.params import parse_path_int
+from app.routes.api.params import parse_int_param, parse_path_int
 
 logger = logging.getLogger(__name__)
 
 
-def parse_int_param(params, key: str, default: int) -> int:
-    """Parse integer query parameter with default."""
-    value = params.get(key)
-    if value is None:
-        return default
-    try:
-        return int(value)
-    except ValueError:
-        return default
-
-
 def parse_datetime_param(params, key: str) -> datetime | None:
-    """Parse ISO 8601 datetime query parameter."""
+    """Parse ISO 8601 datetime query parameter.
+
+    Raises:
+        ValueError: If the value is present but not an ISO 8601 datetime
+    """
     value = params.get(key)
     if value is None:
         return None
@@ -40,7 +33,9 @@ def parse_datetime_param(params, key: str) -> datetime | None:
         # Handle both with and without timezone
         return datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError:
-        return None
+        raise ValueError(
+            f"Invalid value for '{key}': must be an ISO 8601 datetime",
+        ) from None
 
 
 def register(mcp: FastMCP):
@@ -80,10 +75,13 @@ def register(mcp: FastMCP):
         action = params.get("action")
         entity_id_str = params.get("entity_id")
         actor = params.get("actor")
-        since = parse_datetime_param(params, "since")
-        until = parse_datetime_param(params, "until")
-        limit = parse_int_param(params, "limit", 50)
-        offset = parse_int_param(params, "offset", 0)
+        try:
+            since = parse_datetime_param(params, "since")
+            until = parse_datetime_param(params, "until")
+            limit = parse_int_param(params, "limit", 50)
+            offset = parse_int_param(params, "offset", 0)
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         # Validate limit
         if limit < 1 or limit > 100:
@@ -208,8 +206,11 @@ def register(mcp: FastMCP):
             return JSONResponse({"error": str(e)}, status_code=400)
 
         params = request.query_params
-        limit = parse_int_param(params, "limit", 50)
-        offset = parse_int_param(params, "offset", 0)
+        try:
+            limit = parse_int_param(params, "limit", 50)
+            offset = parse_int_param(params, "offset", 0)
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         # Validate limit
         if limit < 1 or limit > 100:
