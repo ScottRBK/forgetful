@@ -2161,6 +2161,25 @@ class TaskToolAdapters:
         )
         return {"tasks": tasks, "total_count": len(tasks)}
 
+    @staticmethod
+    def _action_id(value: Any, field: str) -> int:
+        try:
+            return _coerce_int_id(value, field)
+        except ValueError:
+            raise ToolError(
+                f"{field} must be an integer, integral float, or integer string "
+                f"(got {type(value).__name__}); correct it and retry",
+            ) from None
+
+    @staticmethod
+    def _action_version(value: Any) -> int:
+        if type(value) is not int:
+            raise ToolError(
+                f"version must be an integer task version (got {type(value).__name__}); "
+                "call get_task and retry with its current version",
+            )
+        return value
+
     async def claim_task(
         self,
         task_id: int,
@@ -2168,6 +2187,14 @@ class TaskToolAdapters:
         version: int,
         ctx: Context,
     ):
+        """Claim a task after validating the MCP action arguments."""
+        version = self._action_version(version)
+        if not isinstance(agent_id, str):
+            raise ToolError(
+                f"agent_id must be a string (got {type(agent_id).__name__}); "
+                "correct it and retry",
+            )
+        task_id = self._action_id(task_id, "task_id")
         user = await get_user_from_auth(ctx)
         return await self.task_service.claim_task(
             user_id=user.id, task_id=task_id,
@@ -2181,11 +2208,26 @@ class TaskToolAdapters:
         version: int,
         ctx: Context,
     ):
+        """Transition a task after validating the MCP action arguments."""
         from app.models.plan_models import TaskState
+        version = self._action_version(version)
+        allowed_states = ", ".join(item.value for item in TaskState)
+        if not isinstance(state, str):
+            raise ToolError(
+                f"state must be a string with one of: {allowed_states} "
+                f"(got {type(state).__name__}); correct it and retry",
+            )
+        try:
+            new_state = TaskState(state)
+        except ValueError:
+            raise ToolError(
+                f"state must be one of: {allowed_states}; correct it and retry",
+            ) from None
+        task_id = self._action_id(task_id, "task_id")
         user = await get_user_from_auth(ctx)
         result = await self.task_service.transition_task(
             user_id=user.id, task_id=task_id,
-            new_state=TaskState(state), expected_version=version,
+            new_state=new_state, expected_version=version,
         )
         return TaskTransitionResponse(**result.task.model_dump(), plugin_warnings=result.plugin_warnings)
 
@@ -2228,6 +2270,9 @@ class TaskToolAdapters:
         depends_on_task_id: int,
         ctx: Context,
     ):
+        """Add a dependency after validating both MCP task identifiers."""
+        task_id = self._action_id(task_id, "task_id")
+        depends_on_task_id = self._action_id(depends_on_task_id, "depends_on_task_id")
         user = await get_user_from_auth(ctx)
         return await self.task_service.add_dependency(
             user_id=user.id, task_id=task_id,
